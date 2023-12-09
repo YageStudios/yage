@@ -1,0 +1,96 @@
+{
+  "name": "yage",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/*.js"
+    },
+    "./components/*": {
+      "import": "./dist/components/*.js"
+    },
+    "./connection/*": {
+      "import": "./dist/connection/*.js"
+    },
+    "./console/*": {
+      "import": "./dist/console/*.js"
+    },
+    "./constants/*": {
+      "import": "./dist/constants/*.js"
+    },
+    "./decorators/*": {
+      "import": "./dist/decorators/*.js"
+    },
+    "./entity/*": {
+      "import": "./dist/entity/*.js"
+    },
+    "./game/*": {
+      "import": "./dist/game/*.js"
+    },
+    "./inputs/*": {
+      "import": "./dist/inputs/*.js"
+    },
+    "./loader/*": {
+      "import": "./dist/loader/*.js"
+    },
+    "./persist/*": {
+      "import": "./dist/persist/*.js"
+    },
+    "./schemas/*": {
+      "import": "./dist/schemas/*.js"
+    },
+    "./types/*": {
+      "import": "./dist/types/*.js"
+    },
+    "./ui/*": {
+      "import": "./dist/ui/*.js"
+    },
+    "./utils/*": {
+      "import": "./dist/utils/*.js"
+    },
+    "./vendor/*": {
+      "import": "./dist/vendor/*.js"
+    }
+  },
+  "scripts": {
+    "dev": "vite",
+    "lint": "eslint --ext .ts ./src ./engine",
+    "tsc": "tsc --noEmit",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "pretty": "prettier --write \"./**/*.{js,jsx,json,ts}\""
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.14.191",
+    "@types/ndarray": "^1.0.11",
+    "@types/seedrandom": "^3.0.2",
+    "@types/toposort": "^2.0.3",
+    "@typescript-eslint/eslint-plugin": "^5.55.0",
+    "@typescript-eslint/parser": "^5.55.0",
+    "eslint": "^8.36.0",
+    "eslint-plugin-unused-imports": "^2.0.0",
+    "prettier": "^2.8.0",
+    "typescript": "^5.0.2",
+    "vite": "^4.5.0",
+    "vite-plugin-dts": "^3.6.4"
+  },
+  "dependencies": {
+    "@dimforge/rapier2d-compat": "^0.11.2",
+    "@json-editor/json-editor": "^2.9.0-beta.0",
+    "ajv": "^8.11.2",
+    "bitecs": "^0.3.38",
+    "l1-path-finder": "^1.0.0",
+    "lodash": "^4.17.21",
+    "nanoid": "^5.0.2",
+    "ndarray": "^1.0.19",
+    "peerjs": "^1.5.1",
+    "pixi-spine": "^4.0.4",
+    "pixi-viewport": "^5.0.2",
+    "pixi.js": "^7.3.2",
+    "seedrandom": "^3.0.5",
+    "socket.io-client": "^4.7.2",
+    "toposort": "^2.0.2",
+    "url": "^0.11.0"
+  }
+}
