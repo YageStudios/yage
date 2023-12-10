@@ -22,6 +22,13 @@ export class Position {
   }
 }
 
+export const isRectangle = (rect: Rectangle | Position): rect is Rectangle => {
+  if ((rect as Rectangle).left !== undefined) {
+    return true;
+  }
+  return false;
+};
+
 export class Rectangle {
   left: number;
   top: number;

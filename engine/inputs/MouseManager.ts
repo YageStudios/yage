@@ -5,7 +5,7 @@ export class MouseManager {
   mousePosition: Vector2d = { x: 0, y: 0 };
   buttons = 0;
 
-  private constructor() {
+  constructor() {
     const interactionDiv = document.getElementById("interaction") as HTMLElement;
     interactionDiv.addEventListener("mousemove", this.handleMouseMove.bind(this));
     interactionDiv.addEventListener("mousedown", this.handleMouseDown.bind(this));

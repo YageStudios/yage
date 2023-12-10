@@ -66,7 +66,7 @@ export default class SpriteLoader {
   loadSprite(name: string, url: string, options?: Partial<SpriteOptions>): Promise<string> {
     if (this.spriteCache[name]) {
       let spriteUrl;
-      if (this.spriteCache[name] instanceof Array) {
+      if (Array.isArray(this.spriteCache[name])) {
         const first = (this.spriteCache[name] as Sprite[])[0] as Sprite;
         spriteUrl = first.url;
         if (spriteUrl !== url) {
@@ -150,7 +150,7 @@ export default class SpriteLoader {
               return;
             }
             spriteOptions.structure.forEach((structure) => {
-              const structureNames = structure.name instanceof Array ? structure.name : [structure.name];
+              const structureNames = Array.isArray(structure.name) ? structure.name : [structure.name];
               let suboffset = 0;
               structureNames.forEach((subName) => {
                 const subSprites: Sprite[] = [];

@@ -248,7 +248,8 @@ export function Bitecs() {
   return function (cls: any) {
     bitecsComponents.add(cls);
     cls.__bitecs.__changes = "ui32";
-    cls.store = bitecs.defineComponent(cls.__bitecs, 0);
+    const type = cls.__type;
+    cls.store = assignGlobalSingleton(type + "bitec_store", () => bitecs.defineComponent(cls.__bitecs, 0));
   };
 }
 

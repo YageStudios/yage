@@ -1,5 +1,5 @@
 import type { GameModel } from "@/game/GameModel";
-import { Position, Rectangle } from "./Rectangle";
+import { Position, Rectangle, isRectangle } from "./Rectangle";
 import { nanoid } from "nanoid";
 import { positionToCanvasSpace } from "./utils";
 
@@ -43,7 +43,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   }
 
   updateBounds(bounds: Rectangle | Position) {
-    if (bounds instanceof Rectangle) {
+    if (isRectangle(bounds)) {
       this.bounds = bounds.toPosition();
     } else {
       this.bounds = bounds;
@@ -62,7 +62,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
         ..._config.style,
       },
     };
-    if (bounds instanceof Rectangle) {
+    if (isRectangle(bounds)) {
       this.bounds = bounds.toPosition();
     } else {
       this.bounds = bounds;
