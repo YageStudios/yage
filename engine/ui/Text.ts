@@ -33,7 +33,7 @@ export class Text extends UIElement<TextConfig> {
   constructor(bounds: [number, number], config: Partial<TextConfig>);
   constructor(bounds: Position | Rectangle | [number, number], config: Partial<TextConfig>) {
     if (Array.isArray(bounds)) {
-      bounds = new Rectangle(bounds[0], bounds[1], 0, 0);
+      bounds = new Position(bounds[0], bounds[1], { width: 0, height: 0 });
     }
     super(bounds, config, defaultStyle);
   }
