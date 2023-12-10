@@ -69,6 +69,8 @@ export class Rectangle {
   }
 
   toPosition(): Position {
-    return new Position(this.justify || this.x, this.align || this.y, { width: this.width, height: this.height });
+    let x = (this.x / 1920) * 100;
+    let y = (this.y / 1080) * 100;
+    return new Position(this.justify || x, this.align || y, { width: this.width, height: this.height });
   }
 }
