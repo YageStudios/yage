@@ -10,6 +10,9 @@
     "./components/*": {
       "import": "./dist/components/*.js"
     },
+    "./components": {
+      "import": "./dist/components/index.js"
+    },
     "./connection/*": {
       "import": "./dist/connection/*.js"
     },
@@ -39,6 +42,9 @@
     },
     "./schemas/*": {
       "import": "./dist/schemas/*.js"
+    },
+    "./schemas": {
+      "import": "./dist/schemas/index.js"
     },
     "./types/*": {
       "import": "./dist/types/*.js"
