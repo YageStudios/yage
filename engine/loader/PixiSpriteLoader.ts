@@ -117,7 +117,7 @@ export class PixiSpriteLoader {
     return t;
   }
 
-  static getInstance() {
+  static getInstance(): PixiSpriteLoader {
     return assignGlobalSingleton("PixiSpriteLoader", () => new PixiSpriteLoader());
   }
   spriteLibrary = new Map<string, PIXI.Spritesheet>();

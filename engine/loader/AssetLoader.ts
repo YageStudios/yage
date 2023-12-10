@@ -18,7 +18,7 @@ import { UIConfig } from "@/ui/UiConfigs";
 import { assignGlobalSingleton } from "@/global";
 
 export default class AssetLoader {
-  static getInstance() {
+  static getInstance(): AssetLoader {
     return assignGlobalSingleton("assetLoader", () => new AssetLoader());
   }
 

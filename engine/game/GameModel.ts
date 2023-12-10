@@ -682,7 +682,7 @@ export class GameModel {
     return !!componentList[index].schema?.store;
   };
 
-  getSystem = <T>(type: Constructor<T> | typeof Schema | string | number) => {
+  getSystem = <T extends System>(type: Constructor<T> | typeof Schema | string | number) => {
     let typeString = (type as any)?.__type;
     if (!typeString) {
       const index = getIndex(type as any);
@@ -691,6 +691,17 @@ export class GameModel {
 
     // @ts-ignore
     return this.systems[typeString] as T;
+  };
+
+  getPixiSystem = <T extends PixiDrawSystem>(type: Constructor<T> | typeof Schema | string | number) => {
+    let typeString = (type as any)?.__type;
+    if (!typeString) {
+      const index = getIndex(type as any);
+      typeString = componentList[index].type;
+    }
+
+    // @ts-ignore
+    return this.drawComponents[typeString] as T;
   };
 
   getTyped = <T>(entity: number, type: Constructor<T>) => {

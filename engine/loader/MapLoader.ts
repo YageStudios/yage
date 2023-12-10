@@ -103,7 +103,7 @@ export default class MapLoader {
   private mapFloors: { [key: string]: IsometricFloor[] } = {};
   skins: { [key: string]: MapSkinJson } = {};
 
-  static getInstance() {
+  static getInstance(): MapLoader {
     return assignGlobalSingleton("MapLoader", () => new MapLoader());
   }
 
