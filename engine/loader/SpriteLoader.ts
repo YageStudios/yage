@@ -55,7 +55,7 @@ const defaultOptions: SpriteOptions = {
 };
 
 export default class SpriteLoader {
-  static getInstance() {
+  static getInstance(): SpriteLoader {
     return assignGlobalSingleton("SpriteLoader", () => new SpriteLoader());
   }
 

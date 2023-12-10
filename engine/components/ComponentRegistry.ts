@@ -210,6 +210,7 @@ export const registerPixiComponent = (type: string, system: new () => PixiDrawSy
   // if (componentIndexMap[type] === undefined) {
   //   throw new Error(`Component ${type} not registered`);
   // }
+  system.prototype.__type = type;
   pixiDrawComponents.push({
     type: type,
     id: -1,

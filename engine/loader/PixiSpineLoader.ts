@@ -6,7 +6,7 @@ import * as PIXI from "pixi.js";
 export class PixiSpineLoader {
   pixiSpineLibrary = new Map<string, any>();
 
-  static getInstance() {
+  static getInstance(): PixiSpineLoader {
     return assignGlobalSingleton("PixiSpineLoader", () => new PixiSpineLoader());
   }
 

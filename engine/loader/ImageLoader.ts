@@ -31,7 +31,7 @@ export type ImageObj = ImageOptions & {
 };
 
 export default class ImageLoader {
-  static getInstance() {
+  static getInstance(): ImageLoader {
     return assignGlobalSingleton("ImageLoaderInstance", () => new ImageLoader());
   }
 
