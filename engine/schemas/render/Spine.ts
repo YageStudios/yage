@@ -65,4 +65,8 @@ export class SpineSchema extends Schema {
   @type("number")
   @defaultValue(0.5)
   anchorY: number;
+
+  @type("number")
+  @defaultValue(0)
+  antiJitterTime: number;
 }

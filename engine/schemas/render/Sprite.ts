@@ -70,4 +70,8 @@ export class SpriteSchema extends Schema {
   @type("number")
   @defaultValue(0.5)
   anchorY: number;
+
+  @type("boolean")
+  @defaultValue(0)
+  antiJitterTime: number;
 }

@@ -35,6 +35,7 @@ export type PixiSpriteSchema = {
   spriteKey: string;
   container: PIXI.Container;
   debug?: PIXI.Container;
+  lastFlip: number;
 };
 
 export class SpriteComponentPixi implements PixiDrawSystem {
@@ -69,13 +70,19 @@ export class SpriteComponentPixi implements PixiDrawSystem {
         xDirection = LocomotionSchema.store.directionX[owner];
       }
 
-      if (xDirection < 0) {
-        sprite.scale.x = -1;
-      } else {
-        sprite.scale.x = 1;
+      if (!data.antiJitterTime || gameModel.timeElapsed - pixiData.lastFlip > data.antiJitterTime) {
+        if (xDirection < 0) {
+          sprite.scale.x = -1;
+        } else {
+          sprite.scale.x = 1;
+        }
+        pixiData.lastFlip = gameModel.timeElapsed;
       }
     } else if (data.faceDirection === FaceDirectionEnum.VERTICAL) {
-      container.scale.y = direction.y < 0 ? -1 * data.scale : 1 * data.scale;
+      if (!data.antiJitterTime || gameModel.timeElapsed - pixiData.lastFlip > data.antiJitterTime) {
+        container.scale.y = direction.y < 0 ? -1 * data.scale : 1 * data.scale;
+        pixiData.lastFlip = gameModel.timeElapsed;
+      }
     } else if (data.faceDirection === FaceDirectionEnum.HORIZONTAL_ROTATE) {
       // let rotation = 0;
       // if (
@@ -129,6 +136,7 @@ export class SpriteComponentPixi implements PixiDrawSystem {
     const instance: Partial<PixiSpriteSchema> = {
       container: this.instances[entity]?.container ?? new PIXI.Container(),
       debug: this.instances[entity]?.debug,
+      lastFlip: 0,
     };
 
     if (!instance.debug) {
