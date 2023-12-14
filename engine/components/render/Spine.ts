@@ -34,6 +34,7 @@ export type PixiSpineSchema = {
   spineKey: string;
   container: PIXI.Container;
   debug?: PIXI.Container;
+  lastFlip: number;
 };
 
 export class SpineComponentPixi implements PixiDrawSystem {
@@ -68,11 +69,13 @@ export class SpineComponentPixi implements PixiDrawSystem {
         const owner = gameModel.getComponent(entity, ChildSchema).parent;
         xDirection = LocomotionSchema.store.directionX[owner];
       }
-
-      if (xDirection < 0) {
-        spine.scale.x = -1;
-      } else {
-        spine.scale.x = 1;
+      if (!data.antiJitterTime || gameModel.timeElapsed - pixiData.lastFlip > data.antiJitterTime) {
+        if (xDirection < 0) {
+          spine.scale.x = -1;
+        } else {
+          spine.scale.x = 1;
+        }
+        pixiData.lastFlip = gameModel.timeElapsed;
       }
     }
 
@@ -82,9 +85,12 @@ export class SpineComponentPixi implements PixiDrawSystem {
 
     if (data.yscale !== undefined) {
       spine.scale.y *= data.yscale;
+    } else if (data.faceDirection === FaceDirectionEnum.VERTICAL) {
+      if (!data.antiJitterTime || gameModel.timeElapsed - pixiData.lastFlip > data.antiJitterTime) {
+        container.scale.y = direction.y < 0 ? -1 * data.scale : 1 * data.scale;
+        pixiData.lastFlip = gameModel.timeElapsed;
+      }
     }
-    // } else if (data.faceDirection === FaceDirectionEnum.VERTICAL) {
-    //   container.scale.y = direction.y < 0 ? -1 * data.scale : 1 * data.scale;
     // } else if (data.faceDirection === FaceDirectionEnum.HORIZONTAL_ROTATE) {
     //   // let rotation = 0;
     //   // if (
@@ -138,6 +144,7 @@ export class SpineComponentPixi implements PixiDrawSystem {
     const instance: Partial<PixiSpineSchema> = {
       container: this.instances[entity]?.container ?? new PIXI.Container(),
       debug: this.instances[entity]?.debug,
+      lastFlip: 0,
     };
 
     if (!instance.debug) {
