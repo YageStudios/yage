@@ -74,6 +74,11 @@ export class TextInput extends UIElement<TextInputConfig> {
     document.removeEventListener("keydown", this.listenKeyPress);
   }
 
+  onDestroy(): void {
+    super.onDestroy();
+    document.removeEventListener("keydown", this.listenKeyPress);
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-empty-function
   protected updateInternal(gameModel: GameModel): void {}
 

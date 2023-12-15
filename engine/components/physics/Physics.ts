@@ -149,6 +149,7 @@ registerUIComponent("Physics", (uiService, entity, gameModel: GameModel, viewpor
   if (hacks.DEBUG) {
     if (!lines) {
       lines = new PIXI.Graphics();
+      lines.zIndex = Number.MAX_SAFE_INTEGER;
       viewport.addChild(lines);
     }
     const buffers = gameModel.getSystem(PhysicsSystem).world.debugRender();
