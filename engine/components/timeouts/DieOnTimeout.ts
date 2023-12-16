@@ -19,7 +19,7 @@ registerSystem(DieOnTimeoutSystem);
 
 function updateTimeout(entity: number, timeout: DieOnTimeoutSchema, gameModel: GameModel) {
   if (timeout.endFrame === 0) {
-    timeout.endFrame = gameModel.timeElapsed + timeout.timeoutMs / 1000;
+    timeout.endFrame = gameModel.timeElapsed + timeout.timeoutMs;
   }
   if (timeout.endFrame < gameModel.timeElapsed) {
     gameModel.getComponent(entity, "Health").health = 0;

@@ -187,6 +187,13 @@ export class EntityFactory {
       }
       if (data.startsWith("rand:")) {
         const randValue = gameModel.rand.number();
+        const [min, max] = data.substring("rand:".length).split(":");
+        if (min) {
+          if (max) {
+            return randValue * (parseInt(max) - parseInt(min)) + parseInt(min);
+          }
+          return randValue * parseInt(min);
+        }
         return randValue;
       } else if (data.startsWith("randint:")) {
         const [min, max] = data.substring("randint:".length).split(":");

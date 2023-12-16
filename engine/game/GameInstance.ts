@@ -101,7 +101,7 @@ export class GameInstance {
       }
 
       this.gameModel.frame++;
-      this.gameModel.timeElapsed += dt / 1000;
+      this.gameModel.timeElapsed += dt;
 
       this.gameModel.runPixiComponents();
       this.gameModel.runUIComponents();

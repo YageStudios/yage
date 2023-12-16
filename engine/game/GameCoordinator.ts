@@ -115,11 +115,11 @@ export class GameCoordinator {
     }
   }
 
-  private async changeScene(scene: string, ...args: any[]) {
+  async changeScene(scene: string, ...args: any[]) {
     scene = scene.toLocaleLowerCase();
     if (this.currentScene) {
       // this.pixiApp.stage.removeChild(this.currentScene as DisplayObject);
-      // this.currentScene.destroy();
+      this.currentScene.destroy();
       this.pixiApp.destroy(false, {
         children: true,
         texture: false,
