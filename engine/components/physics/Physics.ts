@@ -145,28 +145,40 @@ registerSystem(PhysicsSystem);
 
 let lines: PIXI.Graphics | undefined;
 
-registerUIComponent("Physics", (uiService, entity, gameModel: GameModel, viewport: Viewport) => {
-  if (hacks.DEBUG) {
-    if (!lines) {
-      lines = new PIXI.Graphics();
-      lines.zIndex = Number.MAX_SAFE_INTEGER;
-      viewport.addChild(lines);
-    }
-    const buffers = gameModel.getSystem(PhysicsSystem).world.debugRender();
-    const vtx = buffers.vertices;
-    const cls = buffers.colors;
+registerUIComponent(
+  "Physics",
+  (uiService, entity, gameModel: GameModel, viewport: Viewport) => {
+    if (hacks.DEBUG) {
+      if (!lines) {
+        lines = new PIXI.Graphics();
+        lines.zIndex = Number.MAX_SAFE_INTEGER;
+        viewport.addChild(lines);
+      }
+      const buffers = gameModel.getSystem(PhysicsSystem).world.debugRender();
+      const vtx = buffers.vertices;
+      const cls = buffers.colors;
 
-    lines.clear();
+      lines.clear();
 
-    for (let i = 0; i < vtx.length / 4; i += 1) {
-      const color = PIXI.Color.shared.setValue([cls[i * 8], cls[i * 8 + 1], cls[i * 8 + 2]]).toHex();
-      lines.lineStyle(1.0, color, cls[i * 8 + 3], 0.5, true);
-      lines.moveTo(vtx[i * 4], vtx[i * 4 + 1]);
-      lines.lineTo(vtx[i * 4 + 2], vtx[i * 4 + 3]);
+      for (let i = 0; i < vtx.length / 4; i += 1) {
+        const color = PIXI.Color.shared.setValue([cls[i * 8], cls[i * 8 + 1], cls[i * 8 + 2]]).toHex();
+        lines.lineStyle(1.0, color, cls[i * 8 + 3], 0.5, true);
+        lines.moveTo(vtx[i * 4], vtx[i * 4 + 1]);
+        lines.lineTo(vtx[i * 4 + 2], vtx[i * 4 + 3]);
+      }
+    } else if (lines) {
+      lines.clear();
+      lines.destroy();
+      lines = undefined;
     }
-  } else if (lines) {
-    lines.clear();
-    lines.destroy();
-    lines = undefined;
+  },
+  {
+    cleanup: () => {
+      if (lines) {
+        lines.clear();
+        lines.destroy();
+        lines = undefined;
+      }
+    },
   }
-});
+);

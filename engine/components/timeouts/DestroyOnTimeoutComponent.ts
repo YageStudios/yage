@@ -23,7 +23,7 @@ registerSystem(DestroyOnTimeoutSystem);
 
 function updateTimeout(entity: number, timeout: DestroyOnTimeoutSchema, gameModel: GameModel) {
   if (timeout.endFrame === 0) {
-    timeout.endFrame = gameModel.timeElapsed + timeout.timeoutMs / 1000;
+    timeout.endFrame = gameModel.timeElapsed + timeout.timeoutMs;
   }
   if (timeout.endFrame < gameModel.timeElapsed) {
     if (timeout.spawnOnTimeout.length > 0) {
