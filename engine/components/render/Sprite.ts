@@ -59,6 +59,28 @@ export class SpriteComponentPixi implements PixiDrawSystem {
         : rotationVector2d(direction);
 
       sprite.rotation = angle;
+    } else if (data.faceDirection === FaceDirectionEnum.HORIZONTAL_ROTATE) {
+      const angle = data.rotation
+        ? rotationVector2d(rotateDegVector2d(direction, data.rotation))
+        : rotationVector2d(direction);
+
+      sprite.rotation = angle;
+
+      let xDirection = direction.x;
+      if (!data.rotation && gameModel.hasComponent(entity, ChildSchema)) {
+        const owner = gameModel.getComponent(entity, ChildSchema).parent;
+        xDirection = LocomotionSchema.store.directionX[owner];
+      }
+
+      if (!data.antiJitterTime || gameModel.timeElapsed - pixiData.lastFlip > data.antiJitterTime) {
+        if (xDirection < 0) {
+          sprite.scale.x = -1;
+          // sprite.rotation = -angle;
+        } else {
+          sprite.scale.x = 1;
+        }
+        pixiData.lastFlip = gameModel.timeElapsed;
+      }
     } else if (data.rotation) {
       const angle = (data.rotation * Math.PI) / 180;
 
@@ -83,35 +105,6 @@ export class SpriteComponentPixi implements PixiDrawSystem {
         container.scale.y = direction.y < 0 ? -1 * data.scale : 1 * data.scale;
         pixiData.lastFlip = gameModel.timeElapsed;
       }
-    } else if (data.faceDirection === FaceDirectionEnum.HORIZONTAL_ROTATE) {
-      // let rotation = 0;
-      // if (
-      //   (direction.y > 0 && direction.x < 0) ||
-      //   (direction.y < 0 && direction.x > 0)
-      // ) {
-      //   rotation = -45;
-      // } else if (
-      //   (direction.y > 0 && direction.x > 0) ||
-      //   (direction.y < 0 && direction.x < 0)
-      // ) {
-      //   rotation = 45;
-      // } else if (direction.y < 0 && direction.x == 0) {
-      //   yoffset = 0;
-      //   rotation = -90;
-      // } else if (direction.y > 0 && direction.x == 0) {
-      //   yoffset = 0;
-      //   rotation = 90;
-      // }
-      // if (rotation) {
-      //   ctx.translate(pos.x, pos.y);
-      //   ctx.rotate((rotation * Math.PI) / 180);
-      //   ctx.translate(-pos.x, -pos.y);
-      // }
-      // if (direction.x < 0) {
-      //   xoffset -= xoffset * 2;
-      //   ctx.translate((pos.x + xoffset) * 2, 0);
-      //   ctx.scale(-1, 1);
-      // }
     }
     if (container.scale.x !== data.scale) {
       container.scale.set(data.scale);
