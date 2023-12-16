@@ -148,7 +148,7 @@ let lines: PIXI.Graphics | undefined;
 registerUIComponent(
   "Physics",
   (uiService, entity, gameModel: GameModel, viewport: Viewport) => {
-    if (hacks.DEBUG) {
+    if (hacks.PHYSICS) {
       if (!lines) {
         lines = new PIXI.Graphics();
         lines.zIndex = Number.MAX_SAFE_INTEGER;

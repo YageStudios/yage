@@ -510,11 +510,8 @@ export class GameModel {
     this.state.limboEntities = [];
 
     if (hacks.PERFORMANCE_LOGS) {
-      this.timingFrame++;
-      if (this.timingFrame % 50 === 0) {
-        console.clear();
-        console.table(this.timings);
-      }
+      // @ts-ignore
+      window.performanceUpdate(this.timings);
       this.timings = [];
     }
   };
@@ -755,6 +752,9 @@ export class GameModel {
       if (componentSystem.runAll) {
         if (actives.length) {
           componentSystem.runAll(this);
+        }
+        if (hacks.PERFORMANCE_LOGS) {
+          this.timings.push({ type, time: performance.now() - time });
         }
         return;
       }

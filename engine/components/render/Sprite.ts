@@ -18,18 +18,6 @@ import { TransformSchema } from "@/schemas/entity/Transform";
 import { SpriteSchema } from "@/schemas/render/Sprite";
 import { Viewport } from "pixi-viewport";
 
-class SpriteSystem implements System {
-  type = "Sprite";
-  category: ComponentCategory = ComponentCategory.RENDERING;
-  schema = SpriteSchema;
-  depth = DEPTHS.DRAW + 1;
-  run(entity: number, gameModel: GameModel) {
-    const data = gameModel.getTyped(entity, SpriteSchema);
-  }
-}
-
-registerSystem(SpriteSystem);
-
 export type PixiSpriteSchema = {
   sprite: PIXI.Sprite;
   spriteKey: string;
