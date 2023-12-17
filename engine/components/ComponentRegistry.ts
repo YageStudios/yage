@@ -114,6 +114,9 @@ function _registerSchema(category: ComponentCategory | typeof Schema, schema?: t
   if (!type) {
     throw new Error("Schema not registered as a component" + schema);
   }
+  if (componentIndexMap[type]) {
+    return;
+  }
   componentIndexMap[type] = componentList.length;
   componentsByCategory[category as ComponentCategory] = componentsByCategory[category as ComponentCategory] ?? [];
   componentsByCategory[category as ComponentCategory].push(componentList.length);
