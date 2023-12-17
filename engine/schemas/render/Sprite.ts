@@ -1,4 +1,5 @@
-import { FaceDirectionEnum } from "../../constants/enums";
+import { registerSchema } from "@/components/ComponentRegistry";
+import { ComponentCategory, FaceDirectionEnum } from "../../constants/enums";
 import { Component, defaultValue, Schema, type } from "../../decorators/type";
 
 @Component("Sprite")
@@ -75,3 +76,5 @@ export class SpriteSchema extends Schema {
   @defaultValue(0)
   antiJitterTime: number;
 }
+
+registerSchema(ComponentCategory.RENDERING, SpriteSchema);

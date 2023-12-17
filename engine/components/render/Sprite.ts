@@ -212,8 +212,7 @@ export class SpriteComponentPixi implements PixiDrawSystem {
       sprite.visible = false;
     } else {
       sprite.visible = true;
-      // sprite.alpha = spriteData.opacity;
-      sprite.alpha = 1;
+      sprite.alpha = spriteData.opacity ?? 1;
     }
     const transformSchema = gameModel.getTyped(entity, TransformSchema);
 
