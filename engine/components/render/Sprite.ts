@@ -63,7 +63,6 @@ export class SpriteComponentPixi implements PixiDrawSystem {
       if (!data.antiJitterTime || gameModel.timeElapsed - pixiData.lastFlip > data.antiJitterTime) {
         if (xDirection < 0) {
           sprite.scale.x = -1;
-          // sprite.rotation = -angle;
         } else {
           sprite.scale.x = 1;
         }
