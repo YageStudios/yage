@@ -1,6 +1,6 @@
 export class Position {
-  x: number | "left" | "center" | "right";
-  y: number | "top" | "center" | "bottom";
+  x: number | "left" | "center" | "right" | "full";
+  y: number | "top" | "center" | "bottom" | "full";
 
   xOffset: number = 0;
   yOffset: number = 0;
@@ -9,8 +9,8 @@ export class Position {
   height: number = 0;
 
   constructor(
-    x: number | "left" | "center" | "right",
-    y: number | "top" | "center" | "bottom",
+    x: number | "left" | "center" | "right" | "full",
+    y: number | "top" | "center" | "bottom" | "full",
     { width, height, xOffset, yOffset }: { width?: number; height?: number; xOffset?: number; yOffset?: number } = {}
   ) {
     this.x = x;
@@ -39,8 +39,8 @@ export class Rectangle {
   x: number;
   y: number;
 
-  justify: "left" | "center" | "right" | undefined;
-  align: "top" | "center" | "bottom" | undefined;
+  justify: "left" | "center" | "right" | "full" | undefined;
+  align: "top" | "center" | "bottom" | "full" | undefined;
 
   constructor(rect: { x: number; y: number; width: number; height: number });
   constructor(left: number, top: number, width: number, height: number);

@@ -3,7 +3,7 @@ import { Position, Rectangle } from "./Rectangle";
 import { UIElement } from "./UIElement";
 import { BoxConfig } from "./Box";
 import { TextConfig } from "./Text";
-import { positionToCanvasSpace, rectToCanvasSpace, scaleFont } from "./utils";
+import { positionToCanvasSpace, scaleFont } from "./utils";
 
 export interface TextInputConfig extends BoxConfig, TextConfig {
   value?: string;
