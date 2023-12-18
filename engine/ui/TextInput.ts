@@ -17,7 +17,7 @@ const defaultStyle: Partial<CSSStyleDeclaration> = {
   padding: "0 1%",
   margin: "0",
   position: "absolute",
-  fontFamily: "Pixelated",
+  fontFamily: "YageFont",
 };
 
 export class TextInput extends UIElement<TextInputConfig> {
@@ -95,7 +95,7 @@ export class TextInput extends UIElement<TextInputConfig> {
     textInputElement.style.width = `${width}px`;
     textInputElement.style.height = `${height}px`;
     textInputElement.style.backgroundColor = this._config.style.backgroundColor ?? "transparent";
-    textInputElement.style.fontFamily = this._config.font ?? "Pixelated";
+    textInputElement.style.fontFamily = this._config.font ?? this._config.style.fontFamily ?? "YageFont";
     textInputElement.style.color = "white";
     textInputElement.style.border = `1px solid ${this._config.style.borderColor ?? "white"}`;
     textInputElement.value = this._config.value || "";
