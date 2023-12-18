@@ -12,6 +12,7 @@ import toposort from "toposort";
 import { ChildSchema } from "@/schemas/entity/Child";
 import { EntityAsset } from "./EntityAssets";
 import { assignGlobalSingleton, getGlobalSingleton, setGlobalSingleton } from "@/global";
+import { cloneDeep } from "lodash";
 
 export interface EntityDefinition {
   name: string;
@@ -232,10 +233,15 @@ export class EntityFactory {
     }
   };
 
-  findEntitiesWithComponent = (componentName: string): string[] => {
+  findEntitiesWithComponent = (componentName: string | string[]): string[] => {
     const entities: string[] = [];
+    if (!Array.isArray(componentName)) {
+      componentName = [componentName];
+    }
     this.entityDefinitionMap.forEach((entityDefinition, entityName) => {
-      if (entityDefinition.components?.find((c) => c.type === componentName)) {
+      if (
+        (componentName as string[]).every((c) => entityDefinition.components?.some((component) => component.type === c))
+      ) {
         entities.push(entityName);
       }
     });
@@ -243,15 +249,15 @@ export class EntityFactory {
   };
 
   getComponentFromEntity = (
-    gameModel: GameModel,
     entityName: string,
-    componentName: string
+    componentName: string,
+    gameModel?: GameModel
   ): ComponentData | undefined => {
-    const entityDefinition = this.getEntityDefinition(gameModel, entityName);
+    const entityDefinition = this.getEntityDefinition(entityName, gameModel);
     return entityDefinition.components?.find((c) => c.type === componentName);
   };
 
-  getEntityDefinition = (gameModel: GameModel, entityName: string): EntityDefinition => {
+  getEntityDefinition = (entityName: string, gameModel?: GameModel): EntityDefinition => {
     let entityDefinition: Partial<EntityDefinition> = JSON.parse(
       this.entityDefinitionStringMap.get(entityName.toLowerCase()) || "{}"
     );
@@ -259,7 +265,11 @@ export class EntityFactory {
       entityDefinition.name = entityName;
     }
 
-    entityDefinition = this.mapComplexValues(entityDefinition, gameModel) as EntityDefinition;
+    if (gameModel) {
+      entityDefinition = this.mapComplexValues(entityDefinition, gameModel) as EntityDefinition;
+    } else {
+      entityDefinition = cloneDeep(entityDefinition) as EntityDefinition;
+    }
 
     return entityDefinition as EntityDefinition;
   };
@@ -271,7 +281,7 @@ export class EntityFactory {
     entityName: string,
     componentOverrides?: { [key: string]: any }
   ): EntityComponentDTO {
-    const entityDefinition = this.getEntityDefinition(gameModel, entityName);
+    const entityDefinition = this.getEntityDefinition(entityName, gameModel);
     const entityComponents = this.generateComponents(entityDefinition);
 
     if (componentOverrides) {
