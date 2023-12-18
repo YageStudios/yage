@@ -10,7 +10,7 @@ export interface ButtonConfig extends BoxConfig, TextConfig {}
 const defaultStyle: Partial<CSSStyleDeclaration> = {
   position: "absolute",
   color: "white",
-  fontFamily: "Pixelated",
+  fontFamily: "YageFont",
   fontSize: `12px`,
   borderStyle: "solid",
   borderWidth: "1px",
@@ -58,32 +58,6 @@ export class Button extends UIElement<ButtonConfig> {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-empty-function
   protected updateInternal(gameModel: GameModel): void {}
-
-  protected drawText(ctx: CanvasRenderingContext2D): void {
-    let baseLabel = this._config.label;
-    let label = baseLabel;
-    if (this._config.uppercase) {
-      label = label.toUpperCase();
-    }
-
-    ctx.save();
-    // window\.devicePixelRatio = 2;
-    const scale = window.devicePixelRatio;
-
-    ctx.scale(scale, scale);
-
-    ctx.font = `${Math.floor((this._config.fontSize ?? 12) / 2)}px ${this._config.font ?? "Pixelated"}`;
-
-    let textLength = ctx.measureText(label);
-    while (textLength.width > this.bounds.width / scale) {
-      label = this._config.label.substring(0, label.length - 4) + "...";
-      if (this._config.uppercase) {
-        label = label.toUpperCase();
-      }
-      textLength = ctx.measureText(label);
-    }
-    const height = ctx.measureText("M").width;
-  }
 
   protected drawInternal(ctx: CanvasRenderingContext2D, ui: HTMLElement): void {
     const buttonElement = this._element ?? document.createElement("button");

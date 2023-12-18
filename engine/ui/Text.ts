@@ -24,7 +24,7 @@ const defaultStyle: Partial<CSSStyleDeclaration> = {
   pointerEvents: "none",
   overflow: "visible",
   position: "absolute",
-  fontFamily: "Pixelated",
+  fontFamily: "YageFont",
 };
 
 export class Text extends UIElement<TextConfig> {
