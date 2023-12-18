@@ -68,7 +68,13 @@ function updateTimeout(entity: number, timeout: DestroyOnTimeoutSchema, gameMode
         });
       }
     } else {
-      gameModel.removeEntity(entity);
+      if (timeout.applyOnTimeout.length > 0) {
+        timeout.applyOnTimeout.forEach((apply) => {
+          gameModel.setComponent(entity, apply.type, apply.data);
+        });
+      } else {
+        gameModel.removeEntity(entity);
+      }
     }
   }
 }

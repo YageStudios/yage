@@ -50,45 +50,15 @@ export const positionToCanvasSpace = (pos: Position, element: HTMLElement): [num
   }
 
   return [
-    Math.floor(xPercentage * canvasWidth + xOffset * scale()),
-    Math.floor(yPercentage * canvasHeight + yOffset * scale()),
-    Math.floor(pos.width * scale()),
-    Math.floor(pos.height * scale()),
+    pos.x === "full" ? 0 : Math.floor(xPercentage * canvasWidth + xOffset * scale()),
+    pos.y === "full" ? 0 : Math.floor(yPercentage * canvasHeight + yOffset * scale()),
+    pos.x === "full" ? document.body.clientWidth : Math.floor(pos.width * scale()),
+    pos.y === "full" ? document.body.clientHeight : Math.floor(pos.height * scale()),
   ];
   // return new Position(Math.floor(xPercentage * width), Math.floor(yPercentage * height), {
   //   width: Math.floor(pos.width * scale()),
   //   height: Math.floor(pos.height * scale()),
   // });
-};
-
-export const rectToCanvasSpace = (rect: Rectangle, element: HTMLElement): Rectangle => {
-  const { width, height, top: offsetY, left: offsetX } = element.getBoundingClientRect();
-
-  let xPercentage = (rect.x - offsetX) / 1920;
-  let yPercentage = (rect.y - offsetY) / 1080;
-
-  if (rect.justify === "center") {
-    xPercentage += 0.5 - (rect.width * scale()) / 2 / window.innerWidth;
-  } else if (rect.justify === "right") {
-    xPercentage += (width - rect.width * scale()) / window.innerWidth;
-  } else if (rect.justify === "left") {
-    xPercentage += 0;
-  }
-
-  if (rect.align === "center") {
-    yPercentage += (height / 2 - (rect.height * scale()) / 2) / 1080;
-  } else if (rect.align === "bottom") {
-    yPercentage += (height - rect.height * scale()) / 1080;
-  } else if (rect.align === "top") {
-    yPercentage += 0;
-  }
-
-  return new Rectangle(
-    Math.floor(xPercentage * width),
-    Math.floor(yPercentage * height),
-    Math.floor(rect.width * scale()),
-    Math.floor(rect.height * scale())
-  );
 };
 
 export const scaleFont = (fontSize: number): number => {

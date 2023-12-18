@@ -3,7 +3,7 @@ import type { GameModel } from "@/game/GameModel";
 import type { Rectangle } from "./Rectangle";
 import type { BoxConfig } from "./Box";
 import { Box } from "./Box";
-import { positionToCanvasSpace, rectToCanvasSpace } from "./utils";
+import { positionToCanvasSpace } from "./utils";
 
 export type ImageBoxConfig = BoxConfig & {
   imageKey: string;

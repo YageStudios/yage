@@ -2,9 +2,7 @@
 import type { GameModel } from "@/game/GameModel";
 import { Position, Rectangle } from "./Rectangle";
 import { UIElement, UIElementConfig } from "./UIElement";
-import { rectToCanvasSpace, scaleFont } from "./utils";
-// TODO: FIX SERVER COMPAT
-// import { getProperty } from "dot-prop";
+import { scaleFont } from "./utils";
 
 export type TextConfig = UIElementConfig & {
   label: string;

@@ -1,8 +1,6 @@
 import type { GameModel } from "@/game/GameModel";
 import type { Position, Rectangle } from "./Rectangle";
 import { UIElement, UIElementConfig } from "./UIElement";
-import AssetLoader from "@/loader/AssetLoader";
-import { rectToCanvasSpace } from "./utils";
 
 export type BoxConfig = UIElementConfig & {
   onClick?: () => boolean | void;
