@@ -7,6 +7,8 @@ import { MouseManager } from "@/inputs/MouseManager";
 import { TouchListener, TouchRegion } from "@/inputs/TouchListener";
 
 export class SingleplayerInstance implements ConnectionInstance {
+  messageListeners: ((message: string, time: number, playerId: string) => void)[] = [];
+
   frameStack: { [playerId: string]: { keys: KeyMap; frame: number }[] } = {};
   frameOffset = 10;
   connected: boolean = true;
@@ -57,10 +59,18 @@ export class SingleplayerInstance implements ConnectionInstance {
     this.player.token = player.token ?? this.player.token;
     this.player.config = player.config ?? this.player.config;
   }
-  sendMessage(message: string): void {}
 
-  onReceiveMessage(cb: (message: string) => void): () => void {
-    return () => {};
+  sendMessage(message: string, includeSelf = true): void {
+    if (includeSelf) {
+      this.messageListeners.forEach((listener) => listener(message, +new Date(), this.playerId));
+    }
+  }
+
+  onReceiveMessage(cb: (message: string, time: number, playerId: string) => void): () => void {
+    this.messageListeners.push(cb);
+    return () => {
+      this.messageListeners = this.messageListeners.filter((listener) => listener !== cb);
+    };
   }
   onPlayerConnect(cb: (player: PlayerConnect) => void): () => void {
     return () => {};
