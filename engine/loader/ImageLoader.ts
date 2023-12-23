@@ -100,6 +100,9 @@ export default class ImageLoader {
     if (this.promises.length) {
       throw new Error("Images not loaded");
     }
+    if (!this.imageCache[name]) {
+      throw new Error(`Image ${name} not found`);
+    }
     return this.imageCache[name];
   }
 }
