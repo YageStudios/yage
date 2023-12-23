@@ -6,20 +6,20 @@ import { RequireAtLeastOne } from "@/utils/typehelpers";
 import { MouseManager } from "@/inputs/MouseManager";
 import { TouchListener, TouchRegion } from "@/inputs/TouchListener";
 
-export class SingleplayerInstance implements ConnectionInstance {
+export class SingleplayerInstance<T> implements ConnectionInstance<T> {
   frameStack: { [playerId: string]: { keys: KeyMap; frame: number }[] } = {};
   frameOffset = 10;
   connected: boolean = true;
   hosting: boolean = true;
   solohost: boolean = true;
-  player: PlayerConnection;
+  player: PlayerConnection<T>;
   touchListener?: TouchListener;
 
   address: string = "singleplayer";
 
   playerId: string = "singleplayer";
 
-  players: PlayerConnection[] = [
+  players: PlayerConnection<T>[] = [
     {
       id: "singleplayer",
       name: "singleplayer",
@@ -51,7 +51,7 @@ export class SingleplayerInstance implements ConnectionInstance {
     }
   }
   updatePlayerConnect(
-    player: RequireAtLeastOne<{ name: string; token: string; config: any }, "name" | "token" | "config">
+    player: RequireAtLeastOne<{ name: string; token: string; config: T }, "name" | "token" | "config">
   ): void {
     this.player.name = player.name ?? this.player.name;
     this.player.token = player.token ?? this.player.token;
@@ -62,7 +62,7 @@ export class SingleplayerInstance implements ConnectionInstance {
   onReceiveMessage(cb: (message: string) => void): () => void {
     return () => {};
   }
-  onPlayerConnect(cb: (player: PlayerConnect) => void): () => void {
+  onPlayerConnect(cb: (player: PlayerConnect<T>) => void): () => void {
     return () => {};
   }
   onPlayerDisconnect(cb: (playerId: string) => void): () => void {

@@ -114,7 +114,7 @@ export class GameModel {
   running: boolean;
   destroyed: boolean;
 
-  public constructor(public gameCoordinator: GameCoordinator, public instance?: GameInstance, state?: GameState) {
+  public constructor(public gameCoordinator: GameCoordinator, public instance?: GameInstance<any>, state?: GameState) {
     this.state = state || {
       type: "internal",
       entityComponentArray: [],
@@ -580,6 +580,11 @@ export class GameModel {
   getComponentSchema = (type: string | number | typeof Schema) => {
     const index = getIndex(type);
     return componentList[index].schema;
+  };
+
+  setTyped = <T>(entity: number, type: Constructor<T>, overrides?: Partial<T>) => {
+    // @ts-ignore
+    return this.setComponent(entity, type.__type, overrides);
   };
 
   setComponent = (

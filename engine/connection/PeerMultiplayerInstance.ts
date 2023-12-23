@@ -7,7 +7,7 @@ import { MouseManager } from "@/inputs/MouseManager";
 
 const nanoid = customAlphabet("234579ACDEFGHJKMNPQRTWXYZ", 10);
 
-export class PeerMultiplayerInstance extends MultiplayerInstance {
+export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
   peer: Peer;
 
   connections: { [peerId: string]: DataConnection } = {};
@@ -15,7 +15,7 @@ export class PeerMultiplayerInstance extends MultiplayerInstance {
   prefix: string;
 
   constructor(
-    player: PlayerConnect,
+    player: PlayerConnect<T>,
     inputManager: InputManager,
     mouseManager: MouseManager,
     { solohost, prefix, address = nanoid() }: { solohost?: boolean; prefix: string; address?: string }
