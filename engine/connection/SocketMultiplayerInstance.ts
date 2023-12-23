@@ -4,11 +4,11 @@ import { PlayerConnect } from "./ConnectionInstance";
 import { MouseManager } from "@/inputs/MouseManager";
 import { InputManager } from "@/inputs/InputManager";
 
-export class SocketMultiplayerInstance extends MultiplayerInstance {
+export class SocketMultiplayerInstance<T> extends MultiplayerInstance<T> {
   socket: Socket;
 
   constructor(
-    player: PlayerConnect,
+    player: PlayerConnect<T>,
     inputManager: InputManager,
     mouseManager: MouseManager,
     private socketUrl: string

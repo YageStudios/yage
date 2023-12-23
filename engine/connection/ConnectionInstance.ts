@@ -4,7 +4,7 @@ import { RequireAtLeastOne } from "@/utils/typehelpers";
 import { InputManager } from "@/inputs/InputManager";
 import { TouchListener } from "@/inputs/TouchListener";
 
-export type PlayerConnection = {
+export type PlayerConnection<T> = {
   id: string;
   name: string;
   token: string;
@@ -13,19 +13,19 @@ export type PlayerConnection = {
   connectionTime: number;
   currentRoomId: string | null;
   hostedRooms: string[];
-  config?: any;
+  config?: T;
 };
 
-export type PlayerConnect = {
+export type PlayerConnect<T> = {
   id: string;
   name: string;
   token: string;
-  config?: any;
+  config?: T;
 };
-export abstract class ConnectionInstance {
-  abstract players: PlayerConnection[];
+export abstract class ConnectionInstance<T> {
+  abstract players: PlayerConnection<T>[];
   abstract playerId: string;
-  abstract player: PlayerConnection;
+  abstract player: PlayerConnection<T>;
   abstract inputManager: InputManager;
   abstract touchListener?: TouchListener;
   abstract mouseManager: MouseManager;
@@ -34,7 +34,7 @@ export abstract class ConnectionInstance {
   abstract address: string;
 
   abstract updatePlayerConnect(
-    player: RequireAtLeastOne<{ name: string; token: string; config: any }, "name" | "token" | "config">
+    player: RequireAtLeastOne<{ name: string; token: string; config: T }, "name" | "token" | "config">
   ): void;
 
   abstract connect(address?: string): Promise<void>;
@@ -44,10 +44,10 @@ export abstract class ConnectionInstance {
     roomId: string,
     options: {
       gameModel: GameModel;
-      onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: any) => number;
+      onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: T) => number;
       onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
       rebalanceOnLeave?: boolean;
-      playerConfig?: any;
+      playerConfig?: Partial<T>;
     }
   ): Promise<void>;
 
@@ -56,7 +56,7 @@ export abstract class ConnectionInstance {
     options: {
       gameModel: GameModel;
       onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
-      playerConfig?: any;
+      playerConfig?: Partial<T>;
     }
   ): Promise<void>;
 
@@ -67,6 +67,6 @@ export abstract class ConnectionInstance {
   abstract sendMessage(message: string): void;
   abstract onReceiveMessage(cb: (message: string) => void): () => void;
 
-  abstract onPlayerConnect(cb: (player: PlayerConnect) => void): () => void;
+  abstract onPlayerConnect(cb: (player: PlayerConnect<T>) => void): () => void;
   abstract onPlayerDisconnect(cb: (playerId: string) => void): () => void;
 }

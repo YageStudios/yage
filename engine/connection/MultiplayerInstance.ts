@@ -15,7 +15,7 @@ type Room = {
   rebalanceOnLeave: boolean;
 };
 
-export class MultiplayerInstance implements ConnectionInstance {
+export class MultiplayerInstance<T> implements ConnectionInstance<T> {
   stateRequested: null | [string, any][] = null;
   frameStack: { [playerId: string]: { keys: KeyMap; frame: number }[] } = {};
   frameOffset = 5;
@@ -37,19 +37,19 @@ export class MultiplayerInstance implements ConnectionInstance {
   onceSubscriptions: { [event: string]: ((...args: any[]) => void)[] } = {};
 
   messageListeners: ((message: string, time: number, playerId: string) => void)[] = [];
-  connectListeners: ((player: PlayerConnect) => void)[] = [];
+  connectListeners: ((player: PlayerConnect<T>) => void)[] = [];
   disconnectListeners: ((playerId: string) => void)[] = [];
 
   rooms: Room[] = [];
 
-  players: PlayerConnection[] = [];
-  player: PlayerConnection;
+  players: PlayerConnection<T>[] = [];
+  player: PlayerConnection<T>;
 
   roomSubs: { [roomId: string]: (() => void)[] } = {};
   solohost: boolean;
 
   constructor(
-    player: PlayerConnect,
+    player: PlayerConnect<T>,
     public inputManager: InputManager,
     public mouseManager: MouseManager,
     protected options: { solohost?: boolean; touchRegions?: TouchRegion[] } = { solohost: false }
@@ -82,7 +82,7 @@ export class MultiplayerInstance implements ConnectionInstance {
     this.on("rooms", (rooms: Room[]) => {
       this.rooms = rooms;
     });
-    this.on("connect", (player: PlayerConnect) => {
+    this.on("connect", (player: PlayerConnect<T>) => {
       this.connectListeners.forEach((listener) => listener(player));
 
       if (this.rooms.length) {
@@ -115,14 +115,14 @@ export class MultiplayerInstance implements ConnectionInstance {
       }
     });
 
-    this.on("updatePlayerConnect", (player: PlayerConnection) => {
+    this.on("updatePlayerConnect", (player: PlayerConnection<T>) => {
       console.log("updatePlayerConnect", "CONNECT CHANGE", this.connectListeners.length);
       this.players = this.players.map((p) => (p.id === player.id ? player : p));
       this.connectListeners.forEach((listener) => listener(player));
     });
   }
   updatePlayerConnect(
-    player: RequireAtLeastOne<{ name: string; token: string; config: any }, "name" | "token" | "config">
+    player: RequireAtLeastOne<{ name: string; token: string; config: T }, "name" | "token" | "config">
   ): void {
     this.player.name = player.name ?? this.player.name;
     this.player.token = player.token ?? this.player.token;
@@ -153,7 +153,7 @@ export class MultiplayerInstance implements ConnectionInstance {
     });
   }
 
-  _onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: any) => number;
+  _onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: T) => number;
   _onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
 
   async lobby(): Promise<string[]> {
@@ -183,7 +183,7 @@ export class MultiplayerInstance implements ConnectionInstance {
     };
   }
 
-  onPlayerConnect(cb: (player: PlayerConnect) => void): () => void {
+  onPlayerConnect(cb: (player: PlayerConnect<T>) => void): () => void {
     this.connectListeners.push(cb);
     return () => {
       this.connectListeners = this.connectListeners.filter((listener) => listener !== cb);
@@ -267,7 +267,7 @@ export class MultiplayerInstance implements ConnectionInstance {
       gameModel,
     }: {
       onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
-      playerConfig?: any;
+      playerConfig?: Partial<T>;
       gameModel: GameModel;
     }
   ): Promise<void> {
@@ -280,7 +280,6 @@ export class MultiplayerInstance implements ConnectionInstance {
     if (!playerConfig) {
       playerConfig = {};
     }
-    playerConfig.name = this.player.name;
     playerConfig = { ...this.player.config, ...playerConfig };
     const room = this.rooms.find((room) => room.roomId === roomId);
     if (!room) {
@@ -384,7 +383,7 @@ export class MultiplayerInstance implements ConnectionInstance {
       onPlayerJoin: (gameModel: GameModel, playerId: string) => number;
       onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
       rebalanceOnLeave?: boolean;
-      playerConfig?: any;
+      playerConfig?: Partial<T>;
     }
   ): Promise<void> {
     if (!this.player.connected && !this.options.solohost) {
@@ -413,9 +412,9 @@ export class MultiplayerInstance implements ConnectionInstance {
     if (!playerConfig) {
       playerConfig = {};
     }
-    playerConfig.name = this.player.name;
+    // playerConfig.name = this.player.name;
     playerConfig = { ...this.player.config, ...playerConfig };
-    this.createPlayer(gameModel, this.playerId, playerConfig, gameModel.frame);
+    this.createPlayer(gameModel, this.playerId, playerConfig as T, gameModel.frame);
     this.gameModel.netId = this.playerId;
 
     this.updateRoom({
@@ -426,7 +425,7 @@ export class MultiplayerInstance implements ConnectionInstance {
     });
   }
 
-  protected createPlayer(gameModel: GameModel, playerId: string, playerConfig: any, frame: number) {
+  protected createPlayer(gameModel: GameModel, playerId: string, playerConfig: T, frame: number) {
     const entityId = this._onPlayerJoin(gameModel, playerId, playerConfig);
 
     console.log("CREATING PLAYER", playerId);

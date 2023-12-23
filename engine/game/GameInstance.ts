@@ -4,23 +4,23 @@ import { UIService } from "@/ui/UIService";
 import { Scene } from "./Scene";
 import { GameCoordinator } from "./GameCoordinator";
 
-export type GameInstanceOptions = {
+export type GameInstanceOptions<T> = {
   gameName: string;
-  connection: ConnectionInstance;
+  connection: ConnectionInstance<T>;
   uiService: boolean | UIService;
   buildWorld: (gameModel: GameModel, firstPlayerConfig: any) => void;
   onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: any) => number;
   onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
 };
 
-export class GameInstance {
+export class GameInstance<T> {
   public gameModel: GameModel;
   private uiService?: UIService;
 
   private lastTime = 0;
   private dt = 16;
 
-  constructor(public options: GameInstanceOptions) {
+  constructor(public options: GameInstanceOptions<T>) {
     if (options.uiService) {
       this.uiService = options.uiService === true ? UIService.getInstance() : options.uiService;
     }
@@ -39,7 +39,7 @@ export class GameInstance {
     }
 
     this.gameModel = new GameModel(GameCoordinator.GetInstance(), this);
-    this.options.buildWorld(this.gameModel, playerConfig);
+    this.options.buildWorld(this.gameModel, { ...this.options.connection.player.config, ...playerConfig });
 
     return this.options.connection.host(roomId, {
       gameModel: this.gameModel,
