@@ -172,8 +172,11 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
     this.emit("changeNickname", this.playerId, nickname);
   }
 
-  sendMessage(message: string): void {
+  sendMessage(message: string, includeSelf = true): void {
     this.emit("message", message, +new Date(), this.playerId);
+    if (includeSelf) {
+      this.messageListeners.forEach((listener) => listener(message, +new Date(), this.playerId));
+    }
   }
 
   onReceiveMessage(cb: (message: string, time: number, playerId: string) => void): () => void {
