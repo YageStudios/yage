@@ -327,6 +327,12 @@ export class EntityFactory {
     });
     entityComponents.components = finalComponentList;
 
+    if (entityDefinition.children) {
+      entityComponents.children = entityDefinition.children.map((childName) => {
+        return this.mapEntityComponent(gameModel, childName);
+      });
+    }
+
     return entityComponents;
   }
 
