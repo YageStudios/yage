@@ -64,7 +64,7 @@ export abstract class ConnectionInstance<T> {
   abstract handleInput(gameModel: GameModel): void;
   abstract run(gameModel: GameModel): void;
 
-  abstract sendMessage(message: string): void;
+  abstract sendMessage(message: string, includeSelf?: boolean): void;
   abstract onReceiveMessage(cb: (message: string) => void): () => void;
 
   abstract onPlayerConnect(cb: (player: PlayerConnect<T>) => void): () => void;
