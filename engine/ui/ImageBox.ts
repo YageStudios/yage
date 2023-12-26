@@ -40,7 +40,7 @@ export class ImageBox extends Box<ImageBoxConfig> {
       this._element = imageElement;
     }
 
-    const [x, y, width, height] = positionToCanvasSpace(this.bounds, ui);
+    const [x, y, width, height] = positionToCanvasSpace(this.bounds, this._parent?._element ?? document.body);
     imageElement.className = "image-box";
     imageElement.style.position = "absolute";
     imageElement.style.left = `${x}px`;

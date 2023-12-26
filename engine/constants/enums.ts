@@ -23,6 +23,7 @@ export enum ComponentCategory {
   TYPE,
   DAMAGEAPPLIER,
   ONHIT,
+  ONPICKUP,
   ONE_OFF,
   CORE,
   MAP,
@@ -142,6 +143,14 @@ export enum DamageTypeEnum {
   ICE,
   SHOCK,
   CHAOS,
+}
+
+export enum DamageCategoryEnum {
+  NONE,
+  MELEE,
+  RANGED,
+  MAGIC,
+  AOE,
 }
 
 export enum FaceDirectionEnum {

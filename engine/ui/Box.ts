@@ -7,6 +7,9 @@ export type BoxConfig = UIElementConfig & {
   onMouseDown?: () => boolean | void;
   onMouseUp?: () => boolean | void;
   onBlur?: () => void;
+  onFocus?: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
   style?: Partial<CSSStyleDeclaration>;
 };
 
@@ -24,7 +27,6 @@ const defaultStyle: Partial<CSSStyleDeclaration> = {
 };
 
 export class Box<T extends BoxConfig = BoxConfig> extends UIElement<T> {
-  protected _element: HTMLDivElement | undefined = undefined;
   protected _hasChanged = true;
 
   constructor(bounds: Rectangle | Position, _config: Partial<T> = {}) {
@@ -55,11 +57,27 @@ export class Box<T extends BoxConfig = BoxConfig> extends UIElement<T> {
     }
   }
 
+  protected onFocusInternal(): void {
+    if (this._config.onFocus) {
+      this._config.onFocus();
+    }
+  }
+  protected onMouseEnterInternal(): void {
+    if (this._config.onMouseEnter) {
+      this._config.onMouseEnter();
+    }
+  }
+  protected onMouseLeaveInternal(): void {
+    if (this._config.onMouseLeave) {
+      this._config.onMouseLeave();
+    }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-empty-function
   protected updateInternal(gameModel: GameModel): void {}
 
   protected drawInternal(ctx: CanvasRenderingContext2D, ui: HTMLDivElement): void {
-    const boxElement = this._element ?? document.createElement("div");
+    const boxElement = this._element ?? this.createElement(); //document.createElement("div");
 
     if (!this._element) {
       ui.appendChild(boxElement);

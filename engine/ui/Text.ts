@@ -48,6 +48,15 @@ export class Text extends UIElement<TextConfig> {
   // eslint-disable-next-line @typescript-eslint/no-empty-function
   protected onBlurInternal(): void {}
 
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  protected onFocusInternal(): void {}
+
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  protected onMouseEnterInternal(): void {}
+
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  protected onMouseLeaveInternal(): void {}
+
   protected updateInternal(gameModel: GameModel): void {}
 
   protected drawInternal(ctx: CanvasRenderingContext2D, ui: HTMLDivElement): void {
@@ -62,7 +71,11 @@ export class Text extends UIElement<TextConfig> {
       textElement.style.textTransform = "uppercase";
     }
     textElement.style.fontSize = `${scaleFont(this._config.fontSize ?? 12)}px`;
-    textElement.innerText = this._config.label;
+    if (this._config.label.trim().startsWith("<")) {
+      textElement.innerHTML = this._config.label;
+    } else {
+      textElement.innerText = this._config.label;
+    }
 
     if (!this._element) {
       ui.appendChild(textElement);

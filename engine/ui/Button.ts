@@ -4,8 +4,11 @@ import { UIElement } from "./UIElement";
 import { BoxConfig } from "./Box";
 import { TextConfig } from "./Text";
 import { scaleFont } from "./utils";
+import { cloneDeep } from "lodash";
 
-export interface ButtonConfig extends BoxConfig, TextConfig {}
+export interface ButtonConfig extends BoxConfig, TextConfig {
+  hoverStyle?: Partial<CSSStyleDeclaration>;
+}
 
 const defaultStyle: Partial<CSSStyleDeclaration> = {
   position: "absolute",
@@ -54,7 +57,29 @@ export class Button extends UIElement<ButtonConfig> {
     }
   }
 
-  protected onBlurInternal(): void {}
+  protected onBlurInternal(): void {
+    if (this._config.onBlur) {
+      this._config.onBlur();
+    }
+  }
+  protected onFocusInternal(): void {
+    if (this._config.onFocus) {
+      this._config.onFocus();
+    }
+  }
+  protected onMouseEnterInternal(): void {
+    if (this._config.onMouseEnter) {
+      this._config.onMouseEnter();
+    }
+    this._styleOverrides = cloneDeep(this._config.hoverStyle);
+  }
+  protected onMouseLeaveInternal(): void {
+    if (this._config.onMouseLeave) {
+      this._config.onMouseLeave();
+    }
+    this._styleOverrides = undefined;
+    this._hasChanged = true;
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-empty-function
   protected updateInternal(gameModel: GameModel): void {}
@@ -79,6 +104,15 @@ export class Button extends UIElement<ButtonConfig> {
     };
     buttonElement.onblur = () => {
       this.onBlurInternal();
+    };
+    buttonElement.onfocus = () => {
+      this.onFocusInternal();
+    };
+    buttonElement.onmouseenter = () => {
+      this.onMouseEnterInternal();
+    };
+    buttonElement.onmouseleave = () => {
+      this.onMouseLeaveInternal();
     };
 
     if (!this._element) {
