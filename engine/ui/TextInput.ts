@@ -23,7 +23,7 @@ const defaultStyle: Partial<CSSStyleDeclaration> = {
 export class TextInput extends UIElement<TextInputConfig> {
   focusTime: number = 0;
 
-  protected _element: HTMLInputElement | undefined = undefined;
+  _element: HTMLInputElement | undefined = undefined;
 
   constructor(bounds: Rectangle, config: Partial<TextInputConfig>);
   constructor(bounds: Position, config: Partial<TextInputConfig>);
@@ -72,6 +72,27 @@ export class TextInput extends UIElement<TextInputConfig> {
   protected onBlurInternal(): void {
     this.focusTime = -1;
     document.removeEventListener("keydown", this.listenKeyPress);
+    if (this._config.onBlur) {
+      this._config.onBlur();
+    }
+  }
+
+  protected onFocusInternal(): void {
+    if (this._config.onFocus) {
+      this._config.onFocus();
+    }
+  }
+
+  protected onMouseEnterInternal(): void {
+    if (this._config.onMouseEnter) {
+      this._config.onMouseEnter();
+    }
+  }
+
+  protected onMouseLeaveInternal(): void {
+    if (this._config.onMouseLeave) {
+      this._config.onMouseLeave();
+    }
   }
 
   onDestroy(): void {
