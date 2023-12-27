@@ -55,6 +55,9 @@ export class ImageBox extends Box<ImageBoxConfig> {
     } else if (this._config.flipY) {
       imageElement.style.transform = "scale(1,-1)";
     }
+    if (!this._config.imageKey) {
+      return;
+    }
 
     const img = AssetLoader.getInstance().getImage(this._config.imageKey).image;
     imageElement.style.backgroundImage = "url(" + img.src + ")";

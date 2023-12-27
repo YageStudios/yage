@@ -6,12 +6,13 @@ import { positionToCanvasSpace } from "./utils";
 export type UIElementConfig = {
   style: Partial<CSSStyleDeclaration>;
   children?: UIElement[];
+  visible?: boolean;
 };
 
 export abstract class UIElement<T extends UIElementConfig = any> {
   bounds: Position;
   active = false;
-  visible = true;
+  _visible = true;
   id: string;
 
   protected _styleOverrides: Partial<CSSStyleDeclaration> | undefined;
@@ -19,6 +20,17 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   protected _config: T;
   _element: HTMLElement | undefined;
   _parent: UIElement | undefined;
+
+  _zIndex = 0;
+
+  get visible() {
+    return this._visible;
+  }
+
+  set visible(value: boolean) {
+    this._visible = value;
+    this._hasChanged = true;
+  }
 
   get config(): T {
     return new Proxy(this._config, {
@@ -72,6 +84,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       _config.style = {};
     }
     this._config = {
+      visible: true,
       ...(_config as T),
       style: {
         ...defaultStyle,
@@ -164,16 +177,19 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   }
 
   draw(canvas: HTMLCanvasElement, ui: HTMLDivElement) {
+    this._zIndex = (this._parent?._zIndex ?? 0) + parseInt(this._config.style.zIndex ?? "0");
     if (this._styleOverrides) {
       this._hasChanged = true;
     }
+    const notVisible = !this.visible || !this._config.visible;
+    const visible = !notVisible;
     this.config.children?.forEach((x) => {
-      if (x.visible !== this.visible) {
-        x.visible = this.visible;
+      if (x.visible !== visible) {
+        x.visible = visible;
         x._setParent(this);
       }
     });
-    if (!this.visible && this._element) {
+    if (!visible && this._element) {
       this._element.style.display = "none";
       return;
     } else if (this._element) {
@@ -201,6 +217,10 @@ export abstract class UIElement<T extends UIElementConfig = any> {
         // @ts-ignore
         this._element.style[key] = value;
       }
+      if (this._zIndex > 0) {
+        this._element.style.zIndex = `${this._zIndex}`;
+      }
+
       this._hasChanged = false;
     }
     this.drawInternal(null as any, ui);

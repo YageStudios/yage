@@ -23,6 +23,9 @@ export class UIService {
       return target[prop as any];
     },
     set: (target, prop, value) => {
+      if (target[prop as any]) {
+        UIService.getInstance().removeFromUI(target[prop as any]);
+      }
       target[prop as any] = value;
       // console.log(UIService.getInstance());
       UIService.getInstance().addToUI(value);
