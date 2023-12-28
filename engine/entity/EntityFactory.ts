@@ -132,7 +132,13 @@ export class EntityFactory {
             definitionCopy.components &&
             definitionCopy.components.length > 0
           ) {
-            definitionCopy.components = clone(toInherit.components).concat(definitionCopy.components);
+            definitionCopy.components = Object.values(
+              clone(toInherit.components)
+                .concat(definitionCopy.components)
+                .reduce((acc: any, x: any) => {
+                  return { ...acc, [x.type]: x };
+                }, {})
+            );
           } else if (toInherit.components && toInherit.components.length > 0) {
             definitionCopy.components = clone(toInherit.components);
           } else {
