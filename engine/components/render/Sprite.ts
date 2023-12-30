@@ -240,7 +240,7 @@ export class SpriteComponentPixi implements PixiDrawSystem {
     }
     const viewY = viewport.position.y;
 
-    if (gameModel.hasComponent(entity, ChildSchema)) {
+    if (spriteData.inheritParentZIndex && gameModel.hasComponent(entity, ChildSchema)) {
       const owner = gameModel.getComponent(entity, ChildSchema).parent;
       container.zIndex =
         TransformSchema.store.y[owner] -

@@ -60,6 +60,10 @@ export class SpriteSchema extends Schema {
   @defaultValue(0)
   zIndex: number;
 
+  @type("boolean")
+  @defaultValue(true)
+  inheritParentZIndex: boolean;
+
   @type("number")
   @defaultValue(1)
   opacity: number;
