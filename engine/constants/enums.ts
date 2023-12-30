@@ -143,6 +143,7 @@ export enum DamageTypeEnum {
   ICE,
   SHOCK,
   CHAOS,
+  ALLY,
 }
 
 export enum DamageCategoryEnum {
