@@ -9,7 +9,7 @@ import type { PixiDrawSystem } from "../PixiDrawSystem";
 import * as PIXI from "pixi.js";
 import { PixiSpineLoader } from "../../loader/PixiSpineLoader";
 import ImageLoader from "../../loader/ImageLoader";
-import { ChildSchema } from "@/schemas/entity/Child";
+import { AttachSchema } from "@/schemas/entity/Attach";
 import { LocomotionSchema } from "@/schemas/entity/Locomotion";
 import { RadiusSchema } from "@/schemas/entity/Radius";
 import { TransformSchema } from "@/schemas/entity/Transform";
@@ -65,8 +65,8 @@ export class SpineComponentPixi implements PixiDrawSystem {
     // } else
     if (data.faceDirection === FaceDirectionEnum.HORIZONTAL) {
       let xDirection = direction.x;
-      if (gameModel.hasComponent(entity, ChildSchema)) {
-        const owner = gameModel.getComponent(entity, ChildSchema).parent;
+      if (gameModel.hasComponent(entity, AttachSchema)) {
+        const owner = gameModel.getComponent(entity, AttachSchema).parent;
         xDirection = LocomotionSchema.store.directionX[owner];
       }
       if (!data.antiJitterTime || gameModel.timeElapsed - pixiData.lastFlip > data.antiJitterTime) {
@@ -211,8 +211,8 @@ export class SpineComponentPixi implements PixiDrawSystem {
 
     const viewY = viewport.position.y;
 
-    if (gameModel.hasComponent(entity, ChildSchema)) {
-      const owner = gameModel.getComponent(entity, ChildSchema).parent;
+    if (gameModel.hasComponent(entity, AttachSchema)) {
+      const owner = gameModel.getComponent(entity, AttachSchema).parent;
       container.zIndex =
         TransformSchema.store.y[owner] -
         viewY +

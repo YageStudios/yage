@@ -4,7 +4,7 @@ import * as PIXI from "pixi.js";
 import { registerPixiComponent } from "@/components/ComponentRegistry";
 import { PixiDrawSystem } from "@/components/PixiDrawSystem";
 import { TransformSchema } from "@/schemas/entity/Transform";
-import { ChildSchema } from "@/schemas/entity/Child";
+import { AttachSchema } from "@/schemas/entity/Attach";
 import { RadiusSchema } from "@/schemas/entity/Radius";
 import { GraphicSchema } from "@/schemas/render/Graphic";
 import { hexToRgbNumber } from "@/utils/colors";
@@ -147,8 +147,8 @@ export class GraphicPixiSystem implements PixiDrawSystem {
 
     const viewY = viewport.position.y;
 
-    if (gameModel.hasComponent(entity, ChildSchema)) {
-      const owner = gameModel.getComponent(entity, ChildSchema).parent;
+    if (gameModel.hasComponent(entity, AttachSchema)) {
+      const owner = gameModel.getComponent(entity, AttachSchema).parent;
       container.zIndex =
         TransformSchema.store.y[owner] -
         viewY +
