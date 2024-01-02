@@ -11,7 +11,7 @@ import type { PixiDrawSystem } from "../PixiDrawSystem";
 import * as PIXI from "pixi.js";
 import { PixiSpriteLoader } from "../../loader/PixiSpriteLoader";
 import ImageLoader from "../../loader/ImageLoader";
-import { ChildSchema } from "@/schemas/entity/Child";
+import { AttachSchema } from "@/schemas/entity/Attach";
 import { LocomotionSchema } from "@/schemas/entity/Locomotion";
 import { RadiusSchema } from "@/schemas/entity/Radius";
 import { TransformSchema } from "@/schemas/entity/Transform";
@@ -55,8 +55,8 @@ export class SpriteComponentPixi implements PixiDrawSystem {
       sprite.rotation = angle;
 
       let xDirection = direction.x;
-      if (!data.rotation && gameModel.hasComponent(entity, ChildSchema)) {
-        const owner = gameModel.getComponent(entity, ChildSchema).parent;
+      if (!data.rotation && gameModel.hasComponent(entity, AttachSchema)) {
+        const owner = gameModel.getComponent(entity, AttachSchema).parent;
         xDirection = LocomotionSchema.store.directionX[owner];
       }
 
@@ -74,8 +74,8 @@ export class SpriteComponentPixi implements PixiDrawSystem {
       sprite.rotation = angle;
     } else if (data.faceDirection === FaceDirectionEnum.HORIZONTAL) {
       let xDirection = direction.x;
-      if (gameModel.hasComponent(entity, ChildSchema)) {
-        const owner = gameModel.getComponent(entity, ChildSchema).parent;
+      if (gameModel.hasComponent(entity, AttachSchema)) {
+        const owner = gameModel.getComponent(entity, AttachSchema).parent;
         xDirection = LocomotionSchema.store.directionX[owner];
       }
 
@@ -240,8 +240,8 @@ export class SpriteComponentPixi implements PixiDrawSystem {
     }
     const viewY = viewport.position.y;
 
-    if (spriteData.inheritParentZIndex && gameModel.hasComponent(entity, ChildSchema)) {
-      const owner = gameModel.getComponent(entity, ChildSchema).parent;
+    if (spriteData.inheritParentZIndex && gameModel.hasComponent(entity, AttachSchema)) {
+      const owner = gameModel.getComponent(entity, AttachSchema).parent;
       container.zIndex =
         TransformSchema.store.y[owner] -
         viewY +

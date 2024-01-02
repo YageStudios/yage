@@ -1,15 +1,11 @@
 import { Vector2d, Vector2dSchema } from "@/utils/vector";
 import { Component, defaultValue, nullable, Schema, type } from "../../decorators/type";
 
-@Component("Child")
-export class ChildSchema extends Schema {
+@Component("Attach")
+export class AttachSchema extends Schema {
   @type("Entity")
   @nullable()
   parent: number | null;
-
-  @type("boolean")
-  @defaultValue(true)
-  autoAttach: boolean;
 
   @type("boolean")
   @defaultValue(true)

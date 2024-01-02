@@ -6,7 +6,7 @@ import { FloatingWindow } from "./floatingwindow";
 import { componentStringSchema } from "../decorators/type";
 import lodash from "lodash";
 import DescriptionSchema from "@/schemas/core/Description";
-import { ChildSchema } from "@/schemas/entity/Child";
+import { AttachSchema } from "@/schemas/entity/Attach";
 
 type EditorInstance = {
   close: () => void;
@@ -219,8 +219,8 @@ const Editor = (entity: number, gameModel: GameModel): EditorInstance => {
 
     const generateHeader = () => {
       let prev = "";
-      if (gameModel.hasComponent(entity, ChildSchema)) {
-        const parentId = gameModel.getTyped(entity, ChildSchema).parent;
+      if (gameModel.hasComponent(entity, AttachSchema)) {
+        const parentId = gameModel.getTyped(entity, AttachSchema).parent;
         if (parentId != undefined) {
           prev = `<span data-entity="${parentId}">Parent</span>`;
         }
