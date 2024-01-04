@@ -13,6 +13,7 @@ import { ChildSchema } from "@/schemas/entity/Child";
 import { EntityAsset } from "./EntityAssets";
 import { assignGlobalSingleton, getGlobalSingleton, setGlobalSingleton } from "@/global";
 import { cloneDeep } from "lodash";
+import { hexToRgbNumber } from "@/utils/colors";
 
 export interface EntityDefinition {
   name: string;
@@ -191,6 +192,9 @@ export class EntityFactory {
         const [prefix, suffix] = data.split("::enum::");
         // @ts-ignore
         return prefix + StringToEnum<any>(enumClassName[1], enums[enumClassName[0]]) + suffix;
+      }
+      if (data.startsWith("rgb:")) {
+        return hexToRgbNumber(data.substring(4));
       }
       if (data.startsWith("rand:")) {
         const randValue = gameModel.rand.number();
