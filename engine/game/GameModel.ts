@@ -136,6 +136,7 @@ export class GameModel {
       return;
     }
     this.generateEntityData(20000);
+    this.app = gameCoordinator.pixiApp;
     this.coreEntity = EntityFactory.getInstance().generateEntity(this, "core");
     const physicsSystem = this.getSystem(PhysicsSystem);
     physicsSystem?.getEngine?.(this);

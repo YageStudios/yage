@@ -62,5 +62,6 @@ export class ImageBox extends Box<ImageBoxConfig> {
     const img = AssetLoader.getInstance().getImage(this._config.imageKey).image;
     imageElement.style.backgroundImage = "url(" + img.src + ")";
     imageElement.style.backgroundSize = this._config.backgroundSize ?? "contain";
+    imageElement.style.backgroundRepeat = "no-repeat";
   }
 }
