@@ -482,6 +482,12 @@ export class GameModel {
           if (activeIndex > -1) {
             this.state.activeByComponent[i].splice(activeIndex, 1);
           }
+          if (this.isBitecs(i)) {
+            const schema = componentList[i].schema;
+            Object.keys(schema.store).forEach((bitecsKey) => {
+              schema.store[bitecsKey][entity] = 0;
+            });
+          }
           this.state.components[entity][i] = new TypeSchema({ type: typeString });
         }
       }
