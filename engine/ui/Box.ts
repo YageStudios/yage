@@ -22,7 +22,6 @@ const defaultStyle: Partial<CSSStyleDeclaration> = {
   borderColor: "black",
   padding: "0",
   margin: "0",
-  pointerEvents: "none",
   overflow: "visible",
 };
 
