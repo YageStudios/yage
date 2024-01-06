@@ -171,3 +171,12 @@ export const sortedByDistance = (
     })
     .filter((e) => distances[e] !== Infinity);
 };
+
+export const closestEntity = (
+  gameModel: GameModel,
+  entityPosition: Vector2d,
+  entities: number[],
+  radius = Infinity
+): number | undefined => {
+  return sortedByDistance(gameModel, entityPosition, entities, radius)[0];
+};
