@@ -203,6 +203,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       if (x.visible !== visible) {
         x.visible = visible;
       }
+      x.update();
     });
     const element = this.element;
     if (!visible) {
