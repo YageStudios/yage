@@ -6,7 +6,7 @@ import { RadiusSchema } from "@/schemas/entity/Radius";
 import { TransformSchema } from "@/schemas/entity/Transform";
 import { Viewport } from "pixi-viewport";
 
-class DebugCollisionDraw implements PixiDrawSystem {
+class DebugRadiusDraw implements PixiDrawSystem {
   ids: Set<number> = new Set();
   entities: {
     [id: number]: { container: PIXI.Container; radiusGraphic: PIXI.Graphics };
@@ -59,4 +59,4 @@ class DebugCollisionDraw implements PixiDrawSystem {
   }
 }
 
-registerPixiComponent("Radius", DebugCollisionDraw);
+registerPixiComponent("Radius", DebugRadiusDraw);
