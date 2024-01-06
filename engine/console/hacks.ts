@@ -21,10 +21,6 @@ const hackConfig: { [hackName: string]: HackingConfig } = {
 
   _General: { label: "General" }, // PRETTY LISTS
 
-  STICK_SPAWN: {},
-  SKIP_DRAW: {},
-
-  GIVE_ITEM: {},
   ACTIVE_ONLY: {},
   PERFORMANCE_LOGS: {},
   HOT: { reload: true }, // hot reloading
@@ -38,8 +34,6 @@ const hackConfig: { [hackName: string]: HackingConfig } = {
       }
     },
   },
-  WALL: {},
-  SPEED: {},
   LOG_GAME_MODEL: {
     action: () => {
       console.log(gameModel);
@@ -64,31 +58,6 @@ const hackConfig: { [hackName: string]: HackingConfig } = {
     action: async (_state: boolean, checkpoint?: string) => {
       console.error(checkpoint);
       await gameModel.loadState(checkpoint ?? "checkpoint");
-      return false;
-    },
-    stateful: false,
-  },
-  PRACTICE_ROOM: {
-    action: async () => {
-      // const playerId = gameModel.players[0];
-      // const mapIdData = gameModel.getTyped(playerId, MapIdSchema);
-      // const mapId = mapIdData.mapId;
-      // // @ts-ignore
-      // mapIdData.mapId = undefined;
-      // mapIdData.map = "";
-      // const player = gameModel.ejectEntity(gameModel.players[0]);
-      // console.log(player);
-      // // await gameModel.saveState("practice");
-      // gameModel.clearState();
-      // gameModel.coreEntity = EntityFactory.getInstance().generateEntity(gameModel, "core");
-
-      // const injectedPlayer = gameModel.injectEntity(player);
-
-      // gameModel.setComponent(injectedPlayer, MapSpawnSchema, {
-      //   location: "Spawn Point",
-      //   map: "practiceroom",
-      // });
-
       return false;
     },
     stateful: false,
@@ -122,37 +91,34 @@ const hackConfig: { [hackName: string]: HackingConfig } = {
     hide: true,
   },
   GAME_STATE_OVERLAY: { reload: true },
-  SKIP_MENU: {},
 
-  _Enemies: { label: "Enemies" }, // PRETTY LISTS
+  PHYSICS: {},
 
-  NO_ENEMIES: { turnOff: ["DUMMY"], reload: true },
-  DUMMY: { turnOff: ["NO_ENEMIES"], reload: true },
-
-  _Levels: { label: "Levels" }, // PRETTY LISTS
-
-  LEVEL_1: { turnOff: ["TEST_ROOM", "BOSS_ROOM"], reload: true },
-  BOSS_ROOM: { turnOff: ["TEST_ROOM", "LEVEL_1"], reload: true },
-  TEST_ROOM: { turnOff: ["LEVEL_1", "BOSS_ROOM"], reload: true },
-  FLOOR_RENDERER: { reload: true, turnOff: ["MULTI", "PHYSICS"] },
-  MULTI: { reload: true, turnOff: ["FLOOR_RENDERER", "PHYSICS"] },
-  PHYSICS: { reload: true, turnOff: ["MULTI", "FLOOR_RENDERER"] },
-
-  DEMO: { reload: true },
-  HARD_MODE: { reload: true },
   INVINCIBLE: {},
-
-  _Classes: { label: "Classes" }, // PRETTY LISTS
-
-  SWORD: { turnOff: ["BOW", "WAND", "GUN", "SKULLS"], reload: true }, // single player sword boy
-  BOW: { turnOff: ["SWORD", "WAND", "GUN", "SKULLS"], reload: true },
-  WAND: { turnOff: ["BOW", "SWORD", "GUN", "SKULLS"], reload: true },
-  GUN: { turnOff: ["BOW", "WAND", "SWORD", "SKULLS"], reload: true },
-  SKULLS: { turnOff: ["BOW", "WAND", "SWORD", "GUN"], reload: true },
 };
 
 export const setGameModel = (model: GameModel) => {
   gameModel = model;
+};
+
+export const addHacks = (additionalHacks: { [hackName: string]: HackingConfig }) => {
+  Object.assign(hackConfig, additionalHacks);
+  Object.entries(additionalHacks).forEach(([hackName, localConfig]) => {
+    const local = window.localStorage.getItem(hackName);
+
+    if (hacks[hackName] === undefined) {
+      hacks[hackName] = false;
+    }
+    if (localConfig.label) {
+      hacks[hackName] = false;
+    }
+    if (local !== null) {
+      hacks[hackName] = local === "true";
+      if (hackConfig[hackName].action && hackConfig[hackName].stateful !== false) {
+        hackConfig[hackName].action?.(hacks[hackName]);
+      }
+    }
+  });
 };
 
 export const hacks: { [hackName: string]: boolean } = Object.entries(hackConfig).reduce(

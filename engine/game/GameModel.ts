@@ -807,9 +807,6 @@ export class GameModel {
 
   runPixiComponents = () => {
     const viewport = this.gameCoordinator.pixiViewport;
-    if (hacks.SKIP_DRAW) {
-      return;
-    }
 
     for (let i = 0; i < pixiDrawComponents.length; i++) {
       const pixi = pixiDrawComponents[i];
