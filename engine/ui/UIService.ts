@@ -1,9 +1,6 @@
-import type { GameModel } from "@/game/GameModel";
 import type { UIElement } from "./UIElement";
 import type { Vector2d } from "../utils/vector";
-import { UIConfig, createByType } from "./UiConfigs";
-import { Rectangle } from "./Rectangle";
-import { assignGlobalSingleton, getGlobalSingleton, setGlobalSingleton } from "@/global";
+import { getGlobalSingleton, setGlobalSingleton } from "@/global";
 
 export class UIService {
   elements: UIElement[] = [];
@@ -45,19 +42,11 @@ export class UIService {
     this.UICanvas = uiCanvas;
     this.interactionDiv = document.getElementById("interaction") as HTMLElement;
     this.uiDiv = document.getElementById("ui") as HTMLDivElement;
-    this.registerClickEvents();
+    this.registerResizeEvents();
   }
 
   static configureUi(uiCanvas?: HTMLCanvasElement) {
-    if (!uiCanvas) {
-      uiCanvas = document.getElementById("uicanvas") as HTMLCanvasElement;
-    }
-    if (getGlobalSingleton("UIService")) {
-      this.getInstance().destroy();
-      this.getInstance().UICanvas = uiCanvas;
-      this.getInstance().interactionDiv = document.getElementById("interaction") as HTMLElement;
-      this.getInstance().registerClickEvents();
-    } else {
+    if (!getGlobalSingleton("UIService")) {
       setGlobalSingleton("UIService", new UIService(uiCanvas!));
     }
   }
@@ -70,8 +59,12 @@ export class UIService {
     return instance ?? getGlobalSingleton("UIService")!;
   }
 
-  destroy() {
-    this.interactionDiv.removeEventListener("mousemove", this.trackMouse);
+  registerResizeEvents() {
+    window.addEventListener("resize", () => {
+      this.elements.forEach((element) => {
+        element.reset();
+      });
+    });
   }
 
   addKeyPressListener(listener: (key: string) => void) {
@@ -81,33 +74,15 @@ export class UIService {
     };
   }
 
-  registerClickEvents() {
-    window.addEventListener("resize", () => {
-      this.elements.forEach((element) => {
-        element.reset();
-      });
-    });
-  }
-
-  trackMouse = (e: MouseEvent) => {
-    const mouseLocation: Vector2d = { x: e.clientX, y: e.clientY };
-  };
-
   addToUI(element: UIElement) {
+    document.getElementById("ui")?.appendChild(element.element);
     this.elements.push(element);
     this.uiElements[element.id] = element;
-  }
-
-  createUIElement(config: UIConfig) {
-    const element = createByType(config);
-    if (config.name) {
-      this.uiElements[config.name] = element;
-      element.id = config.name;
-    } else {
-      this.uiElements[element.id] = element;
+    if (!element?.update) {
+      console.error('Element does not have an "update" method', element);
+      return;
     }
-    this.elements.push(element);
-    return element;
+    element.update();
   }
 
   removeFromUI(element: UIElement | UIElement[]) {
@@ -185,22 +160,4 @@ export class UIService {
     });
     this.elements = [];
   }
-
-  draw() {
-    this.UICanvas.getContext("2d")?.clearRect(0, 0, this.UICanvas.width, this.UICanvas.height);
-    this.elements.forEach((x) => x.draw(this.UICanvas, this.uiDiv));
-  }
-
-  update(gameModel: GameModel) {
-    this.elements.forEach((x) => x.update(gameModel));
-  }
-
-  toCanvasSpace = (mouseX: number, mouseY: number): Vector2d => {
-    const { width, height, top: offsetY, left: offsetX } = this.UICanvas.getBoundingClientRect();
-
-    const xPercentage = (mouseX - offsetX) / width;
-    const yPercentage = (mouseY - offsetY) / height;
-
-    return { x: Math.floor(xPercentage * 1920), y: Math.floor(yPercentage * 1080) };
-  };
 }

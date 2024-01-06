@@ -100,21 +100,18 @@ export class TextInput extends UIElement<TextInputConfig> {
     document.removeEventListener("keydown", this.listenKeyPress);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-empty-function
-  protected updateInternal(gameModel: GameModel): void {}
+  createElement(): HTMLInputElement {
+    const element = document.createElement("input");
+    element.id = this.id;
+    return element;
+  }
 
-  protected drawInternal(ctx: CanvasRenderingContext2D, ui: HTMLElement): void {
-    const textInputElement = this._element ?? document.createElement("input");
-    const [x, y, width, height] = positionToCanvasSpace(this.bounds, ui);
-
+  update(): void {
+    super.update();
+    const textInputElement = this.element;
     textInputElement.type = "text";
     textInputElement.placeholder = this._config.label;
 
-    textInputElement.style.position = "absolute";
-    textInputElement.style.top = `${y}px`;
-    textInputElement.style.left = `${x}px`;
-    textInputElement.style.width = `${width}px`;
-    textInputElement.style.height = `${height}px`;
     textInputElement.style.backgroundColor = this._config.style.backgroundColor ?? "transparent";
     textInputElement.style.fontFamily = this._config.font ?? this._config.style.fontFamily ?? "YageFont";
     textInputElement.style.color = "white";
@@ -132,10 +129,5 @@ export class TextInput extends UIElement<TextInputConfig> {
         this._config.onSubmit?.(textInputElement.value);
       }
     };
-
-    if (!this._element) {
-      ui.appendChild(textInputElement);
-      this._element = textInputElement;
-    }
   }
 }
