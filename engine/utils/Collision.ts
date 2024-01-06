@@ -138,6 +138,14 @@ export const sortedByDistance = (
 ) => {
   const distances: { [key: number]: number } = {};
   const radiusSquared = maxRadius * maxRadius;
+  if (entities.length === 1 && maxRadius < Infinity) {
+    const transformSchema = gameModel.getTyped(entities[0], TransformSchema);
+    const distance = distanceSquaredVector2d(entityPosition, transformSchema.position);
+    if (distance < radiusSquared) {
+      return entities;
+    }
+    return [];
+  }
   return entities
     .sort((a, b) => {
       if (!distances[a]) {
@@ -162,13 +170,4 @@ export const sortedByDistance = (
       return distances[a] - distances[b];
     })
     .filter((e) => distances[e] !== Infinity);
-};
-
-export const closestEntity = (
-  gameModel: GameModel,
-  entityPosition: Vector2d,
-  entities: number[],
-  radius = Infinity
-): number | undefined => {
-  return sortedByDistance(gameModel, entityPosition, entities, radius)[0];
 };
