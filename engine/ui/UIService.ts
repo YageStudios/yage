@@ -62,8 +62,13 @@ export class UIService {
   registerResizeEvents() {
     window.addEventListener("resize", () => {
       this.elements.forEach((element) => {
-        element.reset();
+        element.update();
       });
+      setTimeout(() => {
+        this.elements.forEach((element) => {
+          element.update();
+        });
+      }, 100);
     });
   }
 
