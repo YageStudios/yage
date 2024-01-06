@@ -22,7 +22,7 @@ const scale = () => {
 };
 
 export const positionToCanvasSpace = (pos: Position, element: HTMLElement): [number, number, number, number] => {
-  const { width: canvasWidth, height: canvasHeight, top, left } = element.getBoundingClientRect();
+  const { width: canvasWidth, height: canvasHeight } = element.getBoundingClientRect();
 
   let xPercentage = typeof pos.x == "number" ? pos.x / 100 : 0;
   let yPercentage = typeof pos.y == "number" ? pos.y / 100 : 0;
@@ -50,8 +50,8 @@ export const positionToCanvasSpace = (pos: Position, element: HTMLElement): [num
   }
 
   return [
-    pos.x === "full" ? 0 : Math.floor(xPercentage * canvasWidth + xOffset * scale()) + left,
-    pos.y === "full" ? 0 : Math.floor(yPercentage * canvasHeight + yOffset * scale()) + top,
+    pos.x === "full" ? 0 : Math.floor(xPercentage * canvasWidth + xOffset * scale()),
+    pos.y === "full" ? 0 : Math.floor(yPercentage * canvasHeight + yOffset * scale()),
     pos.x === "full" ? document.body.clientWidth : Math.floor(pos.width * scale()),
     pos.y === "full" ? document.body.clientHeight : Math.floor(pos.height * scale()),
   ];

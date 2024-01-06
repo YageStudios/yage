@@ -34,6 +34,7 @@ const defaultStyle: Partial<CSSStyleDeclaration> = {
 
 export class Button extends UIElement<ButtonConfig> {
   protected _hasChanged = true;
+  textElement: HTMLSpanElement = document.createElement("span");
 
   constructor(bounds: Rectangle | Position, config: Partial<ButtonConfig>) {
     super(bounds, config, defaultStyle);
@@ -81,17 +82,23 @@ export class Button extends UIElement<ButtonConfig> {
     this._hasChanged = true;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-empty-function
-  protected updateInternal(gameModel: GameModel): void {}
+  createElement(): HTMLButtonElement {
+    const element = document.createElement("button");
+    element.id = this.id;
+    element.appendChild(this.textElement);
+    return element as unknown as HTMLButtonElement;
+  }
 
-  protected drawInternal(ctx: CanvasRenderingContext2D, ui: HTMLElement): void {
-    const buttonElement = this._element ?? document.createElement("button");
+  update(): void {
+    super.update();
+
+    const buttonElement = this.element;
     if (this._config.uppercase) {
       buttonElement.style.textTransform = "uppercase";
     }
 
     buttonElement.style.fontSize = `${scaleFont(this.config.fontSize || 12)}px`;
-    buttonElement.innerText = this._config.label;
+    this.textElement.innerText = this._config.label;
 
     buttonElement.onclick = () => {
       this.onClickInternal();
@@ -114,10 +121,5 @@ export class Button extends UIElement<ButtonConfig> {
     buttonElement.onmouseleave = () => {
       this.onMouseLeaveInternal();
     };
-
-    if (!this._element) {
-      ui.appendChild(buttonElement);
-      this._element = buttonElement;
-    }
   }
 }

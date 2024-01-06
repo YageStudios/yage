@@ -59,8 +59,9 @@ export class Text extends UIElement<TextConfig> {
 
   protected updateInternal(gameModel: GameModel): void {}
 
-  protected drawInternal(ctx: CanvasRenderingContext2D, ui: HTMLDivElement): void {
-    const textElement = this._element ?? document.createElement("div");
+  update(): void {
+    super.update();
+    const textElement = this.element;
 
     if (this._config.multiline) {
       textElement.style.whiteSpace = "pre";
@@ -75,11 +76,6 @@ export class Text extends UIElement<TextConfig> {
       textElement.innerHTML = this._config.label;
     } else {
       textElement.innerText = this._config.label;
-    }
-
-    if (!this._element) {
-      ui.appendChild(textElement);
-      this._element = textElement;
     }
   }
 }

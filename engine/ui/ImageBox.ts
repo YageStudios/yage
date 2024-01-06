@@ -32,21 +32,10 @@ export class ImageBox extends Box<ImageBoxConfig> {
     return { width: srcWidth * ratio, height: srcHeight * ratio };
   }
 
-  drawInternal(canvas: any, ui: HTMLDivElement): void {
-    const imageElement = this._element ?? document.createElement("div");
-
-    if (!this._element) {
-      ui.appendChild(imageElement);
-      this._element = imageElement;
-    }
-
-    const [x, y, width, height] = positionToCanvasSpace(this.bounds, this._parent?._element ?? document.body);
+  update(): void {
+    super.update();
+    const imageElement = this.element;
     imageElement.className = "image-box";
-    imageElement.style.position = "absolute";
-    imageElement.style.left = `${x}px`;
-    imageElement.style.top = `${y}px`;
-    imageElement.style.width = `${width}px`;
-    imageElement.style.height = `${height}px`;
 
     if (this._config.flipX && this._config.flipY) {
       imageElement.style.transform = "scale(-1,-1)";

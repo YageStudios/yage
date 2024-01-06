@@ -1,7 +1,7 @@
 import type { GameModel } from "@/game/GameModel";
 import { Position, Rectangle, isRectangle } from "./Rectangle";
 import { nanoid } from "nanoid";
-import { positionToCanvasSpace } from "./utils";
+import { positionToCanvasSpace } from "../ui/utils";
 
 export type UIElementConfig = {
   style: Partial<CSSStyleDeclaration>;
@@ -13,15 +13,23 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   bounds: Position;
   active = false;
   _visible = true;
-  id: string;
+  _id: string;
 
-  protected _styleOverrides: Partial<CSSStyleDeclaration> | undefined;
-  protected _hasChanged = true;
+  _styleOverrides: Partial<CSSStyleDeclaration> | undefined;
   protected _config: T;
   _element: HTMLElement | undefined;
   _parent: UIElement | undefined;
-
   _zIndex = 0;
+
+  get id() {
+    return this._id;
+  }
+
+  set id(value: string) {
+    this._id = value;
+    this.element.id = value;
+    this.update();
+  }
 
   get visible() {
     return this._visible;
@@ -29,14 +37,14 @@ export abstract class UIElement<T extends UIElementConfig = any> {
 
   set visible(value: boolean) {
     this._visible = value;
-    this._hasChanged = true;
+    this.update();
   }
 
   get config(): T {
     return new Proxy(this._config, {
       set: (target: any, key, value) => {
         target[key] = value;
-        this._hasChanged = true;
+        this.update();
         return true;
       },
     });
@@ -46,7 +54,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     return new Proxy(this._config.style, {
       set: (target: any, key, value) => {
         target[key] = value;
-        this._hasChanged = true;
+        this.update();
         return true;
       },
     });
@@ -54,12 +62,40 @@ export abstract class UIElement<T extends UIElementConfig = any> {
 
   set style(value: Partial<CSSStyleDeclaration>) {
     this._config.style = value;
-    this._hasChanged = true;
+    this.update();
   }
 
-  _setParent(parent: UIElement) {
+  get element(): ReturnType<this["createElement"]> {
+    if (!this._element) {
+      const element = this.createElement();
+      document.getElementById("ui")?.appendChild(element);
+      this._element = element;
+      this.addEvents(element);
+    }
+    // @ts-ignore
+    return this._element!;
+  }
+
+  set position(value: Position | Rectangle) {
+    this.bounds = isRectangle(value) ? value.toPosition() : value;
+    this.update();
+  }
+
+  get position() {
+    return new Proxy(this.bounds, {
+      set: (target: any, key, value) => {
+        target[key] = value;
+        this.update();
+        return true;
+      },
+    });
+  }
+
+  set parent(parent: UIElement) {
     this._parent = parent;
-    this._hasChanged = true;
+    parent.element.appendChild(this.element);
+    this.update();
+    parent.update();
   }
 
   addChild(child: UIElement) {
@@ -67,16 +103,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       this._config.children = [];
     }
     this._config.children.push(child);
-    child._setParent(this);
-  }
-
-  updateBounds(bounds: Rectangle | Position) {
-    if (isRectangle(bounds)) {
-      this.bounds = bounds.toPosition();
-    } else {
-      this.bounds = bounds;
-    }
-    this._hasChanged = true;
+    child.parent = this;
   }
 
   constructor(bounds: Rectangle | Position, _config: Partial<T> = {}, defaultStyle: Partial<CSSStyleDeclaration> = {}) {
@@ -96,11 +123,11 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     } else {
       this.bounds = bounds;
     }
-    this.id = nanoid();
+    this._id = nanoid();
 
     if (this._config.children) {
       for (const child of this._config.children) {
-        child._setParent(this);
+        child.parent = this;
       }
     }
   }
@@ -127,14 +154,8 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   protected abstract onMouseUpInternal(): void | boolean;
   protected abstract onBlurInternal(): void;
   protected abstract onFocusInternal(): void;
-  protected abstract updateInternal(gameModel: GameModel): void;
-  protected abstract drawInternal(ctx: CanvasRenderingContext2D, ui: HTMLDivElement): void;
   protected abstract onMouseEnterInternal(): void;
   protected abstract onMouseLeaveInternal(): void;
-
-  update(gameModel: GameModel) {
-    this.updateInternal(gameModel);
-  }
 
   onDestroy() {
     if (this._element) {
@@ -142,9 +163,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     }
   }
 
-  reset() {
-    this._hasChanged = true;
-  }
+  reset() {}
 
   createElement(): HTMLElement {
     const element = document.createElement("div");
@@ -176,53 +195,43 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     };
   }
 
-  draw(canvas: HTMLCanvasElement, ui: HTMLDivElement) {
+  update() {
     this._zIndex = (this._parent?._zIndex ?? 0) + parseInt(this._config.style.zIndex ?? "0");
-    if (this._styleOverrides) {
-      this._hasChanged = true;
-    }
     const notVisible = !this.visible || !this._config.visible;
     const visible = !notVisible;
     this.config.children?.forEach((x) => {
       if (x.visible !== visible) {
         x.visible = visible;
-        x._setParent(this);
       }
     });
-    if (!visible && this._element) {
-      this._element.style.display = "none";
+    const element = this.element;
+    if (!visible) {
+      element.style.display = "none";
       return;
-    } else if (this._element) {
-      this._element.style.display = "block";
-    }
-    if (!this._hasChanged && this._element) {
-      return;
+    } else {
+      element.style.display = "block";
     }
 
-    if (this._hasChanged && this._element) {
-      this.config.children?.forEach((x) => x._setParent(this));
+    // this.config.children?.forEach((x) => x._setParent(this));
 
-      const [x, y, width, height] = positionToCanvasSpace(this.bounds, this._parent?._element ?? document.body);
-      this._element.style.left = `${x}px`;
-      this._element.style.top = `${y}px`;
-      this._element.style.width = width > 1 ? `${width}px` : "auto";
-      this._element.style.height = height > 1 ? `${height}px` : "auto";
+    const [x, y, width, height] = positionToCanvasSpace(this.bounds, this._parent?.element ?? document.body);
+    element.style.left = `${x}px`;
+    element.style.top = `${y}px`;
+    element.style.width = width > 1 ? `${width}px` : "auto";
+    element.style.height = height > 1 ? `${height}px` : "auto";
+    element.style.position = "absolute";
 
-      const styles = {
-        ...this._config.style,
-        ...this._styleOverrides,
-      };
+    const styles = {
+      ...this._config.style,
+      ...this._styleOverrides,
+    };
 
-      for (const [key, value] of Object.entries(styles)) {
-        // @ts-ignore
-        this._element.style[key] = value;
-      }
-      if (this._zIndex > 0) {
-        this._element.style.zIndex = `${this._zIndex}`;
-      }
-
-      this._hasChanged = false;
+    for (const [key, value] of Object.entries(styles)) {
+      // @ts-ignore
+      element.style[key] = value;
     }
-    this.drawInternal(null as any, ui);
+    if (this._zIndex > 0) {
+      element.style.zIndex = `${this._zIndex}`;
+    }
   }
 }

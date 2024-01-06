@@ -76,8 +76,6 @@ export class GameInstance<T> {
       if (this.gameModel.destroyed) {
         this.options.connection.leave();
       }
-    } else {
-      this.uiService?.draw();
     }
   }
 
@@ -105,7 +103,6 @@ export class GameInstance<T> {
 
       this.gameModel.runPixiComponents();
       this.gameModel.runUIComponents();
-      this.uiService?.draw();
 
       this.options.connection.run(this.gameModel);
     } catch (e) {
