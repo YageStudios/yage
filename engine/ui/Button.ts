@@ -27,7 +27,7 @@ const defaultStyle: Partial<CSSStyleDeclaration> = {
   textDecoration: "none",
   display: "flex",
   alignItems: "center",
-  overflow: "hidden",
+  overflow: "visible",
   justifyContent: "center",
   textShadow: "1px 1px 4px black",
 };
