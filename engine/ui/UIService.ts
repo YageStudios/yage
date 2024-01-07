@@ -80,7 +80,9 @@ export class UIService {
   }
 
   addToUI(element: UIElement) {
-    document.getElementById("ui")?.appendChild(element.element);
+    if (!element._parent) {
+      document.getElementById("ui")?.appendChild(element.element);
+    }
     this.elements.push(element);
     this.uiElements[element.id] = element;
     if (!element?.update) {
