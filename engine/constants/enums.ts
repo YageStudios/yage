@@ -33,6 +33,7 @@ export enum ComponentCategory {
 
   DAMAGEAPPLIER,
   ONHIT,
+  ONHIT_MOD,
   DAMAGEINTERACTION,
   TARGET,
   AURA,

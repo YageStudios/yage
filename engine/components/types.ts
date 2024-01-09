@@ -8,13 +8,13 @@ export type ComponentData = {
   [key: string]: any;
 };
 
-export class ComponentDataSchema extends Schema {
+export class ComponentDataSchema<T = any> extends Schema {
   @required()
   @type("string")
   type: string;
 
   @type("object")
-  data: any;
+  data: Partial<T>;
 
   @type("boolean")
   inherit?: boolean;
