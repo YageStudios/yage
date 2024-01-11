@@ -102,7 +102,7 @@ export class RigidCircleSystem implements System {
       let decayingVelocity: null | number[] = null;
       if (locomotionSchema.decayingVelocityTime > 0) {
         const decayTime = Math.max(150, locomotionSchema.decayingVelocityTime);
-        const decayFactor = 0.5; // random ass hardcoded value
+        const decayFactor = 0.25; // random ass hardcoded value
         if (locomotionSchema.decayingVelocityTime < decayTime) {
           const expDecay = Math.pow(1 - decayFactor, decayTime - locomotionSchema.decayingVelocityTime);
           decayingVelocity = BV2.lerpVector2d(
