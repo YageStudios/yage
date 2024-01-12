@@ -24,6 +24,8 @@ export enum ComponentCategory {
   CORE,
   MAP,
 
+  WEAPON_MOD,
+
   DAMAGE,
   DAMAGEMOD,
   ONDAMAGE,
