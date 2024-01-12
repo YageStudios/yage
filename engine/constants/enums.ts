@@ -39,6 +39,8 @@ export enum ComponentCategory {
   DAMAGEINTERACTION,
   TARGET,
   AURA,
+
+  ONKILL,
 }
 
 export enum EntityType {
