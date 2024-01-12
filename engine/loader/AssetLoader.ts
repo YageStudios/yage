@@ -17,6 +17,8 @@ import { PixiSpineLoader } from "./PixiSpineLoader";
 import { UIConfig } from "@/ui/UiConfigs";
 import { assignGlobalSingleton } from "@/global";
 
+const n = (name: string) => name?.toLowerCase().replace(/ /g, "_");
+
 export default class AssetLoader {
   static getInstance(): AssetLoader {
     return assignGlobalSingleton("assetLoader", () => new AssetLoader());
@@ -47,12 +49,12 @@ export default class AssetLoader {
   }
 
   async loadUi(name: string, ui: UIConfig[]) {
-    this.assetCache[name] = {
+    this.assetCache[n(name)] = {
       type: AssetType.UI,
-      promise: Promise.resolve(name),
+      promise: Promise.resolve(n(name)),
     };
-    this.uiCache[name] = ui;
-    return this.assetCache[name].promise;
+    this.uiCache[n(name)] = ui;
+    return this.assetCache[n(name)].promise;
   }
 
   async loadImage(
@@ -71,73 +73,73 @@ export default class AssetLoader {
     }
     const assetPath = `assets/images/${url}`;
 
-    this.assetCache[name] = {
+    this.assetCache[n(name)] = {
       type: AssetType.IMAGE,
       promise: ImageLoader.getInstance()
-        .loadImage(name, assetPath, options)
-        .then(() => name),
+        .loadImage(n(name), assetPath, options)
+        .then(() => n(name)),
     };
-    return this.assetCache[name].promise;
+    return this.assetCache[n(name)].promise;
   }
 
   async loadSprite(name: string, url: string, options: Partial<SpriteOptions>): Promise<string> {
     const assetPath = `assets/images/${url}`;
-    this.assetCache[name] = {
+    this.assetCache[n(name)] = {
       type: AssetType.SPRITE,
       promise: SpriteLoader.getInstance()
-        .loadSprite(name, assetPath, options)
-        .then(() => name),
+        .loadSprite(n(name), assetPath, options)
+        .then(() => n(name)),
     };
-    return this.assetCache[name].promise;
+    return this.assetCache[n(name)].promise;
   }
 
   async loadSpine(name: string, url: string): Promise<string> {
     const assetPath = `assets/spine/${url}`;
-    this.assetCache[name] = {
+    this.assetCache[n(name)] = {
       type: AssetType.SPINE,
       promise: PixiSpineLoader.getInstance()
-        .loadSpine(name, assetPath)
-        .then(() => name),
+        .loadSpine(n(name), assetPath)
+        .then(() => n(name)),
     };
-    return this.assetCache[name].promise;
+    return this.assetCache[n(name)].promise;
   }
 
   async loadMap(name: string, url: string): Promise<string> {
     const assetPath = `assets/maps/${url}`;
-    this.assetCache[name] = {
+    this.assetCache[n(name)] = {
       type: AssetType.SPRITE,
       promise: MapLoader.getInstance()
-        .loadMap(name, assetPath)
-        .then(() => name),
+        .loadMap(n(name), assetPath)
+        .then(() => n(name)),
     };
-    return this.assetCache[name].promise;
+    return this.assetCache[n(name)].promise;
   }
 
   async loadMapSkin(name: string, url: string): Promise<string> {
     const assetPath = `assets/maps/${url}`;
-    this.assetCache[name] = {
+    this.assetCache[n(name)] = {
       type: AssetType.SPRITE,
       promise: MapLoader.getInstance()
-        .loadSkin(name, assetPath)
-        .then(() => name),
+        .loadSkin(n(name), assetPath)
+        .then(() => n(name)),
     };
-    return this.assetCache[name].promise;
+    return this.assetCache[n(name)].promise;
   }
 
   getUi(name: string): UIConfig[] {
-    return JSON.parse(JSON.stringify(this.uiCache[name]));
+    return JSON.parse(JSON.stringify(this.uiCache[n(name)]));
   }
 
   getImage(name: string): ImageObj {
-    return ImageLoader.getInstance().get(name);
+    return ImageLoader.getInstance().get(n(name));
   }
 
   getSprite(name: string, index?: number): Sprite[] | Sprite {
-    return SpriteLoader.getInstance().get(name, index);
+    return SpriteLoader.getInstance().get(n(name), index);
   }
 
   getMap(name: string): GameMap {
-    return MapLoader.getInstance().get(name);
+    return MapLoader.getInstance().get(n(name));
   }
 
   getMapSkin(name: string): {

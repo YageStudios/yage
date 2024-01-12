@@ -22,6 +22,7 @@ const defaultOptions: ImageOptions = {
   skipPixi: false,
   zIndex: 2,
 };
+const n = (name: string) => name?.toLowerCase().replace(/ /g, "_");
 
 export type ImageObj = ImageOptions & {
   name: string;
@@ -42,7 +43,7 @@ export default class ImageLoader {
     if (typeof window === "undefined") {
       // @ts-ignore
       return Promise.resolve({
-        name,
+        name: n(name),
         url,
         image: null,
         promise: null,
@@ -51,36 +52,36 @@ export default class ImageLoader {
       });
     }
     const loadPromise = new Promise<ImageObj>((resolve, reject) => {
-      if (this.imageCache[name]) {
-        return this.imageCache[name].promise?.then(() => {
-          resolve(this.imageCache[name]);
+      if (this.imageCache[n(name)]) {
+        return this.imageCache[n(name)].promise?.then(() => {
+          resolve(this.imageCache[n(name)]);
         });
       }
       const image = new Image();
       image.src = url;
-      this.imageCache[name] = {
+      this.imageCache[n(name)] = {
         image,
-        name,
+        name: n(name),
         url,
         ...defaultOptions,
         ...(imageOptions ?? {}),
         promise: null,
       };
       image.onload = async () => {
-        if (this.imageCache[name].width === -1) {
-          this.imageCache[name].width = image.width;
+        if (this.imageCache[n(name)].width === -1) {
+          this.imageCache[n(name)].width = image.width;
         }
-        if (this.imageCache[name].height === -1) {
-          this.imageCache[name].height = image.height;
+        if (this.imageCache[n(name)].height === -1) {
+          this.imageCache[n(name)].height = image.height;
         }
-        if (!this.imageCache[name].skipPixi) {
-          this.pixiAssetCache[name] = (await PIXI.Assets.load(url)) as PIXI.Texture;
+        if (!this.imageCache[n(name)].skipPixi) {
+          this.pixiAssetCache[n(name)] = (await PIXI.Assets.load(url)) as PIXI.Texture;
         }
-        resolve(this.imageCache[name]);
+        resolve(this.imageCache[n(name)]);
       };
       image.onerror = () => reject(image);
     });
-    this.imageCache[name].promise = loadPromise;
+    this.imageCache[n(name)].promise = loadPromise;
     this.promises.push(loadPromise);
     loadPromise.then(() => {
       this.promises = this.promises.filter((p) => p !== loadPromise);
@@ -93,16 +94,16 @@ export default class ImageLoader {
   } = {};
 
   public getPixiTexture(name: string): PIXI.Texture {
-    return this.pixiAssetCache[name];
+    return this.pixiAssetCache[n(name)];
   }
 
   get(name: string): ImageObj {
     if (this.promises.length) {
       throw new Error("Images not loaded");
     }
-    if (!this.imageCache[name]) {
-      throw new Error(`Image ${name} not found`);
+    if (!this.imageCache[n(name)]) {
+      throw new Error(`Image ${n(name)} not found`);
     }
-    return this.imageCache[name];
+    return this.imageCache[n(name)];
   }
 }
