@@ -134,6 +134,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
 
   leave() {
     this.listening = false;
+    this.sendingState = false;
     this.touchListener?.replaceRegions([]);
     const rooms = this.rooms.filter((room) => room.players.includes(this.playerId));
     rooms.forEach((room) => {
