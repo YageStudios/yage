@@ -3,6 +3,7 @@ import { GameModel } from "./GameModel";
 import { UIService } from "@/ui/UIService";
 import { Scene } from "./Scene";
 import { GameCoordinator } from "./GameCoordinator";
+import { FrameRateSchema } from "@/schemas/core/FrameRate";
 
 export type GameInstanceOptions<T> = {
   gameName: string;
@@ -19,6 +20,7 @@ export class GameInstance<T> {
 
   private lastTime = 0;
   private dt = 16;
+  render30Fps: boolean;
 
   constructor(public options: GameInstanceOptions<T>) {
     if (options.uiService) {
@@ -101,8 +103,16 @@ export class GameInstance<T> {
       this.gameModel.frame++;
       this.gameModel.timeElapsed += dt;
 
+      // if (this.gameModel.getComponent(this.gameModel.coreEntity, FrameRateSchema)?.averageFrameRate ?? 60 < 50) {
+      //   this.render30Fps = true;
+      // } else if (this.gameModel.getComponent(this.gameModel.coreEntity, FrameRateSchema)?.averageFrameRate ?? 50 > 58) {
+      //   this.render30Fps = false;
+      // }
+
+      // if (!this.render30Fps || this.gameModel.frame % 2 === 0) {
       this.gameModel.runPixiComponents();
       this.gameModel.runUIComponents();
+      // }
 
       this.options.connection.run(this.gameModel);
     } catch (e) {
