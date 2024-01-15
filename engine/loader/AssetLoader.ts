@@ -15,9 +15,13 @@ import RAPIER from "@dimforge/rapier2d-compat";
 import { Persist } from "@/persist/persist";
 import { PixiSpineLoader } from "./PixiSpineLoader";
 import { UIConfig } from "@/ui/UiConfigs";
-import { assignGlobalSingleton } from "@/global";
+import { assignGlobalSingleton, setGlobalSingleton } from "@/global";
+import * as PIXI from "pixi.js";
 
 const n = (name: string) => name?.toLowerCase().replace(/ /g, "_");
+
+setGlobalSingleton("RAPIER", RAPIER);
+setGlobalSingleton("PIXI", PIXI);
 
 export default class AssetLoader {
   static getInstance(): AssetLoader {
