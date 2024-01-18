@@ -15,6 +15,12 @@ type Room = {
   rebalanceOnLeave: boolean;
 };
 
+export type MultiplayerInstanceOptions<T> = {
+  solohost?: boolean;
+  touchRegions?: TouchRegion[];
+  roomTimeout?: number;
+};
+
 export class MultiplayerInstance<T> implements ConnectionInstance<T> {
   stateRequested: null | [string, any][] = null;
   frameStack: { [playerId: string]: { keys: KeyMap; frame: number }[] } = {};
@@ -52,7 +58,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
     player: PlayerConnect<T>,
     public inputManager: InputManager,
     public mouseManager: MouseManager,
-    protected options: { solohost?: boolean; touchRegions?: TouchRegion[] } = { solohost: false }
+    protected options: MultiplayerInstanceOptions<T> = { solohost: false }
   ) {
     this.solohost = options.solohost ?? false;
     if (options.touchRegions) {
@@ -285,9 +291,26 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
       playerConfig = {};
     }
     playerConfig = { ...this.player.config, ...playerConfig };
-    const room = this.rooms.find((room) => room.roomId === roomId);
+    let room = this.rooms.find((room) => room.roomId === roomId);
     if (!room) {
-      throw new Error("Room not found");
+      await (() => {
+        console.log("Room not found, waiting for room");
+        return new Promise<void>((resolve, reject) => {
+          const rejected = false;
+          this.once("updateRoom", (room: Room) => {
+            if (room.roomId === roomId && !rejected) {
+              resolve();
+            }
+          });
+          setTimeout(() => {
+            reject();
+          }, this.options.roomTimeout ?? 5000);
+        });
+      })();
+      room = this.rooms.find((room) => room.roomId === roomId);
+      if (!room) {
+        throw new Error("Timed out looking for room");
+      }
     }
 
     this.subscribeFrame(roomId);

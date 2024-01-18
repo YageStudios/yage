@@ -1,11 +1,16 @@
 import Peer, { DataConnection } from "peerjs";
-import { MultiplayerInstance } from "./MultiplayerInstance";
+import { MultiplayerInstance, MultiplayerInstanceOptions } from "./MultiplayerInstance";
 import { PlayerConnect } from "./ConnectionInstance";
 import { customAlphabet } from "nanoid";
 import { InputManager } from "@/inputs/InputManager";
 import { MouseManager } from "@/inputs/MouseManager";
 
 const nanoid = customAlphabet("234579ACDEFGHJKMNPQRTWXYZ", 10);
+
+type PeerMultiplayerInstanceOptions<T> = MultiplayerInstanceOptions<T> & {
+  prefix: string;
+  address?: string;
+};
 
 export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
   peer: Peer;
@@ -19,7 +24,7 @@ export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
     player: PlayerConnect<T>,
     inputManager: InputManager,
     mouseManager: MouseManager,
-    { solohost, prefix, address = nanoid() }: { solohost?: boolean; prefix: string; address?: string }
+    { solohost, prefix, address = nanoid() }: PeerMultiplayerInstanceOptions<T>
   ) {
     super(player, inputManager, mouseManager, { solohost });
     this.prefix = prefix;
@@ -157,6 +162,15 @@ export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
       }
     });
     conn.on("close", () => {
+      // let address = this.address;
+      // if (!address.startsWith(this.prefix)) {
+      //   address = this.prefix + address;
+      // }
+      // if (conn.peer === address) {
+      //   console.log("HAVE TO RECREATE CONNECTION");
+      // }
+      // console.error("CONNECTION CLOSED");
+
       handleDisconnect();
     });
   };
