@@ -20,6 +20,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   _element: HTMLElement | undefined;
   _parent: UIElement | undefined;
   _zIndex = 0;
+  requestedUpdate: boolean;
 
   get id() {
     return this._id;
@@ -28,7 +29,18 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   set id(value: string) {
     this._id = value;
     this.element.id = value;
-    this.update();
+    this.queueUpdate();
+  }
+
+  queueUpdate() {
+    if (this.requestedUpdate) {
+      return;
+    }
+    this.requestedUpdate = true;
+    requestAnimationFrame(() => {
+      this.requestedUpdate = false;
+      this.queueUpdate();
+    });
   }
 
   get visible() {
@@ -37,14 +49,14 @@ export abstract class UIElement<T extends UIElementConfig = any> {
 
   set visible(value: boolean) {
     this._visible = value;
-    this.update();
+    this.queueUpdate();
   }
 
   get config(): T {
     return new Proxy(this._config, {
       set: (target: any, key, value) => {
         target[key] = value;
-        this.update();
+        this.queueUpdate();
         return true;
       },
     });
@@ -54,7 +66,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     return new Proxy(this._config.style, {
       set: (target: any, key, value) => {
         target[key] = value;
-        this.update();
+        this.queueUpdate();
         return true;
       },
     });
@@ -62,7 +74,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
 
   set style(value: Partial<CSSStyleDeclaration>) {
     this._config.style = value;
-    this.update();
+    this.queueUpdate();
   }
 
   get element(): ReturnType<this["createElement"]> {
@@ -78,14 +90,14 @@ export abstract class UIElement<T extends UIElementConfig = any> {
 
   set position(value: Position | Rectangle) {
     this.bounds = isRectangle(value) ? value.toPosition() : value;
-    this.update();
+    this.queueUpdate();
   }
 
   get position() {
     return new Proxy(this.bounds, {
       set: (target: any, key, value) => {
         target[key] = value;
-        this.update();
+        this.queueUpdate();
         return true;
       },
     });
@@ -94,7 +106,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   set parent(parent: UIElement) {
     this._parent = parent;
     parent.element.appendChild(this.element);
-    this.update();
+    this.queueUpdate();
     parent.update();
   }
 
