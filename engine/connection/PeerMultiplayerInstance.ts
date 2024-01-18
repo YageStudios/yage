@@ -13,6 +13,7 @@ export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
   connections: { [peerId: string]: DataConnection } = {};
   connectionPromise: Promise<void>;
   prefix: string;
+  selfAddress: string;
 
   constructor(
     player: PlayerConnect<T>,
@@ -23,9 +24,22 @@ export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
     super(player, inputManager, mouseManager, { solohost });
     this.prefix = prefix;
     this.address = address;
-    this.peer = new Peer(prefix + this.address);
+
+    if (!address.startsWith(this.prefix)) {
+      address = this.prefix + address;
+    }
+    this.handshake(address);
+  }
+
+  async handshake(address: string) {
+    this.selfAddress = address;
+
+    this.peer = new Peer(address);
+
+    let self_resolve: any;
 
     this.connectionPromise = new Promise((resolve) => {
+      self_resolve = resolve;
       this.peer.on("open", (id) => {
         this.player.connectionId = id;
         console.log("My peer ID is: " + id);
@@ -34,7 +48,16 @@ export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
     });
 
     this.peer.on("connection", (conn) => {
+      this.peer.off("error");
       this.handleConnection(conn);
+    });
+
+    this.peer.on("error", (err) => {
+      console.log("peer error", err.message);
+      this.peer.destroy();
+      this.handshake(this.prefix + nanoid()).then(() => {
+        self_resolve();
+      });
     });
   }
 
@@ -145,6 +168,9 @@ export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
       throw new Error("No address provided");
     }
     await this.connectionPromise;
+    if (this.selfAddress === address) {
+      return;
+    }
     const conn = this.peer.connect(address);
 
     return new Promise((resolve, reject) => {
