@@ -59,6 +59,8 @@ export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
         self_resolve();
       });
     });
+
+    await this.connectionPromise;
   }
 
   emit(event: string, ...args: any[]) {
