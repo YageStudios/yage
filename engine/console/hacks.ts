@@ -3,6 +3,7 @@ import type { GameModel } from "@/game/GameModel";
 import { Persist } from "@/persist/persist";
 // import { MapIdSchema, MapSpawnSchema } from "../../src/stunningumbrella/components";
 import { editor } from "./editor";
+import { windowSessionStorage } from "@/utils/windowSessionStorage";
 type HackingConfig = {
   turnOff?: string[];
   reload?: boolean;
@@ -11,6 +12,7 @@ type HackingConfig = {
   label?: string;
   hide?: boolean;
   stateful?: boolean;
+  windowScope?: boolean;
 };
 
 let gameModel: GameModel;
@@ -94,7 +96,9 @@ const hackConfig: { [hackName: string]: HackingConfig } = {
 
   PHYSICS: {},
 
-  INVINCIBLE: {},
+  INVINCIBLE: {
+    windowScope: true,
+  },
 };
 
 export const setGameModel = (model: GameModel) => {
@@ -104,7 +108,12 @@ export const setGameModel = (model: GameModel) => {
 export const addHacks = (additionalHacks: { [hackName: string]: HackingConfig }) => {
   Object.assign(hackConfig, additionalHacks);
   Object.entries(additionalHacks).forEach(([hackName, localConfig]) => {
-    const local = window.localStorage.getItem(hackName);
+    let local: string | null = null;
+    if (localConfig.windowScope) {
+      local = windowSessionStorage.getItem(hackName);
+    } else {
+      local = window.localStorage.getItem(hackName);
+    }
 
     if (hacks[hackName] === undefined) {
       hacks[hackName] = false;
@@ -135,7 +144,12 @@ Object.entries(hacks).forEach(([hackName]) => {
   if (typeof window === "undefined") {
     return;
   }
-  const local = window.localStorage.getItem(hackName);
+  let local: string | null = null;
+  if (hackConfig[hackName].windowScope) {
+    local = windowSessionStorage.getItem(hackName);
+  } else {
+    local = window.localStorage.getItem(hackName);
+  }
   if (local !== null) {
     hacks[hackName] = local === "true";
     if (hackConfig[hackName].action && hackConfig[hackName].stateful !== false) {
@@ -149,13 +163,21 @@ export const toggleHack = async (consoleText: string, value?: boolean, ...args2:
   console.log(hack, args, args2);
   if (hacks[hack] !== undefined) {
     hacks[hack] = value === undefined ? !hacks[hack] : value;
-    window.localStorage.setItem(hack, hacks[hack].toString());
+    if (hackConfig[hack].windowScope) {
+      windowSessionStorage.setItem(hack, hacks[hack].toString());
+    } else {
+      window.localStorage.setItem(hack, hacks[hack].toString());
+    }
     const config = hackConfig[hack] as HackingConfig;
     if (config.action) {
       const result = await config.action(value ?? hacks[hack], ...args, ...args2);
       if (result !== undefined && hacks[hack] !== result) {
         hacks[hack] = result;
-        window.localStorage.setItem(hack, hacks[hack].toString());
+        if (hackConfig[hack].windowScope) {
+          windowSessionStorage.setItem(hack, hacks[hack].toString());
+        } else {
+          window.localStorage.setItem(hack, hacks[hack].toString());
+        }
       }
     }
     renderList();
@@ -222,6 +244,9 @@ export const DevConsole = () => {
   list.style.top = "30px";
   list.style.left = "0";
   list.style.color = "#fff";
+  list.style.fontFamily = "monospace";
+  list.style.fontSize = "19px";
+  list.style.fontWeight = "bold";
 
   let matchList: string[] = [];
   let historicMatchList: string[] = localStorage.getItem("matchList")
