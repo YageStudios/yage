@@ -14,6 +14,7 @@ export class GameCoordinator {
   pixiApp: PIXI.Application;
   pixiViewport: Viewport;
   ticker: Ticker;
+  fillScreen: boolean = true;
   // instance: GameInstance;
 
   constructor() {
@@ -67,29 +68,49 @@ export class GameCoordinator {
 
   // Resize handler
   onResize = () => {
-    let width = window.innerWidth;
-    let height = (window.innerWidth * 9) / 16;
-    if (height > window.innerHeight) {
-      height = window.innerHeight;
-      width = (window.innerHeight * 16) / 9;
+    if (this.fillScreen) {
+      const canvas = this.pixiApp.renderer.view as HTMLCanvasElement;
+      canvas.style.width = `${window.innerWidth}px`;
+      canvas.style.height = `${window.innerHeight}px`;
+      canvas.style.left = "0px";
+      canvas.style.top = "0px";
+
+      // Resize the pixi app's renderer
+      this.pixiApp.renderer.resize(window.innerWidth, window.innerHeight);
+
+      // Resize the pixi viewport
+      this.pixiViewport.resize(
+        window.innerWidth,
+        window.innerHeight,
+        this.pixiViewport.worldWidth,
+        this.pixiViewport.worldHeight
+      );
+      this.pixiViewport.setZoom(window.innerWidth / 1920, true);
+    } else {
+      let width = window.innerWidth;
+      let height = (window.innerWidth * 9) / 16;
+      if (height > window.innerHeight) {
+        height = window.innerHeight;
+        width = (window.innerHeight * 16) / 9;
+      }
+
+      const scale = Math.min(width / 1920, height / 1080);
+      const scaledWidth = 1920 * scale;
+      const scaledHeight = 1080 * scale;
+      const canvas = this.pixiApp.renderer.view as HTMLCanvasElement;
+
+      canvas.style.width = `${scaledWidth}px`;
+      canvas.style.height = `${scaledHeight}px`;
+      canvas.style.left = `${(window.innerWidth - scaledWidth) / 2}px`;
+      canvas.style.top = `${(window.innerHeight - scaledHeight) / 2}px`;
+
+      // Resize the pixi app's renderer
+      this.pixiApp.renderer.resize(width, height);
+
+      // Resize the pixi viewport
+      this.pixiViewport.resize(width, height, this.pixiViewport.worldWidth, this.pixiViewport.worldHeight);
+      this.pixiViewport.setZoom(scale, true);
     }
-
-    const scale = Math.min(width / 1920, height / 1080);
-    const scaledWidth = 1920 * scale;
-    const scaledHeight = 1080 * scale;
-    const canvas = this.pixiApp.renderer.view as HTMLCanvasElement;
-
-    canvas.style.width = `${scaledWidth}px`;
-    canvas.style.height = `${scaledHeight}px`;
-    canvas.style.left = `${(window.innerWidth - scaledWidth) / 2}px`;
-    canvas.style.top = `${(window.innerHeight - scaledHeight) / 2}px`;
-
-    // Resize the pixi app's renderer
-    this.pixiApp.renderer.resize(width, height);
-
-    // Resize the pixi viewport
-    this.pixiViewport.resize(width, height, this.pixiViewport.worldWidth, this.pixiViewport.worldHeight);
-    this.pixiViewport.setZoom(scale, true);
   };
 
   registerScene(scene: typeof Scene) {
