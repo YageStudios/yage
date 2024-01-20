@@ -2,15 +2,15 @@ import { AnimatedImageBox, AnimatedImageBoxConfig } from "./AnimatedImageBox";
 import { Box, BoxConfig } from "./Box";
 import { Button, ButtonConfig } from "./Button";
 import { ImageBox, ImageBoxConfig } from "./ImageBox";
-import { Rectangle } from "./Rectangle";
+import { Position, Rectangle } from "./Rectangle";
 import { Text, TextConfig } from "./Text";
 import { TextInput, TextInputConfig } from "./TextInput";
 import { UIElement } from "./UIElement";
 
 export type UIConfig = {
-  type: "box" | "text" | "button" | "textInput" | "animatedImageBox" | "imageBox";
+  type: "box" | "text" | "button" | "input" | "animatedImageBox" | "image";
   name?: string;
-  rect: Rectangle;
+  rect: Position;
   config: BoxConfig | TextConfig | ButtonConfig | TextInputConfig | AnimatedImageBoxConfig | ImageBoxConfig;
 };
 
@@ -22,11 +22,12 @@ export const createByType = (config: UIConfig) => {
       return new Text(config.rect, config.config as TextConfig);
     case "button":
       return new Button(config.rect, config.config as ButtonConfig);
-    case "textInput":
+    case "input":
       return new TextInput(config.rect, config.config as TextInputConfig);
     case "animatedImageBox":
-      return new AnimatedImageBox(config.rect, config.config as AnimatedImageBoxConfig);
-    case "imageBox":
+      throw new Error("AnimatedImageBox is not supported yet");
+    // return new AnimatedImageBox(config.rect, config.config as AnimatedImageBoxConfig);
+    case "image":
       return new ImageBox(config.rect, config.config as ImageBoxConfig);
     default:
       throw new Error(`Unknown UI type ${config.type}`);

@@ -9,11 +9,11 @@ export class KeyboardListener {
     interactionDiv.addEventListener("keyup", this.handleKeyUp);
 
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Tab" && !e.ctrlKey && !e.altKey && !e.metaKey) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        e.stopPropagation();
-      }
+      // if (e.key === "Tab" && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      //   e.preventDefault();
+      //   e.stopImmediatePropagation();
+      //   e.stopPropagation();
+      // }
     });
   }
 
