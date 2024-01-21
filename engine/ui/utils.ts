@@ -18,7 +18,7 @@ const scale = () => {
     width = (window.innerHeight * 16) / 9;
   }
 
-  return Math.min(width / 1920, height / 1080);
+  return Math.max(0.5, Math.min(width / 1920, height / 1080));
 };
 
 export const positionToCanvasSpace = (pos: Position, element: HTMLElement): [number, number, number, number] => {
@@ -71,5 +71,5 @@ export const scaleFont = (fontSize: number): number => {
 
   const scale = Math.min(width / 1920, height / 1080);
 
-  return Math.floor(fontSize * scale);
+  return Math.floor(fontSize * Math.max(0.75, scale));
 };

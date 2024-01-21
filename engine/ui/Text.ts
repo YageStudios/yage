@@ -9,7 +9,7 @@ export type TextConfig = UIElementConfig & {
   uppercase?: boolean;
   fontSize?: number;
   font?: string;
-  multiline?: boolean;
+  scrollable?: boolean;
 };
 
 const defaultStyle: Partial<CSSStyleDeclaration> = {
@@ -20,6 +20,7 @@ const defaultStyle: Partial<CSSStyleDeclaration> = {
   padding: "0",
   margin: "0",
   pointerEvents: "none",
+  userSelect: "none",
   overflow: "visible",
   position: "absolute",
   fontFamily: "YageFont",
@@ -63,11 +64,6 @@ export class Text extends UIElement<TextConfig> {
     super.update();
     const textElement = this.element;
 
-    if (this._config.multiline) {
-      textElement.style.whiteSpace = "pre";
-      textElement.style.lineHeight = `${this._config.style.lineHeight ?? 1}`;
-    }
-
     if (this._config.uppercase) {
       textElement.style.textTransform = "uppercase";
     }
@@ -76,6 +72,11 @@ export class Text extends UIElement<TextConfig> {
       textElement.innerHTML = this._config.label;
     } else {
       textElement.innerText = this._config.label;
+    }
+
+    if (this._config.scrollable) {
+      textElement.style.pointerEvents = "all";
+      textElement.style.overflow = "auto";
     }
   }
 }
