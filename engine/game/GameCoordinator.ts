@@ -15,6 +15,8 @@ export class GameCoordinator {
   pixiViewport: Viewport;
   ticker: Ticker;
   fillScreen: boolean = true;
+  minWidth: number = 1080;
+  minHeight: number = 1080;
   // instance: GameInstance;
 
   constructor() {
@@ -69,6 +71,9 @@ export class GameCoordinator {
   // Resize handler
   onResize = () => {
     if (this.fillScreen) {
+      let windowWidth = Math.min(window.innerWidth, window.outerWidth);
+      let windowHeight = Math.min(window.innerHeight, window.outerHeight);
+
       const canvas = this.pixiApp.renderer.view as HTMLCanvasElement;
       canvas.style.width = `${window.innerWidth}px`;
       canvas.style.height = `${window.innerHeight}px`;
@@ -85,7 +90,11 @@ export class GameCoordinator {
         this.pixiViewport.worldWidth,
         this.pixiViewport.worldHeight
       );
-      this.pixiViewport.setZoom(window.innerWidth / 1920, true);
+      let scale = window.innerWidth / 1920;
+      if (windowWidth < this.minWidth) {
+        scale = (this.minWidth / windowWidth) * scale;
+      }
+      this.pixiViewport.setZoom(scale, true);
     } else {
       let width = window.innerWidth;
       let height = (window.innerWidth * 9) / 16;
@@ -168,6 +177,6 @@ export class GameCoordinator {
   }
 
   public static GetInstance() {
-    return assignGlobalSingleton("gameCoordinator", () => new GameCoordinator());
+    return assignGlobalSingleton("gameCoordinator", () => new GameCoordinator()) as GameCoordinator;
   }
 }
