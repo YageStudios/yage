@@ -41,21 +41,15 @@ export class Button extends UIElement<ButtonConfig> {
   }
 
   protected onClickInternal(): void | boolean {
-    if (this._config.onClick) {
-      return this._config.onClick();
-    }
+    return this._config.onClick?.();
   }
 
   protected onMouseDownInternal(): void | boolean {
-    if (this._config.onMouseDown) {
-      return this._config.onMouseDown();
-    }
+    return this._config.onMouseDown?.();
   }
 
   protected onMouseUpInternal(): void | boolean {
-    if (this._config.onMouseUp) {
-      return this._config.onMouseUp();
-    }
+    return this._config.onMouseUp?.();
   }
 
   protected onBlurInternal(): void {
@@ -99,15 +93,20 @@ export class Button extends UIElement<ButtonConfig> {
 
     buttonElement.style.fontSize = `${scaleFont(this.config.fontSize || 12)}px`;
     this.textElement.innerText = this._config.label;
-
-    buttonElement.onclick = () => {
-      this.onClickInternal();
+    buttonElement.onclick = (e) => {
+      if (this.onClickInternal() === false) {
+        e.stopPropagation();
+      }
     };
-    buttonElement.onmousedown = () => {
-      this.onMouseDownInternal();
+    buttonElement.onmousedown = (e) => {
+      if (this.onMouseDownInternal() === false) {
+        e.stopPropagation();
+      }
     };
-    buttonElement.onmouseup = () => {
-      this.onMouseUpInternal();
+    buttonElement.onmouseup = (e) => {
+      if (this.onMouseUpInternal() === false) {
+        e.stopPropagation();
+      }
     };
     buttonElement.onblur = () => {
       this.onBlurInternal();

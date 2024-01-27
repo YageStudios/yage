@@ -33,15 +33,11 @@ export class Box<T extends BoxConfig = BoxConfig> extends UIElement<T> {
   }
 
   protected onClickInternal(): void | boolean {
-    if (this._config.onClick) {
-      return this._config.onClick();
-    }
+    return this._config.onClick?.();
   }
 
   protected onMouseDownInternal(): void | boolean {
-    if (this._config.onMouseDown) {
-      return this._config.onMouseDown();
-    }
+    return this._config.onMouseDown?.();
   }
 
   protected onBlurInternal(): void {
@@ -51,9 +47,7 @@ export class Box<T extends BoxConfig = BoxConfig> extends UIElement<T> {
   }
 
   protected onMouseUpInternal(): void | boolean {
-    if (this._config.onMouseUp) {
-      return this._config.onMouseUp();
-    }
+    return this._config.onMouseUp?.();
   }
 
   protected onFocusInternal(): void {
