@@ -7,6 +7,18 @@ export type UIElementConfig = {
   style: Partial<CSSStyleDeclaration>;
   children?: UIElement[];
   visible?: boolean;
+  parent?: UIElement | RootUIElement;
+};
+
+export type RootUIElement = {
+  isVisible: () => boolean;
+  update: () => void;
+  addChild: (child: UIElement) => void;
+  _element: HTMLElement;
+  _zIndex: number;
+  config: {
+    children?: UIElement[];
+  };
 };
 
 export abstract class UIElement<T extends UIElementConfig = any> {
@@ -18,8 +30,9 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   _styleOverrides: Partial<CSSStyleDeclaration> | undefined;
   protected _config: T;
   _element: HTMLElement | undefined;
-  _parent: UIElement | undefined;
+  _parent: UIElement | RootUIElement | undefined;
   _zIndex = 0;
+  _creationDate = new Date().toISOString();
 
   get id() {
     return this._id;
@@ -68,7 +81,6 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   get element(): ReturnType<this["createElement"]> {
     if (!this._element) {
       const element = this.createElement();
-      document.getElementById("ui")?.appendChild(element);
       this._element = element;
       this.addEvents(element);
     }
@@ -91,19 +103,28 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     });
   }
 
-  set parent(parent: UIElement) {
+  set parent(parent: UIElement | RootUIElement | undefined) {
     this._parent = parent;
-    parent.element.appendChild(this.element);
-    this.update();
-    parent.update();
+    if (parent) {
+      parent.addChild(this);
+    }
+  }
+
+  get parent() {
+    return this._parent;
   }
 
   addChild(child: UIElement) {
     if (!this._config.children) {
       this._config.children = [];
     }
-    this._config.children.push(child);
-    child.parent = this;
+    if (!this._config.children.includes(child)) {
+      this._config.children.push(child);
+    }
+    if (child._parent !== this) {
+      child.parent = this;
+    }
+    this.update();
   }
 
   constructor(bounds: Rectangle | Position, _config: Partial<T> = {}, defaultStyle: Partial<CSSStyleDeclaration> = {}) {
@@ -129,6 +150,8 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       for (const child of this._config.children) {
         child.parent = this;
       }
+    } else if (this._config.parent) {
+      this.parent = this._config.parent;
     }
   }
 
@@ -158,12 +181,18 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   protected abstract onMouseLeaveInternal(): void;
 
   onDestroy() {
-    if (this._element) {
-      this._element.remove();
-    }
+    this.removeElement();
   }
 
   reset() {}
+
+  removeElement() {
+    if (this._element) {
+      this._element.parentElement?.removeChild(this._element);
+      this._element.remove();
+      this._element = undefined;
+    }
+  }
 
   createElement(): HTMLElement {
     const element = document.createElement("div");
@@ -204,20 +233,34 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     };
   }
 
-  update() {
-    this._zIndex = (this._parent?._zIndex ?? 0) + parseInt(this._config.style.zIndex ?? "0");
-    const notVisible = !this.visible || !this._config.visible;
+  isVisible = (): boolean => {
+    const notVisible = !this._parent?.isVisible() || !this._visible;
     const visible = !notVisible;
 
-    const element = this.element;
-    if (!visible) {
-      element.style.display = "none";
+    return visible;
+  };
+
+  update() {
+    this._zIndex = (this._parent?._zIndex ?? 0) + parseInt(this._config.style.zIndex ?? "0");
+    if (!this.isVisible()) {
+      if (this._element) {
+        this.removeElement();
+        // this._element.style.display = "none";
+      }
+      this._config.children?.forEach((x) => {
+        x.update();
+      });
       return;
-    } else {
-      element.style.display = "block";
     }
 
-    const [x, y, width, height] = positionToCanvasSpace(this.bounds, this._parent?.element ?? document.body);
+    const element = this.element;
+    element.style.display = "block";
+
+    if (!this.parent?._element?.contains(element)) {
+      this.parent?._element?.appendChild(element);
+    }
+
+    const [x, y, width, height] = positionToCanvasSpace(this.bounds, this._parent?._element ?? document.body);
     element.style.left = `${x}px`;
     element.style.top = `${y}px`;
     element.style.width = width > 1 ? `${width}px` : "auto";
@@ -237,9 +280,6 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       element.style.zIndex = `${this._zIndex}`;
     }
     this.config.children?.forEach((x) => {
-      if (x.visible !== visible) {
-        x.visible = visible;
-      }
       x.update();
     });
   }

@@ -63,17 +63,16 @@ export class Button extends UIElement<ButtonConfig> {
     }
   }
   protected onMouseEnterInternal(): void {
+    this._styleOverrides = cloneDeep(this._config.hoverStyle);
     if (this._config.onMouseEnter) {
       this._config.onMouseEnter();
     }
-    this._styleOverrides = cloneDeep(this._config.hoverStyle);
   }
   protected onMouseLeaveInternal(): void {
+    this._styleOverrides = undefined;
     if (this._config.onMouseLeave) {
       this._config.onMouseLeave();
     }
-    this._styleOverrides = undefined;
-    this._hasChanged = true;
   }
 
   createElement(): HTMLButtonElement {
@@ -85,6 +84,9 @@ export class Button extends UIElement<ButtonConfig> {
 
   update(): void {
     super.update();
+    if (!this.isVisible()) {
+      return;
+    }
 
     const buttonElement = this.element;
     if (this._config.uppercase) {

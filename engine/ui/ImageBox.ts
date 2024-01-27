@@ -34,6 +34,9 @@ export class ImageBox extends Box<ImageBoxConfig> {
 
   update(): void {
     super.update();
+    if (!this.isVisible()) {
+      return;
+    }
     const imageElement = this.element;
     imageElement.className = "image-box";
 

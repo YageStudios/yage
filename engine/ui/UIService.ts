@@ -1,4 +1,4 @@
-import type { UIElement } from "./UIElement";
+import type { RootUIElement, UIElement } from "./UIElement";
 import type { Vector2d } from "../utils/vector";
 import { getGlobalSingleton, setGlobalSingleton } from "@/global";
 
@@ -43,6 +43,25 @@ export class UIService {
     this.interactionDiv = document.getElementById("interaction") as HTMLElement;
     this.uiDiv = document.getElementById("ui") as HTMLDivElement;
     this.registerResizeEvents();
+    this.root = {
+      isVisible: () => true,
+      update: () => {
+        this.elements.forEach((element) => {
+          element.update();
+        });
+      },
+      addChild: (child: UIElement) => {
+        if (!this.elements.includes(child)) {
+          this.elements.push(child);
+        }
+        child.update();
+      },
+      _element: this.uiDiv!,
+      _zIndex: 0,
+      config: {
+        children: [],
+      },
+    };
   }
 
   static configureUi(uiCanvas?: HTMLCanvasElement) {
@@ -79,17 +98,22 @@ export class UIService {
     };
   }
 
+  root: RootUIElement;
+
   addToUI(element: UIElement) {
-    if (!element._parent) {
-      document.getElementById("ui")?.appendChild(element.element);
-    }
-    this.elements.push(element);
-    this.uiElements[element.id] = element;
-    if (!element?.update) {
-      console.error('Element does not have an "update" method', element);
+    if (!this.root._element) {
+      console.error("Root element is not set");
       return;
     }
-    element.update();
+    element.parent = this.root;
+    // console.log(element);
+    // this.elements.push(element);
+    // this.uiElements[element.id] = element;
+    // if (!element?.update) {
+    //   console.error('Element does not have an "update" method', element);
+    //   return;
+    // }
+    // element.update();
   }
 
   removeFromUI(element: UIElement | UIElement[]) {
@@ -103,7 +127,7 @@ export class UIService {
             this.removeFromUI(child);
           });
         }
-        if (e._parent) {
+        if (e._parent && e._parent.config.children) {
           e._parent.config.children = e._parent.config.children.filter((x: any) => x !== e);
         }
         if (e.onDestroy) {
@@ -120,7 +144,7 @@ export class UIService {
           this.removeFromUI(child);
         });
       }
-      if (element._parent) {
+      if (element._parent && element._parent.config.children) {
         element._parent.config.children = element._parent.config.children.filter((x: any) => x !== element);
       }
       if (element.onDestroy) {
