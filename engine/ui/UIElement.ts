@@ -172,14 +172,23 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   }
 
   addEvents(element: HTMLElement) {
-    element.onclick = () => {
-      this.onClickInternal();
+    element.onclick = (e) => {
+      const res = this.onClickInternal();
+      if (res === false) {
+        e.stopPropagation();
+      }
     };
-    element.onmousedown = () => {
-      this.onMouseDownInternal();
+    element.onmousedown = (e) => {
+      const res = this.onMouseDownInternal();
+      if (res === false) {
+        e.stopPropagation();
+      }
     };
-    element.onmouseup = () => {
-      this.onMouseUpInternal();
+    element.onmouseup = (e) => {
+      const res = this.onMouseUpInternal();
+      if (res === false) {
+        e.stopPropagation();
+      }
     };
     element.onblur = () => {
       this.onBlurInternal();
@@ -199,12 +208,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     this._zIndex = (this._parent?._zIndex ?? 0) + parseInt(this._config.style.zIndex ?? "0");
     const notVisible = !this.visible || !this._config.visible;
     const visible = !notVisible;
-    this.config.children?.forEach((x) => {
-      if (x.visible !== visible) {
-        x.visible = visible;
-      }
-      x.update();
-    });
+
     const element = this.element;
     if (!visible) {
       element.style.display = "none";
@@ -212,8 +216,6 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     } else {
       element.style.display = "block";
     }
-
-    // this.config.children?.forEach((x) => x._setParent(this));
 
     const [x, y, width, height] = positionToCanvasSpace(this.bounds, this._parent?.element ?? document.body);
     element.style.left = `${x}px`;
@@ -234,5 +236,11 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     if (this._zIndex > 0) {
       element.style.zIndex = `${this._zIndex}`;
     }
+    this.config.children?.forEach((x) => {
+      if (x.visible !== visible) {
+        x.visible = visible;
+      }
+      x.update();
+    });
   }
 }
