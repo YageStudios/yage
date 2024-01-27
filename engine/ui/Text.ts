@@ -62,6 +62,9 @@ export class Text extends UIElement<TextConfig> {
 
   update(): void {
     super.update();
+    if (!this.isVisible()) {
+      return;
+    }
     const textElement = this.element;
 
     if (this._config.uppercase) {

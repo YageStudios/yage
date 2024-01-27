@@ -69,12 +69,10 @@ export class Box<T extends BoxConfig = BoxConfig> extends UIElement<T> {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-empty-function
   protected updateInternal(gameModel: GameModel): void {}
 
-  protected drawInternal(ctx: CanvasRenderingContext2D, ui: HTMLDivElement): void {
-    const boxElement = this._element ?? this.createElement(); //document.createElement("div");
-
-    if (!this._element) {
-      ui.appendChild(boxElement);
-      this._element = boxElement;
+  update(): void {
+    super.update();
+    if (!this.isVisible()) {
+      return;
     }
   }
 }

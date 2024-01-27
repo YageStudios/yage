@@ -108,6 +108,10 @@ export class TextInput extends UIElement<TextInputConfig> {
 
   update(): void {
     super.update();
+    if (!this.isVisible()) {
+      return;
+    }
+
     const textInputElement = this.element;
     textInputElement.type = "text";
     textInputElement.placeholder = this._config.label;

@@ -58,7 +58,6 @@ export class AnimatedImageBox<T extends AnimatedImageBoxConfig = AnimatedImageBo
   }
 
   drawInternal(ctx: CanvasRenderingContext2D, ui: HTMLDivElement): void {
-    super.drawInternal(ctx, ui);
     if (!this._config.spriteKey) {
       return;
     }
