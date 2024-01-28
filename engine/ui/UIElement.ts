@@ -124,7 +124,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     if (child._parent !== this) {
       child.parent = this;
     }
-    this.update();
+    child.update();
   }
 
   constructor(bounds: Rectangle | Position, _config: Partial<T> = {}, defaultStyle: Partial<CSSStyleDeclaration> = {}) {
