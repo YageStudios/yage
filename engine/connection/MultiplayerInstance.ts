@@ -555,6 +555,20 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
       }
     }
 
+    // if (gameModel.frame % 30 === 0) {
+    //   const perf = performance.now();
+    //   const physicsSystem = gameModel.getSystem(PhysicsSystem);
+    //   physicsSystem?.getEngine?.(gameModel);
+    //   var uint8array = physicsSystem.world?.takeSnapshot();
+    //   var string = new TextDecoder().decode(uint8array);
+    //   const model = gameModel.serializeState();
+    //   var modelString = JSON.stringify(model);
+
+    //   const md5String = md5(string);
+    //   const modelMd5String = md5(modelString);
+
+    //   console.log(gameModel.frame, md5String, modelMd5String, model, performance.now() - perf);
+    // }
     if (gameModel.frame % 300 === 0) {
       const perf = performance.now();
       const physicsSystem = gameModel.getSystem(PhysicsSystem);

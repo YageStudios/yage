@@ -284,7 +284,7 @@ const convertToBitecs = (value: string) => {
   // @ts-ignore
   return simpleToBitecs[value];
 };
-const ajv = new Ajv({ useDefaults: true, strict: false });
+const ajv = new Ajv({ useDefaults: true, strict: false, allErrors: true });
 
 const generateSchema = (target: any) => {
   if (target.constructor.__schema && target.constructor.__schema.$comment !== target.constructor.name) {

@@ -489,6 +489,7 @@ export class GameModel {
             });
           }
           this.state.components[entity][i] = new TypeSchema({ type: typeString });
+          mask.set(i, false);
         }
       }
       this.state.entityComponentArray[entity] = new ByteArray();
