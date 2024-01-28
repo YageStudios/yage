@@ -30,6 +30,9 @@ class OwnerSystem implements System {
     const owner = gameModel.getTyped(entity, OwnerSchema).owner;
     if (owner === null) return;
     if (!gameModel.isActive(owner)) return;
+    if (!gameModel.hasComponent(owner, "Owned")) {
+      return;
+    }
     const owned = gameModel.getTyped(owner, OwnedSchema);
     owned.owned = owned.owned.filter((ownedEntity) => {
       if (ownedEntity === entity) return false;
