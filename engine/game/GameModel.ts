@@ -135,7 +135,7 @@ export class GameModel {
     if (state) {
       return;
     }
-    this.generateEntityData(20000);
+    this.generateEntityData(10000);
     this.app = gameCoordinator.pixiApp;
     this.coreEntity = EntityFactory.getInstance().generateEntity(this, "core");
     const physicsSystem = this.getSystem(PhysicsSystem);
@@ -986,23 +986,26 @@ export class GameModel {
 
     bitecs.deleteWorld(this.world);
 
-    this.world = bitecs.createWorld();
+    this.world = bitecs.createWorld(10000);
 
-    this.generateEntityData(20000);
+    this.generateEntityData(10000);
   }
 
   loadStateObject(saveObject: any) {
-    if (this.state.activeEntities.length > 0) {
-      this.clearState();
-    }
+    this.clearState();
     const state = this.state;
     const entities = Object.keys(saveObject.entities).map((e) => parseInt(e, 10));
+    const largest = Math.max(...entities);
     const entityMap = {} as any;
-    entities.forEach((entity) => {
+    let toremove: number[] = [];
+    for (let i = 0; i <= largest; i++) {
       const newEntity = this.addEntity();
-      entityMap[entity] = newEntity;
-    });
-
+      if (saveObject.entities[newEntity]) {
+        entityMap[newEntity] = newEntity;
+      } else {
+        toremove.push(newEntity);
+      }
+    }
     this.coreEntity = entityMap[saveObject.core];
 
     const generateEntity = (entity: number) => {
