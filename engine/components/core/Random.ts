@@ -7,7 +7,7 @@ import { ComponentCategory } from "../types";
 
 class RandomSystem implements System {
   type = "Random";
-  category = ComponentCategory.CORE;
+  category = Number.MIN_VALUE;
   schema = RandomSchema;
   depth = DEPTHS.CORE;
 
