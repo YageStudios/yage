@@ -117,7 +117,7 @@ export class UIService {
   }
 
   removeFromUI(element: UIElement | UIElement[]) {
-    if (element === undefined) {
+    if (!element) {
       return;
     }
     if (Array.isArray(element)) {
