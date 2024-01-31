@@ -114,7 +114,12 @@ export class GameModel {
   running: boolean;
   destroyed: boolean;
 
-  public constructor(public gameCoordinator: GameCoordinator, public instance?: GameInstance<any>, state?: GameState) {
+  public constructor(
+    public gameCoordinator: GameCoordinator,
+    public instance?: GameInstance<any>,
+    seed?: string,
+    state?: GameState
+  ) {
     this.state = state || {
       type: "internal",
       entityComponentArray: [],
@@ -137,7 +142,11 @@ export class GameModel {
     }
     this.generateEntityData(10000);
     this.app = gameCoordinator.pixiApp;
-    this.coreEntity = EntityFactory.getInstance().generateEntity(this, "core");
+    this.coreEntity = EntityFactory.getInstance().generateEntity(this, "core", {
+      Random: {
+        seed: seed ?? "",
+      },
+    });
     const physicsSystem = this.getSystem(PhysicsSystem);
     physicsSystem?.getEngine?.(this);
   }
