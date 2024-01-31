@@ -70,7 +70,15 @@ export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
 
   emit(event: string, ...args: any[]) {
     Object.entries(this.connections).forEach(([peerId, conn]) => {
-      conn.send([event, ...args]);
+      // @ts-ignore
+      if (window.simulatedDelay) {
+        setTimeout(() => {
+          conn.send([event, ...args]);
+          // @ts-ignore
+        }, window.simulatedDelay);
+      } else {
+        conn.send([event, ...args]);
+      }
     });
   }
 

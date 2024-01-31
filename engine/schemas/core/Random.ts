@@ -5,4 +5,10 @@ import type { Random } from "@/utils/rand";
 export class RandomSchema extends Schema {
   @type("object")
   random: Random;
+
+  @type("string")
+  seed: string;
+
+  @type("number")
+  seedNumber: number;
 }

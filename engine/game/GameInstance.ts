@@ -9,6 +9,7 @@ export type GameInstanceOptions<T> = {
   gameName: string;
   connection: ConnectionInstance<T>;
   uiService: boolean | UIService;
+  seed?: string;
   buildWorld: (gameModel: GameModel, firstPlayerConfig: any) => void;
   onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: any) => number;
   onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
@@ -28,7 +29,7 @@ export class GameInstance<T> {
     }
   }
 
-  host(roomId: string, playerConfig?: any) {
+  host(roomId: string, seed?: string, playerConfig?: T) {
     if (!this.options.connection.player.connected && !this.options.connection.solohost) {
       throw new Error("Player not connected");
     }
@@ -40,7 +41,7 @@ export class GameInstance<T> {
       this.gameModel.destroy();
     }
 
-    this.gameModel = new GameModel(GameCoordinator.GetInstance(), this);
+    this.gameModel = new GameModel(GameCoordinator.GetInstance(), this, seed);
     this.options.buildWorld(this.gameModel, { ...this.options.connection.player.config, ...playerConfig });
 
     return this.options.connection.host(roomId, {
@@ -51,7 +52,7 @@ export class GameInstance<T> {
     });
   }
 
-  join(roomId: string, playerConfig?: any) {
+  join(roomId: string, seed?: string, playerConfig?: T) {
     if (!this.options.connection.player.connected) {
       throw new Error("Player not connected");
     }
@@ -63,7 +64,7 @@ export class GameInstance<T> {
       this.gameModel.destroy();
     }
 
-    this.gameModel = new GameModel(GameCoordinator.GetInstance(), this);
+    this.gameModel = new GameModel(GameCoordinator.GetInstance(), this, seed);
 
     return this.options.connection.join(roomId, {
       gameModel: this.gameModel,
