@@ -3,7 +3,7 @@ import { InputManager } from "./InputManager";
 export class KeyboardListener {
   registry: { [key: string]: Function[] } = {};
   constructor(public inputManager: InputManager) {
-    const interactionDiv = document.getElementById("interaction") as HTMLElement;
+    const interactionDiv = document.body;
 
     interactionDiv.addEventListener("keydown", this.handleKeyDown);
     interactionDiv.addEventListener("keyup", this.handleKeyUp);
