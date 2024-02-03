@@ -21,11 +21,24 @@ class ChildSystem implements System {
         childData.parent = ownerData.owner;
       }
     }
-    if (childData.parent && childData.autoAttach) {
-      const { autoAttach, ...attachData } = childData;
-      gameModel.setComponent(entity, "Attach", {
-        ...attachData,
-      });
+    if (childData.parent) {
+      if (!gameModel.hasComponent(childData.parent, "Parent")) {
+        gameModel.setComponent(childData.parent, "Parent", {
+          children: [entity],
+        });
+      } else {
+        const parentData = gameModel.getTyped(childData.parent, ParentSchema);
+        if (parentData.children.indexOf(entity) == -1) {
+          parentData.children.push(entity);
+        }
+      }
+
+      if (childData.autoAttach) {
+        const { autoAttach, ...attachData } = childData;
+        gameModel.setComponent(entity, "Attach", {
+          ...attachData,
+        });
+      }
     }
   }
 

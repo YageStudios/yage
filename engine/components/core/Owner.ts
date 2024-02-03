@@ -27,6 +27,7 @@ class OwnerSystem implements System {
   }
 
   cleanup(entity: number, gameModel: GameModel, ejecting: boolean) {
+    if (ejecting) return;
     const owner = gameModel.getTyped(entity, OwnerSchema).owner;
     if (owner === null) return;
     if (!gameModel.isActive(owner)) return;

@@ -374,7 +374,7 @@ export class GameModel {
     return entityId;
   };
 
-  ejectEntity = (entity: number): any => {
+  ejectEntity = (entity: number, nested = false): any => {
     const data = {
       entityType: EntityTypeSchema.store.entityType[entity],
       description: this.getTyped(entity, DescriptionSchema).description,
@@ -388,7 +388,7 @@ export class GameModel {
     const children = (this.getTyped(entity, ParentSchema) as ParentSchema).children ?? [];
 
     for (let i = 0; i < children.length; i++) {
-      const childEntity = this.ejectEntity(children[i]);
+      const childEntity = this.ejectEntity(children[i], true);
       data.entities.push(...childEntity.entities);
       data.children[childEntity.entityId] = childEntity;
     }
@@ -403,7 +403,9 @@ export class GameModel {
     }
     data.components = components;
     data.entities.push(entity);
-    this.removeEntity(entity);
+    if (!nested) {
+      this.removeEntity(entity);
+    }
     data.hasChildren = !!children.length;
     return data;
   };
@@ -566,6 +568,9 @@ export class GameModel {
   };
 
   hasComponent = (entity: number, type: string | number | typeof Schema): boolean => {
+    if (typeof entity !== "number") {
+      return false;
+    }
     const index = getIndex(type);
 
     return entity > -1 && this.state.entityComponentArray[entity].has(index);
