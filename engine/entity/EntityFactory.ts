@@ -14,6 +14,7 @@ import { EntityAsset } from "./EntityAssets";
 import { assignGlobalSingleton, getGlobalSingleton, setGlobalSingleton } from "@/global";
 import { cloneDeep } from "lodash";
 import { hexToRgbNumber } from "@/utils/colors";
+import { ParentSchema } from "@/schemas/entity/Parent";
 
 export interface EntityDefinition {
   name: string;
@@ -358,6 +359,12 @@ export class EntityFactory {
         childData.parent = entityId;
       } else {
         gameModel.setComponent(childId, "Child", { parent: entityId });
+      }
+      if (gameModel.hasComponent(entityId, "Parent")) {
+        const parentData = gameModel.getTyped(entityId, ParentSchema);
+        parentData.children.push(childId);
+      } else {
+        gameModel.setComponent(entityId, "Parent", { children: [childId] });
       }
       if (!gameModel.hasComponent(childId, "Transform")) {
         gameModel.setComponent(childId, "Transform", {
