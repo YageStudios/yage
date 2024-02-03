@@ -211,8 +211,9 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
   }
 
   frameSkipCheck = (gameModel: GameModel): boolean => {
-    for (let i = 0; i < gameModel.players.length; ++i) {
-      const player = gameModel.players[i];
+    const players = gameModel.getComponentActives("PlayerInput");
+    for (let i = 0; i < players.length; ++i) {
+      let player = players[i];
       if (gameModel.hasComponent(player, PlayerInputSchema)) {
         const PlayerInput = gameModel.getTyped(player, PlayerInputSchema);
         const netId = PlayerInput.id;
