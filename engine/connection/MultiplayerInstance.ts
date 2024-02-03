@@ -7,6 +7,8 @@ import { nanoid } from "nanoid";
 import { RequireAtLeastOne } from "@/utils/typehelpers";
 import { MouseManager } from "@/inputs/MouseManager";
 import { TouchListener, TouchRegion } from "@/inputs/TouchListener";
+import { PlayerEventManager } from "@/inputs/PlayerEventManager";
+import { ChildSchema } from "@/schemas/entity/Child";
 
 type Room = {
   roomId: string;
@@ -23,7 +25,7 @@ export type MultiplayerInstanceOptions<T> = {
 
 export class MultiplayerInstance<T> implements ConnectionInstance<T> {
   stateRequested: null | [string, any][] = null;
-  frameStack: { [playerId: string]: { keys: KeyMap; frame: number }[] } = {};
+  frameStack: { [playerId: string]: { keys: KeyMap; frame: number; events: string[] }[] } = {};
   frameOffset = 5;
   sendingState = false;
   leavingPlayers: [string, number][] = [];
@@ -53,6 +55,8 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
 
   roomSubs: { [roomId: string]: (() => void)[] } = {};
   solohost: boolean;
+
+  eventsManager: PlayerEventManager = new PlayerEventManager();
 
   constructor(
     player: PlayerConnect<T>,
@@ -259,13 +263,17 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
   protected subscribeFrame(roomId: string) {
     this.roomSubs[roomId] = this.roomSubs[roomId] ?? [];
     this.roomSubs[roomId].push(
-      this.on("frame", (frame: { keys: { [key: string]: boolean }; frame: number; playerId: string }) => {
-        const obj = this.inputManager.toKeyMap(frame.keys);
-        this.frameStack[frame.playerId].push({
-          keys: obj,
-          frame: frame.frame,
-        });
-      })
+      this.on(
+        "frame",
+        (frame: { keys: { [key: string]: boolean }; events: string[]; frame: number; playerId: string }) => {
+          const obj = this.inputManager.toKeyMap(frame.keys);
+          this.frameStack[frame.playerId].push({
+            keys: obj,
+            frame: frame.frame,
+            events: frame.events,
+          });
+        }
+      )
     );
   }
 
@@ -323,7 +331,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
           (
             stateJson: string,
             frameStack: {
-              [playerId: number]: { keys: any; frame: number }[];
+              [playerId: number]: { keys: any; frame: number; events: string[] }[];
             },
             timestamp: number
           ) => {
@@ -346,12 +354,13 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
                     return {
                       keys: this.inputManager.toKeyMap(frame.keys),
                       frame: frame.frame,
+                      events: frame.events,
                     };
                   });
                   return acc;
                 },
                 {} as {
-                  [playerId: number]: { keys: KeyMap; frame: number }[];
+                  [playerId: number]: { keys: KeyMap; frame: number; events: string[] }[];
                 }
               );
             } else {
@@ -367,6 +376,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
                     this.frameStack[playerId].push({
                       keys: this.inputManager.toKeyMap(frame.keys),
                       frame: frame.frame,
+                      events: frame.events,
                     });
                   }
                 });
@@ -466,13 +476,15 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
       return {
         frame: frame + ind,
         keys: this.inputManager.buildKeyMap(),
+        events: [],
       };
     });
   };
 
   handleInput(gameModel: GameModel) {
-    for (let i = 0; i < gameModel.players.length; ++i) {
-      const player = gameModel.players[i];
+    const players = gameModel.getComponentActives("PlayerInput");
+    for (let i = 0; i < players.length; ++i) {
+      let player = players[i];
       if (gameModel.hasComponent(player, PlayerInputSchema)) {
         const PlayerInput = gameModel.getTyped(player, PlayerInputSchema);
         const netId = PlayerInput.id;
@@ -485,6 +497,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
           this.frameStack[netId].push({
             keys: currentKeyMap,
             frame: gameModel.frame + this.frameOffset,
+            events: this.eventsManager.getEvents(),
           });
           // PlayerInput.mousePosition = fromMouseSpace(this.mouseManager.mousePosition, this.pixiViewport);
           // PlayerInput.buttons = this.mouseManager.buttons;
@@ -495,10 +508,12 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
         }
         if (this.frameStack[netId][0].frame === gameModel.frame) {
           const prevKeyMap = PlayerInput.keyMap;
-          const nextKeyMap = this.frameStack[netId].shift()?.keys as KeyMap;
+          const frame = this.frameStack[netId].shift()!;
+          const nextKeyMap = frame.keys as KeyMap;
 
           PlayerInput.prevKeyMap = prevKeyMap;
           PlayerInput.keyMap = nextKeyMap;
+          PlayerInput.events = frame.events;
         }
       }
     }

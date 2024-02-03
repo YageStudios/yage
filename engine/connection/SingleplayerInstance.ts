@@ -5,17 +5,19 @@ import { ConnectionInstance, PlayerConnect, PlayerConnection } from "./Connectio
 import { RequireAtLeastOne } from "@/utils/typehelpers";
 import { MouseManager } from "@/inputs/MouseManager";
 import { TouchListener, TouchRegion } from "@/inputs/TouchListener";
+import { PlayerEventManager } from "@/inputs/PlayerEventManager";
 
 export class SingleplayerInstance<T> implements ConnectionInstance<T> {
   messageListeners: ((message: string, time: number, playerId: string) => void)[] = [];
 
-  frameStack: { [playerId: string]: { keys: KeyMap; frame: number }[] } = {};
+  frameStack: { [playerId: string]: { keys: KeyMap; frame: number; events: string[] }[] } = {};
   frameOffset = 10;
   connected: boolean = true;
   hosting: boolean = true;
   solohost: boolean = true;
   player: PlayerConnection<T>;
   touchListener?: TouchListener;
+  eventsManager: PlayerEventManager = new PlayerEventManager();
 
   address: string = "singleplayer";
 
@@ -129,6 +131,7 @@ export class SingleplayerInstance<T> implements ConnectionInstance<T> {
       return {
         frame: frame + ind,
         keys: this.inputManager.buildKeyMap(),
+        events: [],
       };
     });
   };
@@ -140,8 +143,9 @@ export class SingleplayerInstance<T> implements ConnectionInstance<T> {
   }
 
   handleInput(gameModel: GameModel) {
-    for (let i = 0; i < gameModel.players.length; ++i) {
-      const player = gameModel.players[i];
+    const players = gameModel.getComponentActives("PlayerInput");
+    for (let i = 0; i < players.length; ++i) {
+      const player = players[i];
       const PlayerInput = gameModel.getTyped(player, PlayerInputSchema);
       const netId = PlayerInput.id;
 
@@ -158,6 +162,7 @@ export class SingleplayerInstance<T> implements ConnectionInstance<T> {
         this.frameStack[netId].push({
           keys: currentKeyMap,
           frame: gameModel.frame + this.frameOffset,
+          events: this.eventsManager.getEvents(),
         });
         // PlayerInput.mousePosition = fromMouseSpace(this.mouseManager.mousePosition, this.pixiViewport);
         // PlayerInput.buttons = this.mouseManager.buttons;
@@ -165,6 +170,7 @@ export class SingleplayerInstance<T> implements ConnectionInstance<T> {
         this.frameStack[netId].push({
           keys: this.inputManager.buildKeyMap(),
           frame: gameModel.frame + this.frameOffset,
+          events: this.eventsManager.getEvents(),
         });
       }
       while (this.frameStack[netId][0].frame < gameModel.frame) {
@@ -173,10 +179,12 @@ export class SingleplayerInstance<T> implements ConnectionInstance<T> {
       }
       if (this.frameStack[netId][0].frame === gameModel.frame) {
         const prevKeyMap = PlayerInput.keyMap;
-        const nextKeyMap = this.frameStack[netId].shift()?.keys as KeyMap;
+        const frame = this.frameStack[netId].shift()!;
+        const nextKeyMap = frame.keys as KeyMap;
 
         PlayerInput.prevKeyMap = prevKeyMap;
         PlayerInput.keyMap = nextKeyMap;
+        PlayerInput.events = frame.events;
       }
     }
   }

@@ -3,6 +3,7 @@ import { MouseManager } from "@/inputs/MouseManager";
 import { RequireAtLeastOne } from "@/utils/typehelpers";
 import { InputManager } from "@/inputs/InputManager";
 import { TouchListener } from "@/inputs/TouchListener";
+import { PlayerEventManager } from "@/inputs/PlayerEventManager";
 
 export type PlayerConnection<T> = {
   id: string;
@@ -26,6 +27,7 @@ export abstract class ConnectionInstance<T> {
   abstract players: PlayerConnection<T>[];
   abstract playerId: string;
   abstract player: PlayerConnection<T>;
+  abstract eventsManager: PlayerEventManager;
   abstract inputManager: InputManager;
   abstract touchListener?: TouchListener;
   abstract mouseManager: MouseManager;
