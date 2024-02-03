@@ -404,7 +404,7 @@ export class GameModel {
     data.components = components;
     data.entities.push(entity);
     if (!nested) {
-      this.removeEntity(entity);
+      this.removeEntity(entity, true);
     }
     data.hasChildren = !!children.length;
     return data;
@@ -467,7 +467,14 @@ export class GameModel {
     return entity;
   };
 
-  removeEntity = (entity: number) => {
+  removeEntity = (entity: number, includeChildren = false) => {
+    if (includeChildren) {
+      const children = this.getTyped(entity, ParentSchema).children ?? [];
+      for (let i = 0; i < children.length; i++) {
+        this.removeEntity(children[i], true);
+      }
+    }
+
     const viewport = this.gameCoordinator.pixiViewport;
     const index = this.state.activeEntities.indexOf(entity);
     if (index > -1) {
