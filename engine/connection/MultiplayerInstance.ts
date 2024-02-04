@@ -528,6 +528,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
         ),
         frame: this.frameStack[this.playerId][this.frameStack[this.playerId].length - 1].frame,
         playerId: this.playerId,
+        events: this.frameStack[this.playerId][this.frameStack[this.playerId].length - 1].events,
       });
     }
 
