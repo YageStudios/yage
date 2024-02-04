@@ -22,10 +22,8 @@ class DestroyOnTimeoutSystem implements System {
 registerSystem(DestroyOnTimeoutSystem);
 
 function updateTimeout(entity: number, timeout: DestroyOnTimeoutSchema, gameModel: GameModel) {
-  if (timeout.endFrame === 0) {
-    timeout.endFrame = gameModel.timeElapsed + timeout.timeoutMs;
-  }
-  if (timeout.endFrame < gameModel.timeElapsed) {
+  timeout.timeElapsed += gameModel.dt<number>(entity);
+  if (timeout.timeElapsed > timeout.timeoutMs) {
     if (timeout.spawnOnTimeout.length > 0) {
       let owner = entity;
       if (gameModel.hasComponent(entity, "Owner")) {
@@ -118,7 +116,7 @@ export const addToDestroyOnTimeout = (
   const dotData = gameModel.getTyped(entity, DestroyOnTimeoutSchema);
   if (dotData.component === component) {
     dotData.timeoutMs = timeoutMs;
-    dotData.endFrame = 0;
+    dotData.timeElapsed = 0;
     return;
   }
 
@@ -140,13 +138,13 @@ export const addToDestroyOnTimeout = (
     const destroyOnTimeout: DestroyOnTimeoutSchema = {
       component: component || "",
       timeoutMs,
-      endFrame: 0,
+      timeElapsed: 0,
       spawnOnTimeout: spawnOnTimeout,
       applyOnTimeout: applyOnTimeout,
     };
     data.timeouts.push(destroyOnTimeout);
   } else {
     data.timeouts[prevIndex].timeoutMs = timeoutMs;
-    data.timeouts[prevIndex].endFrame = 0;
+    data.timeouts[prevIndex].timeElapsed = 0;
   }
 };

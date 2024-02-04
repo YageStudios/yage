@@ -6,7 +6,7 @@ import { SpawnSchema } from "@/components/entity/Spawn";
 export class DestroyOnTimeoutSchema extends Schema {
   @type("number")
   @defaultValue(0)
-  endFrame: number;
+  timeElapsed: number;
 
   @type("number")
   @defaultValue(1000)
