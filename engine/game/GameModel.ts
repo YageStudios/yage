@@ -68,6 +68,16 @@ export type GameState = {
   activeByComponent: number[][];
 };
 
+export type EjectedEntity = {
+  entityType: string;
+  description: string;
+  entityId: number;
+  components: ComponentData[];
+  entities: number[];
+  children: { [key: number]: EjectedEntity };
+  hasChildren: boolean;
+};
+
 const dt = <T>(deltaTime: number, arg?: undefined | T, scale = 1): T => {
   if (arg === undefined) {
     return (deltaTime * scale) as unknown as T;
@@ -374,7 +384,7 @@ export class GameModel {
     return entityId;
   };
 
-  ejectEntity = (entity: number, nested = false): any => {
+  ejectEntity = (entity: number, removeEjectedEntity = true): any => {
     const data = {
       entityType: EntityTypeSchema.store.entityType[entity],
       description: this.getTyped(entity, DescriptionSchema).description,
@@ -382,13 +392,15 @@ export class GameModel {
       components: [],
       entities: [],
       children: {},
-    } as any;
+      hasChildren: false,
+    } as EjectedEntity;
     const entityData = this.state.entityComponentArray[entity];
 
     const children = (this.getTyped(entity, ParentSchema) as ParentSchema).children ?? [];
 
     for (let i = 0; i < children.length; i++) {
-      const childEntity = this.ejectEntity(children[i], true);
+      const childEntity = this.ejectEntity(children[i], false);
+
       data.entities.push(...childEntity.entities);
       data.children[childEntity.entityId] = childEntity;
     }
@@ -403,7 +415,8 @@ export class GameModel {
     }
     data.components = components;
     data.entities.push(entity);
-    if (!nested) {
+    data.entities = data.entities.filter((e: number) => this.isActive(e));
+    if (removeEjectedEntity) {
       this.removeEntity(entity, true);
     }
     data.hasChildren = !!children.length;
