@@ -41,6 +41,7 @@ export enum ComponentCategory {
   AURA,
 
   ONKILL,
+  ONDEATH,
 }
 
 export enum EntityType {
