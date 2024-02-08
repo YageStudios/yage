@@ -217,7 +217,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
       if (gameModel.hasComponent(player, PlayerInputSchema)) {
         const PlayerInput = gameModel.getTyped(player, PlayerInputSchema);
         const netId = PlayerInput.id;
-        while ((this.frameStack[netId]?.[0].frame ?? Infinity) < gameModel.frame) {
+        while ((this.frameStack[netId]?.[0]?.frame ?? Infinity) < gameModel.frame) {
           console.error("old frame received:" + netId);
           this.frameStack[netId].shift();
         }

@@ -18,10 +18,8 @@ class DieOnTimeoutSystem implements System {
 registerSystem(DieOnTimeoutSystem);
 
 function updateTimeout(entity: number, timeout: DieOnTimeoutSchema, gameModel: GameModel) {
-  if (timeout.endFrame === 0) {
-    timeout.endFrame = gameModel.timeElapsed + timeout.timeoutMs;
-  }
-  if (timeout.endFrame < gameModel.timeElapsed) {
+  timeout.timeElapsed += gameModel.dt<number>(entity);
+  if (timeout.timeElapsed > timeout.timeoutMs) {
     gameModel.getComponent(entity, "Health").health = 0;
   }
 }

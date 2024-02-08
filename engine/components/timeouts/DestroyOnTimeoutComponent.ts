@@ -108,7 +108,7 @@ export const addToDestroyOnTimeout = (
     gameModel.setComponent(entity, "DestroyOnTimeout", {
       component,
       timeoutMs,
-      endFrame: 0,
+      timeElapsed: 0,
     });
     return;
   }
@@ -126,7 +126,7 @@ export const addToDestroyOnTimeout = (
         {
           component,
           timeoutMs,
-          endFrame: 0,
+          timeElapsed: 0,
         },
       ],
     });

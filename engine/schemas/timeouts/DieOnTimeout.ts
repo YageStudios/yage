@@ -4,7 +4,7 @@ import { Component, defaultValue, Schema, type } from "../../decorators/type";
 export class DieOnTimeoutSchema extends Schema {
   @type("number")
   @defaultValue(0)
-  endFrame: number;
+  timeElapsed: number;
 
   @type("number")
   @defaultValue(1)
