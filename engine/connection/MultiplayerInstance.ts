@@ -217,6 +217,10 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
       if (gameModel.hasComponent(player, PlayerInputSchema)) {
         const PlayerInput = gameModel.getTyped(player, PlayerInputSchema);
         const netId = PlayerInput.id;
+        while ((this.frameStack[netId]?.[0].frame ?? Infinity) < gameModel.frame) {
+          console.error("old frame received:" + netId);
+          this.frameStack[netId].shift();
+        }
 
         if (!this.frameStack[netId] || !this.frameStack[netId][0]) {
           console.error("dropping slow frame");
@@ -502,10 +506,6 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
           });
           // PlayerInput.mousePosition = fromMouseSpace(this.mouseManager.mousePosition, this.pixiViewport);
           // PlayerInput.buttons = this.mouseManager.buttons;
-        }
-        while (this.frameStack[netId][0].frame < gameModel.frame) {
-          console.error("old frame:" + netId);
-          this.frameStack[netId].shift();
         }
         if (this.frameStack[netId][0].frame === gameModel.frame) {
           const prevKeyMap = PlayerInput.keyMap;
