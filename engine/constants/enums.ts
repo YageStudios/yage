@@ -139,6 +139,12 @@ export enum MobCircleSpawnStrategyEnum {
   UNIFORM,
 }
 
+export enum MobSpawnPositionEnum {
+  CIRCLE,
+  GROUPED,
+  RANDOM,
+}
+
 export enum OrbPatternEnum {
   NONE,
   STROBE_ROTATE,
