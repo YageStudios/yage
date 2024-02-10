@@ -29,7 +29,7 @@ export class GameInstance<T> {
     }
   }
 
-  host(roomId: string, seed?: string, playerConfig?: T) {
+  async initialize(roomId: string, seed?: string, players?: string[]) {
     if (!this.options.connection.player.connected && !this.options.connection.solohost) {
       throw new Error("Player not connected");
     }
@@ -41,18 +41,47 @@ export class GameInstance<T> {
       this.gameModel.destroy();
     }
 
-    this.gameModel = new GameModel(GameCoordinator.GetInstance(), this, seed);
-    this.options.buildWorld(this.gameModel, { ...this.options.connection.player.config, ...playerConfig });
+    if (this.options.connection.hasRoom(roomId)) {
+      this.join(roomId, seed);
+    } else {
+      const gameModel = await this.options.connection.initialize(roomId, {
+        gameInstance: this,
+        players: players ?? this.options.connection.players.map((p) => p.id),
+        seed: seed ?? "NO_SEED",
+        buildWorld: this.options.buildWorld,
+        onPlayerJoin: this.options.onPlayerJoin,
+        onPlayerLeave: this.options.onPlayerLeave,
+      });
 
-    return this.options.connection.host(roomId, {
-      gameModel: this.gameModel,
+      this.gameModel = gameModel;
+    }
+  }
+
+  async host(roomId: string, seed?: string, playerConfig?: T) {
+    if (!this.options.connection.player.connected && !this.options.connection.solohost) {
+      throw new Error("Player not connected");
+    }
+    if (this.options.connection.player.currentRoomId) {
+      this.options.connection.leave();
+    }
+
+    if (this.gameModel && !this.gameModel.destroyed) {
+      this.gameModel.destroy();
+    }
+
+    const gameModel = await this.options.connection.host(roomId, {
+      gameInstance: this,
+      seed: seed ?? "NO_SEED",
+      buildWorld: this.options.buildWorld,
       onPlayerJoin: this.options.onPlayerJoin,
       onPlayerLeave: this.options.onPlayerLeave,
       playerConfig,
     });
+
+    this.gameModel = gameModel;
   }
 
-  join(roomId: string, seed?: string, playerConfig?: T) {
+  async join(roomId: string, seed?: string, playerConfig?: T) {
     if (!this.options.connection.player.connected) {
       throw new Error("Player not connected");
     }
@@ -64,13 +93,13 @@ export class GameInstance<T> {
       this.gameModel.destroy();
     }
 
-    this.gameModel = new GameModel(GameCoordinator.GetInstance(), this, seed);
-
-    return this.options.connection.join(roomId, {
-      gameModel: this.gameModel,
+    const gameModel = await this.options.connection.join(roomId, {
+      gameInstance: this,
+      seed: seed ?? "NO_SEED",
       onPlayerLeave: this.options.onPlayerLeave,
       playerConfig,
     });
+    this.gameModel = gameModel;
   }
 
   run() {
@@ -83,6 +112,9 @@ export class GameInstance<T> {
   }
 
   runGameLoop() {
+    if (!this.gameModel) {
+      return;
+    }
     try {
       if (this.options.connection.frameSkipCheck(this.gameModel)) {
         return;

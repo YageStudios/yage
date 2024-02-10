@@ -6,6 +6,8 @@ import { RequireAtLeastOne } from "@/utils/typehelpers";
 import { MouseManager } from "@/inputs/MouseManager";
 import { TouchListener, TouchRegion } from "@/inputs/TouchListener";
 import { PlayerEventManager } from "@/inputs/PlayerEventManager";
+import { GameCoordinator } from "@/game/GameCoordinator";
+import { GameInstance } from "@/game/GameInstance";
 
 export class SingleplayerInstance<T> implements ConnectionInstance<T> {
   messageListeners: ((message: string, time: number, playerId: string) => void)[] = [];
@@ -34,6 +36,7 @@ export class SingleplayerInstance<T> implements ConnectionInstance<T> {
       hostedRooms: [],
     },
   ];
+  gameModel: GameModel;
 
   constructor(
     public inputManager: InputManager,
@@ -88,8 +91,38 @@ export class SingleplayerInstance<T> implements ConnectionInstance<T> {
   };
   async connect(): Promise<void> {}
 
-  async join(roomId: string): Promise<void> {
-    return;
+  hasRoom(roomId: string): boolean {
+    return this.players[0].hostedRooms.includes(roomId);
+  }
+
+  async initialize(
+    roomId: string,
+    options: {
+      gameInstance: GameInstance<T>;
+      seed: string;
+      buildWorld: (gameModel: GameModel, firstPlayerConfig: any) => void;
+      onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: T) => number;
+      onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
+      rebalanceOnLeave?: boolean | undefined;
+      playerConfig?: Partial<T> | undefined;
+    }
+  ): Promise<GameModel> {
+    return new GameModel(GameCoordinator.GetInstance(), options.gameInstance, options.seed);
+  }
+
+  async join(
+    _roomId: string,
+    {
+      gameInstance,
+      seed,
+    }: {
+      gameInstance: any;
+      seed: string;
+      onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
+      playerConfig?: any;
+    }
+  ): Promise<GameModel> {
+    return new GameModel(GameCoordinator.GetInstance(), gameInstance, seed);
   }
   async leave(): Promise<void> {
     this.players[0].hostedRooms = this.players[0].hostedRooms.filter(
@@ -101,14 +134,16 @@ export class SingleplayerInstance<T> implements ConnectionInstance<T> {
   async host(
     roomId: string,
     options: {
-      gameModel: GameModel;
+      gameInstance: GameInstance<T>;
+      seed: string;
+      buildWorld: (gameModel: GameModel, firstPlayerConfig: any) => void;
       onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: any) => number;
       onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
       rebalanceOnLeave?: boolean | undefined;
 
       playerConfig?: any;
     }
-  ): Promise<void> {
+  ): Promise<GameModel> {
     this.touchListener?.replaceRegions(this.touchRegions ?? []);
     this.player.currentRoomId = roomId;
     this.player.hostedRooms.push(roomId);
@@ -117,12 +152,17 @@ export class SingleplayerInstance<T> implements ConnectionInstance<T> {
     if (!options.playerConfig) {
       options.playerConfig = {};
     }
+    this.gameModel = new GameModel(GameCoordinator.GetInstance(), options.gameInstance, options.seed);
     options.playerConfig.name = this.player.name;
-    this.createPlayer(options.gameModel, options.gameModel.frame, {
+    const playerConfig = {
       ...(this.player.config ?? {}),
       ...options.playerConfig,
-    });
-    options.gameModel.netId = this.playerId;
+    };
+    options.buildWorld(this.gameModel, playerConfig);
+    this.createPlayer(this.gameModel, this.gameModel.frame, playerConfig);
+    this.gameModel.netId = this.playerId;
+
+    return this.gameModel;
   }
 
   generateFrameStack = (player: string, frame: number) => {

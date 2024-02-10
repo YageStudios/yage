@@ -1,4 +1,4 @@
-import type { FlexibleEntityDefinition } from "yage/entity/EntityFactory";
+import type { FlexibleEntityDefinition } from "@/entity/EntityFactory";
 
 const entities = import.meta.glob(["../entities/*.json", "../entities/*.jsonc", "../entities/*.json5"], {
   eager: true,

@@ -9,12 +9,24 @@ import { MouseManager } from "@/inputs/MouseManager";
 import { TouchListener, TouchRegion } from "@/inputs/TouchListener";
 import { PlayerEventManager } from "@/inputs/PlayerEventManager";
 import { ChildSchema } from "@/schemas/entity/Child";
+import { GameInstance } from "@/game/GameInstance";
+import { GameCoordinator } from "@/game/GameCoordinator";
+
+type Frame = { keys: KeyMap; frame: number; events: string[]; playerId: string };
+
+type FrameStack = { [playerId: string]: Frame[] };
 
 type Room = {
   roomId: string;
   host: string;
   players: string[];
   rebalanceOnLeave: boolean;
+};
+
+type RoomState = {
+  gameModel: GameModel;
+  frameStack: FrameStack;
+  lastFrame: { [playerId: string]: number };
 };
 
 export type MultiplayerInstanceOptions<T> = {
@@ -25,7 +37,6 @@ export type MultiplayerInstanceOptions<T> = {
 
 export class MultiplayerInstance<T> implements ConnectionInstance<T> {
   stateRequested: null | [string, any][] = null;
-  frameStack: { [playerId: string]: { keys: KeyMap; frame: number; events: string[] }[] } = {};
   frameOffset = 5;
   sendingState = false;
   leavingPlayers: [string, number][] = [];
@@ -36,7 +47,6 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
   nickname: string = "";
   listening: boolean;
 
-  gameModel: GameModel | null = null;
   touchListener?: TouchListener | undefined;
 
   address: string = "";
@@ -48,7 +58,8 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
   connectListeners: ((player: PlayerConnect<T>) => void)[] = [];
   disconnectListeners: ((playerId: string) => void)[] = [];
 
-  rooms: Room[] = [];
+  rooms: { [roomId: string]: Room } = {};
+  roomStates: { [roomId: string]: RoomState } = {};
 
   players: PlayerConnection<T>[] = [];
   player: PlayerConnection<T>;
@@ -82,20 +93,15 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
       this.messageListeners.forEach((listener) => listener(message, time, playerId));
     });
     this.on("updateRoom", (room: Room) => {
-      const index = this.rooms.findIndex((r) => r.host === room.host);
-      if (index === -1) {
-        this.rooms.push(room);
-      } else {
-        this.rooms[index] = room;
-      }
+      this.rooms[room.roomId] = room;
     });
-    this.on("rooms", (rooms: Room[]) => {
+    this.on("rooms", (rooms: { [roomId: string]: Room }) => {
       this.rooms = rooms;
     });
     this.on("connect", (player: PlayerConnect<T>) => {
       this.connectListeners.forEach((listener) => listener(player));
 
-      if (this.rooms.length) {
+      if (Object.keys(this.rooms).length) {
         this.emit("rooms", this.rooms);
       }
     });
@@ -103,11 +109,13 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
       this.players = this.players.filter((player) => player.id !== playerId);
       this.disconnectListeners.forEach((listener) => listener(playerId));
 
-      if (!this.frameStack[playerId]) {
+      const currentRoomId = this.player.currentRoomId ?? "";
+
+      if (!this.roomStates[currentRoomId]?.frameStack[playerId]) {
         return;
       }
       if (!lastFrame) {
-        const room = this.rooms.find((room) => room.players.includes(playerId));
+        const room = this.rooms[currentRoomId];
         if (room) {
           this.updateRoom({
             ...room,
@@ -115,7 +123,25 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
           });
         }
       }
-      lastFrame = lastFrame ?? this.frameStack[playerId][this.frameStack[playerId].length - 1].frame - 1;
+      const frameStack = this.roomStates[currentRoomId].frameStack[playerId];
+      const gameModel = this.roomStates[currentRoomId].gameModel;
+      lastFrame = Math.floor(this.roomStates[currentRoomId].lastFrame[playerId] / 10) * 10 + 10;
+
+      let startingFrame;
+      if (frameStack.length === 0) {
+        startingFrame = gameModel.frame + 1;
+      } else {
+        startingFrame = this.roomStates[currentRoomId].lastFrame[playerId] + 1;
+      }
+      for (let i = startingFrame; i < lastFrame; i += 1) {
+        frameStack.push({
+          keys: this.inputManager.buildKeyMap(),
+          frame: i,
+          events: [],
+          playerId: playerId,
+        });
+      }
+
       const leavingIndex = this.leavingPlayers.findIndex(([playerId]) => playerId === playerId);
       if (leavingIndex !== -1 && this.leavingPlayers[leavingIndex][1] < lastFrame) {
         this.leavingPlayers[leavingIndex][1] = lastFrame;
@@ -131,6 +157,11 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
       this.connectListeners.forEach((listener) => listener(player));
     });
   }
+
+  hasRoom(roomId: string): boolean {
+    return !!this.rooms[roomId]?.players.length;
+  }
+
   updatePlayerConnect(
     player: RequireAtLeastOne<{ name: string; token: string; config: T }, "name" | "token" | "config">
   ): void {
@@ -146,7 +177,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
     this.listening = false;
     this.sendingState = false;
     this.touchListener?.replaceRegions([]);
-    const rooms = this.rooms.filter((room) => room.players.includes(this.playerId));
+    const rooms = Object.values(this.rooms).filter((room) => room.players.includes(this.playerId));
     rooms.forEach((room) => {
       if (room.host === this.playerId) {
         this.roomSubs[room.roomId]?.forEach((sub) => sub());
@@ -171,11 +202,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
     return [];
   }
   updateRoom(room: Room) {
-    if (this.rooms.find((r) => r.roomId === room.roomId)) {
-      this.rooms = this.rooms.map((r) => (r.roomId === room.roomId ? room : r));
-    } else {
-      this.rooms.push(room);
-    }
+    this.rooms[room.roomId] = room;
     this.emit("updateRoom", room);
   }
 
@@ -211,19 +238,38 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
   }
 
   frameSkipCheck = (gameModel: GameModel): boolean => {
+    const room = this.roomStates[gameModel.roomId];
+    const frameStack = room?.frameStack;
+
+    if (this.leavingPlayers.length) {
+      for (let i = 0; i < this.leavingPlayers.length; ++i) {
+        if (this.leavingPlayers[i][1] === gameModel.frame) {
+          console.log("removing player", this.leavingPlayers[i][0], gameModel.frame);
+          this._onPlayerLeave(gameModel, this.leavingPlayers[i][0]);
+          delete frameStack[this.leavingPlayers[i][0]];
+          this.leavingPlayers.splice(i, 1);
+          i--;
+        }
+      }
+    }
+
     const players = gameModel.getComponentActives("PlayerInput");
+    if (!frameStack) {
+      console.error("no room frame stack");
+      return true;
+    }
     for (let i = 0; i < players.length; ++i) {
       let player = players[i];
       if (gameModel.hasComponent(player, PlayerInputSchema)) {
         const PlayerInput = gameModel.getTyped(player, PlayerInputSchema);
         const netId = PlayerInput.id;
-        while ((this.frameStack[netId]?.[0]?.frame ?? Infinity) < gameModel.frame) {
+        while ((frameStack[netId]?.[0]?.frame ?? Infinity) < gameModel.frame) {
           console.error("old frame received:" + netId);
-          this.frameStack[netId].shift();
+          frameStack[netId].shift();
         }
 
-        if (!this.frameStack[netId] || !this.frameStack[netId][0]) {
-          console.error("dropping slow frame");
+        if (!frameStack[netId] || !frameStack[netId][0]) {
+          console.error("dropping slow frame", netId, gameModel.frame);
           // console.error(this.frameStack);
           return true;
         }
@@ -236,8 +282,6 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
 
   cleanup() {
     let roomId = this.player.currentRoomId;
-    this.frameStack = {};
-
     if (!roomId) {
       return;
     }
@@ -267,16 +311,29 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
 
   protected subscribeFrame(roomId: string) {
     this.roomSubs[roomId] = this.roomSubs[roomId] ?? [];
+    if (!this.roomStates[roomId]) {
+      this.roomStates[roomId] = {
+        gameModel: null as any,
+        frameStack: {},
+        lastFrame: {},
+      };
+    }
+    const room = this.roomStates[roomId];
     this.roomSubs[roomId].push(
       this.on(
         "frame",
         (frame: { keys: { [key: string]: boolean }; events: string[]; frame: number; playerId: string }) => {
           const obj = this.inputManager.toKeyMap(frame.keys);
-          this.frameStack[frame.playerId].push({
+          if (!room.frameStack[frame.playerId]) {
+            room.frameStack[frame.playerId] = [];
+          }
+          room.frameStack[frame.playerId].push({
             keys: obj,
             frame: frame.frame,
             events: frame.events,
+            playerId: frame.playerId,
           });
+          room.lastFrame[frame.playerId] = frame.frame;
         }
       )
     );
@@ -287,24 +344,25 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
     {
       onPlayerLeave,
       playerConfig,
-      gameModel,
+      gameInstance,
+      seed,
     }: {
       onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
       playerConfig?: Partial<T>;
-      gameModel: GameModel;
+      gameInstance: GameInstance<T>;
+      seed: string;
     }
-  ): Promise<void> {
+  ): Promise<GameModel> {
     if (!this.player.connected) {
       throw new Error("Not connected");
     }
     this.cleanup();
     this._onPlayerLeave = onPlayerLeave;
-    this.gameModel = gameModel;
     if (!playerConfig) {
       playerConfig = {};
     }
     playerConfig = { ...this.player.config, ...playerConfig };
-    let room = this.rooms.find((room) => room.roomId === roomId);
+    let room = this.rooms[roomId];
     if (!room) {
       await (() => {
         console.log("Room not found, waiting for room");
@@ -320,16 +378,14 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
           }, this.options.roomTimeout ?? 5000);
         });
       })();
-      room = this.rooms.find((room) => room.roomId === roomId);
+      room = this.rooms[roomId];
       if (!room) {
         throw new Error("Timed out looking for room");
       }
     }
 
-    this.subscribeFrame(roomId);
     return new Promise((resolve) => {
       this.roomSubs[roomId] = this.roomSubs[roomId] ?? [];
-
       this.roomSubs[roomId].push(
         this.on(
           "state",
@@ -340,6 +396,9 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
             },
             timestamp: number
           ) => {
+            this.subscribeFrame(roomId);
+            let roomState = this.roomStates[roomId];
+
             this.player.currentRoomId = roomId;
             const state: {
               core: number;
@@ -352,57 +411,59 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
             if (!this.listening) {
               this.touchListener?.replaceRegions(this.options.touchRegions ?? []);
             }
-            if (!this.frameStack) {
-              this.frameStack = Object.entries(frameStack).reduce(
+            if (!Object.keys(roomState.frameStack)) {
+              roomState.frameStack = Object.entries(frameStack).reduce(
                 (acc, [key, value]) => {
                   acc[+key] = value.map((frame) => {
                     return {
                       keys: this.inputManager.toKeyMap(frame.keys),
                       frame: frame.frame,
                       events: frame.events,
+                      playerId: key,
                     };
                   });
                   return acc;
                 },
                 {} as {
-                  [playerId: number]: { keys: KeyMap; frame: number; events: string[] }[];
+                  [playerId: number]: { keys: KeyMap; frame: number; events: string[]; playerId: string }[];
                 }
               );
             } else {
               Object.entries(frameStack).forEach(([playerId, frames]) => {
-                if (!this.frameStack[playerId]) {
-                  this.frameStack[playerId] = [];
+                if (!roomState.frameStack[playerId]) {
+                  roomState.frameStack[playerId] = [];
                 }
                 frames.forEach((frame) => {
                   if (
-                    !this.frameStack[playerId].length ||
-                    this.frameStack[playerId][this.frameStack[playerId].length - 1].frame < frame.frame
+                    !roomState.frameStack[playerId].length ||
+                    roomState.frameStack[playerId][roomState.frameStack[playerId].length - 1].frame < frame.frame
                   ) {
-                    this.frameStack[playerId].push({
+                    roomState.frameStack[playerId].push({
                       keys: this.inputManager.toKeyMap(frame.keys),
                       frame: frame.frame,
                       events: frame.events,
+                      playerId: playerId,
                     });
                   }
                 });
               });
             }
-            if (this.gameModel) {
-              this.gameModel?.loadStateObject(state);
-              this.gameModel.netId = this.playerId;
+            if (!roomState.gameModel || roomState.gameModel.destroyed) {
+              roomState.gameModel = new GameModel(GameCoordinator.GetInstance(), gameInstance, seed);
+              roomState.gameModel.roomId = roomId;
             }
-            if (this.frameStack[this.playerId]) {
+            if (roomState.gameModel) {
+              roomState.gameModel?.loadStateObject(state);
+              roomState.gameModel.netId = this.playerId;
+            }
+            if (roomState.frameStack[this.playerId]) {
               this.listening = true;
             }
-            resolve();
+            resolve(roomState.gameModel);
           }
         )
       );
       this.emit("requestState", this.playerId, roomId, JSON.stringify(playerConfig));
-      const room = this.rooms.find((room) => room.roomId === roomId);
-      if (!room) {
-        throw new Error("Room not found");
-      }
       this.updateRoom({
         ...room,
         players: [...room.players, this.playerId],
@@ -412,22 +473,90 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
 
   async connect(address: string): Promise<void> {}
 
+  async initialize(
+    roomId: string,
+    options: {
+      gameInstance: GameInstance<T>;
+      seed: string;
+      players: string[];
+      buildWorld: (gameModel: GameModel, firstPlayerConfig: any) => void;
+      onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: T) => number;
+      onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
+      rebalanceOnLeave?: boolean | undefined;
+    }
+  ): Promise<GameModel> {
+    if (!this.player.connected && !this.options.solohost) {
+      await this.connect(this.address);
+    }
+    this.cleanup();
+    const players = this.players
+      .filter((player) => options.players.includes(player.id))
+      .sort((a, b) => a.id.localeCompare(b.id));
+    const host = players[0];
+
+    this.touchListener?.replaceRegions(this.options.touchRegions ?? []);
+    this.player.currentRoomId = roomId;
+    this.player.hostedRooms.push(roomId);
+
+    this.roomSubs[roomId] = this.roomSubs[roomId] ?? [];
+    if (host === this.player) {
+      this.roomSubs[roomId].push(
+        this.on("requestState", (playerId, _roomId, playerConfig) => {
+          if (!this.stateRequested) {
+            this.stateRequested = [[playerId, JSON.parse(playerConfig || "{}")]];
+          } else {
+            this.stateRequested.push([playerId, JSON.parse(playerConfig || "{}")]);
+          }
+        })
+      );
+    }
+    this._onPlayerJoin = options.onPlayerJoin;
+    this._onPlayerLeave = options.onPlayerLeave;
+    this.subscribeFrame(roomId);
+
+    const roomState = this.roomStates[roomId];
+
+    roomState.gameModel = new GameModel(GameCoordinator.GetInstance(), options.gameInstance, options.seed);
+    roomState.gameModel.roomId = roomId;
+    roomState.gameModel.paused = true;
+
+    options.buildWorld(roomState.gameModel, players[0].config);
+
+    for (let i = 0; i < players.length; ++i) {
+      const player = players[i];
+      this.createPlayer(roomState.gameModel, player.id, player.config!, roomState.gameModel.frame);
+    }
+
+    roomState.gameModel.netId = this.playerId;
+    this.rooms[roomId] = {
+      rebalanceOnLeave: options.rebalanceOnLeave ?? false,
+      host: host.id,
+      players: players.map((player) => player.id),
+      roomId,
+    };
+    return roomState.gameModel;
+  }
+
   async host(
     roomId: string,
     {
-      gameModel,
+      gameInstance,
+      seed,
+      buildWorld,
       onPlayerJoin,
       onPlayerLeave,
       rebalanceOnLeave,
       playerConfig,
     }: {
-      gameModel: GameModel;
+      gameInstance: GameInstance<T>;
+      seed: string;
+      buildWorld: (gameModel: GameModel, firstPlayerConfig: any) => void;
       onPlayerJoin: (gameModel: GameModel, playerId: string) => number;
       onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
       rebalanceOnLeave?: boolean;
       playerConfig?: Partial<T>;
     }
-  ): Promise<void> {
+  ): Promise<GameModel> {
     if (!this.player.connected && !this.options.solohost) {
       await this.connect(this.address);
     }
@@ -450,14 +579,21 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
     this._onPlayerLeave = onPlayerLeave;
     this.subscribeFrame(roomId);
 
-    this.gameModel = gameModel;
+    const roomState = this.roomStates[roomId];
+
+    roomState.gameModel = new GameModel(GameCoordinator.GetInstance(), gameInstance, seed);
+    roomState.gameModel.roomId = roomId;
+
     if (!playerConfig) {
       playerConfig = {};
     }
     // playerConfig.name = this.player.name;
     playerConfig = { ...this.player.config, ...playerConfig };
-    this.createPlayer(gameModel, this.playerId, playerConfig as T, gameModel.frame);
-    this.gameModel.netId = this.playerId;
+
+    buildWorld(roomState.gameModel, playerConfig);
+
+    this.createPlayer(roomState.gameModel, this.playerId, playerConfig as T, roomState.gameModel.frame);
+    roomState.gameModel.netId = this.playerId;
 
     this.updateRoom({
       rebalanceOnLeave: rebalanceOnLeave ?? false,
@@ -465,29 +601,35 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
       players: [this.playerId],
       roomId,
     });
+
+    return roomState.gameModel;
   }
 
   protected createPlayer(gameModel: GameModel, playerId: string, playerConfig: T, frame: number) {
     const entityId = this._onPlayerJoin(gameModel, playerId, playerConfig);
 
     console.log("CREATING PLAYER", playerId);
-    this.generateFrameStack(playerId, frame);
+    this.generateFrameStack(gameModel, playerId, frame);
     return entityId;
   }
 
-  generateFrameStack = (player: string, frame: number) => {
+  generateFrameStack = (gameModel: GameModel, playerId: string, frame: number) => {
     const initalFrameOffset = this.frameOffset;
-    this.frameStack[player] = new Array(initalFrameOffset).fill({ keys: {} as any, frame: 0 }).map((_, ind) => {
+    const roomState = this.roomStates[gameModel.roomId];
+    roomState.frameStack[playerId] = new Array(initalFrameOffset).fill({ keys: {} as any, frame: 0 }).map((_, ind) => {
       return {
         frame: frame + ind,
         keys: this.inputManager.buildKeyMap(),
         events: [],
+        playerId: playerId,
       };
     });
   };
 
   handleInput(gameModel: GameModel) {
     const players = gameModel.getComponentActives("PlayerInput");
+    const roomState = this.roomStates[gameModel.roomId];
+
     for (let i = 0; i < players.length; ++i) {
       let player = players[i];
       if (gameModel.hasComponent(player, PlayerInputSchema)) {
@@ -496,20 +638,19 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
 
         if (
           netId === this.playerId &&
-          gameModel.frame + this.frameOffset > this.frameStack[netId][this.frameStack[netId].length - 1].frame
+          gameModel.frame + this.frameOffset > roomState.frameStack[netId][roomState.frameStack[netId].length - 1].frame
         ) {
           const currentKeyMap = this.inputManager.getKeyMap();
-          this.frameStack[netId].push({
-            keys: currentKeyMap,
+          this.emit("frame", {
+            keys: this.inputManager.keyMapToJsonObject(currentKeyMap),
             frame: gameModel.frame + this.frameOffset,
+            playerId: this.playerId,
             events: this.eventsManager.getEvents(),
           });
-          // PlayerInput.mousePosition = fromMouseSpace(this.mouseManager.mousePosition, this.pixiViewport);
-          // PlayerInput.buttons = this.mouseManager.buttons;
         }
-        if (this.frameStack[netId][0].frame === gameModel.frame) {
+        if (roomState.frameStack[netId][0].frame === gameModel.frame) {
           const prevKeyMap = PlayerInput.keyMap;
-          const frame = this.frameStack[netId].shift()!;
+          const frame = roomState.frameStack[netId].shift()!;
           const nextKeyMap = frame.keys as KeyMap;
 
           PlayerInput.prevKeyMap = prevKeyMap;
@@ -521,16 +662,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
   }
 
   run(gameModel: GameModel) {
-    if (this.sendingState || this.listening) {
-      this.emit("frame", {
-        keys: this.inputManager.keyMapToJsonObject(
-          this.frameStack[this.playerId][this.frameStack[this.playerId].length - 1].keys
-        ),
-        frame: this.frameStack[this.playerId][this.frameStack[this.playerId].length - 1].frame,
-        playerId: this.playerId,
-        events: this.frameStack[this.playerId][this.frameStack[this.playerId].length - 1].events,
-      });
-    }
+    const roomState = this.roomStates[gameModel.roomId];
 
     if (this.stateRequested?.length) {
       while (this.stateRequested?.length) {
@@ -542,7 +674,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
 
       const state = gameModel.serializeState();
 
-      const frameStack = Object.entries(this.frameStack).reduce(
+      const frameStack = Object.entries(roomState.frameStack).reduce(
         (acc, [key, value]) => {
           acc[key] = value.map((frame) => {
             return {
@@ -559,17 +691,6 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
 
       this.emit("state", JSON.stringify(state), frameStack, +new Date());
       gameModel.loadStateObject(state);
-    }
-
-    if (this.leavingPlayers.length) {
-      for (let i = 0; i < this.leavingPlayers.length; ++i) {
-        if (this.leavingPlayers[i][1] === gameModel.frame) {
-          this._onPlayerLeave(gameModel, this.leavingPlayers[i][0]);
-          this.leavingPlayers.splice(i, 1);
-          delete this.frameStack[this.leavingPlayers[i][0]];
-          i--;
-        }
-      }
     }
 
     // if (gameModel.frame % 30 === 0) {

@@ -231,7 +231,7 @@ export class BallLobbyScene extends Scene {
         return player;
       },
       onPlayerLeave: (gameModel: GameModel, playerId: string) => {
-        const players = gameModel.players;
+        const players = gameModel.getComponentActives("PlayerInput");
         const player = players.find((p) => {
           const PlayerInput = gameModel.getTyped(p, PlayerInputSchema);
           return PlayerInput.id === playerId;

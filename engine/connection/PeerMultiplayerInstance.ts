@@ -80,13 +80,16 @@ export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
         conn.send([event, ...args]);
       }
     });
+    if (event !== "message") {
+      this.handleData([event, ...args]);
+    }
   }
 
   handleData = (data: any) => {
-    const [event, ...args] = data as [string, ...any[]];
+    let [event, ...args] = data as [string, ...any[]];
 
     if (event !== "frame") {
-      console.log(event);
+      console.log(event, args);
     }
 
     if (event === "peer") {
@@ -98,14 +101,10 @@ export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
       }
       if (!this.players.find((p) => p.id === player.id)) {
         this.players.push(player);
-        this.onceSubscriptions.connect?.forEach((callback) => {
-          callback(player);
-        });
-        this.subscriptions.connect?.forEach((callback) => {
-          callback(player);
-        });
+        this.handleData(["connect", player]);
       } else if (player.id !== this.player.id) {
         this.players = this.players.map((p) => (p.id === player.id ? player : p));
+        this.handleData(["reconnect", player]);
       }
       return;
     }
@@ -137,12 +136,7 @@ export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
           this.player.connectionId = this.peer.id;
 
           this.emit("peer", this.peer.id, this.player);
-          this.onceSubscriptions.connect?.forEach((callback) => {
-            callback(this.player);
-          });
-          this.subscriptions.connect?.forEach((callback) => {
-            callback(this.player);
-          });
+          this.handleData(["connect", this.player]);
         } else {
           this.players.forEach((player) => {
             this.emit("peer", player.connectionId, player);
@@ -155,9 +149,7 @@ export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
       const player = this.players.find((p) => p.connectionId === conn.peer);
       if (player) {
         this.players = this.players.filter((p) => p.connectionId !== conn.peer);
-        this.subscriptions.disconnect?.forEach((callback) => {
-          callback(player.id);
-        });
+        this.handleData(["disconnect", player.id]);
         if (this.players.length === 1) {
           this.player.connected = false;
           this.player.connectionTime = 0;
@@ -170,15 +162,6 @@ export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
       }
     });
     conn.on("close", () => {
-      // let address = this.address;
-      // if (!address.startsWith(this.prefix)) {
-      //   address = this.prefix + address;
-      // }
-      // if (conn.peer === address) {
-      //   console.log("HAVE TO RECREATE CONNECTION");
-      // }
-      // console.error("CONNECTION CLOSED");
-
       handleDisconnect();
     });
   };

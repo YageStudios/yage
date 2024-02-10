@@ -4,6 +4,7 @@ import { RequireAtLeastOne } from "@/utils/typehelpers";
 import { InputManager } from "@/inputs/InputManager";
 import { TouchListener } from "@/inputs/TouchListener";
 import { PlayerEventManager } from "@/inputs/PlayerEventManager";
+import { GameInstance } from "@/game/GameInstance";
 
 export type PlayerConnection<T> = {
   id: string;
@@ -42,25 +43,44 @@ export abstract class ConnectionInstance<T> {
   abstract connect(address?: string): Promise<void>;
   abstract leave(): void;
 
-  abstract host(
+  abstract hasRoom(roomId: string): boolean;
+
+  abstract initialize(
     roomId: string,
     options: {
-      gameModel: GameModel;
+      players: string[];
+      gameInstance: GameInstance<T>;
+      seed: string;
+      buildWorld: (gameModel: GameModel, firstPlayerConfig: any) => void;
       onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: T) => number;
       onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
       rebalanceOnLeave?: boolean;
       playerConfig?: Partial<T>;
     }
-  ): Promise<void>;
+  ): Promise<GameModel>;
+
+  abstract host(
+    roomId: string,
+    options: {
+      gameInstance: GameInstance<T>;
+      seed: string;
+      buildWorld: (gameModel: GameModel, firstPlayerConfig: any) => void;
+      onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: T) => number;
+      onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
+      rebalanceOnLeave?: boolean;
+      playerConfig?: Partial<T>;
+    }
+  ): Promise<GameModel>;
 
   abstract join(
     roomId: string,
     options: {
-      gameModel: GameModel;
+      gameInstance: GameInstance<T>;
+      seed: string;
       onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
       playerConfig?: Partial<T>;
     }
-  ): Promise<void>;
+  ): Promise<GameModel>;
 
   abstract frameSkipCheck(gameModel: GameModel): boolean;
   abstract handleInput(gameModel: GameModel): void;
