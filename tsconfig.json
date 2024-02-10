@@ -25,5 +25,5 @@
       "@/*": ["./engine/*"],
     }
   },
-  "include": ["engine","tests", "vite.config.js", "engine/preload.ts"]
+  "include": ["engine","vite.config.js", "engine/preload.ts"]
 }
