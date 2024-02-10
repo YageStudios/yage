@@ -1,0 +1,13 @@
+{
+  name: "core",
+  components: [
+    "Random",
+    "FrameRate",
+    "Collisions",
+    {
+      type: "Physics",
+      gravityX: 0,
+      gravityY: 0,
+    },
+  ],
+}

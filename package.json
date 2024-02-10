@@ -64,11 +64,13 @@
     "lint": "eslint --ext .ts ./src ./engine",
     "build:watch": "nodemon --watch engine --exec \"npm run build\" --ext ts",
     "tsc": "tsc --noEmit",
+    "test": "vite tests",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "pretty": "prettier --write \"./**/*.{js,jsx,json,ts}\""
   },
   "devDependencies": {
+    "@rollup/pluginutils": "^5.1.0",
     "@types/lodash": "^4.14.191",
     "@types/ndarray": "^1.0.11",
     "@types/seedrandom": "^3.0.2",
@@ -77,6 +79,7 @@
     "@typescript-eslint/parser": "^5.55.0",
     "eslint": "^8.36.0",
     "eslint-plugin-unused-imports": "^2.0.0",
+    "json5": "^2.2.3",
     "nodemon": "^3.0.2",
     "prettier": "^2.8.0",
     "typescript": "^5.0.2",
