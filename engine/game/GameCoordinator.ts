@@ -140,8 +140,6 @@ export class GameCoordinator {
     // ) {
     if (typeof scene === "string") {
       this.changeScene(scene);
-    } else {
-      // this.changeScene("projectvlobby", scene);
     }
   }
 
