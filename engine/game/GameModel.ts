@@ -117,6 +117,7 @@ export class GameModel {
 
   world: any;
   netId: string = "";
+  roomId: string = "";
 
   systems: { [key: string]: System };
 

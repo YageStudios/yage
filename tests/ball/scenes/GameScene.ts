@@ -43,11 +43,7 @@ export class BallGameScene extends Scene {
 
     const address = instance.options.connection.address + "game" + wave;
 
-    if (hosting) {
-      await this.instance.host(address, address);
-    } else {
-      await this.instance.join(address, address);
-    }
+    await this.instance.initialize(address, address); //host(address, address);
   };
 
   run = () => {
