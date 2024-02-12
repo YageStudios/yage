@@ -83,6 +83,7 @@ export enum TriggerTypeEnum {
   HEALTH_DECREASE,
   HEALTH_INCREASE,
   ONATTACH,
+  TIME,
 }
 
 export enum WaveTypeEnum {
