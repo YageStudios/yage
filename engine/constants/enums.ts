@@ -42,6 +42,7 @@ export enum ComponentCategory {
 
   ONKILL,
   ONDEATH,
+  ONDODGE,
 }
 
 export enum EntityType {
@@ -123,6 +124,7 @@ export enum CollisionCategoryEnum {
   INTERACTABLE =  0b0000000001000000,
   MAP =           0b0000000010000000,
   TERRAIN =       0b0000000100000000,
+  PLAYER =        0b0000001000000000,
   ALL =           0b1111111111111111,
 }
 
