@@ -220,8 +220,10 @@ export class GameModel {
       return entityType
         .map((type) => {
           switch (type) {
-            case EntityType.ALLY:
+            case EntityType.PLAYER:
               return this.players;
+            case EntityType.ALLY:
+              return this.getComponentActives("AllyType") ?? [];
             case EntityType.ENEMY:
               return this.enemies;
             case EntityType.PROJECTILE:
