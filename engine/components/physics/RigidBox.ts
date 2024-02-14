@@ -2,7 +2,7 @@ import type { System } from "@/components/System";
 import type { GameModel } from "@/game/GameModel";
 import { ComponentCategory } from "../../components/types";
 import { DEPTHS, registerSystem } from "../../components/ComponentRegistry";
-import { PhysicsSystem } from "@/components/";
+import { PhysicsSystem } from "@/components/physics/Physics";
 import { angleOfVector2d, scaleVector2d } from "@/utils/vector";
 import { CollisionCategoryEnum } from "@/constants/enums";
 import RAPIER from "@dimforge/rapier2d-compat";

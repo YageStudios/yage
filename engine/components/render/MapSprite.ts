@@ -5,8 +5,8 @@ import * as PIXI from "pixi.js";
 import ImageLoader from "@/loader/ImageLoader";
 import { TransformSchema } from "@/schemas/entity/Transform";
 import { registerPixiComponent, registerSystem } from "../ComponentRegistry";
-import { MapEntityTypeSchema } from "../entity";
 import { Viewport } from "pixi-viewport";
+import { MapEntityTypeSchema } from "../entity/Types";
 
 export class MapSpriteComponentPixi implements PixiDrawSystem {
   ids: Set<number> = new Set();
