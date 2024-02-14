@@ -40,6 +40,8 @@ export enum ComponentCategory {
   TARGET,
   AURA,
 
+  ON_ENTITY_CREATION,
+
   ONKILL,
   ONDEATH,
   ONDODGE,

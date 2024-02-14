@@ -3,7 +3,7 @@ import type { System } from "@/components/System";
 import type { GameModel } from "@/game/GameModel";
 import { ComponentCategory } from "../../components/types";
 import { DEPTHS, registerUIComponent, registerSystem } from "../../components/ComponentRegistry";
-import { EntityTypeSchema } from "../../components";
+import { EntityTypeSchema } from "../../components/entity/Types";
 import RAPIER, { World } from "@dimforge/rapier2d-compat";
 import { hacks } from "@/console/hacks";
 import * as PIXI from "pixi.js";

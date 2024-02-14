@@ -2,7 +2,6 @@ import * as bitecs from "bitecs";
 import { clone, cloneDeep } from "lodash";
 import type * as PIXI from "pixi.js";
 
-import { EntityTypeSchema, PhysicsSystem, TimeDilationSchema } from "@/components/";
 import {
   canRegisterComponents,
   componentIndexMap,
@@ -43,6 +42,9 @@ import { UIService } from "@/ui/UIService";
 import { md5 } from "@/utils/md5";
 import { GameInstance } from "./GameInstance";
 import { GameCoordinator } from "./GameCoordinator";
+import { PhysicsSystem } from "@/components/physics/Physics";
+import { TimeDilationSchema } from "@/schemas/core/TimeDilation";
+import { EntityTypeSchema } from "@/components/entity/Types";
 
 // import { MapSpawnSchema } from "../../src/stunningumbrella/components";
 

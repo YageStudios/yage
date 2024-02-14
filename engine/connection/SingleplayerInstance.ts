@@ -1,4 +1,4 @@
-import { PlayerInputSchema } from "@/components";
+import { PlayerInputSchema } from "@/schemas/core/PlayerInput";
 import { GameModel, GameModelState } from "@/game/GameModel";
 import { InputManager, KeyMap } from "@/inputs/InputManager";
 import { ConnectionInstance, PlayerConnect, PlayerConnection } from "./ConnectionInstance";

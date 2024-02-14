@@ -15,6 +15,7 @@ import { assignGlobalSingleton, getGlobalSingleton, setGlobalSingleton } from "@
 import { cloneDeep } from "lodash";
 import { hexToRgbNumber } from "@/utils/colors";
 import { ParentSchema } from "@/schemas/entity/Parent";
+import { ListenEntityCreationSchema, ListenEntityCreationSystem } from "@/components/core/ListenEntityCreation";
 
 export interface EntityDefinition {
   name: string;
@@ -383,7 +384,13 @@ export class EntityFactory {
   generateEntity = (gameModel: GameModel, entityName: string, componentOverrides?: { [key: string]: any }): number => {
     try {
       const entityComponents = this.mapEntityComponent(gameModel, entityName, componentOverrides);
-      return this.createEntity(gameModel, entityComponents);
+      const createdEntity = this.createEntity(gameModel, entityComponents);
+
+      if (entityName !== "core" && gameModel.hasComponent(gameModel.coreEntity, ListenEntityCreationSchema)) {
+        gameModel.getComponent(gameModel.coreEntity, ListenEntityCreationSchema).entity = createdEntity;
+        gameModel.getSystem(ListenEntityCreationSystem).run(gameModel.coreEntity, gameModel);
+      }
+      return createdEntity;
     } catch (e) {
       console.error(entityName, componentOverrides);
       console.error(e);

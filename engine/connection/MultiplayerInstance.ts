@@ -1,4 +1,4 @@
-import { PhysicsSystem, PlayerInputSchema } from "@/components";
+import { PhysicsSystem } from "@/components/physics/Physics";
 import { GameModel } from "@/game/GameModel";
 import { InputManager, KeyMap } from "@/inputs/InputManager";
 import { ConnectionInstance, PlayerConnect, PlayerConnection } from "./ConnectionInstance";
@@ -11,6 +11,7 @@ import { PlayerEventManager } from "@/inputs/PlayerEventManager";
 import { ChildSchema } from "@/schemas/entity/Child";
 import { GameInstance } from "@/game/GameInstance";
 import { GameCoordinator } from "@/game/GameCoordinator";
+import { PlayerInputSchema } from "@/schemas/core/PlayerInput";
 
 type Frame = { keys: KeyMap; frame: number; events: string[]; playerId: string };
 
