@@ -41,11 +41,11 @@ export class ListenEntityCreationSystem implements System {
         i--;
         continue;
       }
-      const onKillMods = gameModel.getComponentIdsByCategory(entityId, ComponentCategory.ONKILL);
+      const onEntityCreationMods = gameModel.getComponentIdsByCategory(entityId, ComponentCategory.ON_ENTITY_CREATION);
 
-      if (onKillMods.length) {
-        for (let j = 0; j < onKillMods.length; j++) {
-          const mod = gameModel.getComponent(entityId, onKillMods[j]);
+      if (onEntityCreationMods.length) {
+        for (let j = 0; j < onEntityCreationMods.length; j++) {
+          const mod = gameModel.getComponent(entityId, onEntityCreationMods[j]);
           if (mod.entity !== undefined) {
             mod.entity = data.entity;
           }
