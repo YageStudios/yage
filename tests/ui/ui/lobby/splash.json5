@@ -1,0 +1,93 @@
+{
+  start: {
+    type: "button",
+    config: {
+      label: "$$start",
+      fontSize: 32,
+    },
+    rect: {
+      x: "right",
+      y: "center",
+      // minWidth: "1in",
+      // minHeight: "1in",
+      width: "10%",
+      height: "33%",
+    },
+    events: {
+      trigger: "selectCharacter",
+      focus: "showCharacter",
+      blur: "hideCharacter",
+      hoverFocus: "showCharacter",
+      hoverBlur: "hideCharacter",
+    },
+  },
+  grid1: {
+    type: "grid",
+    items: [
+      { label: "1" },
+      { label: "2" },
+      { label: "3" },
+      { label: "4" },
+      { label: "5" },
+      { label: "6" },
+      { label: "7" },
+      { label: "8" },
+      { label: "9" },
+      { label: "0" },
+    ],
+    config: {
+      columns: "33% 33% 33%",
+      rows: "auto 33%",
+      gap: 10,
+    },
+    rect: {
+      x: "left",
+      y: "top",
+      width: "33%",
+      height: "33%",
+    },
+    element: {
+      type: "button",
+      config: {
+        label: "$$label",
+        fontSize: 32,
+      },
+      events: {
+        trigger: "gridTrigger",
+        focus: "gridFocus",
+        blur: "gridBlur",
+        hoverFocus: "gridHoverFocus",
+        hoverBlur: "gridHoverBlur",
+      },
+    },
+  },
+  grid2: {
+    type: "grid",
+    items: "$$shopItems",
+    config: {
+      columns: "25% 25% 25% 25%",
+      rows: "100%",
+      gap: 10,
+    },
+    rect: {
+      x: "left",
+      y: "bottom",
+      width: "66%",
+      height: "33%",
+    },
+    element: {
+      type: "button",
+      config: {
+        label: "$$label",
+        fontSize: 32,
+      },
+      events: {
+        trigger: "gridTrigger",
+        focus: "gridFocus",
+        blur: "gridBlur",
+        hoverFocus: "gridHoverFocus",
+        hoverBlur: "gridHoverBlur",
+      },
+    },
+  },
+}

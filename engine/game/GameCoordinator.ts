@@ -130,7 +130,7 @@ export class GameCoordinator {
     };
   }
 
-  initialize(scene: string): void {
+  initialize(scene: string | typeof Scene): void {
     // initialize(scene: string, preload?: () => Promise<void>): void;
     // initialize(instance: GameInstance, preload?: () => Promise<void>): void;
     // initialize(
@@ -138,13 +138,15 @@ export class GameCoordinator {
     //   instance?: GameInstance | (() => Promise<void>),
     //   preload?: () => Promise<void>
     // ) {
-    if (typeof scene === "string") {
-      this.changeScene(scene);
-    }
+    this.changeScene(scene);
   }
 
-  async changeScene(scene: string, ...args: any[]) {
-    scene = scene.toLocaleLowerCase();
+  async changeScene(scene: string | typeof Scene, ...args: any[]) {
+    if (typeof scene === "string") {
+      scene = scene.toLocaleLowerCase();
+    } else {
+      scene = scene.sceneName.toLocaleLowerCase();
+    }
     if (this.currentScene) {
       // this.pixiApp.stage.removeChild(this.currentScene as DisplayObject);
       this.currentScene.destroy();

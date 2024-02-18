@@ -60,8 +60,8 @@ export class Text extends UIElement<TextConfig> {
 
   protected updateInternal(gameModel: GameModel): void {}
 
-  update(): void {
-    super.update();
+  _update(): void {
+    super._update();
     if (!this.isVisible()) {
       return;
     }

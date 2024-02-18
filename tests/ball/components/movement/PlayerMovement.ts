@@ -1,4 +1,3 @@
-import { PlayerInputSchema } from "@/components";
 import { DEPTHS, registerSystem } from "@/components/ComponentRegistry";
 import type { System } from "@/components/System";
 import { ComponentCategory } from "@/components/types";
@@ -10,6 +9,7 @@ import { keyDown } from "@/utils/keys";
 import { normalizeSafeVector2d } from "@/utils/vector";
 import { ChildSchema } from "@/schemas/entity/Child";
 import { TransformSchema } from "@/schemas/entity/Transform";
+import { PlayerInputSchema } from "@/schemas/core/PlayerInput";
 
 @Component("PlayerMovement")
 export class PlayerMovementSchema extends Schema {}

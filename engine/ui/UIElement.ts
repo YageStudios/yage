@@ -2,6 +2,7 @@ import type { GameModel } from "@/game/GameModel";
 import { Position, Rectangle, isRectangle } from "./Rectangle";
 import { nanoid } from "nanoid";
 import { positionToCanvasSpace } from "../ui/utils";
+import { debounce } from "lodash";
 
 export type UIElementConfig = {
   style: Partial<CSSStyleDeclaration>;
@@ -33,6 +34,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   _parent: UIElement | RootUIElement | undefined;
   _zIndex = 0;
   _creationDate = new Date().toISOString();
+  removeTheseChildren: UIElement[] = [];
 
   get id() {
     return this._id;
@@ -56,9 +58,13 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   get config(): T {
     return new Proxy(this._config, {
       set: (target: any, key, value) => {
+        console.log(target, key, value);
         target[key] = value;
         this.update();
         return true;
+      },
+      get: (target: any, key) => {
+        return target[key];
       },
     });
   }
@@ -114,6 +120,15 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     return this._parent;
   }
 
+  removeAllChildren() {
+    this._config.children = [];
+    this._config.children?.forEach((x) => {
+      x.onDestroy();
+    });
+    this._config.children = [];
+    this.update();
+  }
+
   addChild(child: UIElement) {
     if (!this._config.children) {
       this._config.children = [];
@@ -124,7 +139,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     if (child._parent !== this) {
       child.parent = this;
     }
-    child.update();
+    this.update();
   }
 
   constructor(bounds: Rectangle | Position, _config: Partial<T> = {}, defaultStyle: Partial<CSSStyleDeclaration> = {}) {
@@ -240,7 +255,15 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     return visible;
   };
 
-  update() {
+  update = debounce(
+    () => {
+      this._update();
+    },
+    10,
+    { leading: false }
+  );
+
+  _update() {
     this._zIndex = (this._parent?._zIndex ?? 0) + parseInt(this._config.style.zIndex ?? "0");
     if (!this.isVisible()) {
       if (this._element) {
@@ -259,18 +282,19 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     if (!this.parent?._element?.contains(element)) {
       this.parent?._element?.appendChild(element);
     }
-
-    const [x, y, width, height] = positionToCanvasSpace(this.bounds, this._parent?._element ?? document.body);
-    element.style.left = `${x}px`;
-    element.style.top = `${y}px`;
-    element.style.width = width > 1 ? `${width}px` : "auto";
-    element.style.height = height > 1 ? `${height}px` : "auto";
-    element.style.position = "absolute";
-
     const styles = {
       ...this._config.style,
       ...this._styleOverrides,
     };
+
+    if (styles.position === "absolute") {
+      const [x, y, width, height] = positionToCanvasSpace(this.bounds, this._parent?._element ?? document.body);
+      element.style.left = `${x}px`;
+      element.style.top = `${y}px`;
+      element.style.width = width > 1 ? `${width}px` : "auto";
+      element.style.height = height > 1 ? `${height}px` : "auto";
+      element.style.position = "absolute";
+    }
 
     for (const [key, value] of Object.entries(styles)) {
       // @ts-ignore

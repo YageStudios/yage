@@ -80,6 +80,14 @@ export type EjectedEntity = {
   hasChildren: boolean;
 };
 
+export type EntityData = {
+  entityType: string;
+  description: string;
+  components: { [key: string]: ComponentData };
+  id: number;
+  children: EntityData[];
+};
+
 const dt = <T>(deltaTime: number, arg?: undefined | T, scale = 1): T => {
   if (arg === undefined) {
     return (deltaTime * scale) as unknown as T;
@@ -294,7 +302,9 @@ export class GameModel {
   };
 
   private copyComponentData = (entity: number, i: number, remapEntities = true) => {
-    let componentData: any = {};
+    let componentData: ComponentData = {
+      type: "",
+    };
     const component = componentList[i];
     if (this.isBitecs(i)) {
       const bitecsComponent: any = {};
@@ -446,23 +456,35 @@ export class GameModel {
     return cloned;
   };
 
-  logEntity = (entity: number, overrideDebug = false) => {
-    const data = {
+  getEntityData = (entity: number) => {
+    const data: EntityData = {
       entityType: EntityTypeSchema.store.entityType[entity],
       description: this.hasComponent(entity, DescriptionSchema)
         ? this.getTyped(entity, DescriptionSchema).description
         : "",
-      components: [],
+      components: {} as { [key: string]: ComponentData },
       id: entity,
-    } as any;
+      children: [] as EntityData[],
+    };
 
     const entityData = this.state.entityComponentArray[entity];
     for (let i = 0; i < componentList.length; i++) {
       if (entityData.get(i)) {
         const component = this.copyComponentData(entity, i, false);
-        data.components.push(component);
+        data.components[component.type] = component;
       }
     }
+
+    const children = this.getTyped(entity, ParentSchema).children ?? [];
+    for (let i = 0; i < children.length; i++) {
+      data.children.push(this.getEntityData(children[i]));
+    }
+
+    return data;
+  };
+
+  logEntity = (entity: number, overrideDebug = false) => {
+    const data = this.getEntityData(entity);
     if (hacks.DEBUG || overrideDebug) {
       if (typeof window === "undefined") {
         console.log(JSON.stringify(data, null, 2));

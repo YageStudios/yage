@@ -69,8 +69,8 @@ export class Box<T extends BoxConfig = BoxConfig> extends UIElement<T> {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-empty-function
   protected updateInternal(gameModel: GameModel): void {}
 
-  update(): void {
-    super.update();
+  _update(): void {
+    super._update();
     if (!this.isVisible()) {
       return;
     }
