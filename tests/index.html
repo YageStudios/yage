@@ -111,7 +111,7 @@
     <div id="interaction" tabindex="1" onclick="this.focus()"></div>
     <script>
       window.onload = function () {
-        var input = document.getElementById("interaction").focus();
+        var input = document.getElementById("interaction")?.focus();
       };
     </script>
     <script type="module" src="./index.ts"></script>

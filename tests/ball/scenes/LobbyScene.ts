@@ -8,7 +8,6 @@ import { ConnectionInstance } from "@/connection/ConnectionInstance";
 import { InputManager } from "@/inputs/InputManager";
 import { GameInstance } from "@/game/GameInstance";
 import { GameModel } from "@/game/GameModel";
-import { PlayerInputSchema } from "@/components";
 import { EntityFactory } from "@/entity/EntityFactory";
 import { TransformSchema } from "@/schemas/entity/Transform";
 import { Box } from "@/ui/Box";
@@ -18,6 +17,7 @@ import { rotateVector2d } from "@/utils/vector";
 import { PlayerState, defaultPlayerState } from "../types/PlayerState.types";
 import { cloneDeep } from "lodash";
 import { Button, ButtonConfig } from "@/ui/Button";
+import { PlayerInputSchema } from "@/schemas/core/PlayerInput";
 
 const CallToAction = (config: Partial<ButtonConfig>): Partial<ButtonConfig> => ({
   uppercase: true,

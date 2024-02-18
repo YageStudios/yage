@@ -32,8 +32,8 @@ export class ImageBox extends Box<ImageBoxConfig> {
     return { width: srcWidth * ratio, height: srcHeight * ratio };
   }
 
-  update(): void {
-    super.update();
+  _update(): void {
+    super._update();
     if (!this.isVisible()) {
       return;
     }

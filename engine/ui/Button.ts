@@ -82,8 +82,8 @@ export class Button extends UIElement<ButtonConfig> {
     return element as unknown as HTMLButtonElement;
   }
 
-  update(): void {
-    super.update();
+  _update(): void {
+    super._update();
     if (!this.isVisible()) {
       return;
     }

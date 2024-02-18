@@ -106,8 +106,8 @@ export class TextInput extends UIElement<TextInputConfig> {
     return element;
   }
 
-  update(): void {
-    super.update();
+  _update(): void {
+    super._update();
     if (!this.isVisible()) {
       return;
     }
