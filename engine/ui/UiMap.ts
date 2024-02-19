@@ -80,6 +80,11 @@ const generateEventListener = (
     : {};
 };
 
+const classes = new Map<string, Partial<CSSStyleDeclaration>>();
+export const registerUiClass = (className: string, styles: Partial<CSSStyleDeclaration>) => {
+  classes.set(className, styles);
+};
+
 export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxConfig): UiMap => {
   let built: Box | null = null;
 
@@ -123,7 +128,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
         })
         .flat();
     };
-    const recursiveBuild = (json: any, parent: Box, context: any, lastContext: Query[][]) => {
+    const recursiveBuild = (json: any, parent: UIElement, context: any, lastContext: Query[][]) => {
       Object.entries(json).forEach(([key, value]: [string, any]) => {
         if (!value.type) {
           return recursiveBuild(value, parent, context, lastContext);
@@ -136,26 +141,19 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
           const gridConfig: BoxConfig = {
             style: {
               border: "none",
-              display: "grid",
-              gap: value.config.gap,
+              display: "flex",
+              flexWrap: "wrap",
               overflow: "auto",
+              boxSizing: "border-box",
+              gap: value.config?.gap || "0",
             },
           };
-          if (value.config.rows.startsWith("auto")) {
-            gridConfig.style.gridAutoRows = value.config.rows.replace("auto", "");
-          } else {
-            gridConfig.style.gridTemplateRows = value.config.rows;
-          }
-          if (value.config.columns.startsWith("auto")) {
-            gridConfig.style.gridAutoColumns = value.config.columns.replace("auto", "");
-          } else {
-            gridConfig.style.gridTemplateColumns = value.config.columns;
-          }
           const grid = new Box(gridPosition, gridConfig);
           let childContexts: any[] = [];
           let childQueries: Query[][][] = [];
 
           let buildChildren = (items: any) => {
+            console.log(items);
             if (!items) {
               return;
             }
@@ -168,7 +166,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
               childQueries = childQueries.slice(0, items.length);
             }
             for (let i = 0; i < items.length; i++) {
-              const itemContext = items[i];
+              const itemContext = cloneDeep(items[i]);
               itemContext.$context = context;
               itemContext.$index = i;
 
@@ -188,34 +186,39 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
               }
 
               const itemJson = {
-                ...value.element,
-                rect: {
-                  x: 0,
-                  y: 0,
-                  width: "100%",
-                  height: "100%",
-                },
+                ...cloneDeep(value.element),
+                // rect: {
+                //   x: 0,
+                //   y: 0,
+                //   width: "100%",
+                //   height: "100%",
+                // },
                 config: {
                   ...value.element.config,
                   style: {
-                    ...value.element.config.style,
                     position: "relative",
+                    flex: "0 0 auto",
+                    ...value.element.config.style,
                   },
                 },
               };
+              console.log(itemJson);
               recursiveBuild({ child: itemJson }, grid, itemContext, childQueries[i]);
             }
           };
 
           const queriables: Query[] = [];
           if (typeof value.items === "string") {
-            const query = value.items;
-            value.items = get(context, value.items);
+            let query = value.items;
+            if (query.startsWith("$$")) {
+              query = query.substring(2);
+            }
+            value.items = get(context, query);
             queriables.push({
               query: query.substring(2),
               key: "items",
               pointer: (_context) => {
-                const items = get(_context, query.substring(2));
+                const items = get(_context, query);
                 buildChildren(items);
               },
             });
@@ -241,6 +244,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
             }
           });
         }
+        console.log(value);
         const rect = new Position(value.rect.x, value.rect.y, {
           ...value.rect,
         });
@@ -250,6 +254,15 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
           Object.entries(events).forEach(([key, event]) => {
             value.config[key] = event;
           });
+        }
+
+        if (value.config.class) {
+          const _classes = value.config.class.split(" ");
+          const styles = _classes.reduce((acc: CSSStyleDeclaration, className: string) => {
+            return { ...acc, ...classes.get(className) };
+          }, {} as CSSStyleDeclaration);
+
+          value.config.style = { ...styles, ...value.config.style };
         }
 
         const config: UIConfig = {
@@ -287,6 +300,10 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
         }
 
         parent.addChild(element);
+
+        if (value.children) {
+          recursiveBuild(value.children, element, context, lastContext);
+        }
 
         return element;
       });

@@ -18,7 +18,7 @@ const defaultStyle: Partial<CSSStyleDeclaration> = {
   textAlign: "center",
   color: "white",
   backgroundColor: "transparent",
-  border: "1px solid",
+  border: "0px solid",
   borderColor: "black",
   padding: "0",
   margin: "0",

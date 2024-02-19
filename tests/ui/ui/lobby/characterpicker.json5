@@ -1,0 +1,48 @@
+{
+  characterPicker: {
+    type: "grid",
+    items: "$$characters",
+    config: {
+      columns: 12,
+      gap: "9px",
+    },
+    rect: {
+      x: "center",
+      y: "center",
+      width: 800,
+      height: 400,
+      yOffset: 200,
+    },
+    element: {
+      type: "button",
+      config: {
+        class: "image-button",
+        visible: false,
+        label: "$$index",
+        style: {
+          backgroundColor: "$$color",
+        },
+      },
+      rect: {
+        x: "center",
+        y: "center",
+        width: 90,
+        height: 90,
+      },
+      children: {
+        image: {
+          type: "image",
+          rect: {
+            x: "center",
+            y: "center",
+            width: 90,
+            height: 90,
+          },
+          style: {
+            border: "none",
+          },
+        },
+      },
+    },
+  },
+}

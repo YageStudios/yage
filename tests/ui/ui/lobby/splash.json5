@@ -20,6 +20,20 @@
       hoverFocus: "showCharacter",
       hoverBlur: "hideCharacter",
     },
+    children: [
+      {
+        type: "text",
+        config: {
+          label: "$$child",
+        },
+        rect: {
+          x: "left",
+          y: "top",
+          width: "100%",
+          height: "100%",
+        },
+      },
+    ],
   },
   grid1: {
     type: "grid",
