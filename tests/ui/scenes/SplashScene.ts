@@ -82,12 +82,14 @@ export class UiSplashScene extends Scene {
 
     const colors = ["red", "blue", "green", "yellow", "purple", "orange", "pink", "brown", "black", "white"];
 
+    let clickCount = 0;
     this.ui.characterPicker = this.characterPickerMap.build(
       {
-        characters: new Array(100).fill(0).map((num, ind) => {
+        characters: new Array(300).fill(0).map((num, ind) => {
           return {
             name: "brawler",
             index: ind,
+            text: "Brawler",
             image: "ShopItem::brawler",
             color: colors[ind % colors.length],
             tags: ["Character::", "Tag::Melee", "Tag::Damage", "Weapon::Fist", "Weapon::Hand", "StartingWeapon::Fist"],
@@ -96,53 +98,90 @@ export class UiSplashScene extends Scene {
       },
       (name, type, context) => {
         console.log(name, type, context);
+        clickCount++;
+        this.characterPickerMap.update({
+          characters: new Array(300).fill(0).map((num, ind) => {
+            return {
+              name: "brawler",
+              index: ind,
+              text: clickCount % 2 ? " ✓" : "",
+              image: "ShopItem::brawler",
+              color: colors[ind % colors.length],
+              tags: [
+                "Character::",
+                "Tag::Melee",
+                "Tag::Damage",
+                "Weapon::Fist",
+                "Weapon::Hand",
+                "StartingWeapon::Fist",
+              ],
+            };
+          }),
+        });
+
+        // if (name === 'selectCharacter') {
+
+        // }
       }
-    );
+    ).characterPicker;
 
-    // this.ui.splash = this.splashMap.build(
-    //   {
-    //     start: "Start game?",
-    //     child: "Child Test",
-    //   },
-    //   (name, type, context) => {
-    //     console.log(name, type, context);
-    //     if (name === "selectCharacter") {
-    //       console.log("UPDATING");
-    //       const context = this.splashMap.context();
-    //       let reverse = context.shopReverse ?? false;
-    //       const items = [
-    //         {
-    //           label: 'Buy "The Big Sword"',
-    //         },
-    //         {
-    //           label: 'Buy "The Big Shield"',
-    //         },
-    //         {
-    //           label: 'Buy "The Big Boots"',
-    //         },
-    //         {
-    //           label: 'Buy "The Big Helmet"',
-    //         },
-    //       ];
-    //       let nextItems = context.shopItems ?? [];
-    //       if (reverse) {
-    //         nextItems.pop();
-    //       } else {
-    //         nextItems.push(items[nextItems.length]);
-    //       }
-    //       console.log(nextItems);
+    this.ui.buttonTest = buildUiMap(uis.template).build(
+      {
+        testLabel: "woah nellie",
+      },
+      (name, type, context) => {
+        console.log(name, type, context);
+      }
+    ).buttonTest;
 
-    //       if (nextItems.length === items.length || nextItems.length === 0) {
-    //         reverse = !reverse;
-    //       }
-    //       this.splashMap.update({
-    //         shopItems: nextItems,
-    //         shopReverse: reverse,
-    //         child: "Child Test" + nextItems.length,
-    //       });
-    //     }
-    //   }
-    // );
+    Object.entries(
+      this.splashMap.build(
+        {
+          start: "Start game?",
+          child: "Child Test",
+        },
+        (name, type, context) => {
+          console.log(name, type, context);
+          if (name === "selectCharacter") {
+            console.log("UPDATING");
+            const context = this.splashMap.context();
+            let reverse = context.shopReverse ?? false;
+            const items = [
+              {
+                label: 'Buy "The Big Sword"',
+              },
+              {
+                label: 'Buy "The Big Shield"',
+              },
+              {
+                label: 'Buy "The Big Boots"',
+              },
+              {
+                label: 'Buy "The Big Helmet"',
+              },
+            ];
+            let nextItems = context.shopItems ?? [];
+            if (reverse) {
+              nextItems.pop();
+            } else {
+              nextItems.push(items[nextItems.length]);
+            }
+            console.log(nextItems);
+
+            if (nextItems.length === items.length || nextItems.length === 0) {
+              reverse = !reverse;
+            }
+            this.splashMap.update({
+              shopItems: nextItems,
+              shopReverse: reverse,
+              child: "Child Test" + nextItems.length,
+            });
+          }
+        }
+      )
+    ).forEach(([name, element]) => {
+      this.ui[name] = element;
+    });
 
     // // @ts-ignore
     // window.updateSplash = (context: any) => {

@@ -1,0 +1,17 @@
+{
+  button: {
+    type: "button",
+    config: {
+      label: "$$label",
+    },
+    events: {
+      click: "$$clickEvent",
+    },
+    rect: {
+      x: "center",
+      y: "top",
+      width: 100,
+      height: 50,
+    },
+  },
+}
