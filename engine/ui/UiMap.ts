@@ -9,7 +9,7 @@ export type UiMap = {
     context: any,
 
     eventHandler: (eventName: string, eventType: string, context: any) => void
-  ) => Box;
+  ) => { [key: string]: UIElement<any> };
   update: (context: any) => void;
   context: () => any;
 };
@@ -17,10 +17,12 @@ export type UiMap = {
 type Query = {
   query: string;
   key: string;
-  pointer: (nextValue: any) => void;
+  pointer: (nextValue: any) => boolean;
 };
 
-type BuiltContext = Query[][];
+type BuildQuery = [UIElement<any> | null, Query[]];
+
+type BuiltContext = BuildQuery[];
 
 const generateEventListener = (
   events: any,
@@ -80,13 +82,30 @@ const generateEventListener = (
     : {};
 };
 
-const classes = new Map<string, Partial<CSSStyleDeclaration>>();
+const registeredClasses = new Map<string, Partial<CSSStyleDeclaration>>();
 export const registerUiClass = (className: string, styles: Partial<CSSStyleDeclaration>) => {
-  classes.set(className, styles);
+  registeredClasses.set(className, styles);
+};
+const registeredTemplates = new Map<string, any>();
+export const registerTemplate = (templateName: string, template: any) => {
+  registeredTemplates.set(templateName, template);
+};
+
+const remapContext = (context: any, parentContext: any) => {
+  let nextContext = cloneDeep(parentContext);
+  Object.entries(context).forEach(([key, value]) => {
+    if (key.startsWith("$$")) {
+      nextContext[value as string] = parentContext[key.substring(2)];
+    } else {
+      nextContext[key] = value;
+    }
+  });
+  return nextContext;
 };
 
 export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxConfig): UiMap => {
   let built: Box | null = null;
+  json = cloneDeep(json);
 
   const lastContext: BuiltContext = [];
   let buildContext: any = null;
@@ -96,15 +115,6 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
       return built;
     }
     buildContext = cloneDeep(context);
-    const pos = boxPosition ?? new Position("full", "full");
-    const box = new Box(
-      pos,
-      boxConfig ?? {
-        style: {
-          border: "none",
-        },
-      }
-    );
     const getQueriables = (json: any): Query[] => {
       return Object.entries(json)
         .map(([key, value]: [string, any]) => {
@@ -122,18 +132,47 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
             }
             return value.map((v) => getQueriables(v)).flat();
           } else if (typeof value === "object") {
+            if (key === "children") {
+              return [];
+            }
             return getQueriables(value);
           }
           return [];
         })
         .flat();
     };
-    const recursiveBuild = (json: any, parent: UIElement, context: any, lastContext: Query[][]) => {
+    const recursiveBuild = (
+      json: any,
+      parent: {
+        addChild: (element: UIElement<any>) => void;
+      },
+      context: any,
+      buildQueries: BuildQuery[]
+    ) => {
       Object.entries(json).forEach(([key, value]: [string, any]) => {
         if (!value.type) {
-          return recursiveBuild(value, parent, context, lastContext);
+          return recursiveBuild(value, parent, context, buildQueries);
         }
-
+        if (value.type === "template") {
+          const config = cloneDeep(value.config);
+          const [template, element] = config.template.split(".");
+          delete config.template;
+          if (registeredTemplates.has(template)) {
+            const templateJson = registeredTemplates.get(template)[element];
+            let templateContext = context;
+            if (value.context) {
+              templateContext = remapContext(value.context, context);
+            }
+            if (templateJson) {
+              templateJson.config = merge(templateJson.config, config);
+              if (value.rect) {
+                templateJson.rect = merge(templateJson.rect, value.rect);
+              }
+              recursiveBuild({ template: templateJson }, parent, templateContext, buildQueries);
+            }
+          }
+          return;
+        }
         if (value.type === "grid") {
           const gridPosition = new Position(value.rect.x, value.rect.y, {
             ...value.rect,
@@ -150,10 +189,9 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
           };
           const grid = new Box(gridPosition, gridConfig);
           let childContexts: any[] = [];
-          let childQueries: Query[][][] = [];
+          let childQueries: BuildQuery[][] = [];
 
           let buildChildren = (items: any) => {
-            console.log(items);
             if (!items) {
               return;
             }
@@ -177,11 +215,17 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
                 if (isEqual(childContexts[i], itemContext)) {
                   continue;
                 }
-                childQueries[i].forEach((query) => {
+                childQueries[i].forEach(([element, query]) => {
+                  let shouldUpdate = false;
                   query.forEach((q) => {
-                    q.pointer(itemContext);
+                    let res = q.pointer(itemContext);
+                    shouldUpdate = shouldUpdate || res;
                   });
+                  if (shouldUpdate) {
+                    element?.update();
+                  }
                 });
+                childContexts[i] = itemContext;
                 continue;
               }
 
@@ -202,29 +246,29 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
                   },
                 },
               };
-              console.log(itemJson);
               recursiveBuild({ child: itemJson }, grid, itemContext, childQueries[i]);
             }
           };
 
-          const queriables: Query[] = [];
+          const queriables: BuildQuery = [grid, []];
           if (typeof value.items === "string") {
             let query = value.items;
             if (query.startsWith("$$")) {
               query = query.substring(2);
             }
             value.items = get(context, query);
-            queriables.push({
-              query: query.substring(2),
+            queriables[1].push({
+              query: query,
               key: "items",
               pointer: (_context) => {
                 const items = get(_context, query);
                 buildChildren(items);
+                return false;
               },
             });
           }
 
-          lastContext.push(queriables);
+          buildQueries.push(queriables);
 
           buildChildren(value.items);
 
@@ -244,7 +288,6 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
             }
           });
         }
-        console.log(value);
         const rect = new Position(value.rect.x, value.rect.y, {
           ...value.rect,
         });
@@ -259,7 +302,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
         if (value.config.class) {
           const _classes = value.config.class.split(" ");
           const styles = _classes.reduce((acc: CSSStyleDeclaration, className: string) => {
-            return { ...acc, ...classes.get(className) };
+            return { ...acc, ...registeredClasses.get(className) };
           }, {} as CSSStyleDeclaration);
 
           value.config.style = { ...styles, ...value.config.style };
@@ -280,37 +323,65 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
             if (query.key === "events") {
               const events = generateEventListener(contextValue, context, eventHandler);
               // Object.assign(config.config, events);
+              let shouldUpdate = false;
               Object.entries(events).forEach(([key, value]) => {
                 // @ts-ignore
-                element.config[key] = value;
+                element._config[key] = value;
+                shouldUpdate = true;
               });
 
-              return;
+              return shouldUpdate;
             }
             // @ts-ignore
             if (contextValue !== undefined && element.config[query.key] !== contextValue) {
               // @ts-ignore
-              element.config[query.key] = contextValue;
+              element._config[query.key] = contextValue;
+              return true;
             }
+            return false;
           };
         });
 
         if (queriables.length) {
-          lastContext.push(queriables);
+          buildQueries.push([element, queriables]);
         }
 
         parent.addChild(element);
 
         if (value.children) {
-          recursiveBuild(value.children, element, context, lastContext);
+          recursiveBuild(value.children, element, context, buildQueries);
         }
+        element.update();
 
         return element;
       });
     };
-    recursiveBuild(json, box, context, lastContext);
+    json = cloneDeep(json);
+    const res: any = {};
+    Object.entries(json).forEach(([key, value]: any) => {
+      if (!value.type) {
+        throw new Error("No nesting");
+      }
+      let child: any = null;
+      recursiveBuild(
+        { parent: value },
+        {
+          addChild: (element: UIElement<any>) => {
+            if (child !== null) {
+              throw new Error("Only one child allowed on a root element");
+            }
+            child = element;
+          },
+        },
+        context,
+        lastContext
+      );
+      if (child !== null) {
+        res[key] = child;
+      }
+    });
 
-    return box;
+    return res;
   };
 
   const update = (partialContext: any) => {
@@ -318,15 +389,20 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
       buildContext[key] = cloneDeep(partialContext[key]);
     });
 
-    lastContext.forEach((queries) => {
-      queries.forEach(({ pointer }: any) => {
-        pointer(buildContext);
-        // const contextValue = get(context, query);
-        // console.log(contextValue, query, key, pointer);
-        // if (contextValue !== undefined && pointer[key] !== contextValue) {
-        //   pointer[key] = contextValue;
-        // }
-      });
+    lastContext.forEach(([element, elementQueries]: BuildQuery) => {
+      let shouldUpdate = false;
+      for (let i = 0; i < elementQueries.length; i++) {
+        let res = elementQueries[i].pointer(buildContext);
+        shouldUpdate = shouldUpdate || res;
+      }
+      if (shouldUpdate) {
+        element?.update();
+      }
+      // const contextValue = get(context, query);
+      // console.log(contextValue, query, key, pointer);
+      // if (contextValue !== undefined && pointer[key] !== contextValue) {
+      //   pointer[key] = contextValue;
+      // }
     });
     return;
   };

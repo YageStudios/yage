@@ -66,6 +66,12 @@
         label: "$$label",
         fontSize: 32,
       },
+      rect: {
+        x: "center",
+        y: "center",
+        width: "33%",
+        height: "33%",
+      },
       events: {
         trigger: "gridTrigger",
         focus: "gridFocus",
@@ -94,6 +100,12 @@
       config: {
         label: "$$label",
         fontSize: 32,
+      },
+      rect: {
+        x: "center",
+        y: "center",
+        width: "63%",
+        height: "33%",
       },
       events: {
         trigger: "gridTrigger",

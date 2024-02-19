@@ -275,7 +275,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
         // this._element.style.display = "none";
       }
       this._config.children?.forEach((x) => {
-        x.update();
+        x._update();
       });
       return;
     }

@@ -1,3 +1,5 @@
+import { registerTemplate } from "@/ui/UiMap";
+
 const uis = import.meta.glob(["../ui/*.json", "../ui/*.jsonc", "../ui/*.json5"], {
   eager: true,
 }) as any;
@@ -12,6 +14,7 @@ const both = {
     })
     .reduce((acc, [key, value]) => {
       acc[key] = value;
+      registerTemplate(key, value);
       return acc;
     }, {} as any),
   ...Object.entries(folders)
@@ -21,6 +24,7 @@ const both = {
     })
     .reduce((acc, [key, value]) => {
       acc[key] = value;
+      registerTemplate(key, value);
       return acc;
     }, {} as any),
 };

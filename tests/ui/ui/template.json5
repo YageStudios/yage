@@ -1,0 +1,12 @@
+{
+  buttonTest: {
+    type: "template",
+    config: {
+      template: "partials.button",
+    },
+    context: {
+      $$testLabel: "label",
+      clickEvent: "TemplateClick",
+    },
+  },
+}

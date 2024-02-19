@@ -23,6 +23,9 @@
           backgroundColor: "$$color",
         },
       },
+      events: {
+        trigger: "characterTrigger",
+      },
       rect: {
         x: "center",
         y: "center",
@@ -40,6 +43,23 @@
           },
           style: {
             border: "none",
+          },
+        },
+        text: {
+          type: "text",
+          rect: {
+            x: "center",
+            y: "bottom",
+            width: 100,
+            height: 30,
+          },
+          config: {
+            fontSize: 30,
+            style: {
+              textAlign: "right",
+              color: "green",
+            },
+            label: "$$text",
           },
         },
       },
