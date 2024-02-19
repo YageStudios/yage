@@ -35,6 +35,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   _zIndex = 0;
   _creationDate = new Date().toISOString();
   removeTheseChildren: UIElement[] = [];
+  destroyed: boolean;
 
   get id() {
     return this._id;
@@ -58,7 +59,6 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   get config(): T {
     return new Proxy(this._config, {
       set: (target: any, key, value) => {
-        console.log(target, key, value);
         target[key] = value;
         this.update();
         return true;
@@ -196,6 +196,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   protected abstract onMouseLeaveInternal(): void;
 
   onDestroy() {
+    this.destroyed = true;
     this.removeElement();
   }
 
@@ -257,6 +258,9 @@ export abstract class UIElement<T extends UIElementConfig = any> {
 
   update = debounce(
     () => {
+      if (this.destroyed) {
+        return;
+      }
       this._update();
     },
     10,
@@ -279,22 +283,28 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     const element = this.element;
     element.style.display = "block";
 
-    if (!this.parent?._element?.contains(element)) {
-      this.parent?._element?.appendChild(element);
+    const childIndex = this._parent?.config.children?.indexOf(this);
+    const parentElement = this.parent?._element;
+    if (parentElement && !parentElement.children[childIndex] !== element) {
+      if (childIndex > parentElement.children.length) {
+        parentElement.appendChild(element);
+      } else {
+        parentElement.insertBefore(element, parentElement.children[childIndex]);
+      }
     }
     const styles = {
       ...this._config.style,
       ...this._styleOverrides,
     };
 
+    const [x, y, width, height] = positionToCanvasSpace(this.bounds, this._parent?._element ?? document.body);
     if (styles.position === "absolute") {
-      const [x, y, width, height] = positionToCanvasSpace(this.bounds, this._parent?._element ?? document.body);
       element.style.left = `${x}px`;
       element.style.top = `${y}px`;
-      element.style.width = width > 1 ? `${width}px` : "auto";
-      element.style.height = height > 1 ? `${height}px` : "auto";
       element.style.position = "absolute";
     }
+    element.style.width = width > 1 ? `${width}px` : "auto";
+    element.style.height = height > 1 ? `${height}px` : "auto";
 
     for (const [key, value] of Object.entries(styles)) {
       // @ts-ignore

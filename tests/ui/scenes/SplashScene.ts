@@ -52,9 +52,11 @@ export class UiSplashScene extends Scene {
   mouseManager: MouseManager;
   gameCanvasContext: CanvasRenderingContext2D;
   splashMap: UiMap;
+  characterPickerMap: UiMap;
 
   public initialize = async (args: any[]): Promise<void> => {
     this.splashMap = buildUiMap(uis.lobby__splash);
+    this.characterPickerMap = buildUiMap(uis.lobby__characterpicker);
 
     UIService.configureUi(document.getElementById("uicanvas") as HTMLCanvasElement);
 
@@ -78,53 +80,74 @@ export class UiSplashScene extends Scene {
     const entityDefinitions = (await import("../entities")).default;
     EntityFactory.configureEntityFactory(entityDefinitions);
 
-    this.ui.splash = this.splashMap.build(
+    const colors = ["red", "blue", "green", "yellow", "purple", "orange", "pink", "brown", "black", "white"];
+
+    this.ui.characterPicker = this.characterPickerMap.build(
       {
-        start: "Start game?",
+        characters: new Array(100).fill(0).map((num, ind) => {
+          return {
+            name: "brawler",
+            index: ind,
+            image: "ShopItem::brawler",
+            color: colors[ind % colors.length],
+            tags: ["Character::", "Tag::Melee", "Tag::Damage", "Weapon::Fist", "Weapon::Hand", "StartingWeapon::Fist"],
+          };
+        }),
       },
       (name, type, context) => {
         console.log(name, type, context);
-        if (name === "selectCharacter") {
-          console.log("UPDATING");
-          const context = this.splashMap.context();
-          let reverse = context.shopReverse ?? false;
-          const items = [
-            {
-              label: 'Buy "The Big Sword"',
-            },
-            {
-              label: 'Buy "The Big Shield"',
-            },
-            {
-              label: 'Buy "The Big Boots"',
-            },
-            {
-              label: 'Buy "The Big Helmet"',
-            },
-          ];
-          let nextItems = context.shopItems ?? [];
-          if (reverse) {
-            nextItems.pop();
-          } else {
-            nextItems.push(items[nextItems.length]);
-          }
-          console.log(nextItems);
-
-          if (nextItems.length === items.length || nextItems.length === 0) {
-            reverse = !reverse;
-          }
-          this.splashMap.update({
-            shopItems: nextItems,
-            shopReverse: reverse,
-          });
-        }
       }
     );
 
-    // @ts-ignore
-    window.updateSplash = (context: any) => {
-      this.splashMap.update(context);
-    };
+    // this.ui.splash = this.splashMap.build(
+    //   {
+    //     start: "Start game?",
+    //     child: "Child Test",
+    //   },
+    //   (name, type, context) => {
+    //     console.log(name, type, context);
+    //     if (name === "selectCharacter") {
+    //       console.log("UPDATING");
+    //       const context = this.splashMap.context();
+    //       let reverse = context.shopReverse ?? false;
+    //       const items = [
+    //         {
+    //           label: 'Buy "The Big Sword"',
+    //         },
+    //         {
+    //           label: 'Buy "The Big Shield"',
+    //         },
+    //         {
+    //           label: 'Buy "The Big Boots"',
+    //         },
+    //         {
+    //           label: 'Buy "The Big Helmet"',
+    //         },
+    //       ];
+    //       let nextItems = context.shopItems ?? [];
+    //       if (reverse) {
+    //         nextItems.pop();
+    //       } else {
+    //         nextItems.push(items[nextItems.length]);
+    //       }
+    //       console.log(nextItems);
+
+    //       if (nextItems.length === items.length || nextItems.length === 0) {
+    //         reverse = !reverse;
+    //       }
+    //       this.splashMap.update({
+    //         shopItems: nextItems,
+    //         shopReverse: reverse,
+    //         child: "Child Test" + nextItems.length,
+    //       });
+    //     }
+    //   }
+    // );
+
+    // // @ts-ignore
+    // window.updateSplash = (context: any) => {
+    //   this.splashMap.update(context);
+    // };
 
     await AssetLoader.getInstance().load();
     console.log("done");
