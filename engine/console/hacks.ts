@@ -220,6 +220,7 @@ export const DevConsole = () => {
   if (!list) {
     list = document.createElement("ul");
     list.style.display = "none";
+    list.style.pointerEvents = "none";
     list.id = "hacks";
     list.style.zIndex = "1000000";
   }

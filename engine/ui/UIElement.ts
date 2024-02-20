@@ -259,7 +259,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   }
 
   isVisible = (): boolean => {
-    const notVisible = !this._parent?.isVisible() || !this._visible;
+    const notVisible = !this._visible || this._config.visible === false || !this._parent?.isVisible();
     const visible = !notVisible;
 
     return visible;
@@ -293,6 +293,10 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   }
 
   _update() {
+    if (!this.isVisible()) {
+      this.updateVisibility();
+      return;
+    }
     this._zIndex = (this._parent?._zIndex ?? 0) + parseInt(this._config.style.zIndex ?? "0");
 
     const element = this.element;
@@ -301,6 +305,9 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     const parentElement = this.parent?._element;
     if (!element.parentElement || (parentElement && element.parentElement !== parentElement)) {
       parentElement?.appendChild(element);
+    }
+    if (parentElement) {
+      element.style.order = `${this.parent!.config.children?.indexOf(this) ?? 0}`;
     }
     const styles = {
       ...this._config.style,

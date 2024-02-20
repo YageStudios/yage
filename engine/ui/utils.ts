@@ -22,7 +22,8 @@ const scale = () => {
 };
 
 export const positionToCanvasSpace = (pos: Position, element: HTMLElement): [number, number, number, number] => {
-  const { width: canvasWidth, height: canvasHeight } = element.getBoundingClientRect();
+  const canvasWidth = element.clientWidth;
+  const canvasHeight = element.clientHeight;
 
   const _scale = scale();
   let width = pos.width * _scale;

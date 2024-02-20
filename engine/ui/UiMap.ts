@@ -91,16 +91,22 @@ export const registerTemplate = (templateName: string, template: any) => {
   registeredTemplates.set(templateName, template);
 };
 
-const remapContext = (context: any, parentContext: any) => {
-  let nextContext = cloneDeep(parentContext);
-  Object.entries(context).forEach(([key, value]) => {
-    if (key.startsWith("$$")) {
-      nextContext[value as string] = parentContext[key.substring(2)];
-    } else {
-      nextContext[key] = value;
+const remapTemplateQueries = (json: any, contextMap: any) => {
+  Object.entries(json).forEach(([key, value]: [string, any]) => {
+    if (typeof value === "string") {
+      if (value.startsWith("$$")) {
+        const query = value.slice(2);
+        const contextValue = contextMap[query];
+        if (contextValue !== undefined) {
+          json[key] = contextValue;
+        }
+      }
+    } else if (Array.isArray(value)) {
+      value.map((v) => remapTemplateQueries(v, contextMap));
+    } else if (typeof value === "object") {
+      remapTemplateQueries(value, contextMap);
     }
   });
-  return nextContext;
 };
 
 export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxConfig): UiMap => {
@@ -158,12 +164,12 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
           const [template, element] = config.template.split(".");
           delete config.template;
           if (registeredTemplates.has(template)) {
-            const templateJson = registeredTemplates.get(template)[element];
+            let templateJson = cloneDeep(registeredTemplates.get(template)[element]);
             let templateContext = context;
-            if (value.context) {
-              templateContext = remapContext(value.context, context);
-            }
             if (templateJson) {
+              if (value.context) {
+                remapTemplateQueries(templateJson, value.context);
+              }
               templateJson.config = merge(templateJson.config, config);
               if (value.rect) {
                 templateJson.rect = merge(templateJson.rect, value.rect);
@@ -183,8 +189,11 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
               display: "flex",
               flexWrap: "wrap",
               overflow: "auto",
+              alignContent: "flex-start",
               boxSizing: "border-box",
+              pointerEvents: "none",
               gap: value.config?.gap || "0",
+              ...value.config?.style,
             },
           };
           const grid = new Box(gridPosition, gridConfig);
@@ -204,7 +213,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
               childQueries = childQueries.slice(0, items.length);
             }
             for (let i = 0; i < items.length; i++) {
-              const itemContext = cloneDeep(items[i]);
+              const itemContext = { ...context, ...cloneDeep(items[i]) };
               itemContext.$context = context;
               itemContext.$index = i;
 
@@ -235,6 +244,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
                   style: {
                     position: "relative",
                     flex: "0 0 auto",
+                    pointerEvents: "auto",
                     ...value.element.config.style,
                   },
                 },
