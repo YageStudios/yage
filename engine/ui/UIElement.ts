@@ -53,14 +53,23 @@ export abstract class UIElement<T extends UIElementConfig = any> {
 
   set visible(value: boolean) {
     this._visible = value;
+    this.updateVisibility();
+  }
+
+  protected handleConfigChange(key: string, value: any) {
+    if (key === "visible") {
+      this._config.visible = value;
+      this.updateVisibility();
+      return;
+    }
+    this._config[key as keyof UIElementConfig] = value;
     this.update();
   }
 
   get config(): T {
     return new Proxy(this._config, {
       set: (target: any, key, value) => {
-        target[key] = value;
-        this.update();
+        this.handleConfigChange(key as string, value);
         return true;
       },
       get: (target: any, key) => {
@@ -256,41 +265,42 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     return visible;
   };
 
-  update = debounce(
+  protected update = debounce(
     () => {
       if (this.destroyed) {
         return;
       }
       this._update();
     },
-    10,
+    0,
     { leading: false }
   );
 
-  _update() {
-    this._zIndex = (this._parent?._zIndex ?? 0) + parseInt(this._config.style.zIndex ?? "0");
+  updateVisibility() {
     if (!this.isVisible()) {
       if (this._element) {
         this.removeElement();
         // this._element.style.display = "none";
       }
       this._config.children?.forEach((x) => {
-        x._update();
+        x.updateVisibility();
       });
       return;
     }
+    if (!this._element) {
+      this.update();
+    }
+  }
+
+  _update() {
+    this._zIndex = (this._parent?._zIndex ?? 0) + parseInt(this._config.style.zIndex ?? "0");
 
     const element = this.element;
     element.style.display = "block";
 
-    const childIndex = this._parent?.config.children?.indexOf(this);
     const parentElement = this.parent?._element;
-    if (parentElement && !parentElement.children[childIndex] !== element) {
-      if (childIndex > parentElement.children.length) {
-        parentElement.appendChild(element);
-      } else {
-        parentElement.insertBefore(element, parentElement.children[childIndex]);
-      }
+    if (!element.parentElement || (parentElement && element.parentElement !== parentElement)) {
+      parentElement?.appendChild(element);
     }
     const styles = {
       ...this._config.style,
@@ -313,8 +323,11 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     if (this._zIndex > 0) {
       element.style.zIndex = `${this._zIndex}`;
     }
-    this.config.children?.forEach((x) => {
+    this.config.children?.forEach((x, index) => {
       x.update();
+      if (x._element) {
+        x._element.style.order = `${index}`;
+      }
     });
   }
 }

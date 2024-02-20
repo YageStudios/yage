@@ -3,6 +3,9 @@
     type: "template",
     config: {
       template: "partials.button",
+      style: {
+        background: "blue",
+      },
     },
     context: {
       $$testLabel: "label",

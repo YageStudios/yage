@@ -82,6 +82,25 @@ export class Button extends UIElement<ButtonConfig> {
     return element as unknown as HTMLButtonElement;
   }
 
+  protected handleConfigChange(key: string, value: any): void {
+    if (key === "label") {
+      this._config.label = value;
+      this.textElement.innerText = value;
+      return;
+    }
+    if (key === "fontSize") {
+      this._config.fontSize = value;
+      this.element.style.fontSize = `${scaleFont(value)}px`;
+      return;
+    }
+    if (key === "uppercase") {
+      this._config.uppercase = value;
+      this.element.style.textTransform = value ? "uppercase" : "none";
+      return;
+    }
+    super.handleConfigChange(key, value);
+  }
+
   _update(): void {
     super._update();
     if (!this.isVisible()) {
