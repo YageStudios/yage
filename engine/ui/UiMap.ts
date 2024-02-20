@@ -1,6 +1,6 @@
 import { Box, BoxConfig } from "@/ui/Box";
 import { Position } from "@/ui/Rectangle";
-import { UIElement } from "@/ui/UIElement";
+import { UIElement, UIElementConfig } from "@/ui/UIElement";
 import { UIConfig, createByType } from "@/ui/UiConfigs";
 import { cloneDeep, get, isEqual, merge } from "lodash";
 
@@ -216,14 +216,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
                   continue;
                 }
                 childQueries[i].forEach(([element, query]) => {
-                  let shouldUpdate = false;
-                  query.forEach((q) => {
-                    let res = q.pointer(itemContext);
-                    shouldUpdate = shouldUpdate || res;
-                  });
-                  if (shouldUpdate) {
-                    element?.update();
-                  }
+                  query.forEach(({ pointer }) => pointer(itemContext));
                 });
                 childContexts[i] = itemContext;
                 continue;
@@ -325,8 +318,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
               // Object.assign(config.config, events);
               let shouldUpdate = false;
               Object.entries(events).forEach(([key, value]) => {
-                // @ts-ignore
-                element._config[key] = value;
+                element.config[key as keyof UIElementConfig] = value;
                 shouldUpdate = true;
               });
 
@@ -335,7 +327,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
             // @ts-ignore
             if (contextValue !== undefined && element.config[query.key] !== contextValue) {
               // @ts-ignore
-              element._config[query.key] = contextValue;
+              element.config[query.key] = contextValue;
               return true;
             }
             return false;
@@ -351,7 +343,6 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
         if (value.children) {
           recursiveBuild(value.children, element, context, buildQueries);
         }
-        element.update();
 
         return element;
       });
@@ -392,11 +383,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
     lastContext.forEach(([element, elementQueries]: BuildQuery) => {
       let shouldUpdate = false;
       for (let i = 0; i < elementQueries.length; i++) {
-        let res = elementQueries[i].pointer(buildContext);
-        shouldUpdate = shouldUpdate || res;
-      }
-      if (shouldUpdate) {
-        element?.update();
+        elementQueries[i].pointer(buildContext);
       }
       // const contextValue = get(context, query);
       // console.log(contextValue, query, key, pointer);

@@ -47,14 +47,14 @@ export class UIService {
       isVisible: () => true,
       update: () => {
         this.elements.forEach((element) => {
-          element.update();
+          element._update();
         });
       },
       addChild: (child: UIElement) => {
         if (!this.elements.includes(child)) {
           this.elements.push(child);
         }
-        child.update();
+        child._update();
       },
       _element: this.uiDiv!,
       _zIndex: 0,
@@ -81,11 +81,11 @@ export class UIService {
   registerResizeEvents() {
     window.addEventListener("resize", () => {
       this.elements.forEach((element) => {
-        element.update();
+        element._update();
       });
       setTimeout(() => {
         this.elements.forEach((element) => {
-          element.update();
+          element._update();
         });
       }, 100);
     });
