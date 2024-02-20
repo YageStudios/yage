@@ -8,7 +8,7 @@
       },
     },
     context: {
-      $$testLabel: "label",
+      label: "$$testLabel",
       clickEvent: "TemplateClick",
     },
   },

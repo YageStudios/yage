@@ -3,6 +3,7 @@
     type: "button",
     config: {
       label: "$$label",
+      visible: true,
     },
     events: {
       click: "$$clickEvent",

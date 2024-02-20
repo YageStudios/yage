@@ -63,7 +63,11 @@ export class Text extends UIElement<TextConfig> {
   protected handleConfigChange(key: string, value: any): void {
     if (key === "label") {
       this._config.label = value;
-      this.element.innerText = value;
+      if (value.trim().startsWith("<")) {
+        this.element.innerHTML = value;
+      } else {
+        this.element.innerText = value;
+      }
       return;
     }
     if (key === "fontSize") {
