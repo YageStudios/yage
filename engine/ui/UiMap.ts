@@ -133,12 +133,12 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
               };
             }
           } else if (Array.isArray(value)) {
-            if (key === "children") {
+            if (key === "children" || key === "element") {
               return [];
             }
             return value.map((v) => getQueriables(v)).flat();
           } else if (typeof value === "object") {
-            if (key === "children") {
+            if (key === "children" || key === "element") {
               return [];
             }
             return getQueriables(value);
@@ -180,10 +180,21 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
           return;
         }
         if (value.type === "grid") {
+          const gridQueriables = getQueriables(value);
+          if (gridQueriables.length) {
+            gridQueriables.forEach(({ query, key, pointer }: { query: string; key: string; pointer: any }) => {
+              const contextValue = get(context, query);
+              if (contextValue !== undefined) {
+                pointer[key] = contextValue;
+              }
+            });
+          }
+
           const gridPosition = new Position(value.rect.x, value.rect.y, {
             ...value.rect,
           });
           const gridConfig: BoxConfig = {
+            ...value.config,
             style: {
               border: "none",
               display: "flex",
@@ -197,6 +208,19 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
             },
           };
           const grid = new Box(gridPosition, gridConfig);
+
+          gridQueriables.forEach((query) => {
+            query.pointer = (_context) => {
+              const contextValue = get(_context, query.query);
+              // @ts-ignore
+              if (contextValue !== undefined && grid.config[query.key] !== contextValue) {
+                // @ts-ignore
+                grid.config[query.key] = contextValue;
+                return true;
+              }
+              return false;
+            };
+          });
           let childContexts: any[] = [];
           let childQueries: BuildQuery[][] = [];
 
@@ -253,7 +277,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
             }
           };
 
-          const queriables: BuildQuery = [grid, []];
+          const queriables: BuildQuery = [grid, gridQueriables];
           if (typeof value.items === "string") {
             let query = value.items;
             if (query.startsWith("$$")) {
