@@ -17,7 +17,12 @@ export type UiMap = {
 type Query = {
   query: string;
   key: string;
-  pointer: (nextValue: any) => boolean;
+  partial?: {
+    source: string;
+    start: number;
+    end: number;
+  };
+  pointer: string | ((nextValue: any) => boolean);
 };
 
 type BuildQuery = [UIElement<any> | null, Query[]];
@@ -91,15 +96,59 @@ export const registerTemplate = (templateName: string, template: any) => {
   registeredTemplates.set(templateName, template);
 };
 
+const testQuery = (key: string, value: string, json: string): Query | undefined => {
+  if (value.includes("$$")) {
+    const test = /(\$\$[a-zA-Z0-9_.]+)/g;
+    let match = test.exec(value);
+
+    if (!match) {
+      return;
+    }
+    if (match[0].length === value.length) {
+      return {
+        query: value.slice(2),
+        key,
+        pointer: json,
+      };
+    }
+    const partial = {
+      source: value,
+      start: match.index,
+      end: match[0].length + match.index,
+    };
+    return {
+      query: value.slice(partial.start + 2, partial.end),
+      key,
+      partial,
+      pointer: json,
+    };
+  }
+};
+
 const remapTemplateQueries = (json: any, contextMap: any) => {
   Object.entries(json).forEach(([key, value]: [string, any]) => {
     if (typeof value === "string") {
-      if (value.startsWith("$$")) {
-        const query = value.slice(2);
-        const contextValue = contextMap[query];
-        if (contextValue !== undefined) {
-          json[key] = contextValue;
+      const query = testQuery(key, value, json);
+      if (query) {
+        // const query = value.slice(2);
+        if (!query.partial) {
+          const contextValue = contextMap[query.query];
+          if (contextValue !== undefined) {
+            json[key] = contextValue;
+          }
+        } else {
+          const contextValue = contextMap[query.query];
+          if (contextValue !== undefined) {
+            json[key] =
+              query.partial.source.slice(0, query.partial.start) +
+              contextValue +
+              query.partial.source.slice(query.partial.end);
+          }
         }
+        // const contextValue = contextMap[query];
+        // if (contextValue !== undefined) {
+        //   json[key] = contextValue;
+        // }
       }
     } else if (Array.isArray(value)) {
       value.map((v) => remapTemplateQueries(v, contextMap));
@@ -125,12 +174,8 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
       return Object.entries(json)
         .map(([key, value]: [string, any]) => {
           if (typeof value === "string") {
-            if (value.startsWith("$$")) {
-              return {
-                query: value.slice(2),
-                key,
-                pointer: json,
-              };
+            if (value.includes("$$")) {
+              return testQuery(key, value, json) || [];
             }
           } else if (Array.isArray(value)) {
             if (key === "children" || key === "element") {
@@ -231,8 +276,16 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
               const contextValue = get(_context, query.query);
               // @ts-ignore
               if (contextValue !== undefined && grid.config[query.key] !== contextValue) {
-                // @ts-ignore
-                grid.config[query.key] = contextValue;
+                if (!query.partial) {
+                  // @ts-ignore
+                  grid.config[query.key] = contextValue;
+                } else {
+                  // @ts-ignore
+                  grid.config[query.key] =
+                    query.partial.source.slice(0, query.partial.start) +
+                    contextValue +
+                    query.partial.source.slice(query.partial.end);
+                }
                 return true;
               }
               return false;
@@ -266,7 +319,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
                   continue;
                 }
                 childQueries[i].forEach(([element, query]) => {
-                  query.forEach(({ pointer }) => pointer(itemContext));
+                  query.forEach(({ pointer }) => typeof pointer === "function" && pointer(itemContext));
                 });
                 childContexts[i] = itemContext;
                 continue;
@@ -309,10 +362,18 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
 
         const queriables = getQueriables(value);
         if (queriables.length) {
-          queriables.forEach(({ query, key, pointer }: { query: string; key: string; pointer: any }) => {
-            const contextValue = get(context, query);
-            if (contextValue !== undefined) {
-              pointer[key] = contextValue;
+          queriables.forEach((query) => {
+            const pointer: Object = query.pointer as Object;
+            const contextValue = get(context, query.query);
+            if (!query.partial) {
+              // @ts-ignore
+              pointer[query.key] = contextValue;
+            } else {
+              // @ts-ignore
+              pointer[query.key] =
+                query.partial.source.slice(0, query.partial.start) +
+                contextValue +
+                query.partial.source.slice(query.partial.end);
             }
           });
         }
@@ -346,7 +407,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
 
         queriables.forEach((query) => {
           query.pointer = (_context) => {
-            const contextValue = get(_context, query.query);
+            let contextValue = get(_context, query.query);
 
             if (query.key === "events") {
               const events = generateEventListener(contextValue, context, eventHandler);
@@ -358,6 +419,13 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
               });
 
               return shouldUpdate;
+            }
+
+            if (query.partial) {
+              contextValue =
+                query.partial.source.slice(0, query.partial.start) +
+                contextValue +
+                query.partial.source.slice(query.partial.end);
             }
             // @ts-ignore
             if (contextValue !== undefined && element.config[query.key] !== contextValue) {
@@ -416,7 +484,10 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
 
     lastContext.forEach(([element, elementQueries]: BuildQuery) => {
       for (let i = 0; i < elementQueries.length; i++) {
-        elementQueries[i].pointer(buildContext);
+        const pointer = elementQueries[i].pointer;
+        if (typeof pointer === "function") {
+          pointer(buildContext);
+        }
       }
       // const contextValue = get(context, query);
       // console.log(contextValue, query, key, pointer);
