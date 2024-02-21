@@ -8,7 +8,7 @@
       },
     },
     context: {
-      label: "$$testLabel",
+      partiallabel: "$$testLabel",
       clickEvent: "TemplateClick",
     },
   },
