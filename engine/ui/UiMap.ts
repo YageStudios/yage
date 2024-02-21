@@ -164,18 +164,22 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
           const [template, element] = config.template.split(".");
           delete config.template;
           if (registeredTemplates.has(template)) {
-            let templateJson = cloneDeep(registeredTemplates.get(template)[element]);
-            let templateContext = context;
-            if (templateJson) {
-              if (value.context) {
-                remapTemplateQueries(templateJson, value.context);
+            const elements = element ? [element] : [...Object.keys(registeredTemplates.get(template))];
+
+            elements.forEach((element) => {
+              let templateJson = cloneDeep(registeredTemplates.get(template)[element]);
+              let templateContext = context;
+              if (templateJson) {
+                if (value.context) {
+                  remapTemplateQueries(templateJson, value.context);
+                }
+                templateJson.config = merge(templateJson.config, config);
+                if (value.rect) {
+                  templateJson.rect = merge(templateJson.rect, value.rect);
+                }
+                recursiveBuild({ template: templateJson }, parent, templateContext, buildQueries);
               }
-              templateJson.config = merge(templateJson.config, config);
-              if (value.rect) {
-                templateJson.rect = merge(templateJson.rect, value.rect);
-              }
-              recursiveBuild({ template: templateJson }, parent, templateContext, buildQueries);
-            }
+            });
           }
           return;
         }
@@ -184,6 +188,10 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
           if (gridQueriables.length) {
             gridQueriables.forEach(({ query, key, pointer }: { query: string; key: string; pointer: any }) => {
               const contextValue = get(context, query);
+              if (key === "items") {
+                pointer[key] = contextValue;
+                return;
+              }
               if (contextValue !== undefined) {
                 pointer[key] = contextValue;
               }
@@ -210,6 +218,15 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
           const grid = new Box(gridPosition, gridConfig);
 
           gridQueriables.forEach((query) => {
+            if (query.key === "items") {
+              query.pointer = (_context) => {
+                const items = get(_context, query.query);
+                buildChildren(items);
+                return false;
+              };
+              return;
+            }
+
             query.pointer = (_context) => {
               const contextValue = get(_context, query.query);
               // @ts-ignore
@@ -278,22 +295,6 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
           };
 
           const queriables: BuildQuery = [grid, gridQueriables];
-          if (typeof value.items === "string") {
-            let query = value.items;
-            if (query.startsWith("$$")) {
-              query = query.substring(2);
-            }
-            value.items = get(context, query);
-            queriables[1].push({
-              query: query,
-              key: "items",
-              pointer: (_context) => {
-                const items = get(_context, query);
-                buildChildren(items);
-                return false;
-              },
-            });
-          }
 
           buildQueries.push(queriables);
 
@@ -387,23 +388,22 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
       if (!value.type) {
         throw new Error("No nesting");
       }
-      let child: any = null;
+      let childIndex = 0;
       recursiveBuild(
         { parent: value },
         {
           addChild: (element: UIElement<any>) => {
-            if (child !== null) {
-              throw new Error("Only one child allowed on a root element");
+            if (childIndex === 0) {
+              res[key] = element;
+            } else {
+              res[`${key}.${childIndex}`] = element;
             }
-            child = element;
+            childIndex++;
           },
         },
         context,
         lastContext
       );
-      if (child !== null) {
-        res[key] = child;
-      }
     });
 
     return res;
@@ -415,7 +415,6 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
     });
 
     lastContext.forEach(([element, elementQueries]: BuildQuery) => {
-      let shouldUpdate = false;
       for (let i = 0; i < elementQueries.length; i++) {
         elementQueries[i].pointer(buildContext);
       }
