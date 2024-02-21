@@ -24,3 +24,6 @@ dist-ssr
 *.sln
 *.sw?
 .aider*
+
+
+vite.config.js.timestamp*

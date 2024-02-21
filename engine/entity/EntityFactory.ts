@@ -260,13 +260,13 @@ export class EntityFactory {
     return entities;
   };
 
-  getComponentFromEntity = (
-    entityName: string,
-    componentName: string,
-    gameModel?: GameModel
-  ): ComponentData | undefined => {
-    const entityDefinition = this.getEntityDefinition(entityName, gameModel);
-    return entityDefinition.components?.find((c) => c.type === componentName);
+  getComponentFromEntity = (entityName: string, componentName: string, clone = false): ComponentData | undefined => {
+    const entityDefinition = this.entityDefinitionMap.get(entityName.toLowerCase());
+    const component = entityDefinition?.components?.find((c) => c.type === componentName);
+    if (component && clone) {
+      return cloneDeep(component);
+    }
+    return component;
   };
 
   getEntityDefinition = (entityName: string, gameModel?: GameModel): EntityDefinition => {
@@ -279,8 +279,6 @@ export class EntityFactory {
 
     if (gameModel) {
       entityDefinition = this.mapComplexValues(entityDefinition, gameModel) as EntityDefinition;
-    } else {
-      entityDefinition = cloneDeep(entityDefinition) as EntityDefinition;
     }
 
     return entityDefinition as EntityDefinition;
