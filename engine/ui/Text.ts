@@ -99,8 +99,10 @@ export class Text extends UIElement<TextConfig> {
       textElement.style.textTransform = "uppercase";
     }
     textElement.style.fontSize = `${scaleFont(this._config.fontSize ?? 12)}px`;
-    if (this._config.label.trim().startsWith("<")) {
+    if (typeof this._config.label === "string" && this._config.label.trim().startsWith("<")) {
       textElement.innerHTML = this._config.label;
+    } else if (this._config.label === undefined) {
+      textElement.innerText = "";
     } else {
       textElement.innerText = this._config.label;
     }
