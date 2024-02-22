@@ -17,6 +17,7 @@ export type UiMap = {
 type Query = {
   query: string;
   key: string;
+  parent: string;
   partial?: {
     source: string;
     start: number;
@@ -96,7 +97,7 @@ export const registerTemplate = (templateName: string, template: any) => {
   registeredTemplates.set(templateName, template);
 };
 
-const testQuery = (key: string, value: string, json: string): Query | undefined => {
+const testQuery = (key: string, value: string, json: string, parent: string): Query | undefined => {
   if (value.includes("$$")) {
     const test = /(\$\$[a-zA-Z0-9_.]+)/g;
     let match = test.exec(value);
@@ -108,6 +109,7 @@ const testQuery = (key: string, value: string, json: string): Query | undefined 
       return {
         query: value.slice(2),
         key,
+        parent,
         pointer: json,
       };
     }
@@ -118,17 +120,18 @@ const testQuery = (key: string, value: string, json: string): Query | undefined 
     };
     return {
       query: value.slice(partial.start + 2, partial.end),
-      key,
+      key: key,
+      parent: parent,
       partial,
       pointer: json,
     };
   }
 };
 
-const remapTemplateQueries = (json: any, contextMap: any) => {
+const remapTemplateQueries = (json: any, contextMap: any, parent = "") => {
   Object.entries(json).forEach(([key, value]: [string, any]) => {
     if (typeof value === "string") {
-      const query = testQuery(key, value, json);
+      const query = testQuery(key, value, json, parent);
       if (query) {
         // const query = value.slice(2);
         if (!query.partial) {
@@ -151,7 +154,7 @@ const remapTemplateQueries = (json: any, contextMap: any) => {
         // }
       }
     } else if (Array.isArray(value)) {
-      value.map((v) => remapTemplateQueries(v, contextMap));
+      value.map((v) => remapTemplateQueries(v, contextMap, parent ? `${parent}.${key}` : key));
     } else if (typeof value === "object") {
       remapTemplateQueries(value, contextMap);
     }
@@ -170,12 +173,12 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
       return built;
     }
     buildContext = cloneDeep(context);
-    const getQueriables = (json: any): Query[] => {
+    const getQueriables = (json: any, parent = ""): Query[] => {
       return Object.entries(json)
         .map(([key, value]: [string, any]) => {
           if (typeof value === "string") {
             if (value.includes("$$")) {
-              return testQuery(key, value, json) || [];
+              return testQuery(key, value, json, parent) || [];
             }
           } else if (Array.isArray(value)) {
             if (key === "children" || key === "element") {
@@ -186,7 +189,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
             if (key === "children" || key === "element") {
               return [];
             }
-            return getQueriables(value);
+            return getQueriables(value, parent ? `${parent}.${key}` : key);
           }
           return [];
         })
@@ -248,6 +251,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
           });
           const gridConfig: BoxConfig = {
             ...value.config,
+            renderOnScroll: true,
             style: {
               border: "none",
               display: "flex",
@@ -255,7 +259,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
               overflow: "auto",
               alignContent: "flex-start",
               boxSizing: "border-box",
-              pointerEvents: "none",
+              // pointerEvents: "none",
               gap: value.config?.gap || "0",
               ...value.config?.style,
             },
@@ -273,19 +277,29 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
             }
 
             query.pointer = (_context) => {
-              const contextValue = get(_context, query.query);
-              // @ts-ignore
-              if (contextValue !== undefined && grid.config[query.key] !== contextValue) {
-                if (!query.partial) {
-                  // @ts-ignore
-                  grid.config[query.key] = contextValue;
-                } else {
-                  // @ts-ignore
-                  grid.config[query.key] =
+              let contextValue = get(_context, query.query);
+              if (contextValue !== undefined) {
+                if (query.partial) {
+                  contextValue =
                     query.partial.source.slice(0, query.partial.start) +
                     contextValue +
                     query.partial.source.slice(query.partial.end);
                 }
+                if (query.parent === "config" || !query.parent) {
+                  // @ts-ignore
+                  if (grid.config[query.key] !== contextValue) {
+                    // @ts-ignore
+                    grid.config[query.key] = contextValue;
+                    return true;
+                  }
+                } else {
+                  const parent = get(grid, query.parent);
+                  if (parent && parent[query.key] !== contextValue) {
+                    parent[query.key] = contextValue;
+                    return true;
+                  }
+                }
+
                 return true;
               }
               return false;
@@ -364,17 +378,15 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
         if (queriables.length) {
           queriables.forEach((query) => {
             const pointer: Object = query.pointer as Object;
-            const contextValue = get(context, query.query);
-            if (!query.partial) {
-              // @ts-ignore
-              pointer[query.key] = contextValue;
-            } else {
-              // @ts-ignore
-              pointer[query.key] =
+            let contextValue = get(context, query.query);
+            if (query.partial) {
+              contextValue =
                 query.partial.source.slice(0, query.partial.start) +
                 contextValue +
                 query.partial.source.slice(query.partial.end);
             }
+            // @ts-ignore
+            pointer[query.key] = contextValue;
           });
         }
         const rect = new Position(value.rect.x, value.rect.y, {
@@ -427,11 +439,20 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
                 contextValue +
                 query.partial.source.slice(query.partial.end);
             }
-            // @ts-ignore
-            if (contextValue !== undefined && element.config[query.key] !== contextValue) {
+
+            if (query.parent === "config" || !query.parent) {
               // @ts-ignore
-              element.config[query.key] = contextValue;
-              return true;
+              if (element.config[query.key] !== contextValue) {
+                // @ts-ignore
+                element.config[query.key] = contextValue;
+                return true;
+              }
+            } else {
+              const parent = get(element, query.parent);
+              if (parent && parent[query.key] !== contextValue) {
+                parent[query.key] = contextValue;
+                return true;
+              }
             }
             return false;
           };

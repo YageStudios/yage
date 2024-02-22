@@ -11,6 +11,7 @@ export type BoxConfig = UIElementConfig & {
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
   style?: Partial<CSSStyleDeclaration>;
+  breakoutOverflow?: boolean;
 };
 
 const defaultStyle: Partial<CSSStyleDeclaration> = {
@@ -66,6 +67,20 @@ export class Box<T extends BoxConfig = BoxConfig> extends UIElement<T> {
     }
   }
 
+  createElement(): HTMLElement {
+    const element = super.createElement();
+    element!.onscroll = (e) => {
+      const fixedChildren = element.querySelectorAll(".breakout-overflow");
+      for (const child of fixedChildren) {
+        (child as HTMLElement).style.transform = `translate(${-element.scrollLeft}px, ${-element.scrollTop}px)`;
+      }
+    };
+    if (this._config.breakoutOverflow) {
+      element.classList.add("breakout-overflow");
+    }
+    return element;
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-empty-function
   protected updateInternal(gameModel: GameModel): void {}
 
@@ -73,6 +88,18 @@ export class Box<T extends BoxConfig = BoxConfig> extends UIElement<T> {
     super._update();
     if (!this.isVisible()) {
       return;
+    }
+    if (this._config.breakoutOverflow) {
+      let scrolledParent = this.element.parentElement;
+      while (
+        (scrolledParent?.scrollLeft === 0 && scrolledParent?.scrollTop === 0) ||
+        scrolledParent === document.body
+      ) {
+        scrolledParent = scrolledParent.parentElement;
+      }
+      if (scrolledParent) {
+        this.element.style.transform = `translate(${-scrolledParent.scrollLeft}px, ${-scrolledParent.scrollTop}px)`;
+      }
     }
   }
 }

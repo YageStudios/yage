@@ -73,6 +73,9 @@ export abstract class UIElement<T extends UIElementConfig = any> {
         return true;
       },
       get: (target: any, key) => {
+        if (key === "style") {
+          return this.style;
+        }
         return target[key];
       },
     });
@@ -318,7 +321,6 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     if (styles.position === "absolute") {
       element.style.left = `${x}px`;
       element.style.top = `${y}px`;
-      element.style.position = "absolute";
     }
     element.style.width = width > 1 ? `${width}px` : "auto";
     element.style.height = height > 1 ? `${height}px` : "auto";

@@ -125,12 +125,24 @@ export class UiSplashScene extends Scene {
       }
     ).characterPicker;
 
-    this.ui.buttonTest = buildUiMap(uis.template).build(
+    const templateMap = buildUiMap(uis.template);
+    this.ui.buttonTest = templateMap.build(
       {
         testLabel: "woah nellie",
       },
       (name, type, context) => {
         console.log(name, type, context);
+        if (name === "TemplateClick") {
+          console.log("UPDATING");
+          templateMap.update({
+            color:
+              "#" +
+              Math.floor(Math.random() * 255 * 255 * 255)
+                .toString(16)
+                .substring(0, 6)
+                .padStart(6, "0"),
+          });
+        }
       }
     ).buttonTest;
 
@@ -183,10 +195,10 @@ export class UiSplashScene extends Scene {
       this.ui[name] = element;
     });
 
-    // // @ts-ignore
-    // window.updateSplash = (context: any) => {
-    //   this.splashMap.update(context);
-    // };
+    // @ts-ignore
+    window.updateSplash = (context: any) => {
+      this.splashMap.update(context);
+    };
 
     await AssetLoader.getInstance().load();
     console.log("done");
