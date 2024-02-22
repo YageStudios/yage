@@ -4,6 +4,9 @@
     config: {
       label: "this $$partiallabel works",
       visible: true,
+      style: {
+        color: "$$color",
+      },
     },
     events: {
       click: "$$clickEvent",
