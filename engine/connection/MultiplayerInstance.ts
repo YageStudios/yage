@@ -94,7 +94,12 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
       this.messageListeners.forEach((listener) => listener(message, time, playerId));
     });
     this.on("updateRoom", (room: Room) => {
-      this.rooms[room.roomId] = room;
+      if (room.players.length === 0) {
+        delete this.rooms[room.roomId];
+        this.roomSubs[room.roomId]?.forEach((sub) => sub());
+      } else {
+        this.rooms[room.roomId] = room;
+      }
     });
     this.on("rooms", (rooms: { [roomId: string]: Room }) => {
       this.rooms = rooms;
@@ -169,9 +174,9 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
     this.player.name = player.name ?? this.player.name;
     this.player.token = player.token ?? this.player.token;
     this.player.config = player.config ?? this.player.config;
-    this.connectListeners.forEach((listener) => listener(this.player));
 
     this.emit("updatePlayerConnect", this.player);
+    this.connectListeners.forEach((listener) => listener(this.player));
   }
 
   leave() {
@@ -180,19 +185,10 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
     this.touchListener?.replaceRegions([]);
     const rooms = Object.values(this.rooms).filter((room) => room.players.includes(this.playerId));
     rooms.forEach((room) => {
-      if (room.host === this.playerId) {
-        this.roomSubs[room.roomId]?.forEach((sub) => sub());
-        if (room.rebalanceOnLeave) {
-        } else {
-        }
-      } else if (room.players.includes(this.playerId)) {
-        this.roomSubs[room.roomId]?.forEach((sub) => sub());
-
-        this.updateRoom({
-          ...room,
-          players: room.players.filter((player) => player !== this.playerId),
-        } as Room);
-      }
+      this.updateRoom({
+        ...room,
+        players: room.players.filter((player) => player !== this.playerId),
+      } as Room);
     });
   }
 
