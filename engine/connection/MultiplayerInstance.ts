@@ -37,6 +37,8 @@ export type MultiplayerInstanceOptions<T> = {
 };
 
 export class MultiplayerInstance<T> implements ConnectionInstance<T> {
+  instanceId = nanoid();
+
   stateRequested: null | [string, any][] = null;
   frameOffset = 5;
   sendingState = false;
@@ -96,7 +98,9 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
     this.on("updateRoom", (room: Room) => {
       if (room.players.length === 0) {
         delete this.rooms[room.roomId];
+        delete this.roomStates[room.roomId];
         this.roomSubs[room.roomId]?.forEach((sub) => sub());
+        delete this.roomSubs[room.roomId];
       } else {
         this.rooms[room.roomId] = room;
       }
@@ -111,6 +115,26 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
         this.emit("rooms", this.rooms);
       }
     });
+    this.on("leaveRoom", (playerId: string, roomId: string) => {
+      this.rooms[roomId] = {
+        ...this.rooms[roomId],
+        players: this.rooms[roomId].players.filter((player) => player !== playerId),
+      };
+      if (this.rooms[roomId].players.length === 0) {
+        delete this.rooms[roomId];
+        delete this.roomStates[roomId];
+        this.roomSubs[roomId]?.forEach((sub) => sub());
+        delete this.roomSubs[roomId];
+      }
+    });
+
+    this.on("joinRoom", (playerId: string, roomId: string) => {
+      this.rooms[roomId] = {
+        ...this.rooms[roomId],
+        players: [...this.rooms[roomId].players, playerId],
+      };
+    });
+
     this.on("disconnect", (playerId: string, lastFrame: number) => {
       this.players = this.players.filter((player) => player.id !== playerId);
       this.disconnectListeners.forEach((listener) => listener(playerId));
@@ -123,10 +147,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
       if (!lastFrame) {
         const room = this.rooms[currentRoomId];
         if (room) {
-          this.updateRoom({
-            ...room,
-            players: room.players.filter((player) => player !== playerId),
-          });
+          this.emit("leaveRoom", playerId, currentRoomId);
         }
       }
       const frameStack = this.roomStates[currentRoomId].frameStack[playerId];
@@ -179,17 +200,12 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
     this.connectListeners.forEach((listener) => listener(this.player));
   }
 
-  leave() {
+  leaveRoom() {
     this.listening = false;
     this.sendingState = false;
     this.touchListener?.replaceRegions([]);
-    const rooms = Object.values(this.rooms).filter((room) => room.players.includes(this.playerId));
-    rooms.forEach((room) => {
-      this.updateRoom({
-        ...room,
-        players: room.players.filter((player) => player !== this.playerId),
-      } as Room);
-    });
+    this.emit("leaveRoom", this.playerId, this.player.currentRoomId);
+    this.player.currentRoomId = null;
   }
 
   _onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: T) => number;
@@ -252,7 +268,8 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
 
     const players = gameModel.getComponentActives("PlayerInput");
     if (!frameStack) {
-      console.error("no room frame stack");
+      console.error("no room frame stack", gameModel.roomId, this.roomStates, this.instanceId);
+      throw new Error("no room frame stack");
       return true;
     }
     for (let i = 0; i < players.length; ++i) {
@@ -284,6 +301,8 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
     }
     this.roomSubs[roomId]?.forEach((sub) => sub());
     delete this.roomSubs[roomId];
+    delete this.roomStates[roomId];
+    delete this.rooms[roomId];
   }
 
   on(event: string, callback: (...args: any[]) => void) {
@@ -461,10 +480,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
         )
       );
       this.emit("requestState", this.playerId, roomId, JSON.stringify(playerConfig));
-      this.updateRoom({
-        ...room,
-        players: [...room.players, this.playerId],
-      });
+      this.emit("joinRoom", this.playerId, roomId);
     });
   }
 

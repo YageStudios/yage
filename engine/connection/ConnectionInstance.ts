@@ -41,7 +41,7 @@ export abstract class ConnectionInstance<T> {
   ): void;
 
   abstract connect(address?: string): Promise<void>;
-  abstract leave(): void;
+  abstract leaveRoom(): void;
 
   abstract hasRoom(roomId: string): boolean;
 

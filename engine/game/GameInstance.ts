@@ -34,7 +34,7 @@ export class GameInstance<T> {
       throw new Error("Player not connected");
     }
     if (this.options.connection.player.currentRoomId) {
-      this.options.connection.leave();
+      this.options.connection.leaveRoom();
     }
 
     if (this.gameModel && !this.gameModel.destroyed) {
@@ -62,7 +62,7 @@ export class GameInstance<T> {
       throw new Error("Player not connected");
     }
     if (this.options.connection.player.currentRoomId) {
-      this.options.connection.leave();
+      this.options.connection.leaveRoom();
     }
 
     if (this.gameModel && !this.gameModel.destroyed) {
@@ -86,7 +86,7 @@ export class GameInstance<T> {
       throw new Error("Player not connected");
     }
     if (this.options.connection.player.currentRoomId) {
-      this.options.connection.leave();
+      this.options.connection.leaveRoom();
     }
 
     if (this.gameModel && !this.gameModel.destroyed) {
@@ -106,7 +106,7 @@ export class GameInstance<T> {
     if (this.options.connection.player.currentRoomId) {
       this.runGameLoop();
       if (this.gameModel.destroyed) {
-        this.options.connection.leave();
+        this.options.connection.leaveRoom();
       }
     }
   }

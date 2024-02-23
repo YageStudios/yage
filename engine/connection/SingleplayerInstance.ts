@@ -124,7 +124,7 @@ export class SingleplayerInstance<T> implements ConnectionInstance<T> {
   ): Promise<GameModel> {
     return new GameModel(GameCoordinator.GetInstance(), gameInstance, seed);
   }
-  async leave(): Promise<void> {
+  async leaveRoom(): Promise<void> {
     this.players[0].hostedRooms = this.players[0].hostedRooms.filter(
       (roomId) => roomId !== this.players[0].currentRoomId
     );
