@@ -4,7 +4,7 @@ import { Persist } from "@/persist/persist";
 // import { MapIdSchema, MapSpawnSchema } from "../../src/stunningumbrella/components";
 import { editor } from "./editor";
 import { windowSessionStorage } from "@/utils/windowSessionStorage";
-type HackingConfig = {
+type FlagingConfig = {
   turnOff?: string[];
   reload?: boolean;
   // eslint-disable-next-line @typescript-eslint/ban-types
@@ -18,7 +18,7 @@ type HackingConfig = {
 let gameModel: GameModel;
 let testEject: any;
 
-const hackConfig: { [hackName: string]: HackingConfig } = {
+const flagConfig: { [flagName: string]: FlagingConfig } = {
   LIST: {},
 
   _General: { label: "General" }, // PRETTY LISTS
@@ -79,7 +79,7 @@ const hackConfig: { [hackName: string]: HackingConfig } = {
   EDIT: {
     action: (_active: boolean, id: number) => {
       console.log("Editing", id);
-      if (hacks.EDITOR) {
+      if (flags.EDITOR) {
         editor(id, gameModel);
       }
       return false;
@@ -105,78 +105,78 @@ export const setGameModel = (model: GameModel) => {
   gameModel = model;
 };
 
-export const addHacks = (additionalHacks: { [hackName: string]: HackingConfig }) => {
-  Object.assign(hackConfig, additionalHacks);
-  Object.entries(additionalHacks).forEach(([hackName, localConfig]) => {
+export const addFlags = (additionalFlags: { [flagName: string]: FlagingConfig }) => {
+  Object.assign(flagConfig, additionalFlags);
+  Object.entries(additionalFlags).forEach(([flagName, localConfig]) => {
     let local: string | null = null;
     if (localConfig.windowScope) {
-      local = windowSessionStorage.getItem(hackName);
+      local = windowSessionStorage.getItem(flagName);
     } else {
-      local = window.localStorage.getItem(hackName);
+      local = window.localStorage.getItem(flagName);
     }
 
-    if (hacks[hackName] === undefined) {
-      hacks[hackName] = false;
+    if (flags[flagName] === undefined) {
+      flags[flagName] = false;
     }
     if (localConfig.label) {
-      hacks[hackName] = false;
+      flags[flagName] = false;
     }
     if (local !== null) {
-      hacks[hackName] = local === "true";
-      if (hackConfig[hackName].action && hackConfig[hackName].stateful !== false) {
-        hackConfig[hackName].action?.(hacks[hackName]);
+      flags[flagName] = local === "true";
+      if (flagConfig[flagName].action && flagConfig[flagName].stateful !== false) {
+        flagConfig[flagName].action?.(flags[flagName]);
       }
     }
   });
 };
 
-export const hacks: { [hackName: string]: boolean } = Object.entries(hackConfig).reduce(
-  (acc: { [hackName: string]: boolean }, [hackName, hackValue]) => {
-    if (!hackValue.label) {
-      acc[hackName] = false;
+export const flags: { [flagName: string]: boolean } = Object.entries(flagConfig).reduce(
+  (acc: { [flagName: string]: boolean }, [flagName, flagValue]) => {
+    if (!flagValue.label) {
+      acc[flagName] = false;
     }
     return acc;
   },
   {}
 );
 console.log("RUNNING HACKS");
-Object.entries(hacks).forEach(([hackName]) => {
+Object.entries(flags).forEach(([flagName]) => {
   if (typeof window === "undefined") {
     return;
   }
   let local: string | null = null;
-  if (hackConfig[hackName].windowScope) {
-    local = windowSessionStorage.getItem(hackName);
+  if (flagConfig[flagName].windowScope) {
+    local = windowSessionStorage.getItem(flagName);
   } else {
-    local = window.localStorage.getItem(hackName);
+    local = window.localStorage.getItem(flagName);
   }
   if (local !== null) {
-    hacks[hackName] = local === "true";
-    if (hackConfig[hackName].action && hackConfig[hackName].stateful !== false) {
-      hackConfig[hackName].action?.(hacks[hackName]);
+    flags[flagName] = local === "true";
+    if (flagConfig[flagName].action && flagConfig[flagName].stateful !== false) {
+      flagConfig[flagName].action?.(flags[flagName]);
     }
   }
 });
 
-export const toggleHack = async (consoleText: string, value?: boolean, ...args2: any[]) => {
-  const [hack, ...args] = consoleText.split(" ");
-  console.log(hack, args, args2);
-  if (hacks[hack] !== undefined) {
-    hacks[hack] = value === undefined ? !hacks[hack] : value;
-    if (hackConfig[hack].windowScope) {
-      windowSessionStorage.setItem(hack, hacks[hack].toString());
+export const toggleFlag = async (consoleText: string, value?: boolean, ...args2: any[]) => {
+  const [flag, ...args] = consoleText.split(" ");
+  console.log(flag, args, args2);
+  if (flags[flag] !== undefined) {
+    flags[flag] = value === undefined ? !flags[flag] : value;
+    if (flagConfig[flag].windowScope) {
+      windowSessionStorage.setItem(flag, flags[flag].toString());
     } else {
-      window.localStorage.setItem(hack, hacks[hack].toString());
+      window.localStorage.setItem(flag, flags[flag].toString());
     }
-    const config = hackConfig[hack] as HackingConfig;
+    const config = flagConfig[flag] as FlagingConfig;
     if (config.action) {
-      const result = await config.action(value ?? hacks[hack], ...args, ...args2);
-      if (result !== undefined && hacks[hack] !== result) {
-        hacks[hack] = result;
-        if (hackConfig[hack].windowScope) {
-          windowSessionStorage.setItem(hack, hacks[hack].toString());
+      const result = await config.action(value ?? flags[flag], ...args, ...args2);
+      if (result !== undefined && flags[flag] !== result) {
+        flags[flag] = result;
+        if (flagConfig[flag].windowScope) {
+          windowSessionStorage.setItem(flag, flags[flag].toString());
         } else {
-          window.localStorage.setItem(hack, hacks[hack].toString());
+          window.localStorage.setItem(flag, flags[flag].toString());
         }
       }
     }
@@ -188,27 +188,27 @@ let list: any;
 const renderList = () => {
   list.innerHTML = "";
   let pendingLabel: any = false;
-  Object.keys(hackConfig).forEach((hackName) => {
+  Object.keys(flagConfig).forEach((flagName) => {
     if (
-      (hackName === "LIST" ||
-        (hacks.ACTIVE_ONLY && (!hacks[hackName] || hackName === "ACTIVE_ONLY")) ||
-        !!hackConfig[hackName].hide) &&
-      !hackConfig[hackName].label
+      (flagName === "LIST" ||
+        (flags.ACTIVE_ONLY && (!flags[flagName] || flagName === "ACTIVE_ONLY")) ||
+        !!flagConfig[flagName].hide) &&
+      !flagConfig[flagName].label
     ) {
       return;
     }
     const li = document.createElement("li");
-    if (!hackConfig[hackName].label) {
-      li.innerHTML = `${hackName}: ${hacks[hackName]}`;
+    if (!flagConfig[flagName].label) {
+      li.innerHTML = `${flagName}: ${flags[flagName]}`;
       if (pendingLabel) {
         list.appendChild(pendingLabel);
       }
       pendingLabel = false;
       list.appendChild(li);
     } else if (pendingLabel) {
-      pendingLabel.innerHTML = "<br/>" + hackConfig[hackName].label;
+      pendingLabel.innerHTML = "<br/>" + flagConfig[flagName].label;
     } else {
-      li.innerHTML = "<br/>" + hackConfig[hackName].label;
+      li.innerHTML = "<br/>" + flagConfig[flagName].label;
       pendingLabel = li;
     }
   });
@@ -221,7 +221,7 @@ export const DevConsole = () => {
     list = document.createElement("ul");
     list.style.display = "none";
     list.style.pointerEvents = "none";
-    list.id = "hacks";
+    list.id = "flags";
     list.style.zIndex = "1000000";
   }
 
@@ -256,7 +256,7 @@ export const DevConsole = () => {
   let matchIndex = -1;
 
   renderList();
-  if (hacks.LIST) {
+  if (flags.LIST) {
     list.style.display = "block";
   }
 
@@ -301,8 +301,8 @@ export const DevConsole = () => {
             if (consoleText === "> ") {
               matchList = [...historicMatchList].reverse();
             } else {
-              matchList = Object.keys(hacks).filter((hackName) => {
-                return hackName.toLowerCase().startsWith(consoleText.toLowerCase().substring(2));
+              matchList = Object.keys(flags).filter((flagName) => {
+                return flagName.toLowerCase().startsWith(consoleText.toLowerCase().substring(2));
               });
             }
             matchIndex = 0;
@@ -327,16 +327,16 @@ export const DevConsole = () => {
 
         if (key === "Enter" || key === "/") {
           consoleText = consoleText.substring(2).toUpperCase();
-          const hackName = consoleText.split(" ")[0];
-          const config = hackConfig[hackName] as HackingConfig;
+          const flagName = consoleText.split(" ")[0];
+          const config = flagConfig[flagName] as FlagingConfig;
 
           if (config && !config.label) {
             addToHistory(consoleText);
 
-            toggleHack(consoleText);
+            toggleFlag(consoleText);
 
-            config?.turnOff?.forEach((hack: string) => {
-              toggleHack(hack, false);
+            config?.turnOff?.forEach((flag: string) => {
+              toggleFlag(flag, false);
             });
             if (config?.reload) {
               window.location.reload();
@@ -364,7 +364,7 @@ export const DevConsole = () => {
       if (consoleOpen) {
         consoleBar.innerHTML = consoleText.toUpperCase();
       }
-      if (hacks.LIST) {
+      if (flags.LIST) {
         list.style.display = "block";
       } else {
         list.style.display = "none";

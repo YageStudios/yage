@@ -1,7 +1,7 @@
 import { FloatingWindow } from "./floatingwindow";
-import { hacks } from "./hacks";
+import { flags } from "./flags";
 
-if (hacks.PERFORMANCE_LOGS) {
+if (flags.PERFORMANCE_LOGS) {
   const performanceContainer = document.createElement("div");
   performanceContainer.innerHTML = `
     <h1>Performance Logs</h1>

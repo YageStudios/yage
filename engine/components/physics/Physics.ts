@@ -5,7 +5,7 @@ import { ComponentCategory } from "../../components/types";
 import { DEPTHS, registerUIComponent, registerSystem } from "../../components/ComponentRegistry";
 import { EntityTypeSchema } from "../../components/entity/Types";
 import RAPIER, { World } from "@dimforge/rapier2d-compat";
-import { hacks } from "@/console/hacks";
+import { flags } from "@/console/flags";
 import * as PIXI from "pixi.js";
 import { FrameRateSchema } from "@/schemas/core/FrameRate";
 import { CollisionFiltersSchema, CollisionsSchema } from "@/schemas/physics/Collisions";
@@ -148,7 +148,7 @@ let lines: PIXI.Graphics | undefined;
 registerUIComponent(
   "Physics",
   (uiService, entity, gameModel: GameModel, viewport: Viewport) => {
-    if (hacks.PHYSICS) {
+    if (flags.PHYSICS) {
       if (!lines) {
         lines = new PIXI.Graphics();
         lines.zIndex = Number.MAX_SAFE_INTEGER;
