@@ -18,7 +18,7 @@ import type { PixiDrawSystem } from "@/components/PixiDrawSystem";
 import type { System } from "@/components/System";
 import type { ComponentCategory, ComponentData } from "@/components/types";
 
-import { hacks } from "@/console/hacks";
+import { flags } from "@/console/flags";
 import { EntityType } from "@/constants/enums";
 
 import type { BitecsSchema, Schema } from "@/decorators/type";
@@ -485,7 +485,7 @@ export class GameModel {
 
   logEntity = (entity: number, overrideDebug = false) => {
     const data = this.getEntityData(entity);
-    if (hacks.DEBUG || overrideDebug) {
+    if (flags.DEBUG || overrideDebug) {
       if (typeof window === "undefined") {
         console.log(JSON.stringify(data, null, 2));
       } else {
@@ -575,7 +575,7 @@ export class GameModel {
     }
     this.state.limboEntities = [];
 
-    if (hacks.PERFORMANCE_LOGS) {
+    if (flags.PERFORMANCE_LOGS) {
       // @ts-ignore
       window.performanceUpdate(this.timings);
       this.timings = [];
@@ -814,7 +814,7 @@ export class GameModel {
   runComponent = (type: string) => {
     try {
       let time = 0;
-      if (hacks.PERFORMANCE_LOGS) {
+      if (flags.PERFORMANCE_LOGS) {
         time = performance.now();
       }
       const index = getIndex(type);
@@ -827,7 +827,7 @@ export class GameModel {
         if (actives.length) {
           componentSystem.runAll(this);
         }
-        if (hacks.PERFORMANCE_LOGS) {
+        if (flags.PERFORMANCE_LOGS) {
           this.timings.push({ type, time: performance.now() - time });
         }
         return;
@@ -839,7 +839,7 @@ export class GameModel {
 
         if (length !== actives.length) {
           i--;
-        } else if (hacks.DEBUG && typeof component.schema === "function") {
+        } else if (flags.DEBUG && typeof component.schema === "function") {
           const data = this.state.components[actives[i]][index];
 
           if (!component.schema.__validate(data)) {
@@ -857,7 +857,7 @@ export class GameModel {
         }
       }
 
-      if (hacks.PERFORMANCE_LOGS) {
+      if (flags.PERFORMANCE_LOGS) {
         this.timings.push({ type, time: performance.now() - time });
       }
     } catch (e) {
@@ -878,7 +878,7 @@ export class GameModel {
       const actives: number[] = this.state.activeByComponent[pixi.id];
       const drawComponent = this.drawComponents[pixi.type];
 
-      if (drawComponent.debug && !hacks.DEBUG) {
+      if (drawComponent.debug && !flags.DEBUG) {
         for (let i = 0; i < actives.length; ++i) {
           if (drawComponent.ids.has(actives[i])) {
             drawComponent.cleanup(actives[i], this, viewport);
@@ -917,7 +917,7 @@ export class GameModel {
       }
       for (let j = 0; j < actives.length; j++) {
         const entity = actives[j];
-        if (uiComponent.debug && !hacks.DEBUG) {
+        if (uiComponent.debug && !flags.DEBUG) {
           continue;
         }
         try {
