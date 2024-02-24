@@ -6,7 +6,6 @@ import { scaleFont } from "./utils";
 
 export type TextConfig = UIElementConfig & {
   label: string;
-  uppercase?: boolean;
   fontSize?: number;
   font?: string;
   scrollable?: boolean;
@@ -63,8 +62,10 @@ export class Text extends UIElement<TextConfig> {
   protected handleConfigChange(key: string, value: any): void {
     if (key === "label") {
       this._config.label = value;
-      if (value.trim().startsWith("<")) {
+      if (typeof this._config.label === "string" && value.trim().startsWith("<")) {
         this.element.innerHTML = value;
+      } else if (this._config.label === undefined) {
+        this.element.innerText = "";
       } else {
         this.element.innerText = value;
       }
@@ -73,11 +74,6 @@ export class Text extends UIElement<TextConfig> {
     if (key === "fontSize") {
       this._config.fontSize = value;
       this.element.style.fontSize = `${scaleFont(value)}px`;
-      return;
-    }
-    if (key === "uppercase") {
-      this._config.uppercase = value;
-      this.element.style.textTransform = value ? "uppercase" : "none";
       return;
     }
     if (key === "scrollable") {
@@ -95,9 +91,6 @@ export class Text extends UIElement<TextConfig> {
     }
     const textElement = this.element;
 
-    if (this._config.uppercase) {
-      textElement.style.textTransform = "uppercase";
-    }
     textElement.style.fontSize = `${scaleFont(this._config.fontSize ?? 12)}px`;
     if (typeof this._config.label === "string" && this._config.label.trim().startsWith("<")) {
       textElement.innerHTML = this._config.label;

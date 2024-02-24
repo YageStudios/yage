@@ -353,7 +353,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
                     position: "relative",
                     flex: "0 0 auto",
                     pointerEvents: "auto",
-                    ...value.element.config.style,
+                    ...value.element.config?.style,
                   },
                 },
               };

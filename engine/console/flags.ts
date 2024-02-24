@@ -282,6 +282,8 @@ export const DevConsole = () => {
         consoleOpen = true;
         consoleBar.style.display = "block";
         consoleText = "> ";
+        e.preventDefault();
+        e.stopImmediatePropagation();
       } else if (key === "Escape" && consoleOpen) {
         consoleOpen = false;
         consoleBar.style.display = "none";

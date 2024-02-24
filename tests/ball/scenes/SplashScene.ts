@@ -13,7 +13,6 @@ import { ConnectionInstance } from "@/connection/ConnectionInstance";
 import { Button, ButtonConfig } from "@/ui/Button";
 import { ImageBox } from "@/ui/ImageBox";
 import { TextInputConfig, TextInput } from "@/ui/TextInput";
-import { hacks } from "@/console/hacks";
 
 const BigText = (config: Partial<TextConfig>): Partial<TextConfig> => ({
   style: {
@@ -33,10 +32,10 @@ const BigTextInput = (config: Partial<TextInputConfig>): Partial<TextInputConfig
 });
 
 const CallToAction = (config: Partial<ButtonConfig>): Partial<ButtonConfig> => ({
-  uppercase: true,
   style: {
     borderColor: "pink",
     backgroundColor: "green",
+    textTransform: "uppercase",
   },
   fontSize: 32,
   ...config,

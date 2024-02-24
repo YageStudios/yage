@@ -33,7 +33,9 @@ export class BallLoadingScene extends Scene {
     const ui: UIElement[] = [];
     const frameTime = new Text(new Rectangle(250, 255, 1, 1), {
       label: "Loading...",
-      uppercase: true,
+      style: {
+        textTransform: "uppercase",
+      },
       fontSize: 32,
     });
     ui.push(frameTime);

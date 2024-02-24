@@ -33,10 +33,10 @@ const BigTextInput = (config: Partial<TextInputConfig>): Partial<TextInputConfig
 });
 
 const CallToAction = (config: Partial<ButtonConfig>): Partial<ButtonConfig> => ({
-  uppercase: true,
   style: {
     borderColor: "pink",
     backgroundColor: "green",
+    textTransform: "uppercase",
   },
   fontSize: 32,
   ...config,

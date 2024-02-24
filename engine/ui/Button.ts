@@ -94,11 +94,6 @@ export class Button extends UIElement<ButtonConfig> {
       this.element.style.fontSize = `${scaleFont(value)}px`;
       return;
     }
-    if (key === "uppercase") {
-      this._config.uppercase = value;
-      this.element.style.textTransform = value ? "uppercase" : "none";
-      return;
-    }
     super.handleConfigChange(key, value);
   }
 
@@ -109,9 +104,6 @@ export class Button extends UIElement<ButtonConfig> {
     }
 
     const buttonElement = this.element;
-    if (this._config.uppercase) {
-      buttonElement.style.textTransform = "uppercase";
-    }
 
     buttonElement.style.fontSize = `${scaleFont(this.config.fontSize || 12)}px`;
     this.textElement.innerText = this._config.label;
