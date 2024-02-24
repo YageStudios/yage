@@ -32,56 +32,56 @@ type BuiltContext = BuildQuery[];
 
 const generateEventListener = (
   events: any,
-  context: any,
+  contextRef: any,
   eventListener: (eventName: any, eventType: any, eventData: any) => void
 ) => {
   return events
     ? {
         onClick: () => {
           if (events.click) {
-            eventListener(events.click, "click", context);
+            eventListener(events.click, "click", contextRef.context);
           }
           if (events.trigger) {
-            eventListener(events.trigger, "trigger", context);
+            eventListener(events.trigger, "trigger", contextRef.context);
           }
           return false;
         },
         onMouseDown: () => {
           if (events.mouseDown) {
-            eventListener(events.mouseDown, "mouseDown", context);
+            eventListener(events.mouseDown, "mouseDown", contextRef.context);
           }
           return false;
         },
         onMouseUp: () => {
           if (events.mouseUp) {
-            eventListener(events.mouseUp, "mouseUp", context);
+            eventListener(events.mouseUp, "mouseUp", contextRef.context);
           }
           return false;
         },
         onMouseEnter: () => {
           if (events.mouseEnter) {
-            eventListener(events.mouseEnter, "mouseEnter", context);
+            eventListener(events.mouseEnter, "mouseEnter", contextRef.context);
           }
           if (events.hoverFocus) {
-            eventListener(events.hoverFocus, "hoverFocus", context);
+            eventListener(events.hoverFocus, "hoverFocus", contextRef.context);
           }
         },
         onMouseLeave: () => {
           if (events.mouseLeave) {
-            eventListener(events.mouseLeave, "mouseLeave", context);
+            eventListener(events.mouseLeave, "mouseLeave", contextRef.context);
           }
           if (events.hoverBlur) {
-            eventListener(events.hoverBlur, "hoverBlur", context);
+            eventListener(events.hoverBlur, "hoverBlur", contextRef.context);
           }
         },
         onBlur: () => {
           if (events.blur) {
-            eventListener(events.blur, "blur", context);
+            eventListener(events.blur, "blur", contextRef.context);
           }
         },
         onFocus: () => {
           if (events.focus) {
-            eventListener(events.focus, "focus", context);
+            eventListener(events.focus, "focus", contextRef.context);
           }
         },
       }
@@ -200,12 +200,12 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
       parent: {
         addChild: (element: UIElement<any>) => void;
       },
-      context: any,
+      contextRef: { context: any },
       buildQueries: BuildQuery[]
     ) => {
       Object.entries(json).forEach(([key, value]: [string, any]) => {
         if (!value.type) {
-          return recursiveBuild(value, parent, context, buildQueries);
+          return recursiveBuild(value, parent, contextRef, buildQueries);
         }
         if (value.type === "template") {
           const config = cloneDeep(value.config);
@@ -216,7 +216,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
 
             elements.forEach((element) => {
               let templateJson = cloneDeep(registeredTemplates.get(template)[element]);
-              let templateContext = context;
+              let templateContext = contextRef.context;
               if (templateJson) {
                 if (value.context) {
                   remapTemplateQueries(templateJson, value.context);
@@ -225,7 +225,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
                 if (value.rect) {
                   templateJson.rect = merge(templateJson.rect, value.rect);
                 }
-                recursiveBuild({ template: templateJson }, parent, templateContext, buildQueries);
+                recursiveBuild({ template: templateJson }, parent, { context: templateContext }, buildQueries);
               }
             });
           }
@@ -235,7 +235,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
           const gridQueriables = getQueriables(value);
           if (gridQueriables.length) {
             gridQueriables.forEach(({ query, key, pointer }: { query: string; key: string; pointer: any }) => {
-              const contextValue = get(context, query);
+              const contextValue = get(contextRef.context, query);
               if (key === "items") {
                 pointer[key] = contextValue;
                 return;
@@ -321,21 +321,21 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
               childQueries = childQueries.slice(0, items.length);
             }
             for (let i = 0; i < items.length; i++) {
-              const itemContext = { ...context, ...cloneDeep(items[i]) };
-              itemContext.$context = context;
+              const itemContext = { ...contextRef.context, ...cloneDeep(items[i]) };
+              itemContext.$context = contextRef.context;
               itemContext.$index = i;
 
               if (!childQueries[i]) {
                 childQueries[i] = [];
-                childContexts[i] = itemContext;
+                childContexts[i] = { context: itemContext };
               } else {
-                if (isEqual(childContexts[i], itemContext)) {
+                if (isEqual(childContexts[i].context, itemContext)) {
                   continue;
                 }
                 childQueries[i].forEach(([element, query]) => {
                   query.forEach(({ pointer }) => typeof pointer === "function" && pointer(itemContext));
                 });
-                childContexts[i] = itemContext;
+                childContexts[i].context = itemContext;
                 continue;
               }
 
@@ -357,7 +357,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
                   },
                 },
               };
-              recursiveBuild({ child: itemJson }, grid, itemContext, childQueries[i]);
+              recursiveBuild({ child: itemJson }, grid, childContexts[i], childQueries[i]);
             }
           };
 
@@ -378,7 +378,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
         if (queriables.length) {
           queriables.forEach((query) => {
             const pointer: Object = query.pointer as Object;
-            let contextValue = get(context, query.query);
+            let contextValue = get(contextRef.context, query.query);
             if (query.partial) {
               contextValue =
                 query.partial.source.slice(0, query.partial.start) +
@@ -394,7 +394,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
         });
 
         if (value.events) {
-          const events = generateEventListener(value.events, context, eventHandler);
+          const events = generateEventListener(value.events, contextRef, eventHandler);
           Object.entries(events).forEach(([key, event]) => {
             value.config[key] = event;
           });
@@ -422,7 +422,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
             let contextValue = get(_context, query.query);
 
             if (query.key === "events") {
-              const events = generateEventListener(contextValue, context, eventHandler);
+              const events = generateEventListener(contextValue, contextRef, eventHandler);
               // Object.assign(config.config, events);
               let shouldUpdate = false;
               Object.entries(events).forEach(([key, value]) => {
@@ -465,7 +465,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
         parent.addChild(element);
 
         if (value.children) {
-          recursiveBuild(value.children, element, context, buildQueries);
+          recursiveBuild(value.children, element, contextRef, buildQueries);
         }
 
         return element;
@@ -490,7 +490,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
             childIndex++;
           },
         },
-        context,
+        { context },
         lastContext
       );
     });
