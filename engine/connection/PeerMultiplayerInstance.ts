@@ -37,13 +37,13 @@ export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
     this.handshake(address, host);
   }
 
-  async handshake(address: string, hostAddres?: string) {
+  async handshake(address: string, hostAddress?: string) {
     this.selfAddress = address;
 
-    if (hostAddres) {
-      const host = hostAddres.split(":")[0];
-      const port = parseInt((hostAddres.split(":")[1] || "443").split("/")[0]);
-      const path = hostAddres.split("/")[1] || "/";
+    if (hostAddress) {
+      const host = hostAddress.split(":")[0];
+      const port = parseInt((hostAddress.split(":")[1] || "443").split("/")[0]);
+      const path = hostAddress.split("/")[1] || "/";
 
       this.peer = new Peer(address, {
         host,
@@ -74,7 +74,7 @@ export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
     this.peer.on("error", (err) => {
       console.log("peer error", err.message);
       this.peer.destroy();
-      this.handshake(this.prefix + nanoid()).then(() => {
+      this.handshake(this.prefix + nanoid(), hostAddress).then(() => {
         self_resolve();
       });
     });
