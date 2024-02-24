@@ -10,6 +10,7 @@ const nanoid = customAlphabet("234579ACDEFGHJKMNPQRTWXYZ", 10);
 type PeerMultiplayerInstanceOptions<T> = MultiplayerInstanceOptions<T> & {
   prefix: string;
   address?: string;
+  host?: string;
 };
 
 export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
@@ -24,7 +25,7 @@ export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
     player: PlayerConnect<T>,
     inputManager: InputManager,
     mouseManager: MouseManager,
-    { solohost, prefix, address = nanoid() }: PeerMultiplayerInstanceOptions<T>
+    { solohost, prefix, host, address = nanoid() }: PeerMultiplayerInstanceOptions<T>
   ) {
     super(player, inputManager, mouseManager, { solohost });
     this.prefix = prefix;
@@ -33,13 +34,26 @@ export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
     if (!address.startsWith(this.prefix)) {
       address = this.prefix + address;
     }
-    this.handshake(address);
+    this.handshake(address, host);
   }
 
-  async handshake(address: string) {
+  async handshake(address: string, hostAddres?: string) {
     this.selfAddress = address;
 
-    this.peer = new Peer(address);
+    if (hostAddres) {
+      const host = hostAddres.split(":")[0];
+      const port = parseInt((hostAddres.split(":")[1] || "443").split("/")[0]);
+      const path = hostAddres.split("/")[1] || "/";
+
+      this.peer = new Peer(address, {
+        host,
+        port,
+        path,
+        secure: true,
+      });
+    } else {
+      this.peer = new Peer(address);
+    }
 
     let self_resolve: any;
 
