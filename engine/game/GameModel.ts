@@ -1131,9 +1131,11 @@ export class GameModel {
     console.log(md5String);
   }
 
-  destroy() {
+  destroy(clearUI = true) {
     this.clearState();
-    UIService.getInstance().clearUI();
+    if (clearUI) {
+      UIService.getInstance().clearUI();
+    }
     this.destroyed = true;
   }
 }

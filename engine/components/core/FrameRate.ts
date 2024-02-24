@@ -70,7 +70,9 @@ registerUIComponent("FrameRate", (uiService, entity, gameModel) => {
 
     const currentFrame = new Text(new Rectangle(1600, 35, 1, 1), {
       label: "Frame: 0",
-      uppercase: true,
+      style: {
+        textTransform: "uppercase",
+      },
       fontSize: 16,
     });
     ui.push(currentFrame);
@@ -78,28 +80,36 @@ registerUIComponent("FrameRate", (uiService, entity, gameModel) => {
 
     const frameTime = new Text(new Rectangle(1600, 55, 1, 1), {
       label: "000.0MS",
-      uppercase: true,
+      style: {
+        textTransform: "uppercase",
+      },
       fontSize: 16,
     });
     ui.push(frameTime);
     uiService.addToUI(frameTime);
     const frameRate = new Text(new Rectangle(1600, 70, 1, 1), {
       label: "00FPS",
-      uppercase: true,
+      style: {
+        textTransform: "uppercase",
+      },
       fontSize: 16,
     });
     ui.push(frameRate);
     uiService.addToUI(frameRate);
     const activeEntities = new Text(new Rectangle(1600, 85, 1, 1), {
       label: "0000ENT",
-      uppercase: true,
+      style: {
+        textTransform: "uppercase",
+      },
       fontSize: 16,
     });
     ui.push(activeEntities);
     uiService.addToUI(activeEntities);
     const activeBodies = new Text(new Rectangle(1600, 100, 1, 1), {
       label: "0000BOD",
-      uppercase: true,
+      style: {
+        textTransform: "uppercase",
+      },
       fontSize: 16,
     });
     ui.push(activeBodies);
@@ -107,8 +117,10 @@ registerUIComponent("FrameRate", (uiService, entity, gameModel) => {
 
     const playerPos = new Text(new Rectangle(1600, 115, 1, 1), {
       label: "0X 0Y",
-      uppercase: true,
       fontSize: 16,
+      style: {
+        textTransform: "uppercase",
+      },
     });
     ui.push(playerPos);
     uiService.addToUI(playerPos);
