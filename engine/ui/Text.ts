@@ -101,7 +101,7 @@ export class Text extends UIElement<TextConfig> {
     }
 
     if (this._config.scrollable) {
-      textElement.style.pointerEvents = "all";
+      textElement.style.pointerEvents = "auto";
       textElement.style.overflow = "auto";
     }
   }

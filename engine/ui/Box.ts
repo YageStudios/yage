@@ -95,7 +95,7 @@ export class Box<T extends BoxConfig = BoxConfig> extends UIElement<T> {
           if (this._element.scrollHeight > this._element.clientHeight) {
             this._element.style.pointerEvents = "auto";
           } else {
-            this._element.style.pointerEvents = "none";
+            this._element.style.pointerEvents = this._config.style?.pointerEvents ?? "none";
           }
         }
       });
