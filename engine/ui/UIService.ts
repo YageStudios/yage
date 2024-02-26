@@ -11,6 +11,7 @@ export class UIService {
   interactionDiv: HTMLElement;
   uiDiv: HTMLDivElement;
 
+  mappedIds: { [key: string]: UIElement } = {};
   uiElements: { [key: string]: UIElement } = {};
 
   keyPressListeners: ((key: string) => void)[] = [];
@@ -38,6 +39,56 @@ export class UIService {
     },
   });
 
+  keyCaptureListener = (e: KeyboardEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const focusKeys = ["w", "a", "s", "d"];
+
+    if (focusKeys.includes(e.key.toLocaleLowerCase())) {
+      if (this.focusedElement) {
+        let direction = { x: 0, y: 0 };
+        switch (e.key.toLocaleLowerCase()) {
+          case "w":
+            direction = { x: 0, y: -1 };
+            break;
+          case "s":
+            direction = { x: 0, y: 1 };
+            break;
+          case "a":
+            direction = { x: -1, y: 0 };
+            break;
+          case "d":
+            direction = { x: 1, y: 0 };
+            break;
+        }
+        const focusedElement = this.findClosestFocusableElement(
+          this.focusedElement!,
+          direction as { x: 0 | 1 | -1; y: 0 | 1 | -1 }
+        );
+        if (focusedElement) {
+          this.focusedElement = focusedElement;
+        }
+      }
+    }
+
+    switch (e.key.toLocaleLowerCase()) {
+      case " ":
+        if (this.focusedElement) {
+          this.focusedElement.onClick();
+        }
+        break;
+    }
+  };
+
+  enableKeyCapture() {
+    document.body.addEventListener("keydown", this.keyCaptureListener);
+  }
+
+  disableKeyCapture() {
+    document.body.removeEventListener("keydown", this.keyCaptureListener);
+  }
+
   constructor(uiCanvas: HTMLCanvasElement) {
     this.UICanvas = uiCanvas;
     this.interactionDiv = document.getElementById("interaction") as HTMLElement;
@@ -55,6 +106,9 @@ export class UIService {
           this.elements.push(child);
         }
         child._update();
+      },
+      removeChild: (child: UIElement) => {
+        this.elements = this.elements.filter((x) => x !== child);
       },
       _element: this.uiDiv!,
       _zIndex: 0,
@@ -96,6 +150,68 @@ export class UIService {
     return () => {
       this.keyPressListeners = this.keyPressListeners.filter((l) => l !== listener);
     };
+  }
+
+  _focusedElement: UIElement | undefined;
+  set focusedElement(element: UIElement | undefined) {
+    const previous = this._focusedElement;
+    this._focusedElement = element;
+    if (element) {
+      element._update();
+    }
+    if (previous) {
+      previous._update();
+    }
+  }
+
+  get focusedElement() {
+    return this._focusedElement;
+  }
+
+  findClosestFocusableElement(
+    element: UIElement,
+    direction: {
+      x: 1 | -1 | 0;
+      y: 1 | -1 | 0;
+    }
+  ): UIElement | undefined {
+    const focusables = this.uiDiv.querySelectorAll(".focusable");
+    const elementBounds = element.element.getBoundingClientRect();
+    const elementCenter = {
+      x: elementBounds.left + elementBounds.width / 2,
+      y: elementBounds.top + elementBounds.height / 2,
+    };
+    let closestElement: UIElement | undefined;
+    let closestDistance = Infinity;
+    focusables.forEach((focusable) => {
+      if (focusable.id === element.id) {
+        return;
+      }
+      const bounds = focusable.getBoundingClientRect();
+      const center = {
+        x: bounds.left + bounds.width / 2,
+        y: bounds.top + bounds.height / 2,
+      };
+      // filter out if not in the right direction
+      if (direction.x === 1 && center.x <= elementCenter.x) {
+        return;
+      }
+      if (direction.x === -1 && center.x >= elementCenter.x) {
+        return;
+      }
+      if (direction.y === 1 && center.y <= elementCenter.y) {
+        return;
+      }
+      if (direction.y === -1 && center.y >= elementCenter.y) {
+        return;
+      }
+      const distance = Math.sqrt((center.x - elementCenter.x) ** 2 + (center.y - elementCenter.y) ** 2);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestElement = this.mappedIds[focusable.id];
+      }
+    });
+    return closestElement;
   }
 
   root: RootUIElement;
@@ -189,6 +305,7 @@ export class UIService {
     Object.entries(this.uiElements).forEach(([key, value]) => {
       delete this.uiElements[key];
     });
+    this.mappedIds = {};
     this.elements = [];
   }
 }

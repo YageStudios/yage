@@ -12,6 +12,7 @@ export type BoxConfig = UIElementConfig & {
   onMouseLeave?: () => void;
   style?: Partial<CSSStyleDeclaration>;
   breakoutOverflow?: boolean;
+  pointerEventsOnOverflow?: boolean;
 };
 
 const defaultStyle: Partial<CSSStyleDeclaration> = {
@@ -28,8 +29,8 @@ const defaultStyle: Partial<CSSStyleDeclaration> = {
 export class Box<T extends BoxConfig = BoxConfig> extends UIElement<T> {
   protected _hasChanged = true;
 
-  constructor(bounds: Rectangle | Position, _config: Partial<T> = {}) {
-    super(bounds, _config, defaultStyle);
+  constructor(bounds: Rectangle | Position, config: Partial<T> = {}) {
+    super(bounds, { pointerEventsOnOverflow: true, ...config }, defaultStyle);
   }
 
   protected onClickInternal(): void | boolean {
@@ -87,6 +88,17 @@ export class Box<T extends BoxConfig = BoxConfig> extends UIElement<T> {
     super._update();
     if (!this.isVisible()) {
       return;
+    }
+    if (this._config.pointerEventsOnOverflow && this._element) {
+      setTimeout(() => {
+        if (this._element) {
+          if (this._element.scrollHeight > this._element.clientHeight) {
+            this._element.style.pointerEvents = "auto";
+          } else {
+            this._element.style.pointerEvents = "none";
+          }
+        }
+      });
     }
     if (this._config.breakoutOverflow) {
       let scrolledParent = this.element.parentElement;

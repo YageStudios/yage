@@ -21,6 +21,10 @@
         style: {
           backgroundColor: "$$color",
         },
+        focusStyle: {
+          borderRadius: "25px",
+          outline: "5px solid blue",
+        },
       },
       events: {
         trigger: "characterTrigger",

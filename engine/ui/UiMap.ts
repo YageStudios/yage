@@ -259,7 +259,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
               overflow: "auto",
               alignContent: "flex-start",
               boxSizing: "border-box",
-              // pointerEvents: "none",
+              pointerEvents: "none",
               gap: value.config?.gap || "0",
               ...value.config?.style,
             },

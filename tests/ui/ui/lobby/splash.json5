@@ -2,8 +2,12 @@
   start: {
     type: "button",
     config: {
-      label: "$$start",
+      label: "Really $$start",
       fontSize: 32,
+      focusStyle: {
+        borderRadius: "25px",
+        outline: "5px solid blue",
+      },
     },
     rect: {
       x: "right",
@@ -88,6 +92,7 @@
       columns: "25% 25% 25% 25%",
       rows: "100%",
       gap: 10,
+      pointerEventsOnOverflow: true,
     },
     rect: {
       x: "left",

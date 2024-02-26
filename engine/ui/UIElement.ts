@@ -1,20 +1,23 @@
-import type { GameModel } from "@/game/GameModel";
 import { Position, Rectangle, isRectangle } from "./Rectangle";
 import { nanoid } from "nanoid";
 import { positionToCanvasSpace } from "../ui/utils";
 import { debounce } from "lodash";
+import { UIService } from "./UIService";
 
 export type UIElementConfig = {
   style: Partial<CSSStyleDeclaration>;
   children?: UIElement[];
   visible?: boolean;
   parent?: UIElement | RootUIElement;
+  focusable?: boolean;
+  focusStyle?: Partial<CSSStyleDeclaration>;
 };
 
 export type RootUIElement = {
   isVisible: () => boolean;
   update: () => void;
   addChild: (child: UIElement) => void;
+  removeChild: (child: UIElement) => void;
   _element: HTMLElement;
   _zIndex: number;
   config: {
@@ -28,7 +31,6 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   _visible = true;
   _id: string;
 
-  _styleOverrides: Partial<CSSStyleDeclaration> | undefined;
   protected _config: T;
   _element: HTMLElement | undefined;
   _parent: UIElement | RootUIElement | undefined;
@@ -36,14 +38,20 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   _creationDate = new Date().toISOString();
   removeTheseChildren: UIElement[] = [];
   destroyed: boolean;
+  uiService: UIService;
+
+  cachedStyle: Partial<CSSStyleDeclaration> | undefined;
+  focusedStyle: Partial<CSSStyleDeclaration> | undefined;
 
   get id() {
     return this._id;
   }
 
   set id(value: string) {
+    delete this.uiService.mappedIds[this._id];
     this._id = value;
     this.element.id = value;
+    this.uiService.mappedIds[value] = this;
     this.update();
   }
 
@@ -60,6 +68,17 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     if (key === "visible") {
       this._config.visible = value;
       this.updateVisibility();
+      return;
+    }
+    if (key === "focusable") {
+      this._config.focusable = value;
+      if (this._element) {
+        if (value) {
+          this._element.classList.add("focusable");
+        } else {
+          this._element.classList.remove("focusable");
+        }
+      }
       return;
     }
     this._config[key as keyof UIElementConfig] = value;
@@ -141,6 +160,13 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     this.update();
   }
 
+  removeChild(child: UIElement) {
+    if (this._config.children) {
+      this._config.children = this._config.children.filter((x) => x !== child);
+    }
+    this.update();
+  }
+
   addChild(child: UIElement) {
     if (!this._config.children) {
       this._config.children = [];
@@ -155,6 +181,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   }
 
   constructor(bounds: Rectangle | Position, _config: Partial<T> = {}, defaultStyle: Partial<CSSStyleDeclaration> = {}) {
+    this.uiService = UIService.getInstance();
     if (!_config.style) {
       _config.style = {};
     }
@@ -172,6 +199,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       this.bounds = bounds;
     }
     this._id = nanoid();
+    this.uiService.mappedIds[this._id] = this;
 
     if (this._config.children) {
       for (const child of this._config.children) {
@@ -183,12 +211,15 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   }
 
   onClick() {
-    console.log(`${this.bounds.x} / ${this.bounds.y}`);
     return this.onClickInternal();
   }
 
   onBlur() {
     return this.onBlurInternal();
+  }
+
+  onFocus() {
+    return this.onFocusInternal();
   }
 
   onMouseDown() {
@@ -197,6 +228,17 @@ export abstract class UIElement<T extends UIElementConfig = any> {
 
   onMouseUp() {
     return this.onMouseUpInternal();
+  }
+
+  onMouseEnter() {
+    if (this._config.focusable) {
+      this.uiService.focusedElement = this;
+    }
+    return this.onMouseEnterInternal();
+  }
+
+  onMouseLeave() {
+    return this.onMouseLeaveInternal();
   }
 
   protected abstract onClickInternal(): void | boolean;
@@ -217,6 +259,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   removeElement() {
     if (this._element) {
       this._element.parentElement?.removeChild(this._element);
+      this.parent?.removeChild(this);
       this._element.remove();
       this._element = undefined;
     }
@@ -225,6 +268,9 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   createElement(): HTMLElement {
     const element = document.createElement("div");
     element.id = this.id;
+    if (this._config.focusable) {
+      element.classList.add("focusable");
+    }
     return element;
   }
 
@@ -281,6 +327,11 @@ export abstract class UIElement<T extends UIElementConfig = any> {
 
   updateVisibility() {
     if (!this.isVisible()) {
+      this.focusedStyle = undefined;
+      if (this.cachedStyle) {
+        this._config.style = this.cachedStyle;
+        this.cachedStyle = undefined;
+      }
       if (this._element) {
         this.removeElement();
         // this._element.style.display = "none";
@@ -300,10 +351,37 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       this.updateVisibility();
       return;
     }
+
     this._zIndex = (this._parent?._zIndex ?? 0) + parseInt(this._config.style.zIndex ?? "0");
 
     const element = this.element;
     element.style.display = "block";
+
+    if (this.uiService._focusedElement === this) {
+      if (!this.focusedStyle) {
+        this.focusedStyle = {
+          ...this._config.style,
+          ...this._config.focusStyle,
+        };
+        const reset = Object.entries(this.focusedStyle).reduce((acc, [key, value]) => {
+          acc[key as any] = "";
+          return acc;
+        }, {} as any);
+
+        // @ts-ignore
+        this.cachedStyle = {
+          ...reset,
+          ...this._config.style,
+        };
+
+        this._config.style = this.focusedStyle;
+        this._element!.focus();
+      }
+    } else if (this.uiService._focusedElement !== this && this.cachedStyle) {
+      this._config.style = this.cachedStyle;
+      this.cachedStyle = undefined;
+      this.focusedStyle = undefined;
+    }
 
     const parentElement = this.parent?._element;
     if (!element.parentElement || (parentElement && element.parentElement !== parentElement)) {
@@ -314,7 +392,6 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     }
     const styles = {
       ...this._config.style,
-      ...this._styleOverrides,
     };
 
     const [x, y, width, height] = positionToCanvasSpace(this.bounds, this._parent?._element ?? document.body);

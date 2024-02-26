@@ -33,6 +33,8 @@ export enum ComponentCategory {
   PROJECTILECOUNTMOD,
   WEAPON_AUGMENT,
 
+  ONITEMDROP_MOD,
+
   DAMAGEAPPLIER,
   ONHIT,
   ONHIT_MOD,
@@ -173,7 +175,7 @@ export enum DamageCategoryEnum {
   NONE,
   MELEE,
   RANGED,
-  MAGIC,
+  ELEMENTAL,
   AOE,
 }
 
