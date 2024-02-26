@@ -87,7 +87,7 @@ export class UiSplashScene extends Scene {
     let clickCount = 0;
     this.ui.characterPicker = this.characterPickerMap.build(
       {
-        characters: new Array(100).fill(0).map((num, ind) => {
+        characters: new Array(1000).fill(0).map((num, ind) => {
           return {
             name: "brawler",
             index: ind,
@@ -102,7 +102,7 @@ export class UiSplashScene extends Scene {
         console.log(name, type, context);
         clickCount++;
         this.characterPickerMap.update({
-          characters: new Array(100).fill(0).map((num, ind) => {
+          characters: new Array(1000).fill(0).map((num, ind) => {
             return {
               name: "brawler",
               index: ind,
