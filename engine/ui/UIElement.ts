@@ -266,24 +266,30 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   protected abstract onMouseEnterInternal(): void;
   protected abstract onMouseLeaveInternal(): void;
 
-  onDestroy() {
+  onDestroy(noUpdate?: boolean) {
     this.destroyed = true;
     delete this.uiService.mappedIds[this._id];
-    this.removeElement();
+    this.removeElement(noUpdate);
     this?.parent?.removeChild(this);
+
+    this._config.children?.forEach((x) => {
+      x.onDestroy(true);
+    });
   }
 
   reset() {}
 
-  private removeElement() {
+  private removeElement(noUpdate?: boolean) {
     if (this._element) {
-      if (this.uiService.focusedElement === this) {
-        this.uiService.traverseParentFocus();
-      }
       this._element?.parentElement?.removeChild(this._element);
       this._element?.remove();
       this._element = undefined;
-      this.parent?.update();
+      if (!noUpdate) {
+        if (this.uiService.focusedElement === this) {
+          this.uiService.traverseParentFocus();
+        }
+        this.parent?.update();
+      }
     }
   }
 

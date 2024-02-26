@@ -319,7 +319,7 @@ export class UIService {
     console.log("Clearing UI");
     this.elements.forEach((x) => {
       if (x.onDestroy) {
-        x.onDestroy();
+        x.onDestroy(true);
       }
     });
     Object.entries(this.uiElements).forEach(([key, value]) => {

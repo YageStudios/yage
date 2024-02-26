@@ -212,8 +212,8 @@ export class UiSplashScene extends Scene {
     });
 
     // @ts-ignore
-    window.updateSplash = (context: any) => {
-      this.splashMap.update(context);
+    window.clearUi = () => {
+      UIService.getInstance().clearUI();
     };
 
     await AssetLoader.getInstance().load();
