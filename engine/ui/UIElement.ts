@@ -27,6 +27,10 @@ export type RootUIElement = {
   };
 };
 
+const isRootUIElement = (x: any): x is RootUIElement => {
+  return x._update === undefined;
+};
+
 export abstract class UIElement<T extends UIElementConfig = any> {
   bounds: Position;
   active = false;
@@ -156,7 +160,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   removeAllChildren() {
     this._config.children = [];
     this._config.children?.forEach((x) => {
-      x.onDestroy();
+      x.onDestroy(true);
     });
     this._config.children = [];
     this.update();
@@ -288,7 +292,9 @@ export abstract class UIElement<T extends UIElementConfig = any> {
         if (this.uiService.focusedElement === this) {
           this.uiService.traverseParentFocus();
         }
-        this.parent?.update();
+        if (this.parent && !isRootUIElement(this.parent)) {
+          this.parent?.update();
+        }
       }
     }
   }
