@@ -95,8 +95,8 @@ export class TextInput extends UIElement<TextInputConfig> {
     }
   }
 
-  onDestroy(): void {
-    super.onDestroy();
+  onDestroy(noUpdate?: boolean): void {
+    super.onDestroy(noUpdate);
     document.removeEventListener("keydown", this.listenKeyPress);
   }
 

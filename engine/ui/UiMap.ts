@@ -315,7 +315,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
             if (childContexts.length > items.length) {
               const childrenToRemove = grid.config.children.splice(items.length);
               childrenToRemove.forEach((child: UIElement<any>) => {
-                child.onDestroy();
+                child.onDestroy(true);
               });
               childContexts = childContexts.slice(0, items.length);
               childQueries = childQueries.slice(0, items.length);

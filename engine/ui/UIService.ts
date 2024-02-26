@@ -258,11 +258,6 @@ export class UIService {
     }
     if (Array.isArray(element)) {
       element.forEach((e) => {
-        if (e.config.children?.length) {
-          e.config.children.forEach((child: any) => {
-            this.removeFromUI(child);
-          });
-        }
         if (e._parent && e._parent.config.children) {
           e._parent.config.children = e._parent.config.children.filter((x: any) => x !== e);
         }
@@ -275,11 +270,6 @@ export class UIService {
         }
       });
     } else {
-      if (element.config.children?.length) {
-        element.config.children.forEach((child: any) => {
-          this.removeFromUI(child);
-        });
-      }
       if (element._parent && element._parent.config.children) {
         element._parent.config.children = element._parent.config.children.filter((x: any) => x !== element);
       }
