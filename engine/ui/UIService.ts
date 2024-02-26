@@ -312,6 +312,7 @@ export class UIService {
 
   clearUI() {
     console.log("Clearing UI");
+    this.disableKeyCapture();
     this.elements.forEach((x) => {
       if (x.onDestroy) {
         x.onDestroy(true);
