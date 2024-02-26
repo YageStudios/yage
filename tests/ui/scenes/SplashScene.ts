@@ -151,6 +151,10 @@ export class UiSplashScene extends Scene {
             templateMap.update({
               popupOpen: true,
             });
+          } else if (name === "closePopup") {
+            templateMap.update({
+              popupOpen: false,
+            });
           }
         }
       )

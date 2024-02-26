@@ -233,11 +233,22 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   }
 
   onMouseEnter(e: MouseEvent) {
-    if (this._config.captureFocus) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
+    let mouseInBounds = true;
     if (this._config.focusable) {
+      const nestedFocused = this._element?.querySelector(".captureFocus:not(:has(.captureFocus)):has(.focused)");
+      if (nestedFocused) {
+        mouseInBounds = false;
+      } else {
+        const rect = this._element?.getBoundingClientRect();
+        if (
+          rect &&
+          (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom)
+        ) {
+          mouseInBounds = false;
+        }
+      }
+    }
+    if (this._config.focusable && mouseInBounds && this.uiService.focusedElement !== this) {
       this.uiService.focusedElement = this;
     }
     return this.onMouseEnterInternal();
@@ -259,6 +270,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     this.destroyed = true;
     delete this.uiService.mappedIds[this._id];
     this.removeElement();
+    this?.parent?.removeChild(this);
   }
 
   reset() {}
@@ -268,10 +280,10 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       if (this.uiService.focusedElement === this) {
         this.uiService.traverseParentFocus();
       }
-      this._element.parentElement?.removeChild(this._element);
-      this.parent?.removeChild(this);
-      this._element.remove();
+      this._element?.parentElement?.removeChild(this._element);
+      this._element?.remove();
       this._element = undefined;
+      this.parent?.update();
     }
   }
 
@@ -329,7 +341,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     return visible;
   };
 
-  protected update = debounce(
+  update = debounce(
     () => {
       if (this.destroyed) {
         return;
