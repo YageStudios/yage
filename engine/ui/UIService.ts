@@ -80,6 +80,7 @@ export class UIService {
         break;
     }
   };
+  lastMouseMove: number;
 
   enableKeyCapture() {
     document.body.addEventListener("keydown", this.keyCaptureListener);
@@ -93,7 +94,7 @@ export class UIService {
     this.UICanvas = uiCanvas;
     this.interactionDiv = document.getElementById("interaction") as HTMLElement;
     this.uiDiv = document.getElementById("ui") as HTMLDivElement;
-    this.registerResizeEvents();
+    this.registerEvents();
     this.root = {
       isVisible: () => true,
       update: () => {
@@ -132,7 +133,7 @@ export class UIService {
     return instance ?? getGlobalSingleton("UIService")!;
   }
 
-  registerResizeEvents() {
+  registerEvents() {
     window.addEventListener("resize", () => {
       this.elements.forEach((element) => {
         element._update();
@@ -142,6 +143,10 @@ export class UIService {
           element._update();
         });
       }, 100);
+    });
+
+    window.addEventListener("mousemove", () => {
+      this.lastMouseMove = +new Date();
     });
   }
 

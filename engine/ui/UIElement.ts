@@ -239,16 +239,20 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   onMouseEnter(e: MouseEvent) {
     let mouseInBounds = true;
     if (this._config.focusable) {
-      const nestedFocused = this._element?.querySelector(".captureFocus:not(:has(.captureFocus)):has(.focused)");
-      if (nestedFocused) {
+      if (this.uiService.lastMouseMove + 50 < +new Date()) {
         mouseInBounds = false;
       } else {
-        const rect = this._element?.getBoundingClientRect();
-        if (
-          rect &&
-          (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom)
-        ) {
+        const nestedFocused = this._element?.querySelector(".captureFocus:not(:has(.captureFocus)):has(.focused)");
+        if (nestedFocused) {
           mouseInBounds = false;
+        } else {
+          const rect = this._element?.getBoundingClientRect();
+          if (
+            rect &&
+            (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom)
+          ) {
+            mouseInBounds = false;
+          }
         }
       }
     }
