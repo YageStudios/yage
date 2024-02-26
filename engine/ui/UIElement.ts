@@ -10,6 +10,8 @@ export type UIElementConfig = {
   visible?: boolean;
   parent?: UIElement | RootUIElement;
   focusable?: boolean;
+  autoFocus?: boolean;
+  captureFocus?: boolean;
   focusStyle?: Partial<CSSStyleDeclaration>;
 };
 
@@ -230,7 +232,11 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     return this.onMouseUpInternal();
   }
 
-  onMouseEnter() {
+  onMouseEnter(e: MouseEvent) {
+    if (this._config.captureFocus) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if (this._config.focusable) {
       this.uiService.focusedElement = this;
     }
@@ -251,13 +257,17 @@ export abstract class UIElement<T extends UIElementConfig = any> {
 
   onDestroy() {
     this.destroyed = true;
+    delete this.uiService.mappedIds[this._id];
     this.removeElement();
   }
 
   reset() {}
 
-  removeElement() {
+  private removeElement() {
     if (this._element) {
+      if (this.uiService.focusedElement === this) {
+        this.uiService.traverseParentFocus();
+      }
       this._element.parentElement?.removeChild(this._element);
       this.parent?.removeChild(this);
       this._element.remove();
@@ -270,6 +280,11 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     element.id = this.id;
     if (this._config.focusable) {
       element.classList.add("focusable");
+    }
+    if (this._config.captureFocus) {
+      element.classList.add("captureFocus");
+      console.log("REMOVING FOCUSED ELEMENT");
+      this.uiService.focusedElement = undefined;
     }
     return element;
   }
@@ -299,8 +314,8 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     element.onfocus = () => {
       this.onFocusInternal();
     };
-    element.onmouseenter = () => {
-      this.onMouseEnterInternal();
+    element.onmouseenter = (e) => {
+      this.onMouseEnter(e);
     };
     element.onmouseleave = () => {
       this.onMouseLeaveInternal();
@@ -376,11 +391,15 @@ export abstract class UIElement<T extends UIElementConfig = any> {
 
         this._config.style = this.focusedStyle;
         this._element!.focus();
+        this._element!.classList.add("focused");
       }
     } else if (this.uiService._focusedElement !== this && this.cachedStyle) {
       this._config.style = this.cachedStyle;
       this.cachedStyle = undefined;
       this.focusedStyle = undefined;
+      this._element!.classList.remove("focused");
+    } else if (this._config.focusable && this._config.autoFocus && this.uiService._focusedElement === undefined) {
+      this.uiService.focusedElement = this;
     }
 
     const parentElement = this.parent?._element;

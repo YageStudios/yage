@@ -128,25 +128,35 @@ export class UiSplashScene extends Scene {
     ).characterPicker;
 
     const templateMap = buildUiMap(uis.template);
-    this.ui.buttonTest = templateMap.build(
-      {
-        testLabel: "woah nellie",
-      },
-      (name, type, context) => {
-        console.log(name, type, context);
-        if (name === "TemplateClick") {
-          console.log("UPDATING");
-          templateMap.update({
-            color:
-              "#" +
-              Math.floor(Math.random() * 255 * 255 * 255)
-                .toString(16)
-                .substring(0, 6)
-                .padStart(6, "0"),
-          });
+    Object.entries(
+      templateMap.build(
+        {
+          testLabel: "woah nellie",
+          popupOpen: false,
+        },
+        (name, type, context) => {
+          console.log(name, type, context);
+          if (name === "TemplateClick") {
+            console.log("UPDATING");
+            templateMap.update({
+              color:
+                "#" +
+                Math.floor(Math.random() * 255 * 255 * 255)
+                  .toString(16)
+                  .substring(0, 6)
+                  .padStart(6, "0"),
+            });
+          } else if (name === "openPopup") {
+            console.log("UPDATING");
+            templateMap.update({
+              popupOpen: true,
+            });
+          }
         }
-      }
-    ).buttonTest;
+      )
+    ).forEach(([name, element]) => {
+      this.ui[name] = element;
+    });
 
     Object.entries(
       this.splashMap.build(
