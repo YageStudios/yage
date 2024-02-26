@@ -257,6 +257,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
               display: "flex",
               flexWrap: "wrap",
               overflow: "auto",
+              padding: "2px",
               alignContent: "flex-start",
               boxSizing: "border-box",
               pointerEvents: "none",

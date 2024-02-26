@@ -31,6 +31,7 @@ const defaultStyle: Partial<CSSStyleDeclaration> = {
   justifyContent: "center",
   textShadow: "1px 1px 4px black",
   userSelect: "none",
+  pointerEvents: "auto",
 };
 
 export class Button extends UIElement<ButtonConfig> {

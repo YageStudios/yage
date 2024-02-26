@@ -87,6 +87,17 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       }
       return;
     }
+    if (key === "captureFocus") {
+      this._config.captureFocus = value;
+      if (this._element) {
+        if (value) {
+          this._element.classList.add("captureFocus");
+        } else {
+          this._element.classList.remove("captureFocus");
+        }
+      }
+      return;
+    }
     this._config[key as keyof UIElementConfig] = value;
     this.update();
   }
@@ -237,23 +248,27 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   }
 
   onMouseEnter(e: MouseEvent) {
+    if (this.uiService.lastMouseMove + 200 < +new Date()) {
+      return;
+    }
+
     let mouseInBounds = true;
+
     if (this._config.focusable) {
-      if (this.uiService.lastMouseMove + 50 < +new Date()) {
+      const nestedFocused = this._element?.querySelector(".captureFocus:not(:has(.captureFocus)):has(.focused)");
+      if (nestedFocused) {
         mouseInBounds = false;
       } else {
-        const nestedFocused = this._element?.querySelector(".captureFocus:not(:has(.captureFocus)):has(.focused)");
-        if (nestedFocused) {
+        const rect = this._element?.getBoundingClientRect();
+        if (
+          rect &&
+          (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom)
+        ) {
           mouseInBounds = false;
-        } else {
-          const rect = this._element?.getBoundingClientRect();
-          if (
-            rect &&
-            (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom)
-          ) {
-            mouseInBounds = false;
-          }
         }
+      }
+      if (!mouseInBounds) {
+        return;
       }
     }
     if (this._config.focusable && mouseInBounds && this.uiService.focusedElement !== this) {
@@ -263,6 +278,9 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   }
 
   onMouseLeave() {
+    if (this.uiService.lastMouseMove + 200 < +new Date()) {
+      return;
+    }
     return this.onMouseLeaveInternal();
   }
 

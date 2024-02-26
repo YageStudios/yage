@@ -81,6 +81,7 @@ export class UIService {
     }
   };
   lastMouseMove: number;
+  debugCanvas: any;
 
   enableKeyCapture() {
     document.body.addEventListener("keydown", this.keyCaptureListener);
@@ -194,6 +195,36 @@ export class UIService {
       y: 1 | -1 | 0;
     }
   ): UIElement | undefined {
+    if (!this.debugCanvas) {
+      this.debugCanvas = document.createElement("canvas");
+      this.debugCanvas.width = window.innerWidth;
+      this.debugCanvas.height = window.innerHeight;
+      this.debugCanvas.style.position = "absolute";
+      this.debugCanvas.style.top = "0";
+      this.debugCanvas.style.left = "0";
+      this.debugCanvas.style.pointerEvents = "none";
+      this.debugCanvas.style.zIndex = "100000";
+      document.body.appendChild(this.debugCanvas);
+    }
+    const ctx = this.debugCanvas.getContext("2d")! as CanvasRenderingContext2D;
+    ctx.clearRect(0, 0, this.debugCanvas.width, this.debugCanvas.height);
+    const getScrollContainer = (element: Element | undefined) => {
+      if (!element) {
+        return;
+      }
+      let possibleScrollContainer = element;
+
+      while (possibleScrollContainer.scrollHeight > possibleScrollContainer.clientHeight) {
+        possibleScrollContainer = possibleScrollContainer.parentElement!;
+        if (!possibleScrollContainer) {
+          return;
+        }
+
+        if (possibleScrollContainer.scrollHeight > possibleScrollContainer.clientHeight) {
+          return possibleScrollContainer;
+        }
+      }
+    };
     const capturedFocuses = this.uiDiv.querySelector(".captureFocus:not(:has(.captureFocus)):has(.focused)");
     let focusables;
     if (capturedFocuses) {
@@ -206,17 +237,39 @@ export class UIService {
       x: elementBounds.left + elementBounds.width / 2,
       y: elementBounds.top + elementBounds.height / 2,
     };
+    const scrollContainer = getScrollContainer(element?.element);
     let closestElement: UIElement | undefined;
     let closestDistance = Infinity;
+    let closestAngle = 180;
+    const candidates: any = [];
     focusables.forEach((focusable) => {
       if (focusable.id === element?.id) {
         return;
       }
-      const bounds = focusable.getBoundingClientRect();
+      const focusableScrollContainer = getScrollContainer(focusable);
+      let bounds = focusable.getBoundingClientRect();
       const center = {
         x: bounds.left + bounds.width / 2,
         y: bounds.top + bounds.height / 2,
       };
+
+      if (focusableScrollContainer && focusableScrollContainer !== scrollContainer) {
+        const focusableScrollContainerBounds = focusableScrollContainer.getBoundingClientRect();
+        const distanceFromFocusableTop = Math.abs(focusableScrollContainerBounds.top - bounds.top);
+        const distanceRatio = distanceFromFocusableTop / focusableScrollContainer.scrollHeight;
+
+        center.y = center.y - distanceFromFocusableTop + focusableScrollContainer.clientHeight * distanceRatio;
+      }
+
+      // draw a circle at the center on the debug canvas
+      ctx.fillStyle = "red";
+      ctx.strokeStyle = "green";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(center.x, center.y, 15, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.stroke();
+
       // filter out if not in the right direction
       if (direction.x === 1 && center.x <= elementCenter.x) {
         return;
@@ -230,12 +283,51 @@ export class UIService {
       if (direction.y === -1 && center.y >= elementCenter.y) {
         return;
       }
+
+      candidates.push([focusable, center]);
+    });
+
+    if (candidates.length === 0) {
+      return;
+    }
+    for (let i = 0; i < candidates.length; i++) {
+      const [focusable, center] = candidates[i];
+
+      const angle = Math.atan2(center.y - elementCenter.y, center.x - elementCenter.x) * (180 / Math.PI);
       const distance = Math.sqrt((center.x - elementCenter.x) ** 2 + (center.y - elementCenter.y) ** 2);
-      if (distance < closestDistance) {
+      const directionAngle = Math.atan2(direction.y, direction.x) * (180 / Math.PI);
+      // Calculate the angle difference between the direction and the element
+      const angleDifference = Math.abs(directionAngle - angle);
+
+      if (Math.abs(angleDifference) > 30) {
+        continue;
+      }
+
+      // If the percentage distance of two items is less than 20%, pick the one with the smaller angle difference
+      if (closestDistance && Math.abs((distance - closestDistance) / closestDistance) < 0.2) {
+        if (Math.abs(angleDifference) < Math.abs(closestAngle)) {
+          closestDistance = distance;
+          closestAngle = angleDifference;
+          closestElement = this.mappedIds[focusable.id];
+        }
+      } else if (!closestDistance || distance < closestDistance) {
         closestDistance = distance;
+        closestAngle = angleDifference;
         closestElement = this.mappedIds[focusable.id];
       }
-    });
+    }
+    // if (!closestElement) {
+    //   for (let i = 0; i < candidates.length; i++) {
+    //     const [focusable, center] = candidates[i];
+    //     const distance = Math.sqrt((center.x - elementCenter.x) ** 2 + (center.y - elementCenter.y) ** 2);
+    //     if (distance < closestDistance) {
+    //       closestDistance = distance;
+    //       closestElement = this.mappedIds[focusable.id];
+    //     }
+    //   }
+    // }
+    console.log(closestElement?._element?.innerText);
+
     return closestElement;
   }
 
