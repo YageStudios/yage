@@ -60,6 +60,8 @@ export class UiSplashScene extends Scene {
 
     UIService.configureUi(document.getElementById("uicanvas") as HTMLCanvasElement);
 
+    UIService.getInstance().enableKeyCapture();
+
     this.ui.background = new Text(
       new Position("center", "center", {
         width: 1920,

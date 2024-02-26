@@ -7,7 +7,7 @@ import { scaleFont } from "./utils";
 import { cloneDeep } from "lodash";
 
 export interface ButtonConfig extends BoxConfig, TextConfig {
-  hoverStyle?: Partial<CSSStyleDeclaration>;
+  focusStyle?: Partial<CSSStyleDeclaration>;
 }
 
 const defaultStyle: Partial<CSSStyleDeclaration> = {
@@ -38,7 +38,17 @@ export class Button extends UIElement<ButtonConfig> {
   textElement: HTMLSpanElement = document.createElement("span");
 
   constructor(bounds: Rectangle | Position, config: Partial<ButtonConfig>) {
-    super(bounds, config, defaultStyle);
+    super(
+      bounds,
+      {
+        focusStyle: {
+          outline: "2px solid #2FA6FF",
+        },
+        focusable: true,
+        ...config,
+      },
+      defaultStyle
+    );
   }
 
   protected onClickInternal(): void | boolean {
@@ -64,13 +74,11 @@ export class Button extends UIElement<ButtonConfig> {
     }
   }
   protected onMouseEnterInternal(): void {
-    this._styleOverrides = cloneDeep(this._config.hoverStyle);
     if (this._config.onMouseEnter) {
       this._config.onMouseEnter();
     }
   }
   protected onMouseLeaveInternal(): void {
-    this._styleOverrides = undefined;
     if (this._config.onMouseLeave) {
       this._config.onMouseLeave();
     }
@@ -80,6 +88,9 @@ export class Button extends UIElement<ButtonConfig> {
     const element = document.createElement("button");
     element.id = this.id;
     element.appendChild(this.textElement);
+    if (this._config.focusable) {
+      element.classList.add("focusable");
+    }
     return element as unknown as HTMLButtonElement;
   }
 
@@ -108,31 +119,31 @@ export class Button extends UIElement<ButtonConfig> {
     buttonElement.style.fontSize = `${scaleFont(this.config.fontSize || 12)}px`;
     this.textElement.innerText = this._config.label;
     buttonElement.onclick = (e) => {
-      if (this.onClickInternal() === false) {
+      if (this.onClick() === false) {
         e.stopPropagation();
       }
     };
     buttonElement.onmousedown = (e) => {
-      if (this.onMouseDownInternal() === false) {
+      if (this.onMouseDown() === false) {
         e.stopPropagation();
       }
     };
     buttonElement.onmouseup = (e) => {
-      if (this.onMouseUpInternal() === false) {
+      if (this.onMouseUp() === false) {
         e.stopPropagation();
       }
     };
     buttonElement.onblur = () => {
-      this.onBlurInternal();
+      this.onBlur();
     };
     buttonElement.onfocus = () => {
-      this.onFocusInternal();
+      this.onFocus();
     };
     buttonElement.onmouseenter = () => {
-      this.onMouseEnterInternal();
+      this.onMouseEnter();
     };
     buttonElement.onmouseleave = () => {
-      this.onMouseLeaveInternal();
+      this.onMouseLeave();
     };
   }
 }
