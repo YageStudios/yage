@@ -72,12 +72,11 @@ export class UIService {
 
     switch (e.key.toLocaleLowerCase()) {
       case " ":
+        e.preventDefault();
+        e.stopPropagation();
         if (this.focusedElement) {
           this.focusedElement.onClick();
         }
-        e.preventDefault();
-        e.stopPropagation();
-
         break;
     }
   };
