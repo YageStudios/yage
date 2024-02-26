@@ -40,36 +40,34 @@ export class UIService {
   });
 
   keyCaptureListener = (e: KeyboardEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
     const focusKeys = ["w", "a", "s", "d"];
 
     if (focusKeys.includes(e.key.toLocaleLowerCase())) {
-      if (this.focusedElement) {
-        let direction = { x: 0, y: 0 };
-        switch (e.key.toLocaleLowerCase()) {
-          case "w":
-            direction = { x: 0, y: -1 };
-            break;
-          case "s":
-            direction = { x: 0, y: 1 };
-            break;
-          case "a":
-            direction = { x: -1, y: 0 };
-            break;
-          case "d":
-            direction = { x: 1, y: 0 };
-            break;
-        }
-        const focusedElement = this.findClosestFocusableElement(
-          this.focusedElement!,
-          direction as { x: 0 | 1 | -1; y: 0 | 1 | -1 }
-        );
-        if (focusedElement) {
-          this.focusedElement = focusedElement;
-        }
+      let direction = { x: 0, y: 0 };
+      switch (e.key.toLocaleLowerCase()) {
+        case "w":
+          direction = { x: 0, y: -1 };
+          break;
+        case "s":
+          direction = { x: 0, y: 1 };
+          break;
+        case "a":
+          direction = { x: -1, y: 0 };
+          break;
+        case "d":
+          direction = { x: 1, y: 0 };
+          break;
       }
+      const focusedElement = this.findClosestFocusableElement(
+        this.focusedElement!,
+        direction as { x: 0 | 1 | -1; y: 0 | 1 | -1 }
+      );
+      if (focusedElement) {
+        this.focusedElement = focusedElement;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
     }
 
     switch (e.key.toLocaleLowerCase()) {
@@ -77,6 +75,9 @@ export class UIService {
         if (this.focusedElement) {
           this.focusedElement.onClick();
         }
+        e.preventDefault();
+        e.stopPropagation();
+
         break;
     }
   };
@@ -152,6 +153,20 @@ export class UIService {
     };
   }
 
+  traverseParentFocus() {
+    let nestedParent = this._focusedElement!._parent;
+    while (nestedParent) {
+      if (nestedParent.config.focusable) {
+        // @ts-ignore
+        this.focusedElement = nestedParent;
+        return;
+      }
+      // @ts-ignore
+      nestedParent = nestedParent._parent;
+    }
+    this.focusedElement = undefined;
+  }
+
   _focusedElement: UIElement | undefined;
   set focusedElement(element: UIElement | undefined) {
     const previous = this._focusedElement;
@@ -169,14 +184,20 @@ export class UIService {
   }
 
   findClosestFocusableElement(
-    element: UIElement,
+    element: UIElement | undefined,
     direction: {
       x: 1 | -1 | 0;
       y: 1 | -1 | 0;
     }
   ): UIElement | undefined {
-    const focusables = this.uiDiv.querySelectorAll(".focusable");
-    const elementBounds = element.element.getBoundingClientRect();
+    const capturedFocuses = this.uiDiv.querySelector(".captureFocus:not(:has(.captureFocus)):has(.focused)");
+    let focusables;
+    if (capturedFocuses) {
+      focusables = capturedFocuses.querySelectorAll(".focusable");
+    } else {
+      focusables = this.uiDiv.querySelectorAll(".focusable");
+    }
+    const elementBounds = element?.element.getBoundingClientRect() ?? { left: 0, top: 0, width: 0, height: 0 };
     const elementCenter = {
       x: elementBounds.left + elementBounds.width / 2,
       y: elementBounds.top + elementBounds.height / 2,
@@ -184,7 +205,7 @@ export class UIService {
     let closestElement: UIElement | undefined;
     let closestDistance = Infinity;
     focusables.forEach((focusable) => {
-      if (focusable.id === element.id) {
+      if (focusable.id === element?.id) {
         return;
       }
       const bounds = focusable.getBoundingClientRect();
@@ -305,6 +326,7 @@ export class UIService {
     Object.entries(this.uiElements).forEach(([key, value]) => {
       delete this.uiElements[key];
     });
+    this._focusedElement = undefined;
     this.mappedIds = {};
     this.elements = [];
   }

@@ -103,6 +103,12 @@ export class TextInput extends UIElement<TextInputConfig> {
   createElement(): HTMLInputElement {
     const element = document.createElement("input");
     element.id = this.id;
+    if (this._config.focusable) {
+      element.classList.add("focusable");
+    }
+    if (this._config.captureFocus) {
+      element.classList.add("captureFocus");
+    }
     return element;
   }
 

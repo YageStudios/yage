@@ -12,4 +12,10 @@
       clickEvent: "TemplateClick",
     },
   },
+  popupTest: {
+    type: "template",
+    config: {
+      template: "popup",
+    },
+  },
 }

@@ -1,0 +1,64 @@
+{
+  popupButton: {
+    type: "button",
+    config: {
+      label: "Open Popup",
+      style: {
+        zIndex: 100,
+      },
+    },
+    rect: {
+      x: "center",
+      y: "bottom",
+      width: 300,
+      height: 150,
+    },
+    events: {
+      trigger: "openPopup",
+    },
+    children: {
+      popup: {
+        type: "box",
+        config: {
+          captureFocus: true,
+          visible: "$$popupOpen",
+          pointerEventsOnOverflow: false,
+          style: {
+            background: "blue",
+            position: "fixed",
+            top: 0,
+            left: 0,
+            pointerEvents: "all",
+          },
+        },
+        rect: {
+          x: "full",
+          y: "full",
+          width: 200,
+          height: 100,
+        },
+        events: {
+          close: "closePopup",
+        },
+        children: {
+          closeButton: {
+            type: "button",
+            config: {
+              autoFocus: true,
+              label: "Close",
+            },
+            rect: {
+              x: "center",
+              y: "center",
+              width: 100,
+              height: 50,
+            },
+            events: {
+              trigger: "closePopup",
+            },
+          },
+        },
+      },
+    },
+  },
+}

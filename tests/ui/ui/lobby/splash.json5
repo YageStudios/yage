@@ -4,6 +4,7 @@
     config: {
       label: "Really $$start",
       fontSize: 32,
+      autoFocus: true,
       focusStyle: {
         borderRadius: "25px",
         outline: "5px solid blue",

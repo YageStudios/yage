@@ -91,6 +91,9 @@ export class Button extends UIElement<ButtonConfig> {
     if (this._config.focusable) {
       element.classList.add("focusable");
     }
+    if (this._config.captureFocus) {
+      element.classList.add("captureFocus");
+    }
     return element as unknown as HTMLButtonElement;
   }
 
@@ -139,8 +142,8 @@ export class Button extends UIElement<ButtonConfig> {
     buttonElement.onfocus = () => {
       this.onFocus();
     };
-    buttonElement.onmouseenter = () => {
-      this.onMouseEnter();
+    buttonElement.onmouseenter = (e) => {
+      this.onMouseEnter(e);
     };
     buttonElement.onmouseleave = () => {
       this.onMouseLeave();
