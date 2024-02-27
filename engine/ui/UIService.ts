@@ -1,6 +1,8 @@
 import type { RootUIElement, UIElement } from "./UIElement";
 import type { Vector2d } from "../utils/vector";
 import { getGlobalSingleton, setGlobalSingleton } from "@/global";
+import { EVENT_TYPE, InputManager } from "@/inputs/InputManager";
+import { throttle } from "lodash";
 
 const DEBUG_FOCUS = false;
 export class UIService {
@@ -16,6 +18,10 @@ export class UIService {
   uiElements: { [key: string]: UIElement } = {};
 
   keyPressListeners: ((key: string) => void)[] = [];
+
+  lastMouseMove: number;
+  debugCanvas: any;
+  unsub: (() => void) | undefined;
 
   ui: { [key: string]: UIElement } = new Proxy(this.uiElements, {
     get: (target, prop) => {
@@ -40,12 +46,14 @@ export class UIService {
     },
   });
 
-  keyCaptureListener = (e: KeyboardEvent) => {
+  _keyCaptureListener = (key: string, pressed: boolean, eventType: EVENT_TYPE, e?: Event) => {
+    if (!pressed || [EVENT_TYPE.TOUCH, EVENT_TYPE.MOUSE].includes(eventType)) {
+      return;
+    }
     const focusKeys = ["w", "a", "s", "d"];
-
-    if (focusKeys.includes(e.key.toLocaleLowerCase())) {
+    if (focusKeys.includes(key.toLocaleLowerCase())) {
       let direction = { x: 0, y: 0 };
-      switch (e.key.toLocaleLowerCase()) {
+      switch (key.toLocaleLowerCase()) {
         case "w":
           direction = { x: 0, y: -1 };
           break;
@@ -66,30 +74,31 @@ export class UIService {
       if (focusedElement) {
         this.focusedElement = focusedElement;
       }
-
-      e.preventDefault();
-      e.stopPropagation();
+      e?.preventDefault();
+      e?.stopPropagation();
     }
 
-    switch (e.key.toLocaleLowerCase()) {
-      case " ":
-        e.preventDefault();
-        e.stopPropagation();
+    switch (key.toLocaleLowerCase()) {
+      case "space":
         if (this.focusedElement) {
           this.focusedElement.onClick();
+          e?.preventDefault();
+          e?.stopImmediatePropagation();
         }
+
         break;
     }
   };
-  lastMouseMove: number;
-  debugCanvas: any;
 
-  enableKeyCapture() {
-    document.body.addEventListener("keydown", this.keyCaptureListener);
+  enableKeyCapture(inputManager: InputManager) {
+    this.unsub = inputManager.addKeyListener(this._keyCaptureListener);
   }
 
   disableKeyCapture() {
-    document.body.removeEventListener("keydown", this.keyCaptureListener);
+    if (this.unsub) {
+      this.unsub();
+      this.unsub = undefined;
+    }
   }
 
   constructor(uiCanvas: HTMLCanvasElement) {

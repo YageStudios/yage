@@ -36,6 +36,13 @@ export type KeyMap = Map<string, boolean>;
 
 export type EventRecord = { playerId: string; key: MappedKeys; value: boolean };
 
+export enum EVENT_TYPE {
+  TOUCH,
+  KEYBOARD,
+  GAMEPAD,
+  MOUSE,
+}
+
 export class KeyMapInput {
   keyMap: KeyMap;
 
@@ -49,6 +56,7 @@ export class InputManager {
   public keyMap: KeyMap;
 
   private changes: { [key: string]: boolean } = {};
+  private keyListeners: Function[] = [];
 
   public getKeyboardChanges() {
     if (Object.keys(this.changes).length === 0) {
@@ -93,12 +101,28 @@ export class InputManager {
     return new Map<string, boolean>();
   }
 
-  dispatchEvent = (key: string, keyPressed: boolean) => {
+  public addKeyListener(
+    listener: (key: string, keyPressed: boolean, eventType: EVENT_TYPE, e?: Event) => void
+  ): () => void {
+    this.keyListeners.push(listener);
+    return () => {
+      this.keyListeners = this.keyListeners.filter((l) => l !== listener);
+    };
+  }
+
+  public removeKeyListener(
+    listener: (key: string, keyPressed: boolean, eventType: EVENT_TYPE, e?: Event) => void
+  ): void {
+    this.keyListeners = this.keyListeners.filter((l) => l !== listener);
+  }
+
+  dispatchEvent = (key: string, keyPressed: boolean, eventType: EVENT_TYPE, e?: Event) => {
     if (keyPressed) {
       this.keyMap.set(key, keyPressed);
     } else {
       this.keyMap.delete(key);
     }
+    this.keyListeners.forEach((listener) => listener(key, keyPressed, eventType, e));
   };
 
   diffKeyMap(keyMap: KeyMap, prevKeyMap: KeyMap): KeyMap {
