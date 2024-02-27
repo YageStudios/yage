@@ -4,10 +4,11 @@ import { InputManager, KeyMap } from "@/inputs/InputManager";
 import { ConnectionInstance, PlayerConnect, PlayerConnection } from "./ConnectionInstance";
 import { RequireAtLeastOne } from "@/utils/typehelpers";
 import { MouseManager } from "@/inputs/MouseManager";
-import { TouchListener, TouchRegion } from "@/inputs/TouchListener";
+import { TouchListener } from "@/inputs/TouchListener";
 import { PlayerEventManager } from "@/inputs/PlayerEventManager";
 import { GameCoordinator } from "@/game/GameCoordinator";
 import { GameInstance } from "@/game/GameInstance";
+import { TouchRegion } from "@/inputs/InputRegion";
 
 export class SingleplayerInstance<T> implements ConnectionInstance<T> {
   messageListeners: ((message: string, time: number, playerId: string) => void)[] = [];

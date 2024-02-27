@@ -4,7 +4,7 @@ import { getGlobalSingleton, setGlobalSingleton } from "@/global";
 import { EVENT_TYPE, InputManager } from "@/inputs/InputManager";
 import { throttle } from "lodash";
 
-const DEBUG_FOCUS = false;
+const DEBUG_FOCUS = true;
 export class UIService {
   elements: UIElement[] = [];
   UICanvas: HTMLCanvasElement;
@@ -46,26 +46,51 @@ export class UIService {
     },
   });
 
-  _keyCaptureListener = (key: string, pressed: boolean, eventType: EVENT_TYPE, e?: Event) => {
+  _keyCaptureListener = (
+    inputManager: InputManager,
+    key: string,
+    pressed: boolean,
+    eventType: EVENT_TYPE,
+    e?: Event
+  ) => {
     if (!pressed || [EVENT_TYPE.TOUCH, EVENT_TYPE.MOUSE].includes(eventType)) {
       return;
     }
-    const focusKeys = ["w", "a", "s", "d"];
-    if (focusKeys.includes(key.toLocaleLowerCase())) {
+    let left = key === "left" || key === "a";
+    let right = key === "right" || key === "d";
+    let up = key === "up" || key === "w";
+    let down = key === "down" || key === "s";
+    if (eventType === EVENT_TYPE.GAMEPAD) {
+      left =
+        key === "left" ||
+        (inputManager.keyPressed("a") && !inputManager.keyPressed("w") && !inputManager.keyPressed("s"));
+      right =
+        key === "right" ||
+        (inputManager.keyPressed("d") && !inputManager.keyPressed("w") && !inputManager.keyPressed("s"));
+      up =
+        key === "up" ||
+        (inputManager.keyPressed("w") && !inputManager.keyPressed("a") && !inputManager.keyPressed("d"));
+      down =
+        key === "down" ||
+        (inputManager.keyPressed("s") && !inputManager.keyPressed("a") && !inputManager.keyPressed("d"));
+    }
+
+    if (left || right || up || down) {
       let direction = { x: 0, y: 0 };
-      switch (key.toLocaleLowerCase()) {
-        case "w":
-          direction = { x: 0, y: -1 };
-          break;
-        case "s":
-          direction = { x: 0, y: 1 };
-          break;
-        case "a":
-          direction = { x: -1, y: 0 };
-          break;
-        case "d":
-          direction = { x: 1, y: 0 };
-          break;
+
+      console.log(up, left, down, right);
+
+      if (up) {
+        direction.y -= 1;
+      }
+      if (down) {
+        direction.y += 1;
+      }
+      if (left) {
+        direction.x -= 1;
+      }
+      if (right) {
+        direction.x += 1;
       }
       const focusedElement = this.findClosestFocusableElement(
         this.focusedElement!,
@@ -91,7 +116,7 @@ export class UIService {
   };
 
   enableKeyCapture(inputManager: InputManager) {
-    this.unsub = inputManager.addKeyListener(this._keyCaptureListener);
+    this.unsub = inputManager.addKeyListener((...args) => this._keyCaptureListener(inputManager, ...args));
   }
 
   disableKeyCapture() {
