@@ -16,6 +16,7 @@ import uis from "../ui";
 import { UiMap, buildUiMap } from "@/ui/UiMap";
 import { InputManager } from "@/inputs/InputManager";
 import { KeyboardListener } from "@/inputs/KeyboardListener";
+import { GamepadListener, StandardGamepadRegions } from "@/inputs/GamepadListener";
 
 const BigText = (config: Partial<TextConfig>): Partial<TextConfig> => ({
   style: {
@@ -62,7 +63,8 @@ export class UiSplashScene extends Scene {
 
     UIService.configureUi(document.getElementById("uicanvas") as HTMLCanvasElement);
     const inputManager: InputManager = new InputManager();
-    new KeyboardListener(inputManager).init(["w", "a", "s", "d", "space"]);
+    new KeyboardListener(inputManager).init(["w", "a", "s", "d", "space", "left", "right", "up", "down"]);
+    new GamepadListener(inputManager).init(StandardGamepadRegions);
 
     UIService.getInstance().enableKeyCapture(inputManager);
 

@@ -1,47 +1,46 @@
 import { EVENT_TYPE, InputManager } from "./InputManager";
-
-export type TouchRegion = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  deadzone?: number;
-  type: "tap" | "joystick" | "dpad" | "longpress" | "doubletap";
-  key: string | string[];
-};
+import { TouchRegion } from "./InputRegion";
 
 const LeftStick: TouchRegion = {
-  x: 0,
-  y: 0,
-  width: 960,
-  height: 1080,
+  id: {
+    x: 0,
+    y: 0,
+    width: 960,
+    height: 1080,
+  },
   type: "joystick",
   key: ["w", "a", "s", "d"],
 };
 
 const RightStick: TouchRegion = {
-  x: 960,
-  y: 0,
-  width: 960,
-  height: 1080,
+  id: {
+    x: 960,
+    y: 0,
+    width: 960,
+    height: 1080,
+  },
   type: "joystick",
   key: ["i", "j", "k", "l"],
 };
 
 const LeftDoubleTap: TouchRegion = {
-  x: 0,
-  y: 0,
-  width: 960,
-  height: 1080,
+  id: {
+    x: 0,
+    y: 0,
+    width: 960,
+    height: 1080,
+  },
   type: "doubletap",
   key: "space",
 };
 
 const RightDoubleTap: TouchRegion = {
-  x: 960,
-  y: 0,
-  width: 960,
-  height: 1080,
+  id: {
+    x: 960,
+    y: 0,
+    width: 960,
+    height: 1080,
+  },
   type: "doubletap",
   key: "space",
 };
@@ -166,10 +165,10 @@ export class TouchListener {
     const normalizedY = touch.clientY * (1080 / window.innerHeight);
 
     return (
-      normalizedX >= region.x &&
-      normalizedX <= region.x + region.width &&
-      normalizedY >= region.y &&
-      normalizedY <= region.y + region.height
+      normalizedX >= region.id.x &&
+      normalizedX <= region.id.x + region.id.width &&
+      normalizedY >= region.id.y &&
+      normalizedY <= region.id.y + region.id.height
     );
   }
 
@@ -191,7 +190,7 @@ export class TouchListener {
     if (prefix === "start") {
       return;
     }
-    const tapKey = `${region.x}_${region.y}_${region.width}_${region.height}`;
+    const tapKey = `${region.id.x}_${region.id.y}_${region.id.width}_${region.id.height}`;
     if (prefix === "end") {
       if (this.inRegion(region, this.lastTouchs.get(touch.identifier)!)) {
         if (
@@ -263,10 +262,10 @@ export class TouchListener {
       const dy = touch.clientY - touchStart.clientY;
       const angle = Math.atan2(dy, dx);
       const distance = Math.sqrt(dx * dx + dy * dy);
-      const maxDistance = Math.min(region.width, region.height) / 2;
+      const maxDistance = Math.min(region.id.width, region.id.height) / 2;
       const normalizedDistance = Math.min(distance / maxDistance, 1);
       // const normalizedAngle = angle / (Math.PI * 2);
-      if (normalizedDistance > (region.deadzone ?? 0)) {
+      if (normalizedDistance > (region.id.deadzone ?? 0)) {
         if (Array.isArray(region.key)) {
           // map angle to arrow keys
           const keys = angleToKey(angle, region);

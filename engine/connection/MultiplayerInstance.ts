@@ -6,12 +6,13 @@ import { md5 } from "@/utils/md5";
 import { nanoid } from "nanoid";
 import { RequireAtLeastOne } from "@/utils/typehelpers";
 import { MouseManager } from "@/inputs/MouseManager";
-import { TouchListener, TouchRegion } from "@/inputs/TouchListener";
+import { TouchListener } from "@/inputs/TouchListener";
 import { PlayerEventManager } from "@/inputs/PlayerEventManager";
 import { ChildSchema } from "@/schemas/entity/Child";
 import { GameInstance } from "@/game/GameInstance";
 import { GameCoordinator } from "@/game/GameCoordinator";
 import { PlayerInputSchema } from "@/schemas/core/PlayerInput";
+import { TouchRegion } from "@/inputs/InputRegion";
 
 type Frame = { keys: KeyMap; frame: number; events: string[]; playerId: string };
 

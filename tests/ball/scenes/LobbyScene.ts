@@ -18,6 +18,7 @@ import { PlayerState, defaultPlayerState } from "../types/PlayerState.types";
 import { cloneDeep } from "lodash";
 import { Button, ButtonConfig } from "@/ui/Button";
 import { PlayerInputSchema } from "@/schemas/core/PlayerInput";
+import { GamepadListener, StandardGamepadRegions } from "@/inputs/GamepadListener";
 
 const CallToAction = (config: Partial<ButtonConfig>): Partial<ButtonConfig> => ({
   style: {
@@ -78,10 +79,11 @@ export class BallLobbyScene extends Scene {
     const inputManager = new InputManager();
     const keyboardListener = new KeyboardListener(inputManager);
     keyboardListener.init(["w", "a", "s", "d", "i", "j", "k", "l", "space"]);
+    const gamepadListener = new GamepadListener(inputManager);
+    gamepadListener.init(StandardGamepadRegions);
 
     const touchListener = new TouchListener(inputManager);
     touchListener.replaceRegions(PreconfiguredTouchRegions.TwinStickDoubleTap);
-
     let addressId;
     let lobbyId;
     if (window.location.hash) {

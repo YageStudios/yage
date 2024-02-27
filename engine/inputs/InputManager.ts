@@ -117,6 +117,7 @@ export class InputManager {
   }
 
   dispatchEvent = (key: string, keyPressed: boolean, eventType: EVENT_TYPE, e?: Event) => {
+    console.log(key, keyPressed);
     if (keyPressed) {
       this.keyMap.set(key, keyPressed);
     } else {
@@ -143,5 +144,9 @@ export class InputManager {
       }
     });
     return obj;
+  }
+
+  keyPressed(key: string) {
+    return !!this.keyMap.get(key);
   }
 }
