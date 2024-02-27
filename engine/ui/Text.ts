@@ -60,6 +60,9 @@ export class Text extends UIElement<TextConfig> {
   protected updateInternal(gameModel: GameModel): void {}
 
   protected handleConfigChange(key: string, value: any): void {
+    if (!this.element) {
+      return;
+    }
     if (key === "label") {
       this._config.label = value;
       if (typeof this._config.label === "string" && value.trim().startsWith("<")) {
@@ -90,6 +93,9 @@ export class Text extends UIElement<TextConfig> {
       return;
     }
     const textElement = this.element;
+    if (!textElement) {
+      return;
+    }
 
     textElement.style.fontSize = `${scaleFont(this._config.fontSize ?? 12)}px`;
     if (typeof this._config.label === "string" && this._config.label.trim().startsWith("<")) {

@@ -11,6 +11,7 @@ export type UIElementConfig = {
   parent?: UIElement | RootUIElement;
   focusable?: boolean;
   autoFocus?: boolean;
+  autoEmptyFocus?: boolean;
   captureFocus?: boolean;
   focusStyle?: Partial<CSSStyleDeclaration>;
 };
@@ -56,6 +57,9 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   set id(value: string) {
     delete this.uiService.mappedIds[this._id];
     this._id = value;
+    if (!this.element) {
+      return;
+    }
     this.element.id = value;
     this.uiService.mappedIds[value] = this;
     this.update();
@@ -135,6 +139,11 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   get element(): ReturnType<this["createElement"]> {
     if (!this._element) {
       const element = this.createElement();
+      if (!element) {
+        // @ts-ignore
+        return null;
+      }
+
       this._element = element;
       this.addEvents(element);
     }
@@ -310,6 +319,9 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       this._element?.parentElement?.removeChild(this._element);
       this._element?.remove();
       this._element = undefined;
+      if (this._config.autoEmptyFocus) {
+        this.uiService.autoEmptyFocusElements = this.uiService.autoEmptyFocusElements.filter((x) => x !== this);
+      }
       if (!noUpdate) {
         if (this.uiService.focusedElement === this) {
           this.uiService.traverseParentFocus();
@@ -321,7 +333,10 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     }
   }
 
-  createElement(): HTMLElement {
+  createElement(): HTMLElement | null {
+    if (this.destroyed) {
+      return null;
+    }
     const element = document.createElement("div");
     element.id = this.id;
     if (this._config.focusable) {
@@ -329,8 +344,11 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     }
     if (this._config.captureFocus) {
       element.classList.add("captureFocus");
-      console.log("REMOVING FOCUSED ELEMENT");
-      this.uiService.focusedElement = undefined;
+    }
+    if (this._config.autoEmptyFocus) {
+      if (!this.uiService.autoEmptyFocusElements.includes(this)) {
+        this.uiService.autoEmptyFocusElements.push(this);
+      }
     }
     return element;
   }
@@ -416,6 +434,9 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     this._zIndex = (this._parent?._zIndex ?? 0) + parseInt(this._config.style.zIndex ?? "0");
 
     const element = this.element;
+    if (!element) {
+      return;
+    }
     element.style.display = "block";
 
     if (this.uiService._focusedElement === this) {

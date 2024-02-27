@@ -247,6 +247,9 @@ export class GamepadListener {
   destroy() {
     this.unsubscribe && this.unsubscribe();
     this.unsubscribe = null;
+    for (const key in this.registry) {
+      clearInterval(this.registry[key][2]);
+    }
   }
 
   intitialDelay = 500;

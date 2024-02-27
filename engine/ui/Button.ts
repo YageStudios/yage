@@ -85,7 +85,10 @@ export class Button extends UIElement<ButtonConfig> {
     }
   }
 
-  createElement(): HTMLButtonElement {
+  createElement(): HTMLButtonElement | null {
+    if (this.destroyed) {
+      return null;
+    }
     const element = document.createElement("button");
     element.id = this.id;
     element.appendChild(this.textElement);
@@ -95,10 +98,19 @@ export class Button extends UIElement<ButtonConfig> {
     if (this._config.captureFocus) {
       element.classList.add("captureFocus");
     }
+
+    if (this._config.autoEmptyFocus) {
+      if (!this.uiService.autoEmptyFocusElements.includes(this)) {
+        this.uiService.autoEmptyFocusElements.push(this);
+      }
+    }
     return element as unknown as HTMLButtonElement;
   }
 
   protected handleConfigChange(key: string, value: any): void {
+    if (!this.element) {
+      return;
+    }
     if (key === "label") {
       this._config.label = value;
       this.textElement.innerText = value;
@@ -119,6 +131,10 @@ export class Button extends UIElement<ButtonConfig> {
     }
 
     const buttonElement = this.element;
+
+    if (!buttonElement) {
+      return;
+    }
 
     buttonElement.style.fontSize = `${scaleFont(this.config.fontSize || 12)}px`;
     this.textElement.innerText = this._config.label;
