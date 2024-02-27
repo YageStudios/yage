@@ -14,6 +14,8 @@ import { TextInputConfig } from "@/ui/TextInput";
 
 import uis from "../ui";
 import { UiMap, buildUiMap } from "@/ui/UiMap";
+import { InputManager } from "@/inputs/InputManager";
+import { KeyboardListener } from "@/inputs/KeyboardListener";
 
 const BigText = (config: Partial<TextConfig>): Partial<TextConfig> => ({
   style: {
@@ -59,8 +61,10 @@ export class UiSplashScene extends Scene {
     this.characterPickerMap = buildUiMap(uis.lobby__characterpicker);
 
     UIService.configureUi(document.getElementById("uicanvas") as HTMLCanvasElement);
+    const inputManager: InputManager = new InputManager();
+    new KeyboardListener(inputManager).init(["w", "a", "s", "d", "space"]);
 
-    UIService.getInstance().enableKeyCapture();
+    UIService.getInstance().enableKeyCapture(inputManager);
 
     this.ui.background = new Text(
       new Position("center", "center", {
@@ -87,7 +91,7 @@ export class UiSplashScene extends Scene {
     let clickCount = 0;
     this.ui.characterPicker = this.characterPickerMap.build(
       {
-        characters: new Array(1000).fill(0).map((num, ind) => {
+        characters: new Array(300).fill(0).map((num, ind) => {
           return {
             name: "brawler",
             index: ind,
@@ -102,7 +106,7 @@ export class UiSplashScene extends Scene {
         console.log(name, type, context);
         clickCount++;
         this.characterPickerMap.update({
-          characters: new Array(1000).fill(0).map((num, ind) => {
+          characters: new Array(300).fill(0).map((num, ind) => {
             return {
               name: "brawler",
               index: ind,

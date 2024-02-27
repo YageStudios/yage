@@ -1,4 +1,4 @@
-import { InputManager } from "./InputManager";
+import { EVENT_TYPE, InputManager } from "./InputManager";
 
 export class KeyboardListener {
   registry: { [key: string]: Function[] } = {};
@@ -7,34 +7,30 @@ export class KeyboardListener {
 
     interactionDiv.addEventListener("keydown", this.handleKeyDown);
     interactionDiv.addEventListener("keyup", this.handleKeyUp);
-
-    document.addEventListener("keydown", (e) => {
-      // if (e.key === "Tab" && !e.ctrlKey && !e.altKey && !e.metaKey) {
-      //   e.preventDefault();
-      //   e.stopImmediatePropagation();
-      //   e.stopPropagation();
-      // }
-    });
   }
 
   init(keys?: string[]) {
     if (!keys) {
-      this.on("keydown-*", (key: string) => {
-        this.inputManager.dispatchEvent(key, true);
+      this.on("keydown-*", (key: string, event: Event) => {
+        this.inputManager.dispatchEvent(key, true, EVENT_TYPE.KEYBOARD, event);
       });
       this.on("keyup-*", (key: string) => {
-        this.inputManager.dispatchEvent(key, false);
+        this.inputManager.dispatchEvent(key, false, EVENT_TYPE.KEYBOARD, event);
       });
     } else {
       for (const key of keys) {
-        this.on(`keydown-${key}`, () => this.inputManager.dispatchEvent(key, true));
-        this.on(`keyup-${key}`, () => this.inputManager.dispatchEvent(key, false));
+        this.on(`keydown-${key}`, (_key: string, event: Event) =>
+          this.inputManager.dispatchEvent(key, true, EVENT_TYPE.KEYBOARD, event)
+        );
+        this.on(`keyup-${key}`, (_key: string, event: Event) =>
+          this.inputManager.dispatchEvent(key, false, EVENT_TYPE.KEYBOARD, event)
+        );
       }
     }
   }
 
   destroy() {
-    const interactionDiv = document.getElementById("interaction") as HTMLElement;
+    const interactionDiv = document.body as HTMLElement;
 
     interactionDiv.removeEventListener("keydown", this.handleKeyDown);
     interactionDiv.removeEventListener("keyup", this.handleKeyUp);
@@ -66,13 +62,13 @@ export class KeyboardListener {
     if (this.registry[`${prefix}-${key}`]) {
       const callbacks = this.registry[`${prefix}-${key}`];
       for (let i = 0; i < callbacks.length; ++i) {
-        callbacks[i]();
+        callbacks[i](key, e);
       }
     }
     if (this.registry[`${prefix}-*`]) {
       const callbacks = this.registry[`${prefix}-*`];
       for (let i = 0; i < callbacks.length; ++i) {
-        callbacks[i](key);
+        callbacks[i](key, e);
       }
     }
   }
