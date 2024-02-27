@@ -38,6 +38,9 @@ export class ImageBox extends Box<ImageBoxConfig> {
       return;
     }
     const imageElement = this.element;
+    if (!imageElement) {
+      return;
+    }
     imageElement.className = "image-box";
 
     if (this._config.flipX && this._config.flipY) {

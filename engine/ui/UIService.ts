@@ -4,7 +4,7 @@ import { getGlobalSingleton, setGlobalSingleton } from "@/global";
 import { EVENT_TYPE, InputManager } from "@/inputs/InputManager";
 import { throttle } from "lodash";
 
-const DEBUG_FOCUS = true;
+const DEBUG_FOCUS = false;
 export class UIService {
   elements: UIElement[] = [];
   UICanvas: HTMLCanvasElement;
@@ -16,6 +16,7 @@ export class UIService {
 
   mappedIds: { [key: string]: UIElement } = {};
   uiElements: { [key: string]: UIElement } = {};
+  autoEmptyFocusElements: UIElement[] = [];
 
   keyPressListeners: ((key: string) => void)[] = [];
 
@@ -216,6 +217,13 @@ export class UIService {
     }
     if (previous) {
       previous._update();
+    }
+    if (!element) {
+      setTimeout(() => {
+        if (!this._focusedElement && this.autoEmptyFocusElements.length > 0) {
+          this.focusedElement = this.autoEmptyFocusElements[0];
+        }
+      }, 40);
     }
   }
 
@@ -460,6 +468,7 @@ export class UIService {
       delete this.uiElements[key];
     });
     this._focusedElement = undefined;
+    this.autoEmptyFocusElements = [];
     this.mappedIds = {};
     this.elements = [];
   }

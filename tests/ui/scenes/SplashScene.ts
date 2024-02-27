@@ -7,7 +7,7 @@ import { Text, TextConfig } from "@/ui/Text";
 import { Position } from "@/ui/Rectangle";
 import AssetLoader from "@/loader/AssetLoader";
 import { ConnectionInstance } from "@/connection/ConnectionInstance";
-import { ButtonConfig } from "@/ui/Button";
+import { Button, ButtonConfig } from "@/ui/Button";
 import { TextInputConfig } from "@/ui/TextInput";
 
 // @ts-ignore
@@ -217,6 +217,30 @@ export class UiSplashScene extends Scene {
       this.ui[name] = element;
     });
 
+    this.ui.deletable = new Button(
+      new Position("right", "top", {
+        width: 100,
+        height: 50,
+      }),
+      {
+        label: "click to delete",
+        onClick: () => {
+          delete this.ui.deletable;
+        },
+      }
+    );
+
+    this.ui.altAutoFocus = new Button(
+      new Position("right", "bottom", {
+        width: 100,
+        height: 50,
+      }),
+      {
+        autoEmptyFocus: true,
+        label: "alt auto focus",
+        onClick: () => {},
+      }
+    );
     // @ts-ignore
     window.clearUi = () => {
       UIService.getInstance().clearUI();
