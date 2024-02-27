@@ -46,6 +46,13 @@ export class PlayerMovementSystem implements System {
     if (keyDown([MappedKeys.ARROW_RIGHT, MappedKeys.ARROW_RIGHT_ALT], netData.keyMap)) {
       offset.x = 1;
     }
+    if (
+      keyDown([MappedKeys.ARROW_DOWN_ALT], netData.keyMap) &&
+      keyDown([MappedKeys.ARROW_LEFT_ALT], netData.keyMap) &&
+      keyDown([MappedKeys.ARROW_RIGHT_ALT], netData.keyMap)
+    ) {
+      gameModel.queueSound("ding");
+    }
 
     if (offset.x != 0 || offset.y != 0) {
       const direction = normalizeSafeVector2d(offset);

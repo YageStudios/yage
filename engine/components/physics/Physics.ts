@@ -133,8 +133,11 @@ export class PhysicsSystem implements System {
   }
 
   cleanup() {
-    this.world.bodies.forEach((body) => {
+    this.world.forEachRigidBody((body) => {
       this.world.removeRigidBody(body);
+    });
+    this.world.forEachCollider((collider) => {
+      this.world.removeCollider(collider, false);
     });
     // @ts-ignore
     this.world = null;

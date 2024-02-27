@@ -98,6 +98,9 @@ export class EntityFactory {
               AssetLoader.getInstance().loadSprite(key, url, spriteOptions);
               break;
             }
+            case "sound":
+              AssetLoader.getInstance().loadSound(asset.key, asset.url);
+              break;
             case "spine":
               AssetLoader.getInstance().loadSpine(asset.key, asset.url);
               break;

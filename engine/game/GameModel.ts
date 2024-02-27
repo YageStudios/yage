@@ -269,6 +269,7 @@ export class GameModel {
   public frameDt = 0;
   public timeElapsed = 0;
   public paused = false;
+  public soundQueue: { sound: string; volume: number; position?: Vector2d; filters?: any[] }[] = [];
 
   getNextEntityId = () => {
     return this.entityCounter;
@@ -340,6 +341,21 @@ export class GameModel {
     }
 
     return componentData;
+  };
+
+  queueSound = (
+    sound: string,
+    {
+      volume = 1,
+      position,
+      filters,
+    }: {
+      volume?: number;
+      position?: Vector2d;
+      filters?: any[];
+    } = {}
+  ) => {
+    this.soundQueue.push({ sound, volume, position, filters });
   };
 
   cloneEntity = (entity: number): any => {
@@ -557,6 +573,7 @@ export class GameModel {
 
   run = () => {
     this.running = true;
+    this.soundQueue = [];
     for (let i = 0; i < this.runList.length; i++) {
       this.runComponent(this.runList[i]);
     }

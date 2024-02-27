@@ -2,7 +2,7 @@ import type { RootUIElement, UIElement } from "./UIElement";
 import type { Vector2d } from "../utils/vector";
 import { getGlobalSingleton, setGlobalSingleton } from "@/global";
 import { EVENT_TYPE, InputManager } from "@/inputs/InputManager";
-import { throttle } from "lodash";
+import { PlaySoundOptions, playSound } from "@/utils/playSound";
 
 const DEBUG_FOCUS = false;
 export class UIService {
@@ -469,5 +469,9 @@ export class UIService {
     this.autoEmptyFocusElements = [];
     this.mappedIds = {};
     this.elements = [];
+  }
+
+  playSound(name: string, options?: PlaySoundOptions) {
+    playSound(name, options);
   }
 }

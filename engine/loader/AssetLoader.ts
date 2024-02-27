@@ -17,6 +17,8 @@ import { PixiSpineLoader } from "./PixiSpineLoader";
 import { UIConfig } from "@/ui/UiConfigs";
 import { assignGlobalSingleton, setGlobalSingleton } from "@/global";
 import * as PIXI from "pixi.js";
+import { PixiSoundLoader } from "./SoundLoader";
+import { Sound } from "@pixi/sound";
 
 const n = (name: string) => name?.toLowerCase().replace(/ /g, "_");
 
@@ -130,6 +132,17 @@ export default class AssetLoader {
     return this.assetCache[n(name)].promise;
   }
 
+  async loadSound(name: string, url: string): Promise<String> {
+    const assetPath = `assets/sounds/${url}`;
+    this.assetCache[n(name)] = {
+      type: AssetType.SOUND,
+      promise: PixiSoundLoader.getInstance()
+        .loadSound(n(name), assetPath)
+        .then(() => n(name)),
+    };
+    return this.assetCache[n(name)].promise;
+  }
+
   getUi(name: string): UIConfig[] {
     return JSON.parse(JSON.stringify(this.uiCache[n(name)]));
   }
@@ -140,6 +153,10 @@ export default class AssetLoader {
 
   getSprite(name: string, index?: number): Sprite[] | Sprite {
     return SpriteLoader.getInstance().get(n(name), index);
+  }
+
+  getSound(name: string): Sound {
+    return PixiSoundLoader.getInstance().get(n(name));
   }
 
   getMap(name: string): GameMap {
