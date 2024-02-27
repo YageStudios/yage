@@ -136,7 +136,9 @@ export class UIService {
       isVisible: () => true,
       update: () => {
         this.elements.forEach((element) => {
-          element._update();
+          if (!element.destroyed) {
+            element._update();
+          }
         });
       },
       addChild: (child: UIElement) => {
@@ -173,11 +175,15 @@ export class UIService {
   registerEvents() {
     window.addEventListener("resize", () => {
       this.elements.forEach((element) => {
-        element._update();
+        if (!element.destroyed) {
+          element._update();
+        }
       });
       setTimeout(() => {
         this.elements.forEach((element) => {
-          element._update();
+          if (!element.destroyed) {
+            element._update();
+          }
         });
       }, 100);
     });
@@ -393,14 +399,6 @@ export class UIService {
       return;
     }
     element.parent = this.root;
-    // console.log(element);
-    // this.elements.push(element);
-    // this.uiElements[element.id] = element;
-    // if (!element?.update) {
-    //   console.error('Element does not have an "update" method', element);
-    //   return;
-    // }
-    // element.update();
   }
 
   removeFromUI(element: UIElement | UIElement[]) {
