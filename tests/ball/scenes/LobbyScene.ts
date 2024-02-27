@@ -19,6 +19,7 @@ import { cloneDeep } from "lodash";
 import { Button, ButtonConfig } from "@/ui/Button";
 import { PlayerInputSchema } from "@/schemas/core/PlayerInput";
 import { GamepadListener, StandardGamepadRegions } from "@/inputs/GamepadListener";
+import { UIService } from "@/ui/UIService";
 
 const CallToAction = (config: Partial<ButtonConfig>): Partial<ButtonConfig> => ({
   style: {
@@ -176,6 +177,7 @@ export class BallLobbyScene extends Scene {
       CallToAction({
         label: "Ready",
         onClick: () => {
+          UIService.getInstance().playSound("ding");
           this.connection.updatePlayerConnect({
             config: {
               ...this.connection.player.config!,
