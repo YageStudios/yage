@@ -124,7 +124,7 @@ export const StandardGamepadRegions: GamepadRegion[] = [
     id: {
       type: "axis",
       index: [0, 1],
-      deadzone: 0.05,
+      deadzone: 0.25,
     },
     type: "joystick",
     key: ["a", "d", "w", "s"],

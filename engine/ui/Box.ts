@@ -67,11 +67,8 @@ export class Box<T extends BoxConfig = BoxConfig> extends UIElement<T> {
     }
   }
 
-  createElement(): HTMLElement | null {
+  createElement(): HTMLElement {
     const element = super.createElement();
-    if (!element) {
-      return null;
-    }
     element!.onscroll = (e) => {
       const fixedChildren = element.querySelectorAll(".breakout-overflow");
       for (const child of fixedChildren) {
@@ -104,9 +101,6 @@ export class Box<T extends BoxConfig = BoxConfig> extends UIElement<T> {
       });
     }
     if (this._config.breakoutOverflow) {
-      if (!this.element) {
-        return;
-      }
       let scrolledParent = this.element.parentElement;
       while (
         (scrolledParent?.scrollLeft === 0 && scrolledParent?.scrollTop === 0) ||

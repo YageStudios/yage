@@ -60,7 +60,7 @@ export class Text extends UIElement<TextConfig> {
   protected updateInternal(gameModel: GameModel): void {}
 
   protected handleConfigChange(key: string, value: any): void {
-    if (!this.element) {
+    if (this.destroyed) {
       return;
     }
     if (key === "label") {

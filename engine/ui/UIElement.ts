@@ -34,7 +34,6 @@ const isRootUIElement = (x: any): x is RootUIElement => {
 
 export abstract class UIElement<T extends UIElementConfig = any> {
   bounds: Position;
-  active = false;
   _visible = true;
   _id: string;
 
@@ -57,9 +56,6 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   set id(value: string) {
     delete this.uiService.mappedIds[this._id];
     this._id = value;
-    if (!this.element) {
-      return;
-    }
     this.element.id = value;
     this.uiService.mappedIds[value] = this;
     this.update();
@@ -139,11 +135,6 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   get element(): ReturnType<this["createElement"]> {
     if (!this._element) {
       const element = this.createElement();
-      if (!element) {
-        // @ts-ignore
-        return null;
-      }
-
       this._element = element;
       this.addEvents(element);
     }
@@ -333,10 +324,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     }
   }
 
-  createElement(): HTMLElement | null {
-    if (this.destroyed) {
-      return null;
-    }
+  createElement(): HTMLElement {
     const element = document.createElement("div");
     element.id = this.id;
     if (this._config.focusable) {
@@ -387,7 +375,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   }
 
   isVisible = (): boolean => {
-    const notVisible = !this._visible || this._config.visible === false || !this._parent?.isVisible();
+    const notVisible = this.destroyed || !this._visible || this._config.visible === false || !this._parent?.isVisible();
     const visible = !notVisible;
 
     return visible;

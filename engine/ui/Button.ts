@@ -85,10 +85,7 @@ export class Button extends UIElement<ButtonConfig> {
     }
   }
 
-  createElement(): HTMLButtonElement | null {
-    if (this.destroyed) {
-      return null;
-    }
+  createElement(): HTMLButtonElement {
     const element = document.createElement("button");
     element.id = this.id;
     element.appendChild(this.textElement);
@@ -108,7 +105,7 @@ export class Button extends UIElement<ButtonConfig> {
   }
 
   protected handleConfigChange(key: string, value: any): void {
-    if (!this.element) {
+    if (this.destroyed) {
       return;
     }
     if (key === "label") {
