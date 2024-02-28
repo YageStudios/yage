@@ -19,7 +19,7 @@ import type { System } from "@/components/System";
 import type { ComponentCategory, ComponentData } from "@/components/types";
 
 import { flags } from "@/console/flags";
-import { EntityType } from "@/constants/enums";
+import { EntityType, SoundType } from "@/constants/enums";
 
 import type { BitecsSchema, Schema } from "@/decorators/type";
 import { TypeSchema } from "@/decorators/type";
@@ -139,6 +139,7 @@ export class GameModel {
     public gameCoordinator: GameCoordinator,
     public instance?: GameInstance<any>,
     seed?: string,
+    coreOverrides?: { [key: string]: any },
     state?: GameState
   ) {
     this.state = state || {
@@ -164,6 +165,7 @@ export class GameModel {
     this.generateEntityData(10000);
     this.app = gameCoordinator.pixiApp;
     this.coreEntity = EntityFactory.getInstance().generateEntity(this, "core", {
+      ...coreOverrides,
       Random: {
         seed: seed ?? "",
       },
@@ -269,7 +271,8 @@ export class GameModel {
   public frameDt = 0;
   public timeElapsed = 0;
   public paused = false;
-  public soundQueue: { sound: string; volume: number; position?: Vector2d; filters?: any[] }[] = [];
+  public soundQueue: { sound: string; volume: number; position?: Vector2d; filters?: any[]; type: SoundType }[] = [];
+  public soundDequeue: string[] = [];
 
   getNextEntityId = () => {
     return this.entityCounter;
@@ -349,13 +352,21 @@ export class GameModel {
       volume = 1,
       position,
       filters,
+      type = SoundType.DEFAULT,
     }: {
       volume?: number;
       position?: Vector2d;
       filters?: any[];
+      type?: SoundType;
     } = {}
   ) => {
-    this.soundQueue.push({ sound, volume, position, filters });
+    this.soundQueue.push({ sound, volume, position, filters, type });
+  };
+
+  dequeueSound = (sound: string) => {
+    if (!this.soundDequeue.includes(sound)) {
+      this.soundDequeue.push(sound);
+    }
   };
 
   cloneEntity = (entity: number): any => {
@@ -573,7 +584,6 @@ export class GameModel {
 
   run = () => {
     this.running = true;
-    this.soundQueue = [];
     for (let i = 0; i < this.runList.length; i++) {
       this.runComponent(this.runList[i]);
     }

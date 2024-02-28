@@ -3,14 +3,21 @@ import { sound as PixiSound, Sound } from "@pixi/sound";
 
 PixiSound.disableAutoPause = true;
 
+export type SoundOptions = {
+  baseVolume?: number;
+};
+
 export class PixiSoundLoader {
-  pixiSoundLibrary = new Map<string, Sound>();
+  pixiSoundLibrary = new Map<string, [Sound, SoundOptions]>();
 
   static getInstance(): PixiSoundLoader {
     return assignGlobalSingleton("PixiSoundLoader", () => new PixiSoundLoader());
   }
 
-  async loadSound(name: string, assetPath: string) {
+  async loadSound(name: string, assetPath: string, soundOptions: SoundOptions = {}): Promise<void> {
+    if (!soundOptions.baseVolume) {
+      soundOptions.baseVolume = 1;
+    }
     await new Promise<void>((resolve, reject) => {
       PixiSound.add(name, {
         url: assetPath,
@@ -23,7 +30,7 @@ export class PixiSoundLoader {
             reject("Sound is undefined");
             return;
           }
-          this.pixiSoundLibrary.set(name, sound);
+          this.pixiSoundLibrary.set(name, [sound, soundOptions]);
           resolve();
         },
       });

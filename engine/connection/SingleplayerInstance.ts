@@ -116,14 +116,18 @@ export class SingleplayerInstance<T> implements ConnectionInstance<T> {
     {
       gameInstance,
       seed,
+      coreOverrides,
     }: {
       gameInstance: any;
       seed: string;
+      coreOverrides?: {
+        [key: string]: any;
+      };
       onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
       playerConfig?: any;
     }
   ): Promise<GameModel> {
-    return new GameModel(GameCoordinator.GetInstance(), gameInstance, seed);
+    return new GameModel(GameCoordinator.GetInstance(), gameInstance, seed, coreOverrides);
   }
   async leaveRoom(): Promise<void> {
     this.players[0].hostedRooms = this.players[0].hostedRooms.filter(

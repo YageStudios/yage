@@ -8,7 +8,7 @@ export type PlaySoundOptions = {
 };
 
 export const playSound = (name: string, { volume = 1 }: PlaySoundOptions = {}) => {
-  const sound = AssetLoader.getInstance().getSound(name);
-  sound.volume = volume;
+  const [sound, soundOptions] = AssetLoader.getInstance().getSound(name);
+  sound.volume = (soundOptions.baseVolume ?? 1) * volume;
   sound.play();
 };
