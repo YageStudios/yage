@@ -108,6 +108,7 @@ export class TextInput extends UIElement<TextInputConfig> {
     }
     if (this._config.captureFocus) {
       element.classList.add("captureFocus");
+      this.uiService.clearFocusedElement();
     }
     return element;
   }

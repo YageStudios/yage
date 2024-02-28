@@ -92,6 +92,8 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       if (this._element) {
         if (value) {
           this._element.classList.add("captureFocus");
+          this.uiService.clearFocusedElement();
+          this.update();
         } else {
           this._element.classList.remove("captureFocus");
         }
@@ -120,6 +122,9 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   get style(): Partial<CSSStyleDeclaration> {
     return new Proxy(this._config.style, {
       set: (target: any, key, value) => {
+        if (this.cachedStyle) {
+          this.cachedStyle[key as any] = value;
+        }
         target[key] = value;
         this.update();
         return true;
@@ -332,6 +337,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     }
     if (this._config.captureFocus) {
       element.classList.add("captureFocus");
+      this.uiService.clearFocusedElement();
     }
     if (this._config.autoEmptyFocus) {
       if (!this.uiService.autoEmptyFocusElements.includes(this)) {
@@ -447,12 +453,14 @@ export abstract class UIElement<T extends UIElementConfig = any> {
         this._config.style = this.focusedStyle;
         this._element!.focus();
         this._element!.classList.add("focused");
+        this.onFocus();
       }
     } else if (this.uiService._focusedElement !== this && this.cachedStyle) {
       this._config.style = this.cachedStyle;
       this.cachedStyle = undefined;
       this.focusedStyle = undefined;
       this._element!.classList.remove("focused");
+      this.onBlur();
     } else if (this._config.focusable && this._config.autoFocus && this.uiService._focusedElement === undefined) {
       this.uiService.focusedElement = this;
     }
@@ -464,6 +472,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     if (parentElement) {
       element.style.order = `${this.parent!.config.children?.indexOf(this) ?? 0}`;
     }
+
     const styles = {
       ...this._config.style,
     };

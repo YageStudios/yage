@@ -3,6 +3,7 @@ import type { Vector2d } from "../utils/vector";
 import { getGlobalSingleton, setGlobalSingleton } from "@/global";
 import { EVENT_TYPE, InputManager } from "@/inputs/InputManager";
 import { PlaySoundOptions, playSound } from "@/utils/playSound";
+import { flags } from "@/console/flags";
 
 const DEBUG_FOCUS = false;
 export class UIService {
@@ -93,8 +94,12 @@ export class UIService {
       if (right) {
         direction.x += 1;
       }
+
+      if (this._focusedElement?._element) {
+        this.focusedElementPosition = this.getElementCenter(this._focusedElement._element);
+      }
       const focusedElement = this.findClosestFocusableElement(
-        this.focusedElement!,
+        this.focusedElementPosition,
         direction as { x: 0 | 1 | -1; y: 0 | 1 | -1 }
       );
       if (focusedElement) {
@@ -115,6 +120,7 @@ export class UIService {
         break;
     }
   };
+  debugCtx: CanvasRenderingContext2D;
 
   enableKeyCapture(inputManager: InputManager) {
     this.unsub = inputManager.addKeyListener((...args) => this._keyCaptureListener(inputManager, ...args));
@@ -132,6 +138,23 @@ export class UIService {
     this.interactionDiv = document.getElementById("interaction") as HTMLElement;
     this.uiDiv = document.getElementById("ui") as HTMLDivElement;
     this.registerEvents();
+
+    if (flags.DEBUG) {
+      if (!this.debugCanvas) {
+        this.debugCanvas = document.createElement("canvas");
+        this.debugCanvas.width = window.innerWidth;
+        this.debugCanvas.height = window.innerHeight;
+        this.debugCanvas.style.position = "absolute";
+        this.debugCanvas.style.top = "0";
+        this.debugCanvas.style.left = "0";
+        this.debugCanvas.style.pointerEvents = "none";
+        this.debugCanvas.style.zIndex = "100000";
+        document.body.appendChild(this.debugCanvas);
+      }
+      this.debugCtx = this.debugCanvas.getContext("2d")! as CanvasRenderingContext2D;
+      this.debugCtx.clearRect(0, 0, this.debugCanvas.width, this.debugCanvas.height);
+    }
+
     this.root = {
       isVisible: () => true,
       update: () => {
@@ -215,21 +238,40 @@ export class UIService {
   }
 
   _focusedElement: UIElement | undefined;
+  focusedElementPosition: Vector2d | undefined;
   set focusedElement(element: UIElement | undefined) {
     const previous = this._focusedElement;
     this._focusedElement = element;
     if (element) {
+      this.focusedElementPosition = this.getElementCenter(element._element);
       element._update();
-    }
-    if (previous) {
-      previous._update();
     }
     if (!element) {
       setTimeout(() => {
         if (!this._focusedElement && this.autoEmptyFocusElements.length > 0) {
-          this.focusedElement = this.autoEmptyFocusElements[0];
+          let closest = this.autoEmptyFocusElements[0];
+          if (previous && previous.config.autoEmptyFocus) {
+            let closestDistance = Infinity;
+            this.autoEmptyFocusElements.forEach((element) => {
+              const center = this.getElementCenter(element._element)!;
+              // favor the left
+              center.x += 1;
+              const distance =
+                (center.x - (this.focusedElementPosition?.x ?? window.innerWidth / 2)) ** 2 +
+                (center.y - (this.focusedElementPosition?.y ?? window.innerHeight / 2)) ** 2;
+              if (distance < closestDistance) {
+                closest = element;
+                closestDistance = distance;
+              }
+            });
+          }
+          this.focusedElement = closest;
         }
-      }, 40);
+      }, 0);
+    }
+
+    if (previous) {
+      previous._update();
     }
   }
 
@@ -237,28 +279,20 @@ export class UIService {
     return this._focusedElement;
   }
 
-  findClosestFocusableElement(
-    element: UIElement | undefined,
-    direction: {
-      x: 1 | -1 | 0;
-      y: 1 | -1 | 0;
-    }
-  ): UIElement | undefined {
-    let ctx: CanvasRenderingContext2D = {} as CanvasRenderingContext2D;
-    if (DEBUG_FOCUS) {
-      if (!this.debugCanvas) {
-        this.debugCanvas = document.createElement("canvas");
-        this.debugCanvas.width = window.innerWidth;
-        this.debugCanvas.height = window.innerHeight;
-        this.debugCanvas.style.position = "absolute";
-        this.debugCanvas.style.top = "0";
-        this.debugCanvas.style.left = "0";
-        this.debugCanvas.style.pointerEvents = "none";
-        this.debugCanvas.style.zIndex = "100000";
-        document.body.appendChild(this.debugCanvas);
+  clearFocusedElement() {
+    const previous = this._focusedElement;
+    this._focusedElement = undefined;
+    this.focusedElementPosition = undefined;
+    setTimeout(() => {
+      if (previous && !previous?.destroyed) {
+        previous._update();
       }
-      ctx = this.debugCanvas.getContext("2d")! as CanvasRenderingContext2D;
-      ctx.clearRect(0, 0, this.debugCanvas.width, this.debugCanvas.height);
+    }, 0);
+  }
+
+  getElementCenter = (element: Element | undefined) => {
+    if (!element || !element.parentElement) {
+      return undefined;
     }
     const getScrollContainer = (element: Element | undefined) => {
       if (!element) {
@@ -278,47 +312,55 @@ export class UIService {
       }
     };
 
-    const getElementCenter = (element: Element | undefined) => {
-      if (!element) {
-        return {
-          x: 0,
-          y: 0,
-        };
-      }
-
-      const focusableScrollContainer = getScrollContainer(element);
-      let bounds = element.getBoundingClientRect();
-      const center = {
-        x: bounds.left + bounds.width / 2,
-        y: bounds.top + bounds.height / 2,
-      };
-
-      if (focusableScrollContainer) {
-        const focusableScrollContainerBounds = focusableScrollContainer.getBoundingClientRect();
-        // center.y += focusableScrollContainer.scrollTop;
-        const distanceFromFocusableTop =
-          bounds.top -
-          focusableScrollContainerBounds.top -
-          (focusableScrollContainer.scrollTop / focusableScrollContainer.scrollHeight) *
-            focusableScrollContainer.clientHeight;
-        const distanceRatio = distanceFromFocusableTop / focusableScrollContainer.scrollHeight;
-
-        center.y = center.y - distanceFromFocusableTop + focusableScrollContainer.clientHeight * distanceRatio;
-      }
-
-      if (DEBUG_FOCUS) {
-        // draw a circle at the center on the debug canvas
-        ctx.fillStyle = "red";
-        ctx.strokeStyle = "green";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(center.x, center.y, 15, 0, 2 * Math.PI);
-        ctx.fill();
-        ctx.stroke();
-      }
-
-      return center;
+    const focusableScrollContainer = getScrollContainer(element);
+    let bounds = element.getBoundingClientRect();
+    const center = {
+      x: bounds.left + bounds.width / 2,
+      y: bounds.top + bounds.height / 2,
     };
+
+    if (focusableScrollContainer) {
+      const focusableScrollContainerBounds = focusableScrollContainer.getBoundingClientRect();
+      // center.y += focusableScrollContainer.scrollTop;
+      const distanceFromFocusableTop =
+        bounds.top -
+        focusableScrollContainerBounds.top -
+        (focusableScrollContainer.scrollTop / focusableScrollContainer.scrollHeight) *
+          focusableScrollContainer.clientHeight;
+      const distanceRatio = distanceFromFocusableTop / focusableScrollContainer.scrollHeight;
+
+      center.y = center.y - distanceFromFocusableTop + focusableScrollContainer.clientHeight * distanceRatio;
+    }
+
+    if (flags.DEBUG) {
+      const ctx = this.debugCtx;
+      // draw a circle at the center on the debug canvas
+      ctx.fillStyle = "red";
+      ctx.strokeStyle = "green";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(center.x, center.y, 15, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    return center;
+  };
+
+  findClosestFocusableElement(
+    elementCenter: { x: number; y: number } | undefined,
+    direction: {
+      x: 1 | -1 | 0;
+      y: 1 | -1 | 0;
+    }
+  ): UIElement | undefined {
+    if (!elementCenter) {
+      elementCenter = {
+        x: window.innerWidth / 2,
+        y: window.innerHeight / 2,
+      };
+    }
+
     const capturedFocuses = this.uiDiv.querySelector(".captureFocus:not(:has(.captureFocus)):has(.focused)");
     let focusables;
     if (capturedFocuses) {
@@ -326,28 +368,27 @@ export class UIService {
     } else {
       focusables = this.uiDiv.querySelectorAll(".focusable");
     }
-    const elementCenter = getElementCenter(element?._element);
     let closestElement: UIElement | undefined;
     let closestDistance = Infinity;
     let closestAngle = 180;
     const candidates: any = [];
     focusables.forEach((focusable) => {
-      if (focusable.id === element?.id) {
+      const center = this.getElementCenter(focusable);
+      if (!center || (center.x === elementCenter!.x && center.y === elementCenter!.y)) {
         return;
       }
-      const center = getElementCenter(focusable);
 
       // filter out if not in the right direction
-      if (direction.x === 1 && center.x <= elementCenter.x) {
+      if (direction.x === 1 && center.x <= elementCenter!.x) {
         return;
       }
-      if (direction.x === -1 && center.x >= elementCenter.x) {
+      if (direction.x === -1 && center.x >= elementCenter!.x) {
         return;
       }
-      if (direction.y === 1 && center.y <= elementCenter.y) {
+      if (direction.y === 1 && center.y <= elementCenter!.y) {
         return;
       }
-      if (direction.y === -1 && center.y >= elementCenter.y) {
+      if (direction.y === -1 && center.y >= elementCenter!.y) {
         return;
       }
 
@@ -466,6 +507,7 @@ export class UIService {
       delete this.uiElements[key];
     });
     this._focusedElement = undefined;
+    this.focusedElementPosition = undefined;
     this.autoEmptyFocusElements = [];
     this.mappedIds = {};
     this.elements = [];
