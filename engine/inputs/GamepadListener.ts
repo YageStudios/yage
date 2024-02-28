@@ -252,8 +252,8 @@ export class GamepadListener {
     }
   }
 
-  intitialDelay = 500;
-  multiDelay = 50;
+  intitialDelay = 600;
+  multiDelay = 80;
 
   handleKeySimulation(key: string, pressed: boolean) {
     if (!this.registry[key]) {

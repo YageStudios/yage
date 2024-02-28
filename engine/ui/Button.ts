@@ -94,6 +94,7 @@ export class Button extends UIElement<ButtonConfig> {
     }
     if (this._config.captureFocus) {
       element.classList.add("captureFocus");
+      this.uiService.clearFocusedElement();
     }
 
     if (this._config.autoEmptyFocus) {
