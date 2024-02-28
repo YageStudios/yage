@@ -49,6 +49,15 @@ export enum ComponentCategory {
   ONDODGE,
 }
 
+export enum SoundType {
+  DEFAULT,
+  FX,
+  MUSIC,
+  UI,
+  VOICE,
+  AMBIENT,
+}
+
 export enum EntityType {
   ENTITY,
   ENEMY,

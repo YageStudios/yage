@@ -363,11 +363,13 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
       playerConfig,
       gameInstance,
       seed,
+      coreOverrides,
     }: {
       onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
       playerConfig?: Partial<T>;
       gameInstance: GameInstance<T>;
       seed: string;
+      coreOverrides?: { [key: string]: any };
     }
   ): Promise<GameModel> {
     if (!this.player.connected) {
@@ -466,7 +468,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
               });
             }
             if (!roomState.gameModel || roomState.gameModel.destroyed) {
-              roomState.gameModel = new GameModel(GameCoordinator.GetInstance(), gameInstance, seed);
+              roomState.gameModel = new GameModel(GameCoordinator.GetInstance(), gameInstance, seed, coreOverrides);
               roomState.gameModel.roomId = roomId;
             }
             if (roomState.gameModel) {
@@ -492,6 +494,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
     options: {
       gameInstance: GameInstance<T>;
       seed: string;
+      coreOverrides?: { [key: string]: any };
       players: string[];
       buildWorld: (gameModel: GameModel, firstPlayerConfig: any) => void;
       onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: T) => number;
@@ -530,7 +533,12 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
 
     const roomState = this.roomStates[roomId];
 
-    roomState.gameModel = new GameModel(GameCoordinator.GetInstance(), options.gameInstance, options.seed);
+    roomState.gameModel = new GameModel(
+      GameCoordinator.GetInstance(),
+      options.gameInstance,
+      options.seed,
+      options.coreOverrides
+    );
     roomState.gameModel.roomId = roomId;
     roomState.gameModel.paused = true;
 
@@ -556,6 +564,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
     {
       gameInstance,
       seed,
+      coreOverrides,
       buildWorld,
       onPlayerJoin,
       onPlayerLeave,
@@ -564,6 +573,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
     }: {
       gameInstance: GameInstance<T>;
       seed: string;
+      coreOverrides?: { [key: string]: any };
       buildWorld: (gameModel: GameModel, firstPlayerConfig: any) => void;
       onPlayerJoin: (gameModel: GameModel, playerId: string) => number;
       onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
@@ -595,7 +605,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
 
     const roomState = this.roomStates[roomId];
 
-    roomState.gameModel = new GameModel(GameCoordinator.GetInstance(), gameInstance, seed);
+    roomState.gameModel = new GameModel(GameCoordinator.GetInstance(), gameInstance, seed, coreOverrides);
     roomState.gameModel.roomId = roomId;
 
     if (!playerConfig) {

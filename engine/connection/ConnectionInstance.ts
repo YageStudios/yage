@@ -51,6 +51,7 @@ export abstract class ConnectionInstance<T> {
       players: string[];
       gameInstance: GameInstance<T>;
       seed: string;
+      coreOverrides?: { [key: string]: any };
       buildWorld: (gameModel: GameModel, firstPlayerConfig: any) => void;
       onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: T) => number;
       onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
@@ -64,6 +65,7 @@ export abstract class ConnectionInstance<T> {
     options: {
       gameInstance: GameInstance<T>;
       seed: string;
+      coreOverrides?: { [key: string]: any };
       buildWorld: (gameModel: GameModel, firstPlayerConfig: any) => void;
       onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: T) => number;
       onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
@@ -77,6 +79,7 @@ export abstract class ConnectionInstance<T> {
     options: {
       gameInstance: GameInstance<T>;
       seed: string;
+      coreOverrides?: { [key: string]: any };
       onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
       playerConfig?: Partial<T>;
     }

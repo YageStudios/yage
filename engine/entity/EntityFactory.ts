@@ -98,9 +98,12 @@ export class EntityFactory {
               AssetLoader.getInstance().loadSprite(key, url, spriteOptions);
               break;
             }
-            case "sound":
-              AssetLoader.getInstance().loadSound(asset.key, asset.url);
+            case "sound": {
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              const { key, url, type, ...soundOptions } = asset;
+              AssetLoader.getInstance().loadSound(key, url, soundOptions);
               break;
+            }
             case "spine":
               AssetLoader.getInstance().loadSpine(asset.key, asset.url);
               break;

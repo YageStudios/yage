@@ -29,7 +29,11 @@ export class GameInstance<T> {
     }
   }
 
-  async initialize(roomId: string, seed?: string, players?: string[]) {
+  async initialize(
+    roomId: string,
+    seed?: string,
+    { players, coreOverrides }: { players?: string[]; coreOverrides?: { [key: string]: any } } = {}
+  ) {
     if (!this.options.connection.player.connected && !this.options.connection.solohost) {
       throw new Error("Player not connected");
     }
@@ -48,6 +52,7 @@ export class GameInstance<T> {
         gameInstance: this,
         players: players ?? this.options.connection.players.map((p) => p.id),
         seed: seed ?? "NO_SEED",
+        coreOverrides,
         buildWorld: this.options.buildWorld,
         onPlayerJoin: this.options.onPlayerJoin,
         onPlayerLeave: this.options.onPlayerLeave,
@@ -57,7 +62,7 @@ export class GameInstance<T> {
     }
   }
 
-  async host(roomId: string, seed?: string, playerConfig?: T) {
+  async host(roomId: string, seed?: string, playerConfig?: T, coreOverrides?: { [key: string]: any }) {
     if (!this.options.connection.player.connected && !this.options.connection.solohost) {
       throw new Error("Player not connected");
     }
@@ -72,6 +77,7 @@ export class GameInstance<T> {
     const gameModel = await this.options.connection.host(roomId, {
       gameInstance: this,
       seed: seed ?? "NO_SEED",
+      coreOverrides,
       buildWorld: this.options.buildWorld,
       onPlayerJoin: this.options.onPlayerJoin,
       onPlayerLeave: this.options.onPlayerLeave,
@@ -81,7 +87,7 @@ export class GameInstance<T> {
     this.gameModel = gameModel;
   }
 
-  async join(roomId: string, seed?: string, playerConfig?: T) {
+  async join(roomId: string, seed?: string, playerConfig?: T, coreOverrides?: { [key: string]: any }) {
     if (!this.options.connection.player.connected) {
       throw new Error("Player not connected");
     }
@@ -96,6 +102,7 @@ export class GameInstance<T> {
     const gameModel = await this.options.connection.join(roomId, {
       gameInstance: this,
       seed: seed ?? "NO_SEED",
+      coreOverrides,
       onPlayerLeave: this.options.onPlayerLeave,
       playerConfig,
     });

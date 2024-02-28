@@ -1,14 +1,22 @@
+import { SoundOptions } from "@/loader/SoundLoader";
 import { SpriteOptions } from "@/loader/SpriteLoader";
 import { UIConfig } from "@/ui/UiConfigs";
 
 export type EntityAsset =
   | ImageEntityAsset
   | SpriteSheetEntityAsset
+  | SoundAsset
   | {
       key: string;
       url: string;
       type: "spine" | "sound" | "animation" | "font" | "map" | "mapskin";
     };
+
+export type SoundAsset = Partial<SoundOptions> & {
+  key: string;
+  url: string;
+  type: "sound";
+};
 
 export type ImageEntityAsset = {
   key: string;
