@@ -453,7 +453,8 @@ export abstract class UIElement<T extends UIElementConfig = any> {
         this._config.style = this.focusedStyle;
         this._element!.focus();
         this._element!.classList.add("focused");
-        this.onFocus();
+        // move the focus out of the render loop to allow the blur event to fire first
+        setTimeout(() => this.onFocus(), 0);
       }
     } else if (this.uiService._focusedElement !== this && this.cachedStyle) {
       this._config.style = this.cachedStyle;
