@@ -81,7 +81,13 @@ export const positionToCanvasSpace = (pos: Position, element: HTMLElement): [num
   let xPercentage = typeof pos.x == "number" ? pos.x / 100 : 0;
   let yPercentage = typeof pos.y == "number" ? pos.y / 100 : 0;
   let xOffset = (pos.xOffset || 0) * _scale - width / 2;
+  if (pos.xOffsetPercentage) {
+    xOffset = (pos.xOffset / 100) * width - width / 2;
+  }
   let yOffset = (pos.yOffset || 0) * _scale - height / 2;
+  if (pos.yOffsetPercentage) {
+    yOffset = (pos.yOffset / 100) * height - height / 2;
+  }
 
   if (pos.x === "center") {
     xPercentage = 0.5;

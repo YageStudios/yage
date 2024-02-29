@@ -141,6 +141,14 @@ export const StandardGamepadRegions: GamepadRegion[] = [
     type: "tap",
     key: "space",
   },
+  {
+    id: {
+      type: "button",
+      index: 1,
+    },
+    type: "tap",
+    key: "q",
+  },
 ];
 
 export class GamepadListener {
