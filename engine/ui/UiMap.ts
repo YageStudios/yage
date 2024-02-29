@@ -37,6 +37,11 @@ const generateEventListener = (
 ) => {
   return events
     ? {
+        onEscape: () => {
+          if (events.escape) {
+            eventListener(events.escape, "escape", contextRef.context);
+          }
+        },
         onClick: () => {
           if (events.click) {
             eventListener(events.click, "click", contextRef.context);

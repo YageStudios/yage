@@ -14,6 +14,7 @@ export type UIElementConfig = {
   autoEmptyFocus?: boolean;
   captureFocus?: boolean;
   focusStyle?: Partial<CSSStyleDeclaration>;
+  onEscape?: () => void;
 };
 
 export type RootUIElement = {
@@ -229,6 +230,12 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       }
     } else if (this._config.parent) {
       this.parent = this._config.parent;
+    }
+  }
+
+  onEscape() {
+    if (this._config.onEscape) {
+      this._config.onEscape();
     }
   }
 

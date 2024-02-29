@@ -109,6 +109,11 @@ export class UIService {
       e?.stopPropagation();
     }
 
+    // remap q to escape since the b button is mapped to q
+    if (eventType === EVENT_TYPE.GAMEPAD && key === "q") {
+      key = "escape";
+    }
+
     switch (key.toLocaleLowerCase()) {
       case "space":
         if (this.focusedElement) {
@@ -117,6 +122,11 @@ export class UIService {
           e?.stopImmediatePropagation();
         }
 
+        break;
+      case "escape":
+        if (this.focusedElement) {
+          this.focusedElement.onEscape();
+        }
         break;
     }
   };

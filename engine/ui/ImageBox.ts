@@ -51,6 +51,7 @@ export class ImageBox extends Box<ImageBoxConfig> {
       imageElement.style.transform = "scale(1,-1)";
     }
     if (!this._config.imageKey) {
+      imageElement.style.backgroundImage = "none";
       return;
     }
 
