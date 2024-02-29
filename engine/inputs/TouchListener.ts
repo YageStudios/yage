@@ -269,7 +269,46 @@ export class TouchListener {
         if (Array.isArray(region.key)) {
           // map angle to arrow keys
           const keys = angleToKey(angle, region);
-          return keys;
+
+          if (region.skew) {
+            let baseIndex = 1;
+            let relativeAngle = angle;
+            if (angle > 45) {
+              baseIndex = 0;
+              relativeAngle = 90 - angle;
+            }
+            let altIndex = baseIndex === 0 ? 1 : 0;
+            let inactiveKeys = [...region.key, ...region.skew.keys];
+            let activeKeys: string[] = [];
+            let onlyOneKey = false;
+            let value = dx;
+            let altValue = dy;
+
+            if (relativeAngle < region.skew.zone[1]) {
+              let index = value < 0 ? baseIndex * 2 : baseIndex * 2 + 1;
+              let key = region.key[index];
+              if (Math.abs(value) > (region.id.deadzone ?? 0)) {
+                activeKeys.push(key);
+              }
+              // this.handleKeySimulation()
+              if (relativeAngle > region.skew.zone[0]) {
+                if (Math.abs(altValue) > (region.id.deadzone ?? 0)) {
+                  activeKeys.push(region.skew.keys[altValue < 0 ? 0 : 1]);
+                }
+              }
+            } else {
+              if (Math.abs(value) > (region.id.deadzone ?? 0)) {
+                activeKeys.push(region.key[value < 0 ? baseIndex * 2 : baseIndex * 2 + 1]);
+              }
+              if (Math.abs(altValue) > (region.id.deadzone ?? 0)) {
+                activeKeys.push(region.key[altValue < 0 ? altIndex * 2 : altIndex * 2 + 1]);
+              }
+            }
+
+            return activeKeys;
+          } else {
+            return keys;
+          }
         }
         return [region.key];
       }
