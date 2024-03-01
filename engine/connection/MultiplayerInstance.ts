@@ -44,7 +44,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
   instanceId = nanoid();
 
   stateRequested: null | [string, any][] = null;
-  frameOffset = 5;
+  frameOffset = 8;
   sendingState = false;
   leavingPlayers: [string, number][] = [];
 
