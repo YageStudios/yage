@@ -94,6 +94,8 @@ const flagConfig: { [flagName: string]: FlagingConfig } = {
   },
   GAME_STATE_OVERLAY: { reload: true },
 
+  FPS_30: {},
+
   PHYSICS: {},
 
   INVINCIBLE: {

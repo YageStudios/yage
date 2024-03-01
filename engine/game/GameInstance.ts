@@ -4,6 +4,7 @@ import { UIService } from "@/ui/UIService";
 import { Scene } from "./Scene";
 import { GameCoordinator } from "./GameCoordinator";
 import { FrameRateSchema } from "@/schemas/core/FrameRate";
+import { flags } from "@/console/flags";
 
 export type GameInstanceOptions<T> = {
   gameName: string;
@@ -133,7 +134,6 @@ export class GameInstance<T> {
       this.lastTime = performance.now();
 
       this.gameModel.run();
-      this.gameModel.cleanup();
 
       if (this.gameModel.destroyed) {
         console.log("destroyed");
@@ -149,10 +149,13 @@ export class GameInstance<T> {
       //   this.render30Fps = false;
       // }
 
-      // if (!this.render30Fps || this.gameModel.frame % 2 === 0) {
-      this.gameModel.runPixiComponents();
-      this.gameModel.runUIComponents();
-      // }
+      if (!flags.FPS_30 || this.gameModel.frame % 2 === 0) {
+        this.gameModel.runPredraw();
+
+        this.gameModel.runPixiComponents();
+        this.gameModel.runUIComponents();
+      }
+      this.gameModel.cleanup();
 
       this.options.connection.run(this.gameModel);
     } catch (e) {

@@ -201,7 +201,7 @@ export const generateRunList = (systems: System[]) => {
       }
     });
   return [
-    runList.map((c) => c.type),
+    runList.filter((system) => (system.depth ?? 0) < DEPTHS.PREDRAW).map((c) => c.type),
     runList.filter((system) => (system.depth ?? 0) >= DEPTHS.PREDRAW).map((c) => c.type),
   ];
 };

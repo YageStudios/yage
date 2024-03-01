@@ -85,7 +85,7 @@ registerSystem(AttachSystem);
 class AttachPostSystem implements System {
   type = "AttachPost";
   category: ComponentCategory = ComponentCategory.BEHAVIOR;
-  depth = DEPTHS.PREDRAW + 10;
+  depth = DEPTHS.PREDRAW - 10;
   schema = AttachPostSchema;
 
   run(entity: number, gameModel: GameModel) {
