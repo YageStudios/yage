@@ -40,7 +40,7 @@ export abstract class ConnectionInstance<T> {
     player: RequireAtLeastOne<{ name: string; token: string; config: T }, "name" | "token" | "config">
   ): void;
 
-  abstract connect(address?: string): Promise<void>;
+  abstract connect(): Promise<void>;
   abstract leaveRoom(): void;
 
   abstract hasRoom(roomId: string): boolean;
