@@ -124,6 +124,16 @@ registerUIComponent("FrameRate", (uiService, entity, gameModel) => {
     });
     ui.push(playerPos);
     uiService.addToUI(playerPos);
+
+    const ping = new Text(new Rectangle(1600, 130, 1, 1), {
+      label: "0MS PING",
+      fontSize: 16,
+      style: {
+        textTransform: "uppercase",
+      },
+    });
+    ui.push(ping);
+    uiService.addToUI(ping);
   }
   const data = gameModel.getTyped(entity, FrameRateSchema);
 
@@ -134,6 +144,8 @@ registerUIComponent("FrameRate", (uiService, entity, gameModel) => {
   ui[3].config.label = ((gameModel.state as GameState).activeEntities || []).length.toString().padStart(4, "0") + "ENT";
 
   ui[4].config.label = data.bodies.toString().padStart(4, "0") + "BOD";
+
+  ui[6].config.label = gameModel.ping + "MS PING";
 
   const player = gameModel.players[0];
   const transformSchema = gameModel.getTyped(player, TransformSchema);

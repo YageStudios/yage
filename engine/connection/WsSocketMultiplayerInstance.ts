@@ -7,6 +7,8 @@ import { isEqual } from "lodash";
 export class WsSocketMultiplayerInstance<T> extends MultiplayerInstance<T> {
   socket: WebSocket;
   connectionPromise: Promise<void>;
+  pingInterval: number;
+  pingStart: number;
 
   constructor(
     player: PlayerConnect<T>,
@@ -22,6 +24,12 @@ export class WsSocketMultiplayerInstance<T> extends MultiplayerInstance<T> {
         this.player.connectionId = this.player.id;
         this.player.connected = true;
         this.lazyEmit("join", [this.options.address, this.player.connectionId, this.player]);
+
+        this.pingInterval = setInterval(() => {
+          this.pingStart = Date.now();
+          this.socket.send("ping[]");
+        }, 1000);
+
         resolve();
       });
     });
@@ -85,6 +93,13 @@ export class WsSocketMultiplayerInstance<T> extends MultiplayerInstance<T> {
     super.connect();
     this.socket.onmessage = (event) => {
       if (typeof event.data !== "string") {
+        return;
+      }
+      if (event.data.startsWith("pong")) {
+        const room = this.roomStates[this.player.currentRoomId ?? ""];
+        if (room?.gameModel) {
+          room.gameModel.ping = Date.now() - this.pingStart;
+        }
         return;
       }
       const eventName = event.data.substring(0, event.data.indexOf("["));
