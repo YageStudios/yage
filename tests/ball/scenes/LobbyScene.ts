@@ -19,7 +19,8 @@ import { cloneDeep } from "lodash";
 import { Button, ButtonConfig } from "@/ui/Button";
 import { PlayerInputSchema } from "@/schemas/core/PlayerInput";
 import { GamepadListener, StandardGamepadRegions } from "@/inputs/GamepadListener";
-import { SocketMultiplayerInstance } from "@/connection/SocketMultiplayerInstance";
+import { SocketIoMultiplayerInstance } from "@/connection/SocketIoMultiplayerInstance";
+import { WsSocketMultiplayerInstance } from "@/connection/WsSocketMultiplayerInstance";
 
 const CallToAction = (config: Partial<ButtonConfig>): Partial<ButtonConfig> => ({
   style: {
@@ -99,7 +100,7 @@ export class BallLobbyScene extends Scene {
     }
 
     if (!this.connection) {
-      this.connection = new SocketMultiplayerInstance(
+      this.connection = new WsSocketMultiplayerInstance(
         // this.connection = new PeerMultiplayerInstance(
         {
           name: nanoid(),
@@ -113,7 +114,7 @@ export class BallLobbyScene extends Scene {
           solohost: true,
           prefix: "group-chat-",
           address: lobbyId,
-          host: "https://sock.yage.games",
+          host: "sock.yage.games", //"https://sock.yage.games",
         }
       );
 

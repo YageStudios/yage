@@ -90,6 +90,7 @@
     "@dimforge/rapier2d-compat": "^0.11.2",
     "@json-editor/json-editor": "^2.9.0-beta.0",
     "@pixi/sound": "^5.2.3",
+    "@types/ws": "^8.5.10",
     "ajv": "^8.12.0",
     "bitecs": "github:YageStudios/bitECS#d7389c8448f8b43e803d97797e297c9a1515830a",
     "l1-path-finder": "^1.0.0",
@@ -103,6 +104,7 @@
     "seedrandom": "^3.0.5",
     "socket.io-client": "^4.7.2",
     "toposort": "^2.0.2",
-    "url": "^0.11.0"
+    "url": "^0.11.0",
+    "ws": "^8.16.0"
   }
 }
