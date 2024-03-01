@@ -267,6 +267,7 @@ export class GameModel {
     });
   }
 
+  public ping = 0;
   public frame = 0;
   public frameDt = 0;
   public timeElapsed = 0;
