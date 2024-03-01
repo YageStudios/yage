@@ -19,7 +19,7 @@ import { cloneDeep } from "lodash";
 import { Button, ButtonConfig } from "@/ui/Button";
 import { PlayerInputSchema } from "@/schemas/core/PlayerInput";
 import { GamepadListener, StandardGamepadRegions } from "@/inputs/GamepadListener";
-import { UIService } from "@/ui/UIService";
+import { SocketMultiplayerInstance } from "@/connection/SocketMultiplayerInstance";
 
 const CallToAction = (config: Partial<ButtonConfig>): Partial<ButtonConfig> => ({
   style: {
@@ -99,7 +99,8 @@ export class BallLobbyScene extends Scene {
     }
 
     if (!this.connection) {
-      this.connection = new PeerMultiplayerInstance(
+      this.connection = new SocketMultiplayerInstance(
+        // this.connection = new PeerMultiplayerInstance(
         {
           name: nanoid(),
           token: "",
@@ -112,15 +113,12 @@ export class BallLobbyScene extends Scene {
           solohost: true,
           prefix: "group-chat-",
           address: lobbyId,
-          //"abcd",
+          host: "https://sock.yage.games",
         }
       );
 
       this.unsubPlayerConnect = this.connection.onPlayerConnect((playerConnect) => {
-        if (playerConnect.config) {
-          this.players[playerConnect.id] = playerConnect.config;
-        }
-
+        console.log("PLAYER CONNECTED", playerConnect.id);
         if (playerConnect.config) {
           this.players[playerConnect.id] = playerConnect.config;
           if (!this.startingGame && Object.values(this.players).every((p) => p.ready)) {
@@ -135,10 +133,6 @@ export class BallLobbyScene extends Scene {
       await this.attemptConnect(lobbyId);
     } else {
       this.unsubPlayerConnect = this.connection.onPlayerConnect((playerConnect) => {
-        if (playerConnect.config) {
-          this.players[playerConnect.id] = playerConnect.config;
-        }
-
         if (playerConnect.config) {
           this.players[playerConnect.id] = playerConnect.config;
           if (!this.startingGame && Object.values(this.players).every((p) => p.ready)) {
@@ -168,25 +162,29 @@ export class BallLobbyScene extends Scene {
   };
 
   renderActions = () => {
-    this.ui.start = new Button(
-      new Position(50, "center", {
-        width: 300,
-        height: 100,
-        yOffset: 150,
-      }),
-      CallToAction({
-        label: "Ready",
-        onClick: () => {
-          UIService.getInstance().playSound("ding");
-          this.connection.updatePlayerConnect({
-            config: {
-              ...this.connection.player.config!,
-              ready: !this.connection.player.config!.ready,
-            },
-          });
-        },
-      })
-    );
+    if (!this.ui.start) {
+      this.ui.start = new Button(
+        new Position(50, "center", {
+          width: 300,
+          height: 100,
+          yOffset: 150,
+        }),
+        CallToAction({
+          label: "Ready",
+          onClick: () => {
+            // UIService.getInstance().playSound("ding", { volume: 0.01 });
+            this.ui.start.config.label = this.connection.player.config!.ready ? "Ready" : "Not Ready";
+            console.log("UPDATING CONFIG?");
+            this.connection.updatePlayerConnect({
+              config: {
+                ...this.connection.player.config!,
+                ready: !this.connection.player.config!.ready,
+              },
+            });
+          },
+        })
+      );
+    }
   };
 
   startGame = (hosting: boolean) => {
@@ -259,7 +257,7 @@ export class BallLobbyScene extends Scene {
 
     if (!this.hosting) {
       try {
-        await this.connection.connect(lobbyId);
+        await this.connection.connect();
       } catch (e) {
         console.error(e);
         this.ui.chatBox.config.label = "Failed to connect";

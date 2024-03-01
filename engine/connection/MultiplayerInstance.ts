@@ -35,6 +35,9 @@ export type MultiplayerInstanceOptions<T> = {
   solohost?: boolean;
   touchRegions?: TouchRegion[];
   roomTimeout?: number;
+  prefix: string;
+  address?: string;
+  host?: string;
 };
 
 export class MultiplayerInstance<T> implements ConnectionInstance<T> {
@@ -77,8 +80,9 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
     player: PlayerConnect<T>,
     public inputManager: InputManager,
     public mouseManager: MouseManager,
-    protected options: MultiplayerInstanceOptions<T> = { solohost: false }
+    protected options: MultiplayerInstanceOptions<T>
   ) {
+    options.solohost = options.solohost ?? false;
     this.solohost = options.solohost ?? false;
     if (options.touchRegions) {
       this.touchListener = new TouchListener(this.inputManager);
@@ -136,7 +140,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
       };
     });
 
-    this.on("disconnect", (playerId: string, lastFrame: number) => {
+    this.on("userDisconnect", (playerId: string, lastFrame: number) => {
       this.players = this.players.filter((player) => player.id !== playerId);
       this.disconnectListeners.forEach((listener) => listener(playerId));
 
@@ -175,7 +179,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
         this.leavingPlayers[leavingIndex][1] = lastFrame;
       } else if (leavingIndex === -1) {
         this.leavingPlayers.push([playerId, lastFrame]);
-        this.emit("disconnect", playerId, lastFrame);
+        this.emit("userDisconnect", playerId, lastFrame);
       }
     });
 
@@ -198,7 +202,6 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
     this.player.config = player.config ?? this.player.config;
 
     this.emit("updatePlayerConnect", this.player);
-    this.connectListeners.forEach((listener) => listener(this.player));
   }
 
   leaveRoom() {
@@ -487,7 +490,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
     });
   }
 
-  async connect(address: string): Promise<void> {}
+  async connect(): Promise<void> {}
 
   async initialize(
     roomId: string,
@@ -503,7 +506,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
     }
   ): Promise<GameModel> {
     if (!this.player.connected && !this.options.solohost) {
-      await this.connect(this.address);
+      await this.connect();
     }
     this.cleanup();
     const players = this.players
@@ -582,7 +585,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
     }
   ): Promise<GameModel> {
     if (!this.player.connected && !this.options.solohost) {
-      await this.connect(this.address);
+      await this.connect();
     }
     this.cleanup();
     this.touchListener?.replaceRegions(this.options.touchRegions ?? []);

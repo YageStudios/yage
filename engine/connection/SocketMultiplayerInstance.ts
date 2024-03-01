@@ -1,5 +1,5 @@
 import { Socket, io } from "socket.io-client";
-import { MultiplayerInstance } from "./MultiplayerInstance";
+import { MultiplayerInstance, MultiplayerInstanceOptions } from "./MultiplayerInstance";
 import { PlayerConnect, PlayerConnection } from "./ConnectionInstance";
 import { MouseManager } from "@/inputs/MouseManager";
 import { InputManager } from "@/inputs/InputManager";
@@ -7,15 +7,18 @@ import { isEqual } from "lodash";
 
 export class SocketMultiplayerInstance<T> extends MultiplayerInstance<T> {
   socket: Socket;
-  _socketSubscriptions: { event: string; once?: boolean; callback: (...args: any[]) => void }[] = [];
 
   constructor(
     player: PlayerConnect<T>,
     inputManager: InputManager,
     mouseManager: MouseManager,
-    private socketUrl: string
+    protected options: MultiplayerInstanceOptions<T> & { host: string }
   ) {
-    super(player, inputManager, mouseManager);
+    super(player, inputManager, mouseManager, options);
+    this.socket = io(this.options.host);
+    this.player.connectionId = this.player.id;
+    this.player.connected = true;
+    this.socket.emit("join", this.options.address, this.player.connectionId, this.player);
   }
 
   emit(event: string, ...args: any[]) {
@@ -48,6 +51,8 @@ export class SocketMultiplayerInstance<T> extends MultiplayerInstance<T> {
             this.emit("peer", this.player.connectionId, this.player);
           }
         }
+      } else {
+        this.handleData(["connect", player]);
       }
       return;
     }
@@ -65,87 +70,13 @@ export class SocketMultiplayerInstance<T> extends MultiplayerInstance<T> {
     }
   }
 
-  // on(event: string, callback: (...args: any[]) => void) {
-  //   const unsub = super.on(event, callback);
-  //   if (!this.socket) {
-  //     if (!this._socketSubscriptions) {
-  //       this._socketSubscriptions = [];
-  //     }
-  //     this._socketSubscriptions.push({ event, callback });
-  //     return () => {
-  //       if (this.socket && !this.subscriptions[event]?.length) {
-  //         this.socket.off(event, this.handleData);
-  //       }
-  //       this._socketSubscriptions = this._socketSubscriptions.filter((sub) => sub.event !== event);
-  //       unsub();
-  //     };
-  //   } else {
-  //     if (this.subscriptions[event]?.length === 1) {
-  //       this.socket.on(event, (...args) => this.handleData([event, ...args]));
-  //     }
-  //     return () => {
-  //       unsub();
-  //       if (!this.subscriptions[event]?.length) {
-  //         this.socket.off(event, this.handleData);
-  //       }
-  //     };
-  //   }
-  // }
-
-  // once(event: string, callback: (...args: any[]) => void) {
-  //   const unsub = super.once(event, callback);
-  //   if (!this.socket) {
-  //     if (!this._socketSubscriptions) {
-  //       this._socketSubscriptions = [];
-  //     }
-  //     this._socketSubscriptions.push({ event, callback, once: true });
-  //     return () => {
-  //       if (this.socket && !this.onceSubscriptions[event]?.length) {
-  //         this.socket.off(event, this.handleData);
-  //       }
-  //       this._socketSubscriptions = this._socketSubscriptions.filter((sub) => sub.event !== event);
-  //       unsub();
-  //     };
-  //   } else {
-  //     if (this.onceSubscriptions[event]?.length === 1) {
-  //       this.socket.once(event, this.handleData);
-  //     }
-  //     return () => {
-  //       unsub();
-  //       if (!this.onceSubscriptions[event]?.length) {
-  //         this.socket.off(event, this.handleData);
-  //       }
-  //     };
-  //   }
-  // }
-
   connect(): Promise<void> {
-    super.connect(this.socketUrl);
-    this.socket = io(this.socketUrl);
-    // this.socket.on("peer", (id: string, player: PlayerConnection<T>) => {
-    //   this.handleData(["peer", id, player]);
-    // });
+    super.connect();
+
     this.socket.onAny((event, ...args) => {
       this.handleData([event, ...args]);
     });
 
-    if (this._socketSubscriptions.length) {
-      this._socketSubscriptions.forEach((sub) => {
-        if (sub.once) {
-          this.socket.once(sub.event, sub.callback);
-        } else {
-          this.socket.on(sub.event, sub.callback);
-        }
-      });
-      this._socketSubscriptions = [];
-    }
-
-    return new Promise((resolve) => {
-      this.socket.on("connect", () => {
-        this.player.connected = true;
-        this.emit("peer", this.player.connectionId, this.player);
-        resolve();
-      });
-    });
+    return Promise.resolve();
   }
 }

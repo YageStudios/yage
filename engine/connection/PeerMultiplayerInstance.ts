@@ -27,7 +27,7 @@ export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
     mouseManager: MouseManager,
     { solohost, prefix, host, address = nanoid() }: PeerMultiplayerInstanceOptions<T>
   ) {
-    super(player, inputManager, mouseManager, { solohost });
+    super(player, inputManager, mouseManager, { solohost, prefix, host, address });
     this.prefix = prefix;
     this.address = address;
 
@@ -163,7 +163,7 @@ export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
       const player = this.players.find((p) => p.connectionId === conn.peer);
       if (player) {
         this.players = this.players.filter((p) => p.connectionId !== conn.peer);
-        this.handleData(["disconnect", player.id]);
+        this.handleData(["userDisconnect", player.id]);
         if (this.players.length === 1) {
           this.player.connected = false;
           this.player.connectionTime = 0;
@@ -180,13 +180,11 @@ export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
     });
   };
 
-  async connect(address: string): Promise<void> {
+  async connect(): Promise<void> {
+    super.connect();
+    let address = this.address;
     if (!address.startsWith(this.prefix)) {
       address = this.prefix + address;
-    }
-    super.connect(address);
-    if (!address) {
-      throw new Error("No address provided");
     }
     await this.connectionPromise;
     if (this.selfAddress === address) {
