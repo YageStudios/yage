@@ -14,7 +14,7 @@ import { GameCoordinator } from "@/game/GameCoordinator";
 import { PlayerInputSchema } from "@/schemas/core/PlayerInput";
 import { TouchRegion } from "@/inputs/InputRegion";
 
-type Frame = { keys: KeyMap; frame: number; events: string[]; playerId: string };
+export type Frame = { keys: KeyMap | { [key: string]: boolean }; frame: number; events: string[]; playerId: string };
 
 type FrameStack = { [playerId: string]: Frame[] };
 
@@ -668,12 +668,13 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
           gameModel.frame + this.frameOffset > roomState.frameStack[netId][roomState.frameStack[netId].length - 1].frame
         ) {
           const currentKeyMap = this.inputManager.getKeyMap();
-          this.emit("frame", {
+          const frame: Frame = {
             keys: this.inputManager.keyMapToJsonObject(currentKeyMap),
             frame: gameModel.frame + this.frameOffset,
             playerId: this.playerId,
             events: this.eventsManager.getEvents(),
-          });
+          };
+          this.emit("frame", frame);
         }
         if (roomState.frameStack[netId][0].frame === gameModel.frame) {
           const prevKeyMap = PlayerInput.keyMap;
@@ -705,7 +706,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
         (acc, [key, value]) => {
           acc[key] = value.map((frame) => {
             return {
-              keys: this.inputManager.keyMapToJsonObject(frame.keys),
+              keys: this.inputManager.keyMapToJsonObject(frame.keys as KeyMap),
               frame: frame.frame,
             };
           });

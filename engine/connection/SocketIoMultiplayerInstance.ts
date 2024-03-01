@@ -5,7 +5,7 @@ import { MouseManager } from "@/inputs/MouseManager";
 import { InputManager } from "@/inputs/InputManager";
 import { isEqual } from "lodash";
 
-export class SocketMultiplayerInstance<T> extends MultiplayerInstance<T> {
+export class SocketIoMultiplayerInstance<T> extends MultiplayerInstance<T> {
   socket: Socket;
 
   constructor(
@@ -22,7 +22,7 @@ export class SocketMultiplayerInstance<T> extends MultiplayerInstance<T> {
   }
 
   emit(event: string, ...args: any[]) {
-    this.socket.emit(event, ...args);
+    // this.socket.emit(event, ...args);
     if (event !== "message" && event !== "peer") {
       this.handleData([event, ...args]);
     }
