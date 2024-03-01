@@ -140,9 +140,6 @@ export class GameInstance<T> {
         return;
       }
 
-      this.gameModel.frame++;
-      this.gameModel.timeElapsed += dt;
-
       // if (this.gameModel.getComponent(this.gameModel.coreEntity, FrameRateSchema)?.averageFrameRate ?? 60 < 50) {
       //   this.render30Fps = true;
       // } else if (this.gameModel.getComponent(this.gameModel.coreEntity, FrameRateSchema)?.averageFrameRate ?? 50 > 58) {
@@ -155,6 +152,8 @@ export class GameInstance<T> {
         this.gameModel.runPixiComponents();
         this.gameModel.runUIComponents();
       }
+      this.gameModel.frame++;
+      this.gameModel.timeElapsed += dt;
       this.gameModel.cleanup();
 
       this.options.connection.run(this.gameModel);

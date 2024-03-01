@@ -95,6 +95,13 @@ export class UIService {
         direction.x += 1;
       }
 
+      if (flags.DEBUG) {
+        if (!this.debugCanvas) {
+          this.createDebugCanvas();
+        }
+        this.debugCtx.clearRect(0, 0, this.debugCanvas.width, this.debugCanvas.height);
+      }
+
       if (this._focusedElement?._element) {
         this.focusedElementPosition = this.getElementCenter(this._focusedElement._element);
       }
@@ -148,22 +155,6 @@ export class UIService {
     this.interactionDiv = document.getElementById("interaction") as HTMLElement;
     this.uiDiv = document.getElementById("ui") as HTMLDivElement;
     this.registerEvents();
-
-    if (flags.DEBUG) {
-      if (!this.debugCanvas) {
-        this.debugCanvas = document.createElement("canvas");
-        this.debugCanvas.width = window.innerWidth;
-        this.debugCanvas.height = window.innerHeight;
-        this.debugCanvas.style.position = "absolute";
-        this.debugCanvas.style.top = "0";
-        this.debugCanvas.style.left = "0";
-        this.debugCanvas.style.pointerEvents = "none";
-        this.debugCanvas.style.zIndex = "100000";
-        document.body.appendChild(this.debugCanvas);
-      }
-      this.debugCtx = this.debugCanvas.getContext("2d")! as CanvasRenderingContext2D;
-      this.debugCtx.clearRect(0, 0, this.debugCanvas.width, this.debugCanvas.height);
-    }
 
     this.root = {
       isVisible: () => true,
@@ -298,6 +289,22 @@ export class UIService {
         previous._update();
       }
     }, 0);
+  }
+
+  createDebugCanvas() {
+    if (!this.debugCanvas) {
+      this.debugCanvas = document.createElement("canvas");
+      this.debugCanvas.width = window.innerWidth;
+      this.debugCanvas.height = window.innerHeight;
+      this.debugCanvas.style.position = "absolute";
+      this.debugCanvas.style.top = "0";
+      this.debugCanvas.style.left = "0";
+      this.debugCanvas.style.pointerEvents = "none";
+      this.debugCanvas.style.zIndex = "100000";
+      document.body.appendChild(this.debugCanvas);
+    }
+    this.debugCtx = this.debugCanvas.getContext("2d")! as CanvasRenderingContext2D;
+    this.debugCtx.clearRect(0, 0, this.debugCanvas.width, this.debugCanvas.height);
   }
 
   getElementCenter = (element: Element | undefined) => {
