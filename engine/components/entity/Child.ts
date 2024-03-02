@@ -13,10 +13,10 @@ class ChildSystem implements System {
   dependencies = ["Owner", "Transform", "Locomotion"];
 
   init(entity: number, gameModel: GameModel) {
-    const childData = gameModel.getTyped(entity, ChildSchema);
+    const childData = gameModel.getTypedUnsafe(entity, ChildSchema);
 
     if (childData.parent == undefined && gameModel.hasComponent(entity, "Owner")) {
-      const ownerData = gameModel.getComponent(entity, "Owner");
+      const ownerData = gameModel.getComponentUnsafe(entity, "Owner");
       if (ownerData.owner != undefined) {
         childData.parent = ownerData.owner;
       }
@@ -27,7 +27,7 @@ class ChildSystem implements System {
           children: [entity],
         });
       } else {
-        const parentData = gameModel.getTyped(childData.parent, ParentSchema);
+        const parentData = gameModel.getTypedUnsafe(childData.parent, ParentSchema);
         if (parentData.children.indexOf(entity) == -1) {
           parentData.children.push(entity);
         }
@@ -43,7 +43,7 @@ class ChildSystem implements System {
   }
 
   run(entity: number, gameModel: GameModel) {
-    const childData = gameModel.getTyped(entity, ChildSchema);
+    const childData = gameModel.getTypedUnsafe(entity, ChildSchema);
     if (childData.parent != undefined) {
       if (!gameModel.isActive(childData.parent)) {
         childData.parent = null;
@@ -56,7 +56,7 @@ class ChildSystem implements System {
         });
         checkAttach = true;
       } else {
-        const parentData = gameModel.getTyped(childData.parent, ParentSchema);
+        const parentData = gameModel.getTypedUnsafe(childData.parent, ParentSchema);
         if (parentData.children.indexOf(entity) == -1) {
           parentData.children.push(entity);
           checkAttach = true;

@@ -17,11 +17,11 @@ class VisibleConditionalSystem implements System {
       return;
     }
     const visibleConditional = gameModel.getComponent(entity, this.type) as VisibleConditionalSchema;
-    let sprite; //gameModel.getTyped(entity, SpriteSchema);
+    let sprite; //gameModel.getTypedUnsafe(entity, SpriteSchema);
     if (gameModel.hasComponent(entity, "Sprite")) {
-      sprite = gameModel.getTyped(entity, SpriteSchema);
+      sprite = gameModel.getTypedUnsafe(entity, SpriteSchema);
     } else if (gameModel.hasComponent(entity, "MapSprite")) {
-      sprite = gameModel.getTyped(entity, MapSpriteSchema);
+      sprite = gameModel.getTypedUnsafe(entity, MapSpriteSchema);
     } else {
       return;
     }
@@ -68,7 +68,7 @@ class VisibleConditionalSystem implements System {
   cleanup(entity: number, gameModel: GameModel, ejecting: boolean) {
     if (ejecting) return;
 
-    const sprite = gameModel.getTyped(entity, SpriteSchema);
+    const sprite = gameModel.getTypedUnsafe(entity, SpriteSchema);
     sprite.opacity = 1;
   }
 }

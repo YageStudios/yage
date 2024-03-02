@@ -100,8 +100,8 @@ export class BallLobbyScene extends Scene {
     }
 
     if (!this.connection) {
-      this.connection = new WsSocketMultiplayerInstance(
-        // this.connection = new PeerMultiplayerInstance(
+      // this.connection = new WsSocketMultiplayerInstance(
+      this.connection = new PeerMultiplayerInstance(
         {
           name: nanoid(),
           token: "",
@@ -114,7 +114,8 @@ export class BallLobbyScene extends Scene {
           solohost: true,
           prefix: "group-chat-",
           address: lobbyId,
-          host: "sock.yage.games", //"https://sock.yage.games",
+          // host: "sock.yage.games",
+          host: "peer.yage.games",
         }
       );
 
@@ -216,7 +217,7 @@ export class BallLobbyScene extends Scene {
 
         gameModel.logEntity(player, true);
 
-        const PlayerInput = gameModel.getTyped(player, PlayerInputSchema);
+        const PlayerInput = gameModel.getTypedUnsafe(player, PlayerInputSchema);
         PlayerInput.keyMap = this.connection.inputManager.buildKeyMap();
         PlayerInput.id = playerId;
         PlayerInput.name = playerConfig.name;
@@ -236,7 +237,7 @@ export class BallLobbyScene extends Scene {
       onPlayerLeave: (gameModel: GameModel, playerId: string) => {
         const players = gameModel.getComponentActives("PlayerInput");
         const player = players.find((p) => {
-          const PlayerInput = gameModel.getTyped(p, PlayerInputSchema);
+          const PlayerInput = gameModel.getTypedUnsafe(p, PlayerInputSchema);
           return PlayerInput.id === playerId;
         });
         if (player) {

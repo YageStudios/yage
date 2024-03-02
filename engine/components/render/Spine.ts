@@ -23,7 +23,7 @@ class SpineSystem implements System {
   schema = SpineSchema;
   depth = DEPTHS.DRAW + 1;
   run(entity: number, gameModel: GameModel) {
-    const data = gameModel.getTyped(entity, SpineSchema);
+    const data = gameModel.getTypedUnsafe(entity, SpineSchema);
   }
 }
 
@@ -49,7 +49,7 @@ export class SpineComponentPixi implements PixiDrawSystem {
 
   transform(pixiData: PixiSpineSchema, entity: number, data: SpineSchema, gameModel: GameModel, viewport: Viewport) {
     const { spine, container } = pixiData;
-    const locomotionSchema = gameModel.getTyped(entity, LocomotionSchema);
+    const locomotionSchema = gameModel.getTypedUnsafe(entity, LocomotionSchema);
     const direction = { x: locomotionSchema.directionX, y: locomotionSchema.directionY };
     // spine.anchor.set(data.anchorX, data.anchorY);
     // if (data.faceDirection === FaceDirectionEnum.ROTATE) {
@@ -66,7 +66,7 @@ export class SpineComponentPixi implements PixiDrawSystem {
     if (data.faceDirection === FaceDirectionEnum.HORIZONTAL) {
       let xDirection = direction.x;
       if (gameModel.hasComponent(entity, AttachSchema)) {
-        const owner = gameModel.getComponent(entity, AttachSchema).parent;
+        const owner = gameModel.getComponentUnsafe(entity, AttachSchema).parent;
         xDirection = LocomotionSchema.store.directionX[owner];
       }
       if (!data.antiJitterTime || gameModel.timeElapsed - pixiData.lastFlip > data.antiJitterTime) {
@@ -138,7 +138,7 @@ export class SpineComponentPixi implements PixiDrawSystem {
   }
 
   init(entity: number, gameModel: GameModel, viewport: Viewport) {
-    const spineData = gameModel.getTyped(entity, this.schema);
+    const spineData = gameModel.getTypedUnsafe(entity, this.schema);
     let zIndex = 2;
 
     const instance: Partial<PixiSpineSchema> = {
@@ -179,7 +179,7 @@ export class SpineComponentPixi implements PixiDrawSystem {
   }
 
   run(entity: number, gameModel: GameModel, viewport: Viewport) {
-    const spineData = gameModel.getTyped(entity, this.schema);
+    const spineData = gameModel.getTypedUnsafe(entity, this.schema);
 
     if (
       this.instances[entity] &&
@@ -200,7 +200,7 @@ export class SpineComponentPixi implements PixiDrawSystem {
       spine.visible = true;
       spine.alpha = 1;
     }
-    const transformSchema = gameModel.getTyped(entity, TransformSchema);
+    const transformSchema = gameModel.getTypedUnsafe(entity, TransformSchema);
 
     const position = transformSchema.position;
 
@@ -212,7 +212,7 @@ export class SpineComponentPixi implements PixiDrawSystem {
     const viewY = viewport.position.y;
 
     if (gameModel.hasComponent(entity, AttachSchema)) {
-      const owner = gameModel.getComponent(entity, AttachSchema).parent;
+      const owner = gameModel.getComponentUnsafe(entity, AttachSchema).parent;
       container.zIndex =
         TransformSchema.store.y[owner] -
         viewY +
@@ -246,7 +246,7 @@ export class SpineComponentPixi implements PixiDrawSystem {
     const instance = this.instances[entity].spine;
     delete this.instances[entity];
     instance.visible = false;
-    const spineData = gameModel.getTyped(entity, this.schema);
+    const spineData = gameModel.getTypedUnsafe(entity, this.schema);
     if (spineData.spineKey) {
       const key = instanceData.spineKey;
       this.animationCache[key] = this.animationCache[key] ?? [];

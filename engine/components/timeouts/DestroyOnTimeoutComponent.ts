@@ -14,7 +14,7 @@ class DestroyOnTimeoutSystem implements System {
   schema = DestroyOnTimeoutSchema;
   depth = DEPTHS.HEALTH + 1;
   run(entity: number, gameModel: GameModel) {
-    const data = gameModel.getTyped(entity, DestroyOnTimeoutSchema);
+    const data = gameModel.getTypedUnsafe(entity, DestroyOnTimeoutSchema);
     updateTimeout(entity, data as unknown as DestroyOnTimeoutSchema, gameModel);
   }
 }
@@ -27,7 +27,7 @@ function updateTimeout(entity: number, timeout: DestroyOnTimeoutSchema, gameMode
     if (timeout.spawnOnTimeout.length > 0) {
       let owner = entity;
       if (gameModel.hasComponent(entity, "Owner")) {
-        owner = gameModel.getTyped(entity, OwnerSchema).owner ?? entity;
+        owner = gameModel.getTypedUnsafe(entity, OwnerSchema).owner ?? entity;
       }
       timeout.spawnOnTimeout.forEach((spawn) => {
         const spawnedEntity = EntityFactory.getInstance().generateEntity(gameModel, spawn.description, {
@@ -83,7 +83,7 @@ class MultiDestroyOnTimeoutSystem implements System {
   schema = MultiDestroyOnTimeoutSchema;
   depth = DEPTHS.HEALTH + 1;
   run(entity: number, gameModel: GameModel) {
-    const data = gameModel.getTyped(entity, MultiDestroyOnTimeoutSchema);
+    const data = gameModel.getTypedUnsafe(entity, MultiDestroyOnTimeoutSchema);
     for (let i = 0; i < data.timeouts.length; ++i) {
       const timeout = data.timeouts[i] as DestroyOnTimeoutSchema;
       updateTimeout(entity, timeout, gameModel);
@@ -113,7 +113,7 @@ export const addToDestroyOnTimeout = (
     return;
   }
 
-  const dotData = gameModel.getTyped(entity, DestroyOnTimeoutSchema);
+  const dotData = gameModel.getTypedUnsafe(entity, DestroyOnTimeoutSchema);
   if (dotData.component === component) {
     dotData.timeoutMs = timeoutMs;
     dotData.timeElapsed = 0;
@@ -132,7 +132,7 @@ export const addToDestroyOnTimeout = (
     });
     return;
   }
-  const data = gameModel.getTyped(entity, MultiDestroyOnTimeoutSchema);
+  const data = gameModel.getTypedUnsafe(entity, MultiDestroyOnTimeoutSchema);
   const prevIndex = data.timeouts.findIndex((t: DestroyOnTimeoutSchema) => t.component === component);
   if (prevIndex === -1) {
     const destroyOnTimeout: DestroyOnTimeoutSchema = {

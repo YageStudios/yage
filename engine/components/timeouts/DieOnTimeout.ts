@@ -20,6 +20,6 @@ registerSystem(DieOnTimeoutSystem);
 function updateTimeout(entity: number, timeout: DieOnTimeoutSchema, gameModel: GameModel) {
   timeout.timeElapsed += gameModel.dt<number>(entity);
   if (timeout.timeElapsed > timeout.timeoutMs) {
-    gameModel.getComponent(entity, "Health").health = 0;
+    gameModel.getComponentUnsafe(entity, "Health").health = 0;
   }
 }

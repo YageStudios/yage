@@ -29,7 +29,7 @@ class FadeOnTimeoutSystem implements System {
   schema = FadeOnTimeoutSchema;
   depth = DEPTHS.HEALTH + 1;
   run(entity: number, gameModel: GameModel) {
-    const data = gameModel.getTyped(entity, FadeOnTimeoutSchema);
+    const data = gameModel.getTypedUnsafe(entity, FadeOnTimeoutSchema);
     if (data.startFrame === 0) {
       data.startFrame = data.timeoutMs + data.fadeMs;
     } else {
@@ -48,7 +48,7 @@ class FadeOnTimeoutSystem implements System {
         }
       } else {
         if (data.dieOnTimeout) {
-          gameModel.getComponent(entity, "Health").health = 0;
+          gameModel.getComponentUnsafe(entity, "Health").health = 0;
         } else {
           gameModel.removeEntity(entity);
         }

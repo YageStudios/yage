@@ -56,8 +56,8 @@ export const mapOrCull = (
   _radius?: number
 ): false | Vector2d => {
   return { x: 0, y: 0 };
-  // const pos = toCameraSpace(gameModel.getTyped(entity, TransformSchema).position);
-  // radius = radius ?? (gameModel.hasComponent(entity, "Radius") ? gameModel.getTyped(entity, RadiusSchema).radius : 1);
+  // const pos = toCameraSpace(gameModel.getTypedUnsafe(entity, TransformSchema).position);
+  // radius = radius ?? (gameModel.hasComponent(entity, "Radius") ? gameModel.getTypedUnsafe(entity, RadiusSchema).radius : 1);
   // if (shouldCull(gameModel, ctx, pos, radius! * 2)) {
   //   return false;
   // }

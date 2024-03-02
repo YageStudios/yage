@@ -15,7 +15,7 @@ export interface SpatialMap<T> {
 }
 
 export const checkCollisionFilter = (entity: number, filter: number, gameModel: GameModel) => {
-  const collisionsSchema = gameModel.getTyped(gameModel.coreEntity, CollisionsSchema);
+  const collisionsSchema = gameModel.getTypedUnsafe(gameModel.coreEntity, CollisionsSchema);
 
   if (
     !collisionsSchema.collisions[entity] ||
@@ -95,7 +95,7 @@ export const spatialMap = (
     hasEntities: entities.length > 0,
   };
   for (let i = 0; i < entities.length; i++) {
-    const transformSchema = gameModel.getTyped(entities[i], TransformSchema);
+    const transformSchema = gameModel.getTypedUnsafe(entities[i], TransformSchema);
     const position = transformSchema.position;
 
     RadiusSchema.id = entities[i];
@@ -103,7 +103,7 @@ export const spatialMap = (
     if (!radius) {
       continue;
     }
-    const locomotionSchema = gameModel.getTyped(entities[i], LocomotionSchema);
+    const locomotionSchema = gameModel.getTypedUnsafe(entities[i], LocomotionSchema);
     const speed = lengthVector2d(locomotionSchema.velocity);
     radius += speed;
     const stretchPoint = undefined;
@@ -121,9 +121,9 @@ export const spatialMap = (
 };
 
 export const fastEntityCollision = (gameModel: GameModel, entity: number, player: number, radius: number) => {
-  let transformSchema = gameModel.getTyped(entity, TransformSchema);
+  let transformSchema = gameModel.getTypedUnsafe(entity, TransformSchema);
   const position = transformSchema.position;
-  transformSchema = gameModel.getTyped(player, TransformSchema);
+  transformSchema = gameModel.getTypedUnsafe(player, TransformSchema);
   const playerPosition = transformSchema.position;
   RadiusSchema.id = player;
   const playerRadius = RadiusSchema.radius;
@@ -139,7 +139,7 @@ export const sortedByDistance = (
   const distances: { [key: number]: number } = {};
   const radiusSquared = maxRadius * maxRadius;
   if (entities.length === 1 && maxRadius < Infinity) {
-    const transformSchema = gameModel.getTyped(entities[0], TransformSchema);
+    const transformSchema = gameModel.getTypedUnsafe(entities[0], TransformSchema);
     const distance = distanceSquaredVector2d(entityPosition, transformSchema.position);
     if (distance < radiusSquared) {
       return entities;
@@ -149,7 +149,7 @@ export const sortedByDistance = (
   return entities
     .sort((a, b) => {
       if (!distances[a]) {
-        const transformSchema = gameModel.getTyped(a, TransformSchema);
+        const transformSchema = gameModel.getTypedUnsafe(a, TransformSchema);
         const distance = distanceSquaredVector2d(entityPosition, transformSchema.position);
         if (distance < radiusSquared) {
           distances[a] = distance;
@@ -158,7 +158,7 @@ export const sortedByDistance = (
         }
       }
       if (!distances[b]) {
-        const transformSchema = gameModel.getTyped(b, TransformSchema);
+        const transformSchema = gameModel.getTypedUnsafe(b, TransformSchema);
 
         const distance = distanceSquaredVector2d(entityPosition, transformSchema.position);
         if (distance < radiusSquared) {

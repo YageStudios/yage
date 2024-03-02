@@ -10,10 +10,10 @@ class OwnedSystem implements System {
   type = "Owned";
   cleanup(entity: number, gameModel: GameModel, ejecting: boolean) {
     if (ejecting) return;
-    const owned = gameModel.getTyped(entity, OwnedSchema);
+    const owned = gameModel.getTypedUnsafe(entity, OwnedSchema);
     owned.owned.forEach((ownedEntity) => {
       if (!gameModel.isActive(ownedEntity)) return;
-      gameModel.getTyped(ownedEntity, OwnerSchema).owner = null;
+      gameModel.getTypedUnsafe(ownedEntity, OwnerSchema).owner = null;
     });
   }
 }

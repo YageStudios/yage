@@ -27,13 +27,13 @@ export class ListenEntityCreationSystem implements System {
       if (!gameModel.hasComponent(gameModel.coreEntity, ListenEntityCreationSchema)) {
         gameModel.setComponent(gameModel.coreEntity, ListenEntityCreationSchema);
       }
-      const parentData = gameModel.getTyped(gameModel.coreEntity, ListenEntityCreationSchema);
+      const parentData = gameModel.getTypedUnsafe(gameModel.coreEntity, ListenEntityCreationSchema);
       parentData.entities.push(entity);
     }
   }
 
   run(entity: number, gameModel: GameModel) {
-    const data = gameModel.getTyped(entity, ListenEntityCreationSchema);
+    const data = gameModel.getTypedUnsafe(entity, ListenEntityCreationSchema);
     for (let i = 0; i < data.entities.length; i++) {
       const entityId = data.entities[i];
       if (!gameModel.isActive(entityId)) {
@@ -46,7 +46,7 @@ export class ListenEntityCreationSystem implements System {
       if (onEntityCreationMods.length) {
         for (let j = 0; j < onEntityCreationMods.length; j++) {
           const mod = gameModel.getComponent(entityId, onEntityCreationMods[j]);
-          if (mod.entity !== undefined) {
+          if (mod?.entity !== undefined) {
             mod.entity = data.entity;
           }
           const system = gameModel.getSystem((mod as any).type);

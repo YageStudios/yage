@@ -14,10 +14,10 @@ export class SelfCameraSchema extends Schema {
 registerSchema(ComponentCategory.CORE, SelfCameraSchema);
 
 registerUIComponent("SelfCamera", (uiService, entity, gameModel, viewport) => {
-  const data = gameModel.getTyped(entity, SelfCameraSchema);
-  const selfId = gameModel.getTyped(entity, PlayerInputSchema).id;
+  const data = gameModel.getTypedUnsafe(entity, SelfCameraSchema);
+  const selfId = gameModel.getTypedUnsafe(entity, PlayerInputSchema).id;
   if (selfId === gameModel.netId) {
-    const transformSchema = gameModel.getTyped(entity, TransformSchema);
+    const transformSchema = gameModel.getTypedUnsafe(entity, TransformSchema);
     const position = transformSchema.position;
     viewport.moveCenter(position.x, position.y);
     // viewport.setZoom(data.zoom);

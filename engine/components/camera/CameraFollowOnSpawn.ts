@@ -11,7 +11,7 @@ export class CameraFollowOnSpawnSystem implements System {
   schema = CameraFollowOnSpawnSchema;
 
   init(entity: number, gameModel: GameModel) {
-    gameModel.getTyped(gameModel.coreEntity, EntityCameraSchema).entity = entity;
+    gameModel.getTypedUnsafe(gameModel.coreEntity, EntityCameraSchema).entity = entity;
   }
 }
 registerSystem(CameraFollowOnSpawnSystem);

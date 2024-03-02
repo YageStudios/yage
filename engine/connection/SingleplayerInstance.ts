@@ -191,7 +191,7 @@ export class SingleplayerInstance<T> implements ConnectionInstance<T> {
     const players = gameModel.getComponentActives("PlayerInput");
     for (let i = 0; i < players.length; ++i) {
       const player = players[i];
-      const PlayerInput = gameModel.getTyped(player, PlayerInputSchema);
+      const PlayerInput = gameModel.getTypedUnsafe(player, PlayerInputSchema);
       const netId = PlayerInput.id;
 
       if (!this.frameStack[netId]) {

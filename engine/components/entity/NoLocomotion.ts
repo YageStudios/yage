@@ -16,7 +16,7 @@ class NoLocomotionSystem implements System {
     const entities = gameModel.getComponentActives("NoLocomotion");
     for (let i = 0; i < entities.length; ++i) {
       const entity = entities[i];
-      const locomotionSchema = gameModel.getTyped(entity, LocomotionSchema);
+      const locomotionSchema = gameModel.getTypedUnsafe(entity, LocomotionSchema);
       locomotionSchema.decayingVelocityX = 0;
       locomotionSchema.decayingVelocityY = 0;
       if (locomotionSchema.velocityX || locomotionSchema.velocityY) {

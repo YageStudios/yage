@@ -360,13 +360,13 @@ export class EntityFactory {
     entity.children?.forEach((child: EntityComponentDTO) => {
       const childId = this.createEntity(gameModel, child);
       if (gameModel.hasComponent(childId, "Child")) {
-        const childData = gameModel.getTyped(childId, ChildSchema);
+        const childData = gameModel.getTypedUnsafe(childId, ChildSchema);
         childData.parent = entityId;
       } else {
         gameModel.setComponent(childId, "Child", { parent: entityId });
       }
       if (gameModel.hasComponent(entityId, "Parent")) {
-        const parentData = gameModel.getTyped(entityId, ParentSchema);
+        const parentData = gameModel.getTypedUnsafe(entityId, ParentSchema);
         parentData.children.push(childId);
       } else {
         gameModel.setComponent(entityId, "Parent", { children: [childId] });
@@ -391,7 +391,7 @@ export class EntityFactory {
       const createdEntity = this.createEntity(gameModel, entityComponents);
 
       if (entityName !== "core" && gameModel.hasComponent(gameModel.coreEntity, ListenEntityCreationSchema)) {
-        gameModel.getComponent(gameModel.coreEntity, ListenEntityCreationSchema).entity = createdEntity;
+        gameModel.getTypedUnsafe(gameModel.coreEntity, ListenEntityCreationSchema).entity = createdEntity;
         gameModel.getSystem(ListenEntityCreationSystem).run(gameModel.coreEntity, gameModel);
       }
       return createdEntity;

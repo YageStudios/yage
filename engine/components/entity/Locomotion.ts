@@ -27,8 +27,8 @@ class BitecsLocomotionSystem implements System {
     const entities = this.query(gameModel.world);
     for (let i = 0; i < entities.length; i++) {
       const entityId = entities[i];
-      const locomotionSchema = gameModel.getTyped(entityId, LocomotionSchema);
-      const transformSchema = gameModel.getTyped(entityId, TransformSchema);
+      const locomotionSchema = gameModel.getTypedUnsafe(entityId, LocomotionSchema);
+      const transformSchema = gameModel.getTypedUnsafe(entityId, TransformSchema);
 
       if (
         (locomotionSchema.decayingVelocityX || locomotionSchema.decayingVelocityY) &&
@@ -118,8 +118,8 @@ class DebugLocomotionDraw implements PixiDrawSystem {
   }
 
   run(entity: number, gameModel: GameModel) {
-    const transformSchema = gameModel.getTyped(entity, TransformSchema);
-    const locomotionSchema = gameModel.getTyped(entity, LocomotionSchema);
+    const transformSchema = gameModel.getTypedUnsafe(entity, TransformSchema);
+    const locomotionSchema = gameModel.getTypedUnsafe(entity, LocomotionSchema);
     const entityPosition = transformSchema.position;
     const container = this.entities[entity].container;
     container.position.set(entityPosition.x, entityPosition.y);
