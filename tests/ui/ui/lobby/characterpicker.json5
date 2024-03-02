@@ -5,7 +5,7 @@
     config: {
       columns: 12,
       gap: "9px",
-      // captureFocus: true,
+      // captureFocus: 0,
     },
     rect: {
       x: "center",

@@ -157,10 +157,10 @@ export class InputManager {
   }
 
   keyPressed(key: string, eventType?: InputEventType, typeIndex = 0) {
-    if (!eventType) {
+    if (eventType === undefined) {
       eventType = InputEventType.KEYBOARD;
     }
-    if (this.combineKeyMaps) {
+    if (this.combineKeyMaps || eventType === InputEventType.ANY) {
       return !!this.keyMap.get(key);
     }
     if (!this.keyMapsByType[eventType]) {

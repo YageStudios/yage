@@ -20,7 +20,7 @@
       popup: {
         type: "box",
         config: {
-          captureFocus: true,
+          captureFocus: 0,
           visible: "$$popupOpen",
           pointerEventsOnOverflow: false,
           style: {

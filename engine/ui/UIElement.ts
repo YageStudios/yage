@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import { positionToCanvasSpace } from "../ui/utils";
 import { debounce } from "lodash";
 import { UIService } from "./UIService";
+import { InputEventType } from "@/inputs/InputManager";
 
 export type UIElementConfig = {
   style: Partial<CSSStyleDeclaration>;
@@ -12,7 +13,7 @@ export type UIElementConfig = {
   focusable?: boolean;
   autoFocus?: boolean;
   autoEmptyFocus?: boolean;
-  captureFocus?: boolean;
+  captureFocus?: number;
   focusStyle?: Partial<CSSStyleDeclaration>;
   onEscape?: () => void;
 };
@@ -89,19 +90,22 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       return;
     }
     if (key === "captureFocus") {
+      let previousCaptureFocus = this._config.captureFocus;
       this._config.captureFocus = value;
       if (this._element) {
-        if (value) {
-          this._element.classList.add("captureFocus");
-          this.uiService.clearFocusedElement();
+        if (value !== undefined) {
+          this._element.classList.add("captureFocus" + value);
+          this.uiService.clearFocusedElementByPlayerIndex(value);
           this.update();
         } else {
-          this._element.classList.remove("captureFocus");
+          if (previousCaptureFocus !== undefined) {
+            this._element.classList.remove("captureFocus" + previousCaptureFocus);
+          }
         }
       }
       return;
     }
-    this._config[key as keyof UIElementConfig] = value;
+    (this._config as any)[key as keyof T] = value;
     this.update();
   }
 
@@ -247,8 +251,8 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     return this.onBlurInternal();
   }
 
-  onFocus() {
-    return this.onFocusInternal();
+  onFocus(focusIndex: number) {
+    return this.onFocusInternal(focusIndex);
   }
 
   onMouseDown() {
@@ -267,7 +271,13 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     let mouseInBounds = true;
 
     if (this._config.focusable) {
-      const nestedFocused = this._element?.querySelector(".captureFocus:not(:has(.captureFocus)):has(.focused)");
+      const playerEventIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
+      if (playerEventIndex === -1) {
+        return;
+      }
+      const nestedFocused = this._element?.querySelector(
+        `.captureFocus${playerEventIndex}:not(:has(.captureFocus${playerEventIndex})):has(.focused)`
+      );
       if (nestedFocused) {
         mouseInBounds = false;
       } else {
@@ -283,8 +293,8 @@ export abstract class UIElement<T extends UIElementConfig = any> {
         return;
       }
     }
-    if (this._config.focusable && mouseInBounds && this.uiService.focusedElement !== this) {
-      this.uiService.focusedElement = this;
+    if (this._config.focusable && mouseInBounds) {
+      this.uiService.attemptMouseFocus(this);
     }
     return this.onMouseEnterInternal();
   }
@@ -300,7 +310,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   protected abstract onMouseDownInternal(): void | boolean;
   protected abstract onMouseUpInternal(): void | boolean;
   protected abstract onBlurInternal(): void;
-  protected abstract onFocusInternal(): void;
+  protected abstract onFocusInternal(focusIndex: number): void;
   protected abstract onMouseEnterInternal(): void;
   protected abstract onMouseLeaveInternal(): void;
 
@@ -326,8 +336,9 @@ export abstract class UIElement<T extends UIElementConfig = any> {
         this.uiService.autoEmptyFocusElements = this.uiService.autoEmptyFocusElements.filter((x) => x !== this);
       }
       if (!noUpdate) {
-        if (this.uiService.focusedElement === this) {
-          this.uiService.traverseParentFocus();
+        const focusIndex = this.uiService.elementFocusIndex(this);
+        if (focusIndex > -1) {
+          this.uiService.traverseParentFocustByPlayerIndex(focusIndex);
         }
         if (this.parent && !isRootUIElement(this.parent)) {
           this.parent?.update();
@@ -342,9 +353,9 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     if (this._config.focusable) {
       element.classList.add("focusable");
     }
-    if (this._config.captureFocus) {
-      element.classList.add("captureFocus");
-      this.uiService.clearFocusedElement();
+    if (this._config.captureFocus !== undefined) {
+      element.classList.add("captureFocus" + this._config.captureFocus);
+      this.uiService.clearFocusedElementByPlayerIndex(this._config.captureFocus);
     }
     if (this._config.autoEmptyFocus) {
       if (!this.uiService.autoEmptyFocusElements.includes(this)) {
@@ -377,7 +388,8 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       this.onBlurInternal();
     };
     element.onfocus = () => {
-      this.onFocusInternal();
+      const focusIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
+      this.onFocusInternal(focusIndex);
     };
     element.onmouseenter = (e) => {
       this.onMouseEnter(e);
@@ -440,7 +452,8 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     }
     element.style.display = "block";
 
-    if (this.uiService._focusedElement === this) {
+    const focusIndex = this.uiService.elementFocusIndex(this);
+    if (focusIndex > -1) {
       if (!this.focusedStyle) {
         this.focusedStyle = {
           ...this._config.style,
@@ -462,19 +475,20 @@ export abstract class UIElement<T extends UIElementConfig = any> {
         this._element!.classList.add("focused");
         // move the focus out of the render loop to allow the blur event to fire first
         setTimeout(() => {
-          if (this.uiService._focusedElement === this) {
-            this.onFocus();
+          const focusIndex = this.uiService.elementFocusIndex(this);
+          if (focusIndex > -1) {
+            this.onFocus(focusIndex);
           }
         }, 0);
       }
-    } else if (this.uiService._focusedElement !== this && this.cachedStyle) {
+    } else if (focusIndex === -1 && this.cachedStyle) {
       this._config.style = this.cachedStyle;
       this.cachedStyle = undefined;
       this.focusedStyle = undefined;
       this._element!.classList.remove("focused");
       this.onBlur();
-    } else if (this._config.focusable && this._config.autoFocus && this.uiService._focusedElement === undefined) {
-      this.uiService.focusedElement = this;
+    } else if (this._config.focusable && this._config.autoFocus) {
+      this.uiService.attemptAutoFocus(this);
     }
 
     const parentElement = this.parent?._element;
