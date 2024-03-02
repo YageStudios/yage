@@ -4,7 +4,7 @@ import { Position } from "@/ui/Rectangle";
 import { PeerMultiplayerInstance } from "@/connection/PeerMultiplayerInstance";
 import { customAlphabet } from "nanoid";
 import { ConnectionInstance } from "@/connection/ConnectionInstance";
-import { InputManager } from "@/inputs/InputManager";
+import { InputEventType, InputManager } from "@/inputs/InputManager";
 import { GameInstance } from "@/game/GameInstance";
 import { GameModel } from "@/game/GameModel";
 import { EntityFactory } from "@/entity/EntityFactory";
@@ -20,6 +20,8 @@ import { PlayerInputSchema } from "@/schemas/core/PlayerInput";
 import { GamepadListener, StandardGamepadRegions } from "@/inputs/GamepadListener";
 import { SocketIoMultiplayerInstance } from "@/connection/SocketIoMultiplayerInstance";
 import { WsSocketMultiplayerInstance } from "@/connection/WsSocketMultiplayerInstance";
+import { SingleplayerConnectionInstance } from "@/connection/SingleplayerConnectionInstance";
+import { CoopConnectionInstance } from "@/connection/CoopConnectionInstance";
 
 const CallToAction = (config: Partial<ButtonConfig>): Partial<ButtonConfig> => ({
   style: {
@@ -99,29 +101,36 @@ export class BallLobbyScene extends Scene {
 
     if (!this.connection) {
       // this.connection = new WsSocketMultiplayerInstance(
-      this.connection = new PeerMultiplayerInstance(
-        {
-          name: nanoid(),
-          token: "",
-          id: nanoid(),
-          config: cloneDeep(defaultPlayerState),
-        },
-        inputManager,
-        {
-          solohost: true,
-          prefix: "group-chat-",
-          address: lobbyId,
-          // host: "sock.yage.games",
-          host: "peer.yage.games",
-        }
-      );
+      // this.connection = new PeerMultiplayerInstance(
+      //   {
+      //     name: nanoid(),
+      //     token: "",
+      //     id: nanoid(),
+      //     config: cloneDeep(defaultPlayerState),
+      //   },
+      //   inputManager,
+      //   {
+      //     solohost: true,
+      //     prefix: "group-chat-",
+      //     address: lobbyId,
+      //     // host: "sock.yage.games",
+      //     host: "peer.yage.games",
+      //   }
+      // );
+
+      this.connection = new CoopConnectionInstance(inputManager, [
+        [InputEventType.KEYBOARD, 0, cloneDeep(defaultPlayerState)],
+        [InputEventType.GAMEPAD, 0, cloneDeep(defaultPlayerState)],
+      ]);
+      // this.connection = new SingleplayerConnectionInstance(inputManager, cloneDeep(defaultPlayerState));
 
       this.unsubPlayerConnect = this.connection.onPlayerConnect((playerConnect) => {
         console.log("PLAYER CONNECTED", playerConnect.id);
         if (playerConnect.config) {
-          this.players[playerConnect.id] = playerConnect.config;
-          if (!this.startingGame && Object.values(this.players).every((p) => p.ready)) {
-            const isHosting = Object.keys(this.players).sort()[0] === this.connection.player.id;
+          if (!this.startingGame && Object.values(this.connection.players).every((p) => p.config!.ready)) {
+            const host = Object.keys(this.connection.players).sort()[0];
+            const localHost = this.connection.localPlayers[0].id;
+            const isHosting = host === localHost;
             this.startGame(isHosting);
           } else {
             this.renderUi();
@@ -133,9 +142,10 @@ export class BallLobbyScene extends Scene {
     } else {
       this.unsubPlayerConnect = this.connection.onPlayerConnect((playerConnect) => {
         if (playerConnect.config) {
-          this.players[playerConnect.id] = playerConnect.config;
-          if (!this.startingGame && Object.values(this.players).every((p) => p.ready)) {
-            const isHosting = Object.keys(this.players).sort()[0] === this.connection.player.id;
+          if (!this.startingGame && Object.values(this.connection.players).every((p) => p.config!.ready)) {
+            const host = Object.keys(this.connection.players).sort()[0];
+            const localHost = this.connection.localPlayers[0].id;
+            const isHosting = host === localHost;
             this.startGame(isHosting);
           } else {
             this.renderUi();
@@ -161,28 +171,36 @@ export class BallLobbyScene extends Scene {
   };
 
   renderActions = () => {
-    if (!this.ui.start) {
-      this.ui.start = new Button(
-        new Position(50, "center", {
-          width: 300,
-          height: 100,
-          yOffset: 150,
-        }),
-        CallToAction({
-          label: "Ready",
-          onClick: () => {
-            // UIService.getInstance().playSound("ding", { volume: 0.01 });
-            this.ui.start.config.label = this.connection.player.config!.ready ? "Ready" : "Not Ready";
-            console.log("UPDATING CONFIG?");
-            this.connection.updatePlayerConnect({
-              config: {
-                ...this.connection.player.config!,
-                ready: !this.connection.player.config!.ready,
-              },
-            });
-          },
-        })
-      );
+    const playerCount = this.connection.localPlayers.length;
+    for (let i = 0; i < playerCount; ++i) {
+      if (!this.ui[`start_${i}`]) {
+        this.ui[`start_${i}`] = new Button(
+          new Position(50, "center", {
+            width: 300,
+            height: 100,
+            yOffset: 150,
+            xOffset: playerCount > 1 ? i * 350 - 50 : 0,
+          }),
+          CallToAction({
+            label: "Ready",
+            onClick: () => {
+              const player = this.connection.localPlayers[i];
+              // UIService.getInstance().playSound("ding", { volume: 0.01 });
+              this.ui[`start_${i}`].config.label = player.config!.ready ? "Ready" : "Not Ready";
+              console.log("UPDATING CONFIG?");
+              this.connection.updatePlayerConnect(
+                {
+                  config: {
+                    ...player.config!,
+                    ready: !player.config!.ready,
+                  },
+                },
+                i
+              );
+            },
+          })
+        );
+      }
     }
   };
 

@@ -7,7 +7,7 @@ import type { UIElement } from "@/ui/UIElement";
 import { Rectangle } from "@/ui/Rectangle";
 import { GameCoordinator } from "@/game/GameCoordinator";
 import AssetLoader from "@/loader/AssetLoader";
-import { SingleplayerInstance } from "@/connection/SingleplayerInstance";
+import { SingleplayerConnectionInstance } from "@/connection/SingleplayerConnectionInstance";
 import { ConnectionInstance } from "@/connection/ConnectionInstance";
 
 export class BallLoadingScene extends Scene {

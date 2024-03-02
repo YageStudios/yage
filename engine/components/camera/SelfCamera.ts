@@ -16,7 +16,7 @@ registerSchema(ComponentCategory.CORE, SelfCameraSchema);
 registerUIComponent("SelfCamera", (uiService, entity, gameModel, viewport) => {
   const data = gameModel.getTypedUnsafe(entity, SelfCameraSchema);
   const selfId = gameModel.getTypedUnsafe(entity, PlayerInputSchema).id;
-  if (selfId === gameModel.netId) {
+  if (selfId === gameModel.localNetIds[0]) {
     const transformSchema = gameModel.getTypedUnsafe(entity, TransformSchema);
     const position = transformSchema.position;
     viewport.moveCenter(position.x, position.y);

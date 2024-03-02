@@ -126,7 +126,7 @@ export class GameModel {
   entityCounter = 0;
 
   world: any;
-  netId: string = "";
+  localNetIds: string[];
   roomId: string = "";
 
   systems: { [key: string]: System };

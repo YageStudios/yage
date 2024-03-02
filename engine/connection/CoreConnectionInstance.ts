@@ -92,14 +92,15 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     }
 
     for (let i = 0; i < player.length; ++i) {
-      this.localPlayers.push({
+      const playerConnection = {
         ...player[i],
         connected: false,
         connectionTime: 0,
         currentRoomId: null,
         hostedRooms: [],
-      });
-      this.players.push(this.player);
+      };
+      this.localPlayers.push(playerConnection);
+      this.players.push(playerConnection);
     }
 
     this.on("message", (message: string, time: number, playerId: string) => {
@@ -146,10 +147,16 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     });
 
     this.on("userDisconnect", (playerId: string, lastFrame: number) => {
+      const player = this.players.find((player) => player.id === playerId);
+      if (!player) {
+        console.error("Something went horribly wrong, player not found", playerId, this.players);
+        return;
+      }
       this.players = this.players.filter((player) => player.id !== playerId);
+      this.localPlayers = this.localPlayers.filter((player) => player.id !== playerId);
       this.disconnectListeners.forEach((listener) => listener(playerId));
 
-      const currentRoomId = this.player.currentRoomId ?? "";
+      const currentRoomId = player.currentRoomId ?? "";
 
       if (!this.roomStates[currentRoomId]?.frameStack[playerId]) {
         return;
@@ -200,21 +207,26 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   }
 
   updatePlayerConnect(
-    player: RequireAtLeastOne<{ name: string; token: string; config: T }, "name" | "token" | "config">
+    playerConnect: RequireAtLeastOne<{ name: string; token: string; config: T }, "name" | "token" | "config">,
+    index = 0
   ): void {
-    this.player.name = player.name ?? this.player.name;
-    this.player.token = player.token ?? this.player.token;
-    this.player.config = player.config ?? this.player.config;
+    const player = this.localPlayers[index];
+    player.name = playerConnect.name ?? player.name;
+    player.token = playerConnect.token ?? player.token;
+    player.config = playerConnect.config ?? player.config;
 
-    this.emit("updatePlayerConnect", this.player);
+    this.emit("updatePlayerConnect", player);
   }
 
   leaveRoom() {
     this.listening = false;
     this.sendingState = false;
     this.touchListener?.replaceRegions([]);
-    this.emit("leaveRoom", this.player.id, this.player.currentRoomId);
-    this.player.currentRoomId = null;
+    for (let i = 0; i < this.localPlayers.length; ++i) {
+      const player = this.localPlayers[i];
+      this.emit("leaveRoom", player.id, player.currentRoomId);
+      player.currentRoomId = null;
+    }
   }
 
   _onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: T) => number;
@@ -228,14 +240,11 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     this.emit("updateRoom", room);
   }
 
-  changeNickname(nickname: string): void {
-    this.emit("changeNickname", this.player.id, nickname);
-  }
-
-  sendMessage(message: string, includeSelf = true): void {
-    this.emit("message", message, +new Date(), this.player.id);
+  sendMessage(message: string, includeSelf = true, playerIndex = 0): void {
+    let playerId = this.localPlayers[playerIndex].id;
+    this.emit("message", message, +new Date(), playerId);
     if (includeSelf) {
-      this.messageListeners.forEach((listener) => listener(message, +new Date(), this.player.id));
+      this.messageListeners.forEach((listener) => listener(message, +new Date(), playerId));
     }
   }
 
@@ -304,14 +313,17 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   emit(event: string, ...args: any[]) {}
 
   cleanup() {
-    let roomId = this.player.currentRoomId;
-    if (!roomId) {
-      return;
+    let roomIds = this.localPlayers.map((player) => player.currentRoomId);
+    for (let i = 0; i < roomIds.length; ++i) {
+      let roomId = roomIds[i];
+      if (!roomId) {
+        return;
+      }
+      this.roomSubs[roomId]?.forEach((sub) => sub());
+      delete this.roomSubs[roomId];
+      delete this.roomStates[roomId];
+      delete this.rooms[roomId];
     }
-    this.roomSubs[roomId]?.forEach((sub) => sub());
-    delete this.roomSubs[roomId];
-    delete this.roomStates[roomId];
-    delete this.rooms[roomId];
   }
 
   on(event: string, callback: (...args: any[]) => void) {
@@ -481,7 +493,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
             }
             if (roomState.gameModel) {
               roomState.gameModel?.loadStateObject(state);
-              roomState.gameModel.netId = this.player.id;
+              roomState.gameModel.localNetIds = [this.player.id];
             }
             if (roomState.frameStack[this.player.id]) {
               this.listening = true;
@@ -510,7 +522,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       rebalanceOnLeave?: boolean | undefined;
     }
   ): Promise<GameModel> {
-    if (!this.player.connected && !this.options.solohost) {
+    if (!this.localPlayers.every((player) => player.connected) && !this.options.solohost) {
       await this.connect();
     }
     this.cleanup();
@@ -520,21 +532,24 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     const host = players[0];
 
     this.touchListener?.replaceRegions(this.options.touchRegions ?? []);
-    this.player.currentRoomId = roomId;
-    this.player.hostedRooms.push(roomId);
-
-    this.roomSubs[roomId] = this.roomSubs[roomId] ?? [];
-    if (host === this.player) {
-      this.roomSubs[roomId].push(
-        this.on("requestState", (playerId, _roomId, playerConfig) => {
-          if (!this.stateRequested) {
-            this.stateRequested = [[playerId, JSON.parse(playerConfig || "{}")]];
-          } else {
-            this.stateRequested.push([playerId, JSON.parse(playerConfig || "{}")]);
-          }
-        })
-      );
+    for (let i = 0; i < this.localPlayers.length; ++i) {
+      const player = this.localPlayers[i];
+      player.currentRoomId = roomId;
+      player.hostedRooms.push(roomId);
+      this.roomSubs[roomId] = this.roomSubs[roomId] ?? [];
+      if (host === player) {
+        this.roomSubs[roomId].push(
+          this.on("requestState", (playerId, _roomId, playerConfig) => {
+            if (!this.stateRequested) {
+              this.stateRequested = [[playerId, JSON.parse(playerConfig || "{}")]];
+            } else {
+              this.stateRequested.push([playerId, JSON.parse(playerConfig || "{}")]);
+            }
+          })
+        );
+      }
     }
+
     this._onPlayerJoin = options.onPlayerJoin;
     this._onPlayerLeave = options.onPlayerLeave;
     this.subscribeFrame(roomId);
@@ -557,7 +572,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       this.createPlayer(roomState.gameModel, player.id, player.config!, roomState.gameModel.frame);
     }
 
-    roomState.gameModel.netId = this.player.id;
+    roomState.gameModel.localNetIds = this.localPlayers.map((player) => player.id).sort();
     this.rooms[roomId] = {
       rebalanceOnLeave: options.rebalanceOnLeave ?? false,
       host: host.id,
@@ -589,13 +604,16 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       playerConfig?: Partial<T>;
     }
   ): Promise<GameModel> {
-    if (!this.player.connected && !this.options.solohost) {
+    if (!this.localPlayers.every((player) => player.connected) && !this.options.solohost) {
       await this.connect();
     }
     this.cleanup();
     this.touchListener?.replaceRegions(this.options.touchRegions ?? []);
-    this.player.currentRoomId = roomId;
-    this.player.hostedRooms.push(roomId);
+    for (let i = 0; i < this.localPlayers.length; ++i) {
+      let player = this.localPlayers[i];
+      player.currentRoomId = roomId;
+      player.hostedRooms.push(roomId);
+    }
 
     this.roomSubs[roomId] = this.roomSubs[roomId] ?? [];
     this.roomSubs[roomId].push(
@@ -616,21 +634,34 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     roomState.gameModel = new GameModel(GameCoordinator.GetInstance(), gameInstance, seed, coreOverrides);
     roomState.gameModel.roomId = roomId;
 
-    if (!playerConfig) {
-      playerConfig = {};
+    let localPlayers = this.localPlayers.sort();
+
+    let firstPlayerConfig = {
+      ...localPlayers[0].config,
+      ...playerConfig,
+    };
+
+    buildWorld(roomState.gameModel, firstPlayerConfig);
+
+    for (let i = 0; i < localPlayers.length; ++i) {
+      const player = localPlayers[i];
+      this.createPlayer(
+        roomState.gameModel,
+        player.id,
+        {
+          ...player.config!,
+          ...playerConfig,
+        },
+        roomState.gameModel.frame
+      );
     }
-    // playerConfig.name = this.player.name;
-    playerConfig = { ...this.player.config, ...playerConfig };
 
-    buildWorld(roomState.gameModel, playerConfig);
-
-    this.createPlayer(roomState.gameModel, this.player.id, playerConfig as T, roomState.gameModel.frame);
-    roomState.gameModel.netId = this.player.id;
+    roomState.gameModel.localNetIds = localPlayers.map((player) => player.id);
 
     this.updateRoom({
       rebalanceOnLeave: rebalanceOnLeave ?? false,
-      host: this.player.id,
-      players: [this.player.id],
+      host: localPlayers[0].id,
+      players: roomState.gameModel.localNetIds,
       roomId,
     });
 
@@ -667,16 +698,17 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       if (gameModel.hasComponent(player, PlayerInputSchema)) {
         const PlayerInput = gameModel.getTypedUnsafe(player, PlayerInputSchema);
         const netId = PlayerInput.id;
+        const localPlayer = this.localPlayers.find((player) => player.id === netId);
 
         if (
-          netId === this.player.id &&
+          localPlayer &&
           gameModel.frame + this.frameOffset > roomState.frameStack[netId][roomState.frameStack[netId].length - 1].frame
         ) {
-          const currentKeyMap = this.inputManager.getKeyMap();
+          const currentKeyMap = this.inputManager.getKeyMap(localPlayer.inputType, localPlayer.inputIndex);
           const frame: Frame = {
             keys: this.inputManager.keyMapToJsonObject(currentKeyMap),
             frame: gameModel.frame + this.frameOffset,
-            playerId: this.player.id,
+            playerId: localPlayer.id,
             events: this.eventsManager.getEvents(),
           };
           this.emit("frame", frame);

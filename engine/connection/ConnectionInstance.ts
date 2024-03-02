@@ -1,6 +1,6 @@
 import { GameModel } from "@/game/GameModel";
 import { RequireAtLeastOne } from "@/utils/typehelpers";
-import { InputManager } from "@/inputs/InputManager";
+import { InputEventType, InputManager } from "@/inputs/InputManager";
 import { TouchListener } from "@/inputs/TouchListener";
 import { PlayerEventManager } from "@/inputs/PlayerEventManager";
 import { GameInstance } from "@/game/GameInstance";
@@ -14,6 +14,8 @@ export type PlayerConnection<T> = {
   connectionTime: number;
   currentRoomId: string | null;
   hostedRooms: string[];
+  inputType?: InputEventType;
+  inputIndex?: number;
   config?: T;
 };
 
@@ -21,11 +23,14 @@ export type PlayerConnect<T> = {
   id: string;
   name: string;
   token: string;
+  inputType?: InputEventType;
+  inputIndex?: number;
   config?: T;
 };
 export abstract class ConnectionInstance<T> {
   abstract players: PlayerConnection<T>[];
   abstract player: PlayerConnection<T>;
+  abstract localPlayers: PlayerConnection<T>[];
   abstract eventsManager: PlayerEventManager;
   abstract inputManager: InputManager;
   abstract touchListener?: TouchListener;
@@ -34,7 +39,8 @@ export abstract class ConnectionInstance<T> {
   abstract address: string;
 
   abstract updatePlayerConnect(
-    player: RequireAtLeastOne<{ name: string; token: string; config: T }, "name" | "token" | "config">
+    player: RequireAtLeastOne<{ name: string; token: string; config: T }, "name" | "token" | "config">,
+    index?: number
   ): void;
 
   abstract connect(): Promise<void>;
