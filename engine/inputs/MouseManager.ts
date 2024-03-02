@@ -1,7 +1,6 @@
 import type { Vector2d } from "@/utils/vector";
 
 export class MouseManager {
-  private static instance: MouseManager;
   mousePosition: Vector2d = { x: 0, y: 0 };
   buttons = 0;
 

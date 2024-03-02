@@ -152,7 +152,9 @@ export const StandardGamepadRegions: GamepadRegion[] = [
 ];
 
 export class GamepadListener {
-  registry: { [key: string]: [number, number, number] } = {};
+  registry: {
+    [controllerIndex: number]: { [key: string]: [number, number, number] };
+  } = {};
   constructor(public inputManager: InputManager) {}
   unsubscribe: Function | null = null;
 
@@ -210,17 +212,17 @@ export class GamepadListener {
 
               inactiveKeys = inactiveKeys.filter((key) => !activeKeys.includes(key));
               activeKeys.forEach((key) => {
-                this.handleKeySimulation(key, true);
+                this.handleKeySimulation(key, true, padIndex);
               });
               inactiveKeys.forEach((key) => {
-                this.handleKeySimulation(key, false);
+                this.handleKeySimulation(key, false, padIndex);
               });
             } else {
               let pressed = Math.abs(value) > (region.id.deadzone ?? 0);
               let key = region.key[axisIndexIndex * 2 + (value > 0 ? 1 : 0)];
               let otherKey = region.key[axisIndexIndex * 2 + (value > 0 ? 0 : 1)];
-              this.handleKeySimulation(key, pressed);
-              this.handleKeySimulation(otherKey, false);
+              this.handleKeySimulation(key, pressed, padIndex);
+              this.handleKeySimulation(otherKey, false, padIndex);
             }
           }
         });
@@ -233,18 +235,10 @@ export class GamepadListener {
           ) {
             const buttonIndexIndex = Array.isArray(region.id.index) ? region.id.index.indexOf(index) : 0;
             const pressed = value > (region.id.deadzone ?? 0);
-            console.log(
-              "pressed",
-              region,
-              pressed,
-              value,
-              region.id.deadzone,
-              Array.isArray(region.key) ? region.key[buttonIndexIndex] : region.key
-            );
             if (Array.isArray(region.key)) {
-              this.handleKeySimulation(region.key[buttonIndexIndex], pressed);
+              this.handleKeySimulation(region.key[buttonIndexIndex], pressed, padIndex);
             } else {
-              this.handleKeySimulation(region.key, pressed);
+              this.handleKeySimulation(region.key, pressed, padIndex);
             }
           }
         });
@@ -255,40 +249,47 @@ export class GamepadListener {
   destroy() {
     this.unsubscribe && this.unsubscribe();
     this.unsubscribe = null;
-    for (const key in this.registry) {
-      clearInterval(this.registry[key][2]);
+    for (const padIndex in this.registry) {
+      const registry = this.registry[padIndex];
+      for (const key in registry) {
+        clearInterval(registry[key][2]);
+      }
     }
   }
 
   intitialDelay = 600;
   multiDelay = 80;
 
-  handleKeySimulation(key: string, pressed: boolean) {
-    if (!this.registry[key]) {
-      this.registry[key] = [0, 0, 0];
+  handleKeySimulation(key: string, pressed: boolean, padIndex: number) {
+    if (!this.registry[padIndex]) {
+      this.registry[padIndex] = {};
+    }
+    const registry = this.registry[padIndex];
+    if (!registry[key]) {
+      registry[key] = [0, 0, 0];
     }
     if (!pressed) {
-      if (this.registry[key][0]) {
-        clearInterval(this.registry[key][2]);
+      if (registry[key][0]) {
+        clearInterval(registry[key][2]);
         this.inputManager.dispatchEvent(key, pressed, EVENT_TYPE.GAMEPAD);
-        this.registry[key] = [0, 0, 0];
+        registry[key] = [0, 0, 0];
       }
     } else {
       let triggerTime = +new Date();
-      if (this.registry[key][0] === 0) {
-        clearInterval(this.registry[key][2]);
-        this.registry[key] = [
+      if (registry[key][0] === 0) {
+        clearInterval(registry[key][2]);
+        registry[key] = [
           triggerTime,
           triggerTime,
           setInterval(() => {
-            this.handleKeySimulation(key, true);
+            this.handleKeySimulation(key, true, padIndex);
           }, this.multiDelay / 4) as any,
         ];
         this.inputManager.dispatchEvent(key, pressed, EVENT_TYPE.GAMEPAD);
-      } else if (this.registry[key][0] + this.intitialDelay < triggerTime) {
-        if (this.registry[key][1] + this.multiDelay < triggerTime) {
-          this.registry[key][1] = triggerTime;
-          this.inputManager.dispatchEvent(key, pressed, EVENT_TYPE.GAMEPAD);
+      } else if (registry[key][0] + this.intitialDelay < triggerTime) {
+        if (registry[key][1] + this.multiDelay < triggerTime) {
+          registry[key][1] = triggerTime;
+          this.inputManager.dispatchEvent(key, pressed, EVENT_TYPE.GAMEPAD, padIndex);
         }
       }
     }

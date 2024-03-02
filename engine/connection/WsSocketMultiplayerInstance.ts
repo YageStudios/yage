@@ -1,10 +1,9 @@
-import { MultiplayerInstance, MultiplayerInstanceOptions } from "./MultiplayerInstance";
 import { PlayerConnect, PlayerConnection } from "./ConnectionInstance";
-import { MouseManager } from "@/inputs/MouseManager";
 import { InputManager } from "@/inputs/InputManager";
+import { CoreConnectionInstance, CoreConnectionInstanceOptions } from "./CoreConnectionInstance";
 import { isEqual } from "lodash";
 
-export class WsSocketMultiplayerInstance<T> extends MultiplayerInstance<T> {
+export class WsSocketMultiplayerInstance<T> extends CoreConnectionInstance<T> {
   socket: WebSocket;
   connectionPromise: Promise<void>;
   pingInterval: number;
@@ -13,10 +12,9 @@ export class WsSocketMultiplayerInstance<T> extends MultiplayerInstance<T> {
   constructor(
     player: PlayerConnect<T>,
     inputManager: InputManager,
-    mouseManager: MouseManager,
-    protected options: MultiplayerInstanceOptions<T> & { host: string }
+    protected options: CoreConnectionInstanceOptions<T> & { address: string; host: string }
   ) {
-    super(player, inputManager, mouseManager, options);
+    super(player, inputManager, options);
     const host = this.options.host.startsWith("localhost") ? `ws://${this.options.host}` : `wss://${this.options.host}`;
     this.socket = new WebSocket(host);
     this.connectionPromise = new Promise((resolve) => {

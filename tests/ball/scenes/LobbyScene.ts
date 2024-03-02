@@ -1,6 +1,5 @@
 import type { SceneTimestep } from "@/game/Scene";
 import { Scene } from "@/game/Scene";
-import { MouseManager } from "@/inputs/MouseManager";
 import { Position } from "@/ui/Rectangle";
 import { PeerMultiplayerInstance } from "@/connection/PeerMultiplayerInstance";
 import { customAlphabet } from "nanoid";
@@ -40,7 +39,6 @@ export class BallLobbyScene extends Scene {
   timestep: SceneTimestep = "continuous";
   dt = 4;
   paused = false;
-  mouseManager: MouseManager;
   gameCanvasContext: CanvasRenderingContext2D;
 
   connection: ConnectionInstance<PlayerState>;
@@ -109,7 +107,6 @@ export class BallLobbyScene extends Scene {
           config: cloneDeep(defaultPlayerState),
         },
         inputManager,
-        new MouseManager(),
         {
           solohost: true,
           prefix: "group-chat-",
@@ -124,7 +121,7 @@ export class BallLobbyScene extends Scene {
         if (playerConnect.config) {
           this.players[playerConnect.id] = playerConnect.config;
           if (!this.startingGame && Object.values(this.players).every((p) => p.ready)) {
-            const isHosting = Object.keys(this.players).sort()[0] === this.connection.playerId;
+            const isHosting = Object.keys(this.players).sort()[0] === this.connection.player.id;
             this.startGame(isHosting);
           } else {
             this.renderUi();
@@ -138,7 +135,7 @@ export class BallLobbyScene extends Scene {
         if (playerConnect.config) {
           this.players[playerConnect.id] = playerConnect.config;
           if (!this.startingGame && Object.values(this.players).every((p) => p.ready)) {
-            const isHosting = Object.keys(this.players).sort()[0] === this.connection.playerId;
+            const isHosting = Object.keys(this.players).sort()[0] === this.connection.player.id;
             this.startGame(isHosting);
           } else {
             this.renderUi();
