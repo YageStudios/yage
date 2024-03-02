@@ -12,18 +12,18 @@ export class KeyboardListener {
   init(keys?: string[]) {
     if (!keys) {
       this.on("keydown-*", (key: string, event: Event) => {
-        this.inputManager.dispatchEvent(key, true, EVENT_TYPE.KEYBOARD, event);
+        this.inputManager.dispatchEvent(key, true, EVENT_TYPE.KEYBOARD, 0, event);
       });
       this.on("keyup-*", (key: string) => {
-        this.inputManager.dispatchEvent(key, false, EVENT_TYPE.KEYBOARD, event);
+        this.inputManager.dispatchEvent(key, false, EVENT_TYPE.KEYBOARD, 0, event);
       });
     } else {
       for (const key of keys) {
         this.on(`keydown-${key}`, (_key: string, event: Event) =>
-          this.inputManager.dispatchEvent(key, true, EVENT_TYPE.KEYBOARD, event)
+          this.inputManager.dispatchEvent(key, true, EVENT_TYPE.KEYBOARD, 0, event)
         );
         this.on(`keyup-${key}`, (_key: string, event: Event) =>
-          this.inputManager.dispatchEvent(key, false, EVENT_TYPE.KEYBOARD, event)
+          this.inputManager.dispatchEvent(key, false, EVENT_TYPE.KEYBOARD, 0, event)
         );
       }
     }

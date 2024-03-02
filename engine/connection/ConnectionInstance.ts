@@ -1,5 +1,4 @@
-import { GameModel, GameModelState } from "@/game/GameModel";
-import { MouseManager } from "@/inputs/MouseManager";
+import { GameModel } from "@/game/GameModel";
 import { RequireAtLeastOne } from "@/utils/typehelpers";
 import { InputManager } from "@/inputs/InputManager";
 import { TouchListener } from "@/inputs/TouchListener";
@@ -26,12 +25,10 @@ export type PlayerConnect<T> = {
 };
 export abstract class ConnectionInstance<T> {
   abstract players: PlayerConnection<T>[];
-  abstract playerId: string;
   abstract player: PlayerConnection<T>;
   abstract eventsManager: PlayerEventManager;
   abstract inputManager: InputManager;
   abstract touchListener?: TouchListener;
-  abstract mouseManager: MouseManager;
   abstract solohost: boolean;
 
   abstract address: string;

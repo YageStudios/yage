@@ -53,6 +53,7 @@ export class UIService {
     key: string,
     pressed: boolean,
     eventType: EVENT_TYPE,
+    _inputIndex: number,
     e?: Event
   ) => {
     if (!pressed || [EVENT_TYPE.TOUCH, EVENT_TYPE.MOUSE].includes(eventType)) {

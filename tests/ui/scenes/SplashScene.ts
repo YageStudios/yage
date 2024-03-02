@@ -1,7 +1,6 @@
 import type { SceneTimestep } from "@/game/Scene";
 import { Scene } from "@/game/Scene";
 import { EntityFactory } from "@/entity/EntityFactory";
-import type { MouseManager } from "@/inputs/MouseManager";
 import { UIService } from "@/ui/UIService";
 import { Text, TextConfig } from "@/ui/Text";
 import { Position } from "@/ui/Rectangle";
@@ -52,7 +51,6 @@ export class UiSplashScene extends Scene {
   dt = 4;
 
   paused = false;
-  mouseManager: MouseManager;
   gameCanvasContext: CanvasRenderingContext2D;
   splashMap: UiMap;
   characterPickerMap: UiMap;

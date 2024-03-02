@@ -1,20 +1,18 @@
 import { Socket, io } from "socket.io-client";
-import { MultiplayerInstance, MultiplayerInstanceOptions } from "./MultiplayerInstance";
-import { PlayerConnect, PlayerConnection } from "./ConnectionInstance";
-import { MouseManager } from "@/inputs/MouseManager";
+import { PlayerConnect } from "./ConnectionInstance";
 import { InputManager } from "@/inputs/InputManager";
+import { CoreConnectionInstance, CoreConnectionInstanceOptions } from "./CoreConnectionInstance";
 import { isEqual } from "lodash";
 
-export class SocketIoMultiplayerInstance<T> extends MultiplayerInstance<T> {
+export class SocketIoMultiplayerInstance<T> extends CoreConnectionInstance<T> {
   socket: Socket;
 
   constructor(
     player: PlayerConnect<T>,
     inputManager: InputManager,
-    mouseManager: MouseManager,
-    protected options: MultiplayerInstanceOptions<T> & { host: string }
+    protected options: CoreConnectionInstanceOptions<T> & { address: string; host: string }
   ) {
-    super(player, inputManager, mouseManager, options);
+    super(player, inputManager, options);
     this.socket = io(this.options.host);
     this.player.connectionId = this.player.id;
     this.player.connected = true;

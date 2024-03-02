@@ -55,23 +55,16 @@ export class KeyMapInput {
 export class InputManager {
   public keyMap: KeyMap;
 
+  private keyMapsByType: { [key: string]: KeyMap[] } = {};
+
   private changes: { [key: string]: boolean } = {};
   private keyListeners: Function[] = [];
 
-  public getKeyboardChanges() {
-    if (Object.keys(this.changes).length === 0) {
-      return false;
-    }
-    const changes = this.changes;
-    this.changes = {};
-    return changes;
-  }
-
-  public getKeyMap(): KeyMap {
+  public getKeyMap(type?: EVENT_TYPE, typeIndex: number = 0): KeyMap {
     return this.clone();
   }
 
-  constructor() {
+  constructor(protected combineKeyMaps = true) {
     this.keyMap = this.buildKeyMap();
   }
 
@@ -102,7 +95,7 @@ export class InputManager {
   }
 
   public addKeyListener(
-    listener: (key: string, keyPressed: boolean, eventType: EVENT_TYPE, e?: Event) => void
+    listener: (key: string, keyPressed: boolean, eventType: EVENT_TYPE, typeIndex: number, e?: Event) => void
   ): () => void {
     this.keyListeners.push(listener);
     return () => {
@@ -111,29 +104,32 @@ export class InputManager {
   }
 
   public removeKeyListener(
-    listener: (key: string, keyPressed: boolean, eventType: EVENT_TYPE, e?: Event) => void
+    listener: (key: string, keyPressed: boolean, eventType: EVENT_TYPE, typeIndex: number, e?: Event) => void
   ): void {
     this.keyListeners = this.keyListeners.filter((l) => l !== listener);
   }
 
-  dispatchEvent = (key: string, keyPressed: boolean, eventType: EVENT_TYPE, e?: Event) => {
-    if (keyPressed) {
-      this.keyMap.set(key, keyPressed);
-    } else {
-      this.keyMap.delete(key);
-    }
-    this.keyListeners.forEach((listener) => listener(key, keyPressed, eventType, e));
-  };
+  dispatchEvent = (key: string, keyPressed: boolean, eventType: EVENT_TYPE, typeIndex = 0, e?: Event) => {
+    let keyMap: KeyMap;
 
-  diffKeyMap(keyMap: KeyMap, prevKeyMap: KeyMap): KeyMap {
-    const diffKeyMap = new Map<string, boolean>();
-    keyMap.forEach((value, key) => {
-      if (prevKeyMap?.get(key) !== value) {
-        diffKeyMap.set(key, value);
+    if (this.combineKeyMaps) {
+      keyMap = this.keyMap;
+    } else {
+      if (!this.keyMapsByType[eventType]) {
+        this.keyMapsByType[eventType] = [];
       }
-    });
-    return diffKeyMap;
-  }
+      if (!this.keyMapsByType[eventType][typeIndex]) {
+        this.keyMapsByType[eventType][typeIndex] = this.buildKeyMap();
+      }
+      keyMap = this.keyMapsByType[eventType][typeIndex];
+    }
+    if (keyPressed) {
+      keyMap.set(key, keyPressed);
+    } else {
+      keyMap.delete(key);
+    }
+    this.keyListeners.forEach((listener) => listener(key, keyPressed, eventType, typeIndex, e));
+  };
 
   keyMapToJsonObject(keyMap: KeyMap): { [key: string]: boolean } {
     const obj: { [key: string]: boolean } = {};
@@ -145,7 +141,19 @@ export class InputManager {
     return obj;
   }
 
-  keyPressed(key: string) {
-    return !!this.keyMap.get(key);
+  keyPressed(key: string, eventType?: EVENT_TYPE, typeIndex = 0) {
+    if (!eventType) {
+      eventType = EVENT_TYPE.KEYBOARD;
+    }
+    if (this.combineKeyMaps) {
+      return !!this.keyMap.get(key);
+    }
+    if (!this.keyMapsByType[eventType]) {
+      return false;
+    }
+    if (!this.keyMapsByType[eventType][typeIndex]) {
+      return false;
+    }
+    return !!this.keyMapsByType[eventType][typeIndex].get(key);
   }
 }

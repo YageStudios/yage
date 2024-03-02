@@ -5,10 +5,8 @@ import { ConnectionInstance, PlayerConnect, PlayerConnection } from "./Connectio
 import { md5 } from "@/utils/md5";
 import { nanoid } from "nanoid";
 import { RequireAtLeastOne } from "@/utils/typehelpers";
-import { MouseManager } from "@/inputs/MouseManager";
 import { TouchListener } from "@/inputs/TouchListener";
 import { PlayerEventManager } from "@/inputs/PlayerEventManager";
-import { ChildSchema } from "@/schemas/entity/Child";
 import { GameInstance } from "@/game/GameInstance";
 import { GameCoordinator } from "@/game/GameCoordinator";
 import { PlayerInputSchema } from "@/schemas/core/PlayerInput";
@@ -31,16 +29,13 @@ type RoomState = {
   lastFrame: { [playerId: string]: number };
 };
 
-export type MultiplayerInstanceOptions<T> = {
+export type CoreConnectionInstanceOptions<T> = {
   solohost?: boolean;
   touchRegions?: TouchRegion[];
   roomTimeout?: number;
-  prefix: string;
-  address?: string;
-  host?: string;
 };
 
-export class MultiplayerInstance<T> implements ConnectionInstance<T> {
+export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   instanceId = nanoid();
 
   stateRequested: null | [string, any][] = null;
@@ -50,7 +45,6 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
 
   inRoom: string = "";
 
-  playerId: string = nanoid();
   nickname: string = "";
   listening: boolean;
 
@@ -69,7 +63,14 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
   roomStates: { [roomId: string]: RoomState } = {};
 
   players: PlayerConnection<T>[] = [];
-  player: PlayerConnection<T>;
+  localPlayers: PlayerConnection<T>[] = [];
+
+  get player(): PlayerConnection<T> {
+    if (this.localPlayers.length > 1) {
+      throw new Error("Multiple local players");
+    }
+    return this.localPlayers[0];
+  }
 
   roomSubs: { [roomId: string]: (() => void)[] } = {};
   solohost: boolean;
@@ -77,25 +78,29 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
   eventsManager: PlayerEventManager = new PlayerEventManager();
 
   constructor(
-    player: PlayerConnect<T>,
+    player: PlayerConnect<T> | PlayerConnect<T>[],
     public inputManager: InputManager,
-    public mouseManager: MouseManager,
-    protected options: MultiplayerInstanceOptions<T>
+    protected options: CoreConnectionInstanceOptions<T>
   ) {
     options.solohost = options.solohost ?? false;
     this.solohost = options.solohost ?? false;
     if (options.touchRegions) {
       this.touchListener = new TouchListener(this.inputManager);
     }
-    this.player = {
-      ...player,
-      connected: false,
-      connectionTime: 0,
-      currentRoomId: null,
-      hostedRooms: [],
-    };
-    this.players.push(this.player);
-    this.playerId = player.id;
+    if (!Array.isArray(player)) {
+      player = [player];
+    }
+
+    for (let i = 0; i < player.length; ++i) {
+      this.localPlayers.push({
+        ...player[i],
+        connected: false,
+        connectionTime: 0,
+        currentRoomId: null,
+        hostedRooms: [],
+      });
+      this.players.push(this.player);
+    }
 
     this.on("message", (message: string, time: number, playerId: string) => {
       this.messageListeners.forEach((listener) => listener(message, time, playerId));
@@ -208,7 +213,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
     this.listening = false;
     this.sendingState = false;
     this.touchListener?.replaceRegions([]);
-    this.emit("leaveRoom", this.playerId, this.player.currentRoomId);
+    this.emit("leaveRoom", this.player.id, this.player.currentRoomId);
     this.player.currentRoomId = null;
   }
 
@@ -224,13 +229,13 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
   }
 
   changeNickname(nickname: string): void {
-    this.emit("changeNickname", this.playerId, nickname);
+    this.emit("changeNickname", this.player.id, nickname);
   }
 
   sendMessage(message: string, includeSelf = true): void {
-    this.emit("message", message, +new Date(), this.playerId);
+    this.emit("message", message, +new Date(), this.player.id);
     if (includeSelf) {
-      this.messageListeners.forEach((listener) => listener(message, +new Date(), this.playerId));
+      this.messageListeners.forEach((listener) => listener(message, +new Date(), this.player.id));
     }
   }
 
@@ -476,17 +481,17 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
             }
             if (roomState.gameModel) {
               roomState.gameModel?.loadStateObject(state);
-              roomState.gameModel.netId = this.playerId;
+              roomState.gameModel.netId = this.player.id;
             }
-            if (roomState.frameStack[this.playerId]) {
+            if (roomState.frameStack[this.player.id]) {
               this.listening = true;
             }
             resolve(roomState.gameModel);
           }
         )
       );
-      this.emit("requestState", this.playerId, roomId, JSON.stringify(playerConfig));
-      this.emit("joinRoom", this.playerId, roomId);
+      this.emit("requestState", this.player.id, roomId, JSON.stringify(playerConfig));
+      this.emit("joinRoom", this.player.id, roomId);
     });
   }
 
@@ -552,7 +557,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
       this.createPlayer(roomState.gameModel, player.id, player.config!, roomState.gameModel.frame);
     }
 
-    roomState.gameModel.netId = this.playerId;
+    roomState.gameModel.netId = this.player.id;
     this.rooms[roomId] = {
       rebalanceOnLeave: options.rebalanceOnLeave ?? false,
       host: host.id,
@@ -619,13 +624,13 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
 
     buildWorld(roomState.gameModel, playerConfig);
 
-    this.createPlayer(roomState.gameModel, this.playerId, playerConfig as T, roomState.gameModel.frame);
-    roomState.gameModel.netId = this.playerId;
+    this.createPlayer(roomState.gameModel, this.player.id, playerConfig as T, roomState.gameModel.frame);
+    roomState.gameModel.netId = this.player.id;
 
     this.updateRoom({
       rebalanceOnLeave: rebalanceOnLeave ?? false,
-      host: this.playerId,
-      players: [this.playerId],
+      host: this.player.id,
+      players: [this.player.id],
       roomId,
     });
 
@@ -664,14 +669,14 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
         const netId = PlayerInput.id;
 
         if (
-          netId === this.playerId &&
+          netId === this.player.id &&
           gameModel.frame + this.frameOffset > roomState.frameStack[netId][roomState.frameStack[netId].length - 1].frame
         ) {
           const currentKeyMap = this.inputManager.getKeyMap();
           const frame: Frame = {
             keys: this.inputManager.keyMapToJsonObject(currentKeyMap),
             frame: gameModel.frame + this.frameOffset,
-            playerId: this.playerId,
+            playerId: this.player.id,
             events: this.eventsManager.getEvents(),
           };
           this.emit("frame", frame);
@@ -721,20 +726,6 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
       gameModel.loadStateObject(state);
     }
 
-    // if (gameModel.frame % 30 === 0) {
-    //   const perf = performance.now();
-    //   const physicsSystem = gameModel.getSystem(PhysicsSystem);
-    //   physicsSystem?.getEngine?.(gameModel);
-    //   var uint8array = physicsSystem.world?.takeSnapshot();
-    //   var string = new TextDecoder().decode(uint8array);
-    //   const model = gameModel.serializeState();
-    //   var modelString = JSON.stringify(model);
-
-    //   const md5String = md5(string);
-    //   const modelMd5String = md5(modelString);
-
-    //   console.log(gameModel.frame, md5String, modelMd5String, model, performance.now() - perf);
-    // }
     if (gameModel.frame % 300 === 0) {
       const perf = performance.now();
       const physicsSystem = gameModel.getSystem(PhysicsSystem);

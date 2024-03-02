@@ -1,19 +1,18 @@
 import Peer, { DataConnection } from "peerjs";
-import { MultiplayerInstance, MultiplayerInstanceOptions } from "./MultiplayerInstance";
 import { PlayerConnect } from "./ConnectionInstance";
 import { customAlphabet } from "nanoid";
 import { InputManager } from "@/inputs/InputManager";
-import { MouseManager } from "@/inputs/MouseManager";
+import { CoreConnectionInstance, CoreConnectionInstanceOptions } from "./CoreConnectionInstance";
 
 const nanoid = customAlphabet("234579ACDEFGHJKMNPQRTWXYZ", 10);
 
-type PeerMultiplayerInstanceOptions<T> = MultiplayerInstanceOptions<T> & {
+type PeerMultiplayerInstanceOptions<T> = CoreConnectionInstanceOptions<T> & {
   prefix: string;
   address?: string;
   host?: string;
 };
 
-export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
+export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
   peer: Peer;
 
   connections: { [peerId: string]: DataConnection } = {};
@@ -24,10 +23,9 @@ export class PeerMultiplayerInstance<T> extends MultiplayerInstance<T> {
   constructor(
     player: PlayerConnect<T>,
     inputManager: InputManager,
-    mouseManager: MouseManager,
     { solohost, prefix, host, address = nanoid() }: PeerMultiplayerInstanceOptions<T>
   ) {
-    super(player, inputManager, mouseManager, { solohost, prefix, host, address });
+    super(player, inputManager, { solohost });
     this.prefix = prefix;
     this.address = address;
 

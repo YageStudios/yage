@@ -1,9 +1,8 @@
 import { PlayerInputSchema } from "@/schemas/core/PlayerInput";
-import { GameModel, GameModelState } from "@/game/GameModel";
+import { GameModel } from "@/game/GameModel";
 import { InputManager, KeyMap } from "@/inputs/InputManager";
 import { ConnectionInstance, PlayerConnect, PlayerConnection } from "./ConnectionInstance";
 import { RequireAtLeastOne } from "@/utils/typehelpers";
-import { MouseManager } from "@/inputs/MouseManager";
 import { TouchListener } from "@/inputs/TouchListener";
 import { PlayerEventManager } from "@/inputs/PlayerEventManager";
 import { GameCoordinator } from "@/game/GameCoordinator";
@@ -39,11 +38,7 @@ export class SingleplayerInstance<T> implements ConnectionInstance<T> {
   ];
   gameModel: GameModel;
 
-  constructor(
-    public inputManager: InputManager,
-    public mouseManager: MouseManager,
-    public touchRegions?: TouchRegion[]
-  ) {
+  constructor(public inputManager: InputManager, public touchRegions?: TouchRegion[]) {
     this.player = {
       id: "singleplayer",
       name: "singleplayer",
@@ -209,8 +204,6 @@ export class SingleplayerInstance<T> implements ConnectionInstance<T> {
           frame: gameModel.frame + this.frameOffset,
           events: this.eventsManager.getEvents(),
         });
-        // PlayerInput.mousePosition = fromMouseSpace(this.mouseManager.mousePosition, this.pixiViewport);
-        // PlayerInput.buttons = this.mouseManager.buttons;
       } else if (netId !== "singleplayer") {
         this.frameStack[netId].push({
           keys: this.inputManager.buildKeyMap(),
