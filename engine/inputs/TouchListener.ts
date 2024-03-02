@@ -1,4 +1,4 @@
-import { EVENT_TYPE, InputManager } from "./InputManager";
+import { InputEventType, InputManager } from "./InputManager";
 import { TouchRegion } from "./InputRegion";
 
 const LeftStick: TouchRegion = {
@@ -179,8 +179,8 @@ export class TouchListener {
     if (prefix === "end") {
       if (this.inRegion(region, this.lastTouchs.get(touch.identifier)!)) {
         if (timestamp! - this.touchStartTimes.get(touch.identifier)! < 500) {
-          this.inputManager.dispatchEvent(region.key as string, true, EVENT_TYPE.TOUCH);
-          setTimeout(() => this.inputManager.dispatchEvent(region.key as string, false, EVENT_TYPE.TOUCH), 100);
+          this.inputManager.dispatchEvent(region.key as string, true, InputEventType.TOUCH);
+          setTimeout(() => this.inputManager.dispatchEvent(region.key as string, false, InputEventType.TOUCH), 100);
         }
       }
     }
@@ -202,8 +202,8 @@ export class TouchListener {
         }
 
         if (timestamp - this.touchStartTimes.get(touch.identifier)! < 500) {
-          this.inputManager.dispatchEvent(region.key as string, true, EVENT_TYPE.TOUCH);
-          setTimeout(() => this.inputManager.dispatchEvent(region.key as string, false, EVENT_TYPE.TOUCH), 100);
+          this.inputManager.dispatchEvent(region.key as string, true, InputEventType.TOUCH);
+          setTimeout(() => this.inputManager.dispatchEvent(region.key as string, false, InputEventType.TOUCH), 100);
           this.lastTapTimes.delete(tapKey);
         }
       }
@@ -217,8 +217,8 @@ export class TouchListener {
     if (prefix === "end") {
       if (this.inRegion(region, this.lastTouchs.get(touch.identifier)!)) {
         if (timestamp! - this.touchStartTimes.get(touch.identifier)! > 500) {
-          this.inputManager.dispatchEvent(region.key as string, true, EVENT_TYPE.TOUCH);
-          setTimeout(() => this.inputManager.dispatchEvent(region.key as string, false, EVENT_TYPE.TOUCH), 100);
+          this.inputManager.dispatchEvent(region.key as string, true, InputEventType.TOUCH);
+          setTimeout(() => this.inputManager.dispatchEvent(region.key as string, false, InputEventType.TOUCH), 100);
         }
       }
     }
@@ -329,10 +329,10 @@ export class TouchListener {
       }
 
       keysDown.forEach((key) => {
-        this.inputManager.dispatchEvent(key, true, EVENT_TYPE.TOUCH);
+        this.inputManager.dispatchEvent(key, true, InputEventType.TOUCH);
       });
       keysUp.forEach((key) => {
-        this.inputManager.dispatchEvent(key, false, EVENT_TYPE.TOUCH);
+        this.inputManager.dispatchEvent(key, false, InputEventType.TOUCH);
       });
       return;
     }

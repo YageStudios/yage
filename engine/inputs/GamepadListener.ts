@@ -1,4 +1,4 @@
-import { EVENT_TYPE, InputManager } from "./InputManager";
+import { InputEventType, InputManager } from "./InputManager";
 import { GamepadRegion } from "./InputRegion";
 
 const haveEvents = "ongamepadconnected" in window;
@@ -271,7 +271,7 @@ export class GamepadListener {
     if (!pressed) {
       if (registry[key][0]) {
         clearInterval(registry[key][2]);
-        this.inputManager.dispatchEvent(key, pressed, EVENT_TYPE.GAMEPAD);
+        this.inputManager.dispatchEvent(key, pressed, InputEventType.GAMEPAD);
         registry[key] = [0, 0, 0];
       }
     } else {
@@ -285,11 +285,11 @@ export class GamepadListener {
             this.handleKeySimulation(key, true, padIndex);
           }, this.multiDelay / 4) as any,
         ];
-        this.inputManager.dispatchEvent(key, pressed, EVENT_TYPE.GAMEPAD);
+        this.inputManager.dispatchEvent(key, pressed, InputEventType.GAMEPAD);
       } else if (registry[key][0] + this.intitialDelay < triggerTime) {
         if (registry[key][1] + this.multiDelay < triggerTime) {
           registry[key][1] = triggerTime;
-          this.inputManager.dispatchEvent(key, pressed, EVENT_TYPE.GAMEPAD, padIndex);
+          this.inputManager.dispatchEvent(key, pressed, InputEventType.GAMEPAD, padIndex);
         }
       }
     }

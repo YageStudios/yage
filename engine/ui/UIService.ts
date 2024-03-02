@@ -1,7 +1,7 @@
 import type { RootUIElement, UIElement } from "./UIElement";
 import type { Vector2d } from "../utils/vector";
 import { getGlobalSingleton, setGlobalSingleton } from "@/global";
-import { EVENT_TYPE, InputManager } from "@/inputs/InputManager";
+import { InputEventType, InputManager } from "@/inputs/InputManager";
 import { PlaySoundOptions, playSound } from "@/utils/playSound";
 import { flags } from "@/console/flags";
 
@@ -52,18 +52,18 @@ export class UIService {
     inputManager: InputManager,
     key: string,
     pressed: boolean,
-    eventType: EVENT_TYPE,
+    eventType: InputEventType,
     _inputIndex: number,
     e?: Event
   ) => {
-    if (!pressed || [EVENT_TYPE.TOUCH, EVENT_TYPE.MOUSE].includes(eventType)) {
+    if (!pressed || [InputEventType.TOUCH, InputEventType.MOUSE].includes(eventType)) {
       return;
     }
     let left = key === "left" || key === "a";
     let right = key === "right" || key === "d";
     let up = key === "up" || key === "w";
     let down = key === "down" || key === "s";
-    if (eventType === EVENT_TYPE.GAMEPAD) {
+    if (eventType === InputEventType.GAMEPAD) {
       left =
         key === "left" ||
         (inputManager.keyPressed("a") && !inputManager.keyPressed("w") && !inputManager.keyPressed("s"));
@@ -118,7 +118,7 @@ export class UIService {
     }
 
     // remap q to escape since the b button is mapped to q
-    if (eventType === EVENT_TYPE.GAMEPAD && key === "q") {
+    if (eventType === InputEventType.GAMEPAD && key === "q") {
       key = "escape";
     }
 

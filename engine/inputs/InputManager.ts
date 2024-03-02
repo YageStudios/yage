@@ -36,7 +36,8 @@ export type KeyMap = Map<string, boolean>;
 
 export type EventRecord = { playerId: string; key: MappedKeys; value: boolean };
 
-export enum EVENT_TYPE {
+export enum InputEventType {
+  ANY,
   TOUCH,
   KEYBOARD,
   GAMEPAD,
@@ -60,11 +61,11 @@ export class InputManager {
   private changes: { [key: string]: boolean } = {};
   private keyListeners: Function[] = [];
 
-  public getKeyMap(type?: EVENT_TYPE, typeIndex: number = 0): KeyMap {
-    return this.clone();
+  public getKeyMap(type?: InputEventType, typeIndex: number = 0): KeyMap {
+    return this.clone(type, typeIndex);
   }
 
-  constructor(protected combineKeyMaps = true) {
+  constructor(public combineKeyMaps = true) {
     this.keyMap = this.buildKeyMap();
   }
 
@@ -76,9 +77,23 @@ export class InputManager {
     return keyMap;
   }
 
-  clone() {
+  clone(eventType?: InputEventType, typeIndex = 0): KeyMap {
     const clone = this.buildKeyMap();
-    this.keyMap.forEach((value, key) => {
+
+    let keyMap: KeyMap;
+    if (this.combineKeyMaps || !eventType) {
+      keyMap = this.keyMap;
+    } else {
+      if (!this.keyMapsByType[eventType]) {
+        this.keyMapsByType[eventType] = [];
+      }
+      if (!this.keyMapsByType[eventType][typeIndex]) {
+        this.keyMapsByType[eventType][typeIndex] = this.buildKeyMap();
+      }
+      keyMap = this.keyMapsByType[eventType][typeIndex];
+    }
+
+    keyMap.forEach((value, key) => {
       clone.set(key, value);
     });
     return clone;
@@ -95,7 +110,7 @@ export class InputManager {
   }
 
   public addKeyListener(
-    listener: (key: string, keyPressed: boolean, eventType: EVENT_TYPE, typeIndex: number, e?: Event) => void
+    listener: (key: string, keyPressed: boolean, eventType: InputEventType, typeIndex: number, e?: Event) => void
   ): () => void {
     this.keyListeners.push(listener);
     return () => {
@@ -104,12 +119,12 @@ export class InputManager {
   }
 
   public removeKeyListener(
-    listener: (key: string, keyPressed: boolean, eventType: EVENT_TYPE, typeIndex: number, e?: Event) => void
+    listener: (key: string, keyPressed: boolean, eventType: InputEventType, typeIndex: number, e?: Event) => void
   ): void {
     this.keyListeners = this.keyListeners.filter((l) => l !== listener);
   }
 
-  dispatchEvent = (key: string, keyPressed: boolean, eventType: EVENT_TYPE, typeIndex = 0, e?: Event) => {
+  dispatchEvent = (key: string, keyPressed: boolean, eventType: InputEventType, typeIndex = 0, e?: Event) => {
     let keyMap: KeyMap;
 
     if (this.combineKeyMaps) {
@@ -141,9 +156,9 @@ export class InputManager {
     return obj;
   }
 
-  keyPressed(key: string, eventType?: EVENT_TYPE, typeIndex = 0) {
+  keyPressed(key: string, eventType?: InputEventType, typeIndex = 0) {
     if (!eventType) {
-      eventType = EVENT_TYPE.KEYBOARD;
+      eventType = InputEventType.KEYBOARD;
     }
     if (this.combineKeyMaps) {
       return !!this.keyMap.get(key);

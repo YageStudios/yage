@@ -35,10 +35,13 @@ export class GameInstance<T> {
     seed?: string,
     { players, coreOverrides }: { players?: string[]; coreOverrides?: { [key: string]: any } } = {}
   ) {
-    if (!this.options.connection.player.connected && !this.options.connection.solohost) {
+    if (
+      !this.options.connection.localPlayers.every(({ connected }) => connected) &&
+      !this.options.connection.solohost
+    ) {
       throw new Error("Player not connected");
     }
-    if (this.options.connection.player.currentRoomId) {
+    if (this.options.connection.localPlayers[0].currentRoomId) {
       this.options.connection.leaveRoom();
     }
 
@@ -64,10 +67,13 @@ export class GameInstance<T> {
   }
 
   async host(roomId: string, seed?: string, playerConfig?: T, coreOverrides?: { [key: string]: any }) {
-    if (!this.options.connection.player.connected && !this.options.connection.solohost) {
+    if (
+      !this.options.connection.localPlayers.every(({ connected }) => connected) &&
+      !this.options.connection.solohost
+    ) {
       throw new Error("Player not connected");
     }
-    if (this.options.connection.player.currentRoomId) {
+    if (this.options.connection.localPlayers[0].currentRoomId) {
       this.options.connection.leaveRoom();
     }
 
@@ -111,7 +117,7 @@ export class GameInstance<T> {
   }
 
   run() {
-    if (this.options.connection.player.currentRoomId) {
+    if (this.options.connection.localPlayers[0].currentRoomId) {
       this.runGameLoop();
       if (this.gameModel.destroyed) {
         this.options.connection.leaveRoom();
