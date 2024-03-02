@@ -32,7 +32,7 @@ export class PhysicsSystem implements System {
   getEngine(gameModel: GameModel) {
     if (!this.world) {
       console.error("Physics system not initialized");
-      const physics = gameModel.getTyped(gameModel.coreEntity, PhysicsSchema);
+      const physics = gameModel.getTypedUnsafe(gameModel.coreEntity, PhysicsSchema);
 
       this.world = new RAPIER.World({ x: physics.gravityX, y: physics.gravityY });
       this.world.timestep = 0.016;
@@ -45,13 +45,13 @@ export class PhysicsSystem implements System {
     const dt = gameModel.dt<number>(gameModel.coreEntity);
     const simulatedFrames = Math.round(dt / 16.666666666666668);
 
-    const collisionsSchema = gameModel.getTyped(gameModel.coreEntity, CollisionsSchema);
+    const collisionsSchema = gameModel.getTypedUnsafe(gameModel.coreEntity, CollisionsSchema);
     collisionsSchema.collisions = {};
 
     const collisionMap = collisionsSchema.collisionMap;
 
     if (gameModel.hasComponent(gameModel.coreEntity, FrameRateSchema)) {
-      const frameRateSchema = gameModel.getTyped(gameModel.coreEntity, FrameRateSchema);
+      const frameRateSchema = gameModel.getTypedUnsafe(gameModel.coreEntity, FrameRateSchema);
       frameRateSchema.bodies = this.world.bodies.len();
     }
 
@@ -103,7 +103,7 @@ export class PhysicsSystem implements System {
         collisionsSchema.collisions[eid1][eid2] = true;
         collisionsSchema.collisions[eid2][eid1] = true;
         if (gameModel.hasComponent(eid1, CollisionFiltersSchema)) {
-          const filtersSchema = gameModel.getTyped(eid1, CollisionFiltersSchema);
+          const filtersSchema = gameModel.getTypedUnsafe(eid1, CollisionFiltersSchema);
           if (filtersSchema.filters.length > 0) {
             EntityTypeSchema.id = eid2;
             const entityType = EntityTypeSchema.entityType;
@@ -116,7 +116,7 @@ export class PhysicsSystem implements System {
           }
         }
         if (gameModel.hasComponent(eid2, CollisionFiltersSchema)) {
-          const filtersSchema = gameModel.getTyped(eid2, CollisionFiltersSchema);
+          const filtersSchema = gameModel.getTypedUnsafe(eid2, CollisionFiltersSchema);
           if (filtersSchema.filters.length > 0) {
             EntityTypeSchema.id = eid1;
             const entityType = EntityTypeSchema.entityType;

@@ -16,7 +16,7 @@ class SpatialMapSystem implements System {
   depth = DEPTHS.COLLISION - 0.000001;
 
   run(entity: number, gameModel: GameModel) {
-    const spatialMapData = gameModel.getTyped(entity, SpatialMapSchema);
+    const spatialMapData = gameModel.getTypedUnsafe(entity, SpatialMapSchema);
     spatialMapData.pointSets = {};
     spatialMapData.spatialMap = spatialMap(
       gameModel,

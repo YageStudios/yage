@@ -37,7 +37,7 @@ class DebugRadiusDraw implements PixiDrawSystem {
   }
 
   run(entity: number, gameModel: GameModel) {
-    const transformSchema = gameModel.getTyped(entity, TransformSchema);
+    const transformSchema = gameModel.getTypedUnsafe(entity, TransformSchema);
     const entityPosition = transformSchema.position;
     const container = this.entities[entity].container;
     container.position.set(entityPosition.x, entityPosition.y);

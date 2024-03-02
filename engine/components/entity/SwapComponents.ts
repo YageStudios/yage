@@ -13,7 +13,7 @@ export class SwapComponentsSystem implements System {
     const nextSwapSet = [];
     const nextSwapData = [];
 
-    const swapComponents = gameModel.getTyped(entity, SwapComponentsSchema);
+    const swapComponents = gameModel.getTypedUnsafe(entity, SwapComponentsSchema);
     for (let i = 0; i < swapComponents.swapComponents.length; i++) {
       if (gameModel.hasComponent(entity, swapComponents.swapComponents[i])) {
         nextSwapData.push(gameModel.ejectComponent(entity, swapComponents.swapComponents[i]));

@@ -10,16 +10,16 @@ class OwnerSystem implements System {
   type = "Owner";
 
   init(entity: number, gameModel: GameModel) {
-    const owner = gameModel.getTyped(entity, OwnerSchema).owner;
+    const owner = gameModel.getTypedUnsafe(entity, OwnerSchema).owner;
     if (owner === null) return;
     if (!gameModel.isActive(owner)) {
-      gameModel.getTyped(entity, OwnerSchema).owner = null;
+      gameModel.getTypedUnsafe(entity, OwnerSchema).owner = null;
       return;
     }
     if (!gameModel.hasComponent(owner, "Owned")) {
       gameModel.setComponent(owner, "Owned", { owned: [entity] });
     } else {
-      const owned = gameModel.getTyped(owner, OwnedSchema);
+      const owned = gameModel.getTypedUnsafe(owner, OwnedSchema);
       if (!owned.owned.includes(entity)) {
         owned.owned.push(entity);
       }
@@ -28,13 +28,13 @@ class OwnerSystem implements System {
 
   cleanup(entity: number, gameModel: GameModel, ejecting: boolean) {
     if (ejecting) return;
-    const owner = gameModel.getTyped(entity, OwnerSchema).owner;
+    const owner = gameModel.getTypedUnsafe(entity, OwnerSchema).owner;
     if (owner === null) return;
     if (!gameModel.isActive(owner)) return;
     if (!gameModel.hasComponent(owner, "Owned")) {
       return;
     }
-    const owned = gameModel.getTyped(owner, OwnedSchema);
+    const owned = gameModel.getTypedUnsafe(owner, OwnedSchema);
     owned.owned = owned.owned.filter((ownedEntity) => {
       if (ownedEntity === entity) return false;
       if (!gameModel.isActive(ownedEntity)) return false;

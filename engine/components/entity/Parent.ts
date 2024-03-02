@@ -11,7 +11,7 @@ class ParentSystem implements System {
   schema = ParentSchema;
   depth = DEPTHS.LOCOMOTION + 10;
   run(entity: number, gameModel: GameModel) {
-    const parentData = gameModel.getTyped(entity, ParentSchema);
+    const parentData = gameModel.getTypedUnsafe(entity, ParentSchema);
 
     for (let i = 0; i < parentData.children.length; i++) {
       const child = parentData.children[i];
@@ -30,10 +30,10 @@ class ParentSystem implements System {
 registerSystem(ParentSystem);
 
 registerEditorComponent("Parent", (el, entity, gameModel) => {
-  const children = gameModel.getTyped(entity, ParentSchema).children;
+  const children = gameModel.getTypedUnsafe(entity, ParentSchema).children;
   const getText = (child: number) => {
     if (gameModel.hasComponent(child, DescriptionSchema)) {
-      const description = gameModel.getTyped(child, DescriptionSchema).description;
+      const description = gameModel.getTypedUnsafe(child, DescriptionSchema).description;
       return `${child} ${description}`;
     }
     return `${child}`;

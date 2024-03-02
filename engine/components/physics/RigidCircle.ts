@@ -21,10 +21,10 @@ export class RigidCircleSystem implements System {
   bodies: { [key: number]: RAPIER.RigidBody } = {};
 
   init(entity: number, gameModel: GameModel) {
-    const transformSchema = gameModel.getTyped(entity, TransformSchema);
+    const transformSchema = gameModel.getTypedUnsafe(entity, TransformSchema);
     const position = transformSchema.position;
 
-    const rigidCircle = gameModel.getTyped(entity, RigidCircleSchema);
+    const rigidCircle = gameModel.getTypedUnsafe(entity, RigidCircleSchema);
 
     const physicsSystem = gameModel.getSystem(PhysicsSystem);
 
@@ -74,7 +74,7 @@ export class RigidCircleSystem implements System {
 
     for (let i = 0; i < entities.length; i++) {
       const entity = entities[i];
-      const rigidCircle = gameModel.getTyped(entity, RigidCircleSchema);
+      const rigidCircle = gameModel.getTypedUnsafe(entity, RigidCircleSchema);
 
       let circle = this.bodies[entity];
 
@@ -90,10 +90,10 @@ export class RigidCircleSystem implements System {
         }
       }
 
-      const transformSchema = gameModel.getTyped(entity, TransformSchema);
+      const transformSchema = gameModel.getTypedUnsafe(entity, TransformSchema);
       const position = transformSchema.position;
 
-      const locomotionSchema = gameModel.getTyped(entity, LocomotionSchema);
+      const locomotionSchema = gameModel.getTypedUnsafe(entity, LocomotionSchema);
       const velocity = locomotionSchema.velocity;
 
       const body = this.bodies[entity];
@@ -141,7 +141,7 @@ export class RigidCircleSystem implements System {
 
     const physicsSystem = gameModel.getSystem(PhysicsSystem);
     const engine = physicsSystem.getEngine(gameModel);
-    const collisions = gameModel.getTyped(gameModel.coreEntity, CollisionsSchema).collisionMap;
+    const collisions = gameModel.getTypedUnsafe(gameModel.coreEntity, CollisionsSchema).collisionMap;
     if (collisions?.[entity]) {
       Object.keys(collisions[entity]).forEach((other) => {
         const otherKey = parseInt(other);
@@ -184,16 +184,16 @@ class RigidCircleResolverSystem implements System {
     for (let i = 0; i < entities.length; i++) {
       const entity = entities[i];
       const circle = rigidCircleSystem.bodies[entity];
-      const rigidCircle = gameModel.getTyped(entity, RigidCircleSchema);
+      const rigidCircle = gameModel.getTypedUnsafe(entity, RigidCircleSchema);
       const position = circle.translation();
 
       const positionX = position.x;
       const positionY = position.y;
 
-      const transformSchema = gameModel.getTyped(entity, TransformSchema);
+      const transformSchema = gameModel.getTypedUnsafe(entity, TransformSchema);
       transformSchema.x = positionX;
       transformSchema.y = positionY;
-      const locomotionSchema = gameModel.getTyped(entity, LocomotionSchema);
+      const locomotionSchema = gameModel.getTypedUnsafe(entity, LocomotionSchema);
 
       if (rigidCircle.velocityLock) {
         const velocity = circle.linvel();
@@ -203,7 +203,7 @@ class RigidCircleResolverSystem implements System {
 
       if (rigidCircle.directionLock) {
         const direction = circle.rotation();
-        const locomotionSchema = gameModel.getTyped(entity, LocomotionSchema);
+        const locomotionSchema = gameModel.getTypedUnsafe(entity, LocomotionSchema);
         locomotionSchema.directionX = Math.cos(direction);
         locomotionSchema.directionY = Math.sin(direction);
       }

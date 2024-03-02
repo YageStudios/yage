@@ -38,7 +38,7 @@ export class SpriteComponentPixi implements PixiDrawSystem {
 
   transform(pixiData: PixiSpriteSchema, entity: number, data: SpriteSchema, gameModel: GameModel, viewport: Viewport) {
     const { sprite, container } = pixiData;
-    const locomotionSchema = gameModel.getTyped(entity, LocomotionSchema);
+    const locomotionSchema = gameModel.getTypedUnsafe(entity, LocomotionSchema);
     const direction = { x: locomotionSchema.directionX, y: locomotionSchema.directionY };
     sprite.anchor.set(data.anchorX, data.anchorY);
     if (data.faceDirection === FaceDirectionEnum.ROTATE) {
@@ -56,7 +56,7 @@ export class SpriteComponentPixi implements PixiDrawSystem {
 
       let xDirection = direction.x;
       if (!data.rotation && gameModel.hasComponent(entity, AttachSchema)) {
-        const owner = gameModel.getComponent(entity, AttachSchema).parent;
+        const owner = gameModel.getComponentUnsafe(entity, AttachSchema).parent;
         xDirection = LocomotionSchema.store.directionX[owner];
       }
 
@@ -75,7 +75,7 @@ export class SpriteComponentPixi implements PixiDrawSystem {
     } else if (data.faceDirection === FaceDirectionEnum.HORIZONTAL) {
       let xDirection = direction.x;
       if (gameModel.hasComponent(entity, AttachSchema)) {
-        const owner = gameModel.getComponent(entity, AttachSchema).parent;
+        const owner = gameModel.getComponentUnsafe(entity, AttachSchema).parent;
         xDirection = LocomotionSchema.store.directionX[owner];
       }
 
@@ -110,7 +110,7 @@ export class SpriteComponentPixi implements PixiDrawSystem {
   }
 
   init(entity: number, gameModel: GameModel, viewport: Viewport) {
-    const spriteData = gameModel.getTyped(entity, this.schema);
+    const spriteData = gameModel.getTypedUnsafe(entity, this.schema);
     let zIndex = 2;
 
     const instance: Partial<PixiSpriteSchema> = {
@@ -192,7 +192,7 @@ export class SpriteComponentPixi implements PixiDrawSystem {
   }
 
   run(entity: number, gameModel: GameModel, viewport: Viewport) {
-    const spriteData = gameModel.getTyped(entity, this.schema);
+    const spriteData = gameModel.getTypedUnsafe(entity, this.schema);
 
     if (
       this.instances[entity] &&
@@ -213,7 +213,7 @@ export class SpriteComponentPixi implements PixiDrawSystem {
       sprite.visible = true;
       sprite.alpha = spriteData.opacity ?? 1;
     }
-    const transformSchema = gameModel.getTyped(entity, TransformSchema);
+    const transformSchema = gameModel.getTypedUnsafe(entity, TransformSchema);
 
     const position = transformSchema.position;
 
@@ -241,7 +241,7 @@ export class SpriteComponentPixi implements PixiDrawSystem {
     const viewY = viewport.position.y;
 
     if (spriteData.inheritParentZIndex && gameModel.hasComponent(entity, AttachSchema)) {
-      const owner = gameModel.getComponent(entity, AttachSchema).parent;
+      const owner = gameModel.getComponentUnsafe(entity, AttachSchema).parent;
       container.zIndex =
         TransformSchema.store.y[owner] -
         viewY +
@@ -275,7 +275,7 @@ export class SpriteComponentPixi implements PixiDrawSystem {
     const instance = this.instances[entity].sprite;
     delete this.instances[entity];
     instance.visible = false;
-    const spriteData = gameModel.getTyped(entity, this.schema);
+    const spriteData = gameModel.getTypedUnsafe(entity, this.schema);
     if (spriteData.spriteKey) {
       const key = instanceData.spriteKey;
       this.animationCache[key] = this.animationCache[key] ?? [];

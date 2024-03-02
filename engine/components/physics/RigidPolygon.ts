@@ -15,9 +15,9 @@ export class RigidPolygonSystem implements System {
   depth = DEPTHS.COLLISION - 0.0001;
 
   init(entity: number, gameModel: GameModel) {
-    const transformSchema = gameModel.getTyped(entity, TransformSchema);
+    const transformSchema = gameModel.getTypedUnsafe(entity, TransformSchema);
 
-    const rigidPolygon = gameModel.getTyped(entity, RigidPolygonSchema);
+    const rigidPolygon = gameModel.getTypedUnsafe(entity, RigidPolygonSchema);
 
     const set = [];
     if (rigidPolygon.vertexIndicies.length !== 0) {

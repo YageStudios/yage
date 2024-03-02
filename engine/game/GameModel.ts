@@ -175,11 +175,11 @@ export class GameModel {
   }
 
   public get spatialMap(): SpatialMap<number> {
-    return this.getTyped(this.coreEntity, SpatialMapSchema).spatialMap;
+    return this.getTypedUnsafe(this.coreEntity, SpatialMapSchema).spatialMap;
   }
 
   public get rand(): Random {
-    return this.getTyped(this.coreEntity, RandomSchema).random;
+    return this.getTypedUnsafe(this.coreEntity, RandomSchema).random;
   }
 
   public get players(): number[] {
@@ -212,14 +212,14 @@ export class GameModel {
 
   public increment(entity: number, current: number, max: number, delta: number) {
     if (this.hasComponent(entity, "TimeDilation")) {
-      return increment(this.frameDt, current, max, delta * this.getTyped(entity, TimeDilationSchema).amount);
+      return increment(this.frameDt, current, max, delta * this.getTypedUnsafe(entity, TimeDilationSchema).amount);
     }
     return increment(this.frameDt, current, max, delta);
   }
 
   public dt = <T>(entity: number, arg?: undefined | T): T => {
     if (this.hasComponent(entity, "TimeDilation")) {
-      return dt(this.frameDt, arg, this.getTyped(entity, TimeDilationSchema).amount);
+      return dt(this.frameDt, arg, this.getTypedUnsafe(entity, TimeDilationSchema).amount);
     }
     return dt(this.frameDt, arg);
   };
@@ -262,7 +262,7 @@ export class GameModel {
   public getEntityByDescription(description: string): number[] | undefined {
     const entities = this.getComponentActives("Description");
     return entities?.filter((entity) => {
-      const desc = this.getTyped(entity, DescriptionSchema);
+      const desc = this.getTypedUnsafe(entity, DescriptionSchema);
       return desc.description === description;
     });
   }
@@ -297,7 +297,7 @@ export class GameModel {
       this.state.entityComponentArray.push(new ByteArray());
       const componentArray: TypeSchema[] = [];
       for (let j = 0; j < componentList.length; j++) {
-        componentArray.push(new TypeSchema({ type: componentList[j].type }));
+        componentArray.push(null as any);
       }
       this.state.components.push(componentArray);
     }
@@ -374,7 +374,7 @@ export class GameModel {
     const clonedEntity = this.addEntity();
     const entityData = this.state.entityComponentArray[entity];
 
-    const children = (this.getTyped(entity, ParentSchema) as ParentSchema).children ?? [];
+    const children = (this.getTypedUnsafe(entity, ParentSchema) as ParentSchema).children ?? [];
 
     const childrenData: number[] = [];
     for (let i = 0; i < children.length; i++) {
@@ -390,7 +390,7 @@ export class GameModel {
       }
     }
     if (childrenData.length) {
-      const parentData = this.getTyped(clonedEntity, ParentSchema);
+      const parentData = this.getTypedUnsafe(clonedEntity, ParentSchema);
       parentData.children = new Array<number>(...childrenData);
     }
     return clonedEntity;
@@ -430,7 +430,7 @@ export class GameModel {
   ejectEntity = (entity: number, removeEjectedEntity = true): any => {
     const data = {
       entityType: EntityTypeSchema.store.entityType[entity],
-      description: this.getTyped(entity, DescriptionSchema).description,
+      description: this.getTypedUnsafe(entity, DescriptionSchema).description,
       entityId: entity,
       components: [],
       entities: [],
@@ -439,7 +439,7 @@ export class GameModel {
     } as EjectedEntity;
     const entityData = this.state.entityComponentArray[entity];
 
-    const children = (this.getTyped(entity, ParentSchema) as ParentSchema).children ?? [];
+    const children = (this.getTypedUnsafe(entity, ParentSchema) as ParentSchema).children ?? [];
 
     for (let i = 0; i < children.length; i++) {
       const childEntity = this.ejectEntity(children[i], false);
@@ -488,7 +488,7 @@ export class GameModel {
     const data: EntityData = {
       entityType: EntityTypeSchema.store.entityType[entity],
       description: this.hasComponent(entity, DescriptionSchema)
-        ? this.getTyped(entity, DescriptionSchema).description
+        ? this.getTypedUnsafe(entity, DescriptionSchema).description
         : "",
       components: {} as { [key: string]: ComponentData },
       id: entity,
@@ -503,7 +503,7 @@ export class GameModel {
       }
     }
 
-    const children = this.getTyped(entity, ParentSchema).children ?? [];
+    const children = this.getTyped(entity, ParentSchema)?.children ?? [];
     for (let i = 0; i < children.length; i++) {
       data.children.push(this.getEntityData(children[i]));
     }
@@ -537,7 +537,7 @@ export class GameModel {
 
   removeEntity = (entity: number, includeChildren = false) => {
     if (includeChildren) {
-      const children = this.getTyped(entity, ParentSchema).children ?? [];
+      const children = this.getTypedUnsafe(entity, ParentSchema).children ?? [];
       for (let i = 0; i < children.length; i++) {
         this.removeEntity(children[i], true);
       }
@@ -574,7 +574,7 @@ export class GameModel {
               schema.store[bitecsKey][entity] = 0;
             });
           }
-          this.state.components[entity][i] = new TypeSchema({ type: typeString });
+          this.state.components[entity][i] = null as any;
           mask.set(i, false);
         }
       }
@@ -803,12 +803,27 @@ export class GameModel {
     return this.drawComponents[typeString] as T;
   };
 
-  getTyped = <T>(entity: number, type: Constructor<T>) => {
+  getTypedUnsafe = <T>(entity: number, type: Constructor<T>) => {
     // @ts-ignore
     return this.getComponent(entity, type.__type) as T;
   };
 
-  getComponent = (entity: number, type: typeof Schema | string | number) => {
+  getTyped = <T>(entity: number, type: Constructor<T>) => {
+    // @ts-ignore
+    return this.getComponent(entity, type.__type) as T | null;
+  };
+
+  getComponentUnsafe = (entity: number, type: typeof Schema | string | number): { [key: string]: any } => {
+    const index = getIndex(type);
+    if (componentList[index].schema?.store) {
+      componentList[index].schema.id = entity;
+      return componentList[index].schema;
+    }
+
+    return this.state.components[entity][index];
+  };
+
+  getComponent = (entity: number, type: typeof Schema | string | number): { [key: string]: any } | null => {
     const index = getIndex(type);
     if (componentList[index].schema?.store) {
       componentList[index].schema.id = entity;
@@ -963,7 +978,7 @@ export class GameModel {
 
   isOf(entity: number, type: string) {
     if (this.hasComponent(entity, "Description")) {
-      return this.getTyped(entity, DescriptionSchema).description === type;
+      return this.getTypedUnsafe(entity, DescriptionSchema).description === type;
     }
     return false;
   }

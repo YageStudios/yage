@@ -15,11 +15,11 @@ export class MapSpriteComponentPixi implements PixiDrawSystem {
     [key: number]: PIXI.Sprite;
   } = {};
   init(entity: number, gameModel: GameModel, viewport: Viewport) {
-    const spriteData = gameModel.getTyped(entity, MapSpriteSchema);
-    const mapEntityType = gameModel.getTyped(entity, MapEntityTypeSchema);
+    const spriteData = gameModel.getTypedUnsafe(entity, MapSpriteSchema);
+    const mapEntityType = gameModel.getTypedUnsafe(entity, MapEntityTypeSchema);
     const sprite = new PIXI.Sprite(ImageLoader.getInstance().getPixiTexture(spriteData.name));
 
-    const transformSchema = gameModel.getTyped(entity, TransformSchema);
+    const transformSchema = gameModel.getTypedUnsafe(entity, TransformSchema);
     const position = transformSchema.position;
 
     sprite.anchor.set(0.5, 0.5);
@@ -36,7 +36,7 @@ export class MapSpriteComponentPixi implements PixiDrawSystem {
   }
   run(entity: number, gameModel: GameModel, viewport: Viewport) {
     const sprite = this.entities[entity];
-    const spriteData = gameModel.getTyped(entity, MapSpriteSchema);
+    const spriteData = gameModel.getTypedUnsafe(entity, MapSpriteSchema);
     if (spriteData.opacity) {
       sprite.alpha = spriteData.opacity;
       sprite.visible = true;

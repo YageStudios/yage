@@ -279,7 +279,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
     for (let i = 0; i < players.length; ++i) {
       let player = players[i];
       if (gameModel.hasComponent(player, PlayerInputSchema)) {
-        const PlayerInput = gameModel.getTyped(player, PlayerInputSchema);
+        const PlayerInput = gameModel.getTypedUnsafe(player, PlayerInputSchema);
         const netId = PlayerInput.id;
         while ((frameStack[netId]?.[0]?.frame ?? Infinity) < gameModel.frame) {
           console.error("old frame received:" + netId);
@@ -660,7 +660,7 @@ export class MultiplayerInstance<T> implements ConnectionInstance<T> {
     for (let i = 0; i < players.length; ++i) {
       let player = players[i];
       if (gameModel.hasComponent(player, PlayerInputSchema)) {
-        const PlayerInput = gameModel.getTyped(player, PlayerInputSchema);
+        const PlayerInput = gameModel.getTypedUnsafe(player, PlayerInputSchema);
         const netId = PlayerInput.id;
 
         if (

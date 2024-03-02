@@ -20,7 +20,7 @@ class FrameStartSystem implements System {
     FrameSchema.store.frame[0] = gameModel.frame;
     FrameSchema.store.__changes[0] = 1;
 
-    const data = gameModel.getTyped(entity, FrameRateSchema);
+    const data = gameModel.getTypedUnsafe(entity, FrameRateSchema);
     const startFrameStamp = performance.now();
     data.frameRate = 1000 / (startFrameStamp - data.startFrameStamp);
     data.startFrameStamp = startFrameStamp;
@@ -34,7 +34,7 @@ class FrameEndSystem implements System {
   schema = FrameRateSchema;
 
   run(entity: number, gameModel: GameModel) {
-    const data = gameModel.getTyped(entity, FrameRateSchema);
+    const data = gameModel.getTypedUnsafe(entity, FrameRateSchema);
     data.stopFrameStamp = performance.now();
 
     data.averageFrameRate = data.averageFrameRate - data.averageFrameRate / 100 + data.frameRate / 100;
@@ -135,7 +135,7 @@ registerUIComponent("FrameRate", (uiService, entity, gameModel) => {
     ui.push(ping);
     uiService.addToUI(ping);
   }
-  const data = gameModel.getTyped(entity, FrameRateSchema);
+  const data = gameModel.getTypedUnsafe(entity, FrameRateSchema);
 
   const fps = data.stopFrameStamp - data.startFrameStamp;
 
@@ -148,7 +148,7 @@ registerUIComponent("FrameRate", (uiService, entity, gameModel) => {
   ui[6].config.label = gameModel.ping + "MS PING";
 
   const player = gameModel.players[0];
-  const transformSchema = gameModel.getTyped(player, TransformSchema);
+  const transformSchema = gameModel.getTypedUnsafe(player, TransformSchema);
   const pos = transformSchema.position;
   if (pos.x && pos.y) {
     ui[5].config.label = `${pos.x.toFixed(0)}X ${pos.y.toFixed(0)}Y`;
@@ -159,7 +159,7 @@ class PixiFrameRate implements PixiDrawSystem {
   ids: Set<number>;
   init: (entity: number, gameModel: GameModel) => void;
   run(entity: number, gameModel: GameModel) {
-    const data = gameModel.getTyped(entity, FrameRateSchema);
+    const data = gameModel.getTypedUnsafe(entity, FrameRateSchema);
 
     if (ui) {
       ui[2].config.label = data.averageFrameRate.toFixed(0) + "FPS";

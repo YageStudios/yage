@@ -23,10 +23,10 @@ class AttachSystem implements System {
     if (!gameModel.hasComponent(entity, "AttachPost")) {
       gameModel.setComponent(entity, "AttachPost");
     }
-    const AttachData = gameModel.getTyped(entity, AttachSchema);
+    const AttachData = gameModel.getTypedUnsafe(entity, AttachSchema);
 
     if (AttachData.parent == undefined && gameModel.hasComponent(entity, "Owner")) {
-      const ownerData = gameModel.getComponent(entity, "Owner");
+      const ownerData = gameModel.getComponentUnsafe(entity, "Owner");
       if (ownerData.owner != undefined) {
         AttachData.parent = ownerData.owner;
       }
@@ -34,7 +34,7 @@ class AttachSystem implements System {
   }
 
   run(entity: number, gameModel: GameModel) {
-    const AttachData = gameModel.getTyped(entity, AttachSchema);
+    const AttachData = gameModel.getTypedUnsafe(entity, AttachSchema);
     if (AttachData.parent != undefined) {
       if (!gameModel.isActive(AttachData.parent)) {
         AttachData.parent = null;
@@ -45,16 +45,16 @@ class AttachSystem implements System {
           children: [entity],
         });
       } else {
-        const parentData = gameModel.getTyped(AttachData.parent, AttachedSchema);
+        const parentData = gameModel.getTypedUnsafe(AttachData.parent, AttachedSchema);
         if (parentData.children.indexOf(entity) == -1) {
           parentData.children.push(entity);
         }
       }
 
-      let transformSchema = gameModel.getTyped(AttachData.parent, TransformSchema);
+      let transformSchema = gameModel.getTypedUnsafe(AttachData.parent, TransformSchema);
       const ownerPosition = transformSchema.position;
 
-      transformSchema = gameModel.getTyped(entity, TransformSchema);
+      transformSchema = gameModel.getTypedUnsafe(entity, TransformSchema);
       transformSchema.x = ownerPosition.x;
       transformSchema.y = ownerPosition.y;
 
@@ -68,11 +68,11 @@ class AttachSystem implements System {
         gameModel.hasComponent(entity, "Locomotion") &&
         gameModel.hasComponent(AttachData.parent, "Locomotion")
       ) {
-        let locomotionSchema = gameModel.getTyped(AttachData.parent, LocomotionSchema);
+        let locomotionSchema = gameModel.getTypedUnsafe(AttachData.parent, LocomotionSchema);
         const parentDirectionX = locomotionSchema.directionX;
         const parentDirectionY = locomotionSchema.directionY;
 
-        locomotionSchema = gameModel.getTyped(entity, LocomotionSchema);
+        locomotionSchema = gameModel.getTypedUnsafe(entity, LocomotionSchema);
         locomotionSchema.directionX = parentDirectionX;
         locomotionSchema.directionY = parentDirectionY;
       }
@@ -89,7 +89,7 @@ class AttachPostSystem implements System {
   schema = AttachPostSchema;
 
   run(entity: number, gameModel: GameModel) {
-    const AttachData = gameModel.getTyped(entity, AttachSchema);
+    const AttachData = gameModel.getTypedUnsafe(entity, AttachSchema);
 
     if (AttachData.parent != undefined) {
       if (!gameModel.isActive(AttachData.parent)) {
@@ -101,17 +101,17 @@ class AttachPostSystem implements System {
           children: [entity],
         });
       } else {
-        const parentData = gameModel.getTyped(AttachData.parent, AttachedSchema);
+        const parentData = gameModel.getTypedUnsafe(AttachData.parent, AttachedSchema);
         if (parentData.children.indexOf(entity) == -1) {
           parentData.children.push(entity);
         }
       }
 
       if (AttachData.post) {
-        let transformSchema = gameModel.getTyped(AttachData.parent, TransformSchema);
+        let transformSchema = gameModel.getTypedUnsafe(AttachData.parent, TransformSchema);
         const ownerPosition = transformSchema.position;
 
-        transformSchema = gameModel.getTyped(entity, TransformSchema);
+        transformSchema = gameModel.getTypedUnsafe(entity, TransformSchema);
         transformSchema.x = ownerPosition.x;
         transformSchema.y = ownerPosition.y;
 

@@ -22,8 +22,8 @@ export class PlayerMovementSystem implements System {
 
   run(entity: number, gameModel: GameModel) {
     LocomotionSchema.id = entity;
-    const netData = gameModel.getTyped(entity, PlayerInputSchema);
-    const speed = gameModel.getTyped(entity, LocomotionSchema).speed;
+    const netData = gameModel.getTypedUnsafe(entity, PlayerInputSchema);
+    const speed = gameModel.getTypedUnsafe(entity, LocomotionSchema).speed;
 
     const { keyMap } = netData;
     if (!keyMap) {

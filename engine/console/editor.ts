@@ -220,14 +220,14 @@ const Editor = (entity: number, gameModel: GameModel): EditorInstance => {
     const generateHeader = () => {
       let prev = "";
       if (gameModel.hasComponent(entity, AttachSchema)) {
-        const parentId = gameModel.getTyped(entity, AttachSchema).parent;
+        const parentId = gameModel.getTypedUnsafe(entity, AttachSchema).parent;
         if (parentId != undefined) {
           prev = `<span data-entity="${parentId}">Parent</span>`;
         }
       }
 
       if (gameModel.hasComponent(entity, DescriptionSchema)) {
-        const description = gameModel.getTyped(entity, DescriptionSchema).description;
+        const description = gameModel.getTypedUnsafe(entity, DescriptionSchema).description;
         return `${prev}<h1>Entity: ${entity} - ${description}</h1>`;
       }
       return `${prev}<h1>Entity: ${entity}</h1>`;

@@ -11,7 +11,7 @@ class MaskPixiSystem implements PixiDrawSystem {
   schema = MaskSchema;
 
   init(entity: number, gameModel: GameModel, viewport: Viewport) {
-    const spriteData = gameModel.getTyped(entity, MaskSchema);
+    const spriteData = gameModel.getTypedUnsafe(entity, MaskSchema);
     const pixiSystem = gameModel.getPixiSystem<any>(spriteData.pixiComponent);
 
     if (!pixiSystem.instances[entity]) {

@@ -20,9 +20,9 @@ export class RigidBoxSystem implements System {
   bodies: { [key: number]: RAPIER.RigidBody } = {};
 
   init(entity: number, gameModel: GameModel) {
-    const rigidBox = gameModel.getTyped(entity, RigidBoxSchema);
+    const rigidBox = gameModel.getTypedUnsafe(entity, RigidBoxSchema);
 
-    const transformSchema = gameModel.getTyped(entity, TransformSchema);
+    const transformSchema = gameModel.getTypedUnsafe(entity, TransformSchema);
     const position = transformSchema.position;
 
     const physicsSystem = gameModel.getSystem(PhysicsSystem);
@@ -75,7 +75,7 @@ export class RigidBoxSystem implements System {
 
     for (let i = 0; i < entities.length; i++) {
       const entity = entities[i];
-      const rigidBox = gameModel.getTyped(entity, RigidBoxSchema);
+      const rigidBox = gameModel.getTypedUnsafe(entity, RigidBoxSchema);
 
       let body = this.bodies[entity];
 
@@ -91,10 +91,10 @@ export class RigidBoxSystem implements System {
         }
       }
 
-      const transformSchema = gameModel.getTyped(entity, TransformSchema);
+      const transformSchema = gameModel.getTypedUnsafe(entity, TransformSchema);
       const position = transformSchema.position;
 
-      const locomotionSchema = gameModel.getTyped(entity, LocomotionSchema);
+      const locomotionSchema = gameModel.getTypedUnsafe(entity, LocomotionSchema);
       const velocity = locomotionSchema.velocity;
 
       body.setTranslation(position, true);
@@ -119,7 +119,7 @@ export class RigidBoxSystem implements System {
 
     const physicsSystem = gameModel.getSystem(PhysicsSystem);
     const engine = physicsSystem.getEngine(gameModel);
-    const collisions = gameModel.getTyped(gameModel.coreEntity, CollisionsSchema).collisionMap;
+    const collisions = gameModel.getTypedUnsafe(gameModel.coreEntity, CollisionsSchema).collisionMap;
     if (collisions?.[entity]) {
       Object.keys(collisions[entity]).forEach((other) => {
         const otherKey = parseInt(other);
@@ -164,7 +164,7 @@ class RigidBoxResolverSystem implements System {
       const entity = entities[i];
 
       const box = rigidBoxSystem.bodies[entity];
-      const rigidBox = gameModel.getTyped(entity, RigidBoxSchema);
+      const rigidBox = gameModel.getTypedUnsafe(entity, RigidBoxSchema);
       if (!box) continue;
 
       const position = box.translation();
@@ -173,14 +173,14 @@ class RigidBoxResolverSystem implements System {
       const positionY = position.y - rigidBox.point.y;
 
       if (rigidBox.point.x == 0 && rigidBox.point.y === 0) {
-        const transformSchema = gameModel.getTyped(entity, TransformSchema);
+        const transformSchema = gameModel.getTypedUnsafe(entity, TransformSchema);
         transformSchema.x = positionX;
         transformSchema.y = positionY;
       }
 
       if (rigidBox.velocityLock) {
         const velocity = box.linvel();
-        const locomotionSchema = gameModel.getTyped(entity, LocomotionSchema);
+        const locomotionSchema = gameModel.getTypedUnsafe(entity, LocomotionSchema);
 
         locomotionSchema.velocityX = (velocity.x / 60) * (rigidBox.restitution || 1);
         locomotionSchema.velocityY = (velocity.y / 60) * (rigidBox.restitution || 1);
@@ -188,7 +188,7 @@ class RigidBoxResolverSystem implements System {
 
       if (rigidBox.directionLock) {
         const direction = box.rotation();
-        const locomotionSchema = gameModel.getTyped(entity, LocomotionSchema);
+        const locomotionSchema = gameModel.getTypedUnsafe(entity, LocomotionSchema);
         locomotionSchema.directionX = Math.cos(direction);
         locomotionSchema.directionY = Math.sin(direction);
       }

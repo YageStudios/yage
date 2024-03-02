@@ -20,7 +20,7 @@ class RandomSystem implements System {
   depth = DEPTHS.CORE;
 
   init(entity: number, gameModel: GameModel) {
-    const r = gameModel.getTyped(entity, RandomSchema);
+    const r = gameModel.getTypedUnsafe(entity, RandomSchema);
 
     if (!r.seedNumber) {
       if (r.seed) {
@@ -34,7 +34,7 @@ class RandomSystem implements System {
   }
 
   run = (entity: number, gameModel: GameModel) => {
-    const r = gameModel.getTyped(entity, RandomSchema);
+    const r = gameModel.getTypedUnsafe(entity, RandomSchema);
 
     r.random = generate(gameModel.frame + r.seedNumber);
   };

@@ -17,9 +17,9 @@ export class EntityCameraSchema extends Schema {
 registerSchema(ComponentCategory.CORE, EntityCameraSchema);
 
 registerUIComponent("EntityCamera", (uiService, entity, gameModel, viewport) => {
-  const data = gameModel.getTyped(entity, EntityCameraSchema);
+  const data = gameModel.getTypedUnsafe(entity, EntityCameraSchema);
   if (data.entity > -1) {
-    const transformSchema = gameModel.getTyped(data.entity, TransformSchema);
+    const transformSchema = gameModel.getTypedUnsafe(data.entity, TransformSchema);
     const position = transformSchema.position;
     viewport.moveCenter(position.x, position.y);
   }

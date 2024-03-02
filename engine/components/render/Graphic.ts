@@ -69,7 +69,7 @@ export class GraphicPixiSystem implements PixiDrawSystem {
       viewport.addChild(instance.debug);
     }
 
-    const graphicData = gameModel.getTyped(entity, GraphicSchema);
+    const graphicData = gameModel.getTypedUnsafe(entity, GraphicSchema);
     const graphics = new PIXI.Graphics();
 
     if (graphicData.fillColor) {
@@ -121,7 +121,7 @@ export class GraphicPixiSystem implements PixiDrawSystem {
   }
 
   run(entity: number, gameModel: GameModel, viewport: Viewport) {
-    const spriteData = gameModel.getTyped(entity, this.schema);
+    const spriteData = gameModel.getTypedUnsafe(entity, this.schema);
 
     if (!this.instances[entity]) {
       this.init(entity, gameModel, viewport);
@@ -136,7 +136,7 @@ export class GraphicPixiSystem implements PixiDrawSystem {
       // sprite.alpha = spriteData.opacity;
       graphic.alpha = 1;
     }
-    const transformSchema = gameModel.getTyped(entity, TransformSchema);
+    const transformSchema = gameModel.getTypedUnsafe(entity, TransformSchema);
 
     const position = transformSchema.position;
 
@@ -148,7 +148,7 @@ export class GraphicPixiSystem implements PixiDrawSystem {
     const viewY = viewport.position.y;
 
     if (gameModel.hasComponent(entity, AttachSchema)) {
-      const owner = gameModel.getComponent(entity, AttachSchema).parent;
+      const owner = gameModel.getComponentUnsafe(entity, AttachSchema).parent;
       container.zIndex =
         TransformSchema.store.y[owner] -
         viewY +
