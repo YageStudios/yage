@@ -25,6 +25,8 @@ export class UIService {
   debugCanvas: any;
   unsub: (() => void) | undefined;
 
+  playerInputs: [InputEventType, number][] = [[InputEventType.ANY, 0]];
+
   ui: { [key: string]: UIElement } = new Proxy(this.uiElements, {
     get: (target, prop) => {
       return target[prop as any];
@@ -48,14 +50,32 @@ export class UIService {
     },
   });
 
+  getPlayerEventIndex(eventType: InputEventType, inputIndex: number): number {
+    if (this.playerInputs[0][0] === InputEventType.ANY) {
+      return 0;
+    }
+
+    for (let i = 0; i < this.playerInputs.length; i++) {
+      if (eventType === InputEventType.MOUSE && this.playerInputs[i][0] === InputEventType.KEYBOARD) {
+        return i;
+      }
+      if (this.playerInputs[i][0] === eventType && this.playerInputs[i][1] === inputIndex) {
+        return i;
+      }
+    }
+
+    return -1;
+  }
+
   _keyCaptureListener = (
     inputManager: InputManager,
     key: string,
     pressed: boolean,
     eventType: InputEventType,
-    _inputIndex: number,
+    inputIndex: number,
     e?: Event
   ) => {
+    const playerEventIndex = this.getPlayerEventIndex(eventType, inputIndex);
     if (!pressed || [InputEventType.TOUCH, InputEventType.MOUSE].includes(eventType)) {
       return;
     }
@@ -103,15 +123,18 @@ export class UIService {
         this.debugCtx.clearRect(0, 0, this.debugCanvas.width, this.debugCanvas.height);
       }
 
-      if (this._focusedElement?._element) {
-        this.focusedElementPosition = this.getElementCenter(this._focusedElement._element);
+      if (this._focusedElementByPlayerIndex[playerEventIndex]?._element) {
+        this._focusedElementPositionByPlayerIndex[playerEventIndex] = this.getElementCenter(
+          this._focusedElementByPlayerIndex[playerEventIndex]!._element
+        );
       }
       const focusedElement = this.findClosestFocusableElement(
-        this.focusedElementPosition,
-        direction as { x: 0 | 1 | -1; y: 0 | 1 | -1 }
+        this._focusedElementPositionByPlayerIndex[playerEventIndex],
+        direction as { x: 0 | 1 | -1; y: 0 | 1 | -1 },
+        playerEventIndex
       );
       if (focusedElement) {
-        this.focusedElement = focusedElement;
+        this.setFocusedElementByPlayerIndex(playerEventIndex, focusedElement);
       }
       e?.preventDefault();
       e?.stopPropagation();
@@ -124,16 +147,16 @@ export class UIService {
 
     switch (key.toLocaleLowerCase()) {
       case "space":
-        if (this.focusedElement) {
-          this.focusedElement.onClick();
+        if (this._focusedElementByPlayerIndex[playerEventIndex]) {
+          this._focusedElementByPlayerIndex[playerEventIndex]!.onClick();
           e?.preventDefault();
           e?.stopImmediatePropagation();
         }
 
         break;
       case "escape":
-        if (this.focusedElement) {
-          this.focusedElement.onEscape();
+        if (this._focusedElementByPlayerIndex[playerEventIndex]) {
+          this._focusedElementByPlayerIndex[playerEventIndex]!.onEscape();
         }
         break;
     }
@@ -225,32 +248,62 @@ export class UIService {
     };
   }
 
-  traverseParentFocus() {
-    let nestedParent = this._focusedElement!._parent;
+  attemptMouseFocus(element: UIElement) {
+    const playerEventIndex = this.getPlayerEventIndex(InputEventType.MOUSE, 0);
+    if (playerEventIndex === -1) {
+      return;
+    }
+    const focuedElement = this._focusedElementByPlayerIndex[playerEventIndex];
+    if (focuedElement !== element) {
+      this.setFocusedElementByPlayerIndex(playerEventIndex, element);
+    }
+  }
+
+  attemptAutoFocus(element: UIElement) {
+    for (let i = 0; i < this._focusedElementByPlayerIndex.length; i++) {
+      if (this._focusedElementByPlayerIndex[i] === undefined) {
+        this.setFocusedElementByPlayerIndex(i, element);
+        return;
+      }
+    }
+  }
+
+  elementFocusIndex(element: UIElement) {
+    for (let i = 0; i < this._focusedElementByPlayerIndex.length; i++) {
+      if (this._focusedElementByPlayerIndex[i] === element) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  traverseParentFocustByPlayerIndex(playerIndex: number) {
+    let nestedParent = this._focusedElementByPlayerIndex[playerIndex]?._parent;
     while (nestedParent) {
       if (nestedParent.config.focusable) {
         // @ts-ignore
-        this.focusedElement = nestedParent;
+        this.setFocusedElementByPlayerIndex(playerIndex, nestedParent);
         return;
       }
       // @ts-ignore
       nestedParent = nestedParent._parent;
     }
-    this.focusedElement = undefined;
+    this.setFocusedElementByPlayerIndex(playerIndex, undefined);
   }
 
-  _focusedElement: UIElement | undefined;
-  focusedElementPosition: Vector2d | undefined;
-  set focusedElement(element: UIElement | undefined) {
-    const previous = this._focusedElement;
-    this._focusedElement = element;
+  _focusedElementByPlayerIndex: (UIElement | undefined)[] = [];
+  _focusedElementPositionByPlayerIndex: { [key: number]: Vector2d | undefined } = {};
+
+  setFocusedElementByPlayerIndex(playerIndex: number, element: UIElement | undefined) {
+    const previous = this._focusedElementByPlayerIndex[playerIndex];
+    this._focusedElementByPlayerIndex[playerIndex] = element;
     if (element) {
-      this.focusedElementPosition = this.getElementCenter(element._element);
+      this._focusedElementPositionByPlayerIndex[playerIndex] = this.getElementCenter(element._element);
       element._update();
     }
     if (!element) {
       setTimeout(() => {
-        if (!this._focusedElement && this.autoEmptyFocusElements.length > 0) {
+        if (!this._focusedElementByPlayerIndex[playerIndex] && this.autoEmptyFocusElements.length > 0) {
           let closest = this.autoEmptyFocusElements[0];
           if (previous && previous.config.autoEmptyFocus) {
             let closestDistance = Infinity;
@@ -259,15 +312,15 @@ export class UIService {
               // favor the left
               center.x += 1;
               const distance =
-                (center.x - (this.focusedElementPosition?.x ?? window.innerWidth / 2)) ** 2 +
-                (center.y - (this.focusedElementPosition?.y ?? window.innerHeight / 2)) ** 2;
+                (center.x - (this._focusedElementPositionByPlayerIndex[playerIndex]?.x ?? window.innerWidth / 2)) ** 2 +
+                (center.y - (this._focusedElementPositionByPlayerIndex[playerIndex]?.y ?? window.innerHeight / 2)) ** 2;
               if (distance < closestDistance) {
                 closest = element;
                 closestDistance = distance;
               }
             });
           }
-          this.focusedElement = closest;
+          this._focusedElementByPlayerIndex[playerIndex] = closest;
         }
       }, 0);
     }
@@ -277,14 +330,10 @@ export class UIService {
     }
   }
 
-  get focusedElement() {
-    return this._focusedElement;
-  }
-
-  clearFocusedElement() {
-    const previous = this._focusedElement;
-    this._focusedElement = undefined;
-    this.focusedElementPosition = undefined;
+  clearFocusedElementByPlayerIndex(playerIndex: number) {
+    const previous = this._focusedElementByPlayerIndex[playerIndex];
+    this._focusedElementByPlayerIndex[playerIndex] = undefined;
+    this._focusedElementPositionByPlayerIndex[playerIndex] = undefined;
     setTimeout(() => {
       if (previous && !previous?.destroyed) {
         previous._update();
@@ -370,7 +419,8 @@ export class UIService {
     direction: {
       x: 1 | -1 | 0;
       y: 1 | -1 | 0;
-    }
+    },
+    playerIndex: number
   ): UIElement | undefined {
     if (!elementCenter) {
       elementCenter = {
@@ -379,7 +429,9 @@ export class UIService {
       };
     }
 
-    const capturedFocuses = this.uiDiv.querySelector(".captureFocus:not(:has(.captureFocus)):has(.focused)");
+    const capturedFocuses = this.uiDiv.querySelector(
+      `.captureFocus${playerIndex}:not(:has(.captureFocus${playerIndex})):has(.focused)`
+    );
     let focusables;
     if (capturedFocuses) {
       focusables = capturedFocuses.querySelectorAll(".focusable");
@@ -524,8 +576,8 @@ export class UIService {
     Object.entries(this.uiElements).forEach(([key, value]) => {
       delete this.uiElements[key];
     });
-    this._focusedElement = undefined;
-    this.focusedElementPosition = undefined;
+    this._focusedElementByPlayerIndex = [];
+    this._focusedElementPositionByPlayerIndex = {};
     this.autoEmptyFocusElements = [];
     this.mappedIds = {};
     this.elements = [];

@@ -5,6 +5,7 @@ import { BoxConfig } from "./Box";
 import { TextConfig } from "./Text";
 import { scaleFont } from "./utils";
 import { cloneDeep } from "lodash";
+import { InputEventType } from "@/inputs/InputManager";
 
 export interface ButtonConfig extends BoxConfig, TextConfig {
   focusStyle?: Partial<CSSStyleDeclaration>;
@@ -92,9 +93,9 @@ export class Button extends UIElement<ButtonConfig> {
     if (this._config.focusable) {
       element.classList.add("focusable");
     }
-    if (this._config.captureFocus) {
-      element.classList.add("captureFocus");
-      this.uiService.clearFocusedElement();
+    if (this._config.captureFocus !== undefined) {
+      element.classList.add("captureFocus" + this._config.captureFocus);
+      this.uiService.clearFocusedElementByPlayerIndex(this._config.captureFocus);
     }
 
     if (this._config.autoEmptyFocus) {
@@ -155,7 +156,8 @@ export class Button extends UIElement<ButtonConfig> {
       this.onBlur();
     };
     buttonElement.onfocus = () => {
-      this.onFocus();
+      const playerEventIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
+      this.onFocus(playerEventIndex);
     };
     buttonElement.onmouseenter = (e) => {
       this.onMouseEnter(e);

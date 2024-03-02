@@ -432,7 +432,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
               // Object.assign(config.config, events);
               let shouldUpdate = false;
               Object.entries(events).forEach(([key, value]) => {
-                element.config[key as keyof UIElementConfig] = value;
+                (element.config as any)[key as keyof UIElementConfig] = value;
                 shouldUpdate = true;
               });
 
