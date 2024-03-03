@@ -258,7 +258,10 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   }
 
   onClick(playerIndex: number) {
-    return this.onClickInternal(playerIndex);
+    const focusables = this.uiService.getFocusables(playerIndex);
+    if (this._element && focusables?.includes(this._element)) {
+      return this.onClickInternal(playerIndex);
+    }
   }
 
   onBlur(playerIndex: number) {

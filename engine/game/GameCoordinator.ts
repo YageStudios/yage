@@ -17,6 +17,8 @@ export class GameCoordinator {
   fillScreen: boolean = true;
   minWidth: number = 1080;
   minHeight: number = 1080;
+
+  baseZoom: number;
   // instance: GameInstance;
 
   constructor() {
@@ -48,7 +50,9 @@ export class GameCoordinator {
 
       events: this.pixiApp.renderer.events, // the interaction module is important for wheel to work properly when renderer.view is placed or scaled
     });
-    viewport.setZoom(window.innerWidth / 1920, true);
+    const baseZoom = window.innerWidth / 1920;
+    viewport.setZoom(baseZoom, true);
+    this.baseZoom = baseZoom;
 
     // Listen for window resize events
     window.removeEventListener("resize", this.onResize);
@@ -95,6 +99,7 @@ export class GameCoordinator {
         scale = (this.minWidth / windowWidth) * scale;
       }
       this.pixiViewport.setZoom(scale, true);
+      this.baseZoom = scale;
     } else {
       let width = window.innerWidth;
       let height = (window.innerWidth * 9) / 16;
@@ -119,6 +124,7 @@ export class GameCoordinator {
       // Resize the pixi viewport
       this.pixiViewport.resize(width, height, this.pixiViewport.worldWidth, this.pixiViewport.worldHeight);
       this.pixiViewport.setZoom(scale, true);
+      this.baseZoom = scale;
     }
   };
 

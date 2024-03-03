@@ -45,4 +45,11 @@ export class CoopConnectionInstance<T> extends CoreConnectionInstance<T> {
       }
     }
   }
+
+  connect(): Promise<void> {
+    for (let i = 0; i < this.localPlayers.length; i++) {
+      this.emit("connect", this.localPlayers[i]);
+    }
+    return Promise.resolve();
+  }
 }
