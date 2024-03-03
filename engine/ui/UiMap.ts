@@ -8,7 +8,7 @@ export type UiMap = {
   build: (
     context: any,
 
-    eventHandler: (eventName: string, eventType: string, context: any) => void
+    eventHandler: (playerIndex: number, eventName: string, eventType: string, context: any) => void
   ) => { [key: string]: UIElement<any> };
   update: (context: any) => void;
   context: () => any;
@@ -33,60 +33,60 @@ type BuiltContext = BuildQuery[];
 const generateEventListener = (
   events: any,
   contextRef: any,
-  eventListener: (eventName: any, eventType: any, eventData: any) => void
+  eventListener: (playerIndex: number, eventName: any, eventType: any, eventData: any) => void
 ) => {
   return events
     ? {
-        onEscape: () => {
+        onEscape: (playerIndex: number) => {
           if (events.escape) {
-            eventListener(events.escape, "escape", contextRef.context);
+            eventListener(playerIndex, events.escape, "escape", contextRef.context);
           }
         },
-        onClick: () => {
+        onClick: (playerIndex: number) => {
           if (events.click) {
-            eventListener(events.click, "click", contextRef.context);
+            eventListener(playerIndex, events.click, "click", contextRef.context);
           }
           if (events.trigger) {
-            eventListener(events.trigger, "trigger", contextRef.context);
+            eventListener(playerIndex, events.trigger, "trigger", contextRef.context);
           }
           return false;
         },
-        onMouseDown: () => {
+        onMouseDown: (playerIndex: number) => {
           if (events.mouseDown) {
-            eventListener(events.mouseDown, "mouseDown", contextRef.context);
+            eventListener(playerIndex, events.mouseDown, "mouseDown", contextRef.context);
           }
           return false;
         },
-        onMouseUp: () => {
+        onMouseUp: (playerIndex: number) => {
           if (events.mouseUp) {
-            eventListener(events.mouseUp, "mouseUp", contextRef.context);
+            eventListener(playerIndex, events.mouseUp, "mouseUp", contextRef.context);
           }
           return false;
         },
-        onMouseEnter: () => {
+        onMouseEnter: (playerIndex: number) => {
           if (events.mouseEnter) {
-            eventListener(events.mouseEnter, "mouseEnter", contextRef.context);
+            eventListener(playerIndex, events.mouseEnter, "mouseEnter", contextRef.context);
           }
           if (events.hoverFocus) {
-            eventListener(events.hoverFocus, "hoverFocus", contextRef.context);
+            eventListener(playerIndex, events.hoverFocus, "hoverFocus", contextRef.context);
           }
         },
-        onMouseLeave: () => {
+        onMouseLeave: (playerIndex: number) => {
           if (events.mouseLeave) {
-            eventListener(events.mouseLeave, "mouseLeave", contextRef.context);
+            eventListener(playerIndex, events.mouseLeave, "mouseLeave", contextRef.context);
           }
           if (events.hoverBlur) {
-            eventListener(events.hoverBlur, "hoverBlur", contextRef.context);
+            eventListener(playerIndex, events.hoverBlur, "hoverBlur", contextRef.context);
           }
         },
-        onBlur: () => {
+        onBlur: (playerIndex: number) => {
           if (events.blur) {
-            eventListener(events.blur, "blur", contextRef.context);
+            eventListener(playerIndex, events.blur, "blur", contextRef.context);
           }
         },
-        onFocus: () => {
+        onFocus: (playerIndex: number) => {
           if (events.focus) {
-            eventListener(events.focus, "focus", contextRef.context);
+            eventListener(playerIndex, events.focus, "focus", contextRef.context);
           }
         },
       }
@@ -166,17 +166,16 @@ const remapTemplateQueries = (json: any, contextMap: any, parent = "") => {
   });
 };
 
-export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxConfig): UiMap => {
-  let built: Box | null = null;
+export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partial<BoxConfig>): UiMap => {
   json = cloneDeep(json);
 
   const lastContext: BuiltContext = [];
   let buildContext: any = null;
 
-  const build = (context: any, eventHandler: (eventName: string, eventType: string, context: any) => void) => {
-    if (built) {
-      return built;
-    }
+  const build = (
+    context: any,
+    eventHandler: (playerIndex: number, eventName: string, eventType: string, context: any) => void
+  ) => {
     buildContext = cloneDeep(context);
     const getQueriables = (json: any, parent = ""): Query[] => {
       return Object.entries(json)
@@ -478,7 +477,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
       });
     };
     json = cloneDeep(json);
-    const res: any = {};
+    const res: { [key: string]: UIElement<any> } = {};
     Object.entries(json).forEach(([key, value]: any) => {
       if (!value.type) {
         throw new Error("No nesting");
@@ -500,6 +499,14 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: BoxCon
         lastContext
       );
     });
+
+    if (boxPosition) {
+      const box = new Box(boxPosition, boxConfig);
+      Object.entries(res).forEach(([key, value]) => {
+        box.addChild(value);
+      });
+      return { box };
+    }
 
     return res;
   };

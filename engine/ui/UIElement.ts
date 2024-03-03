@@ -16,6 +16,9 @@ export type UIElementConfig = {
   captureFocus?: number;
   focusStyle?: Partial<CSSStyleDeclaration>;
   onEscape?: () => void;
+  scale?: number;
+  scaleX?: number;
+  scaleY?: number;
 };
 
 export type RootUIElement = {
@@ -50,6 +53,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
 
   cachedStyle: Partial<CSSStyleDeclaration> | undefined;
   focusedStyle: Partial<CSSStyleDeclaration> | undefined;
+  focusedIndices: number[] = [];
 
   get id() {
     return this._id;
@@ -243,41 +247,42 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     }
   }
 
-  onClick() {
-    return this.onClickInternal();
+  onClick(playerIndex: number) {
+    return this.onClickInternal(playerIndex);
   }
 
-  onBlur() {
-    return this.onBlurInternal();
+  onBlur(playerIndex: number) {
+    return this.onBlurInternal(playerIndex);
   }
 
-  onFocus(focusIndex: number) {
-    return this.onFocusInternal(focusIndex);
+  onFocus(playerIndex: number) {
+    return this.onFocusInternal(playerIndex);
   }
 
-  onMouseDown() {
-    return this.onMouseDownInternal();
+  onMouseDown(playerIndex: number) {
+    return this.onMouseDownInternal(playerIndex);
   }
 
-  onMouseUp() {
-    return this.onMouseUpInternal();
+  onMouseUp(playerIndex: number) {
+    return this.onMouseUpInternal(playerIndex);
   }
 
-  onMouseEnter(e: MouseEvent) {
-    if (this.uiService.lastMouseMove + 200 < +new Date()) {
+  onMouseEnter(e: MouseEvent, forced = false) {
+    const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
+    if (playerIndex === -1) {
+      return;
+    }
+    if (!forced && this.uiService.lastMouseMove + 200 < +new Date()) {
       return;
     }
 
     let mouseInBounds = true;
 
     if (this._config.focusable) {
-      const playerEventIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
-      if (playerEventIndex === -1) {
-        return;
-      }
       const nestedFocused = this._element?.querySelector(
-        `.captureFocus${playerEventIndex}:not(:has(.captureFocus${playerEventIndex})):has(.focused)`
+        `.captureFocus${playerIndex}:not(:has(.captureFocus${playerIndex})):has(.focused)`
       );
+      console.log(nestedFocused);
       if (nestedFocused) {
         mouseInBounds = false;
       } else {
@@ -296,23 +301,27 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     if (this._config.focusable && mouseInBounds) {
       this.uiService.attemptMouseFocus(this);
     }
-    return this.onMouseEnterInternal();
+    return this.onMouseEnterInternal(playerIndex);
   }
 
   onMouseLeave() {
+    const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
+    if (playerIndex === -1) {
+      return;
+    }
     if (this.uiService.lastMouseMove + 200 < +new Date()) {
       return;
     }
-    return this.onMouseLeaveInternal();
+    return this.onMouseLeaveInternal(playerIndex);
   }
 
-  protected abstract onClickInternal(): void | boolean;
-  protected abstract onMouseDownInternal(): void | boolean;
-  protected abstract onMouseUpInternal(): void | boolean;
-  protected abstract onBlurInternal(): void;
-  protected abstract onFocusInternal(focusIndex: number): void;
-  protected abstract onMouseEnterInternal(): void;
-  protected abstract onMouseLeaveInternal(): void;
+  protected abstract onClickInternal(playerIndex: number): void | boolean;
+  protected abstract onMouseDownInternal(playerIndex: number): void | boolean;
+  protected abstract onMouseUpInternal(playerIndex: number): void | boolean;
+  protected abstract onBlurInternal(playerIndex: number): void;
+  protected abstract onFocusInternal(playerIndex: number): void;
+  protected abstract onMouseEnterInternal(playerIndex: number): void;
+  protected abstract onMouseLeaveInternal(playerIndex: number): void;
 
   onDestroy(noUpdate?: boolean) {
     this.destroyed = true;
@@ -336,9 +345,9 @@ export abstract class UIElement<T extends UIElementConfig = any> {
         this.uiService.autoEmptyFocusElements = this.uiService.autoEmptyFocusElements.filter((x) => x !== this);
       }
       if (!noUpdate) {
-        const focusIndex = this.uiService.elementFocusIndex(this);
-        if (focusIndex > -1) {
-          this.uiService.traverseParentFocustByPlayerIndex(focusIndex);
+        const focusIndices = this.uiService.elementFocusIndices(this);
+        for (const focustIndex of focusIndices) {
+          this.uiService.traverseParentFocustByPlayerIndex(focustIndex);
         }
         if (this.parent && !isRootUIElement(this.parent)) {
           this.parent?.update();
@@ -367,35 +376,48 @@ export abstract class UIElement<T extends UIElementConfig = any> {
 
   addEvents(element: HTMLElement) {
     element.onclick = (e) => {
-      const res = this.onClickInternal();
+      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
+      if (playerIndex === -1) {
+        e.stopPropagation();
+        return;
+      }
+      this.onMouseEnter(e, true);
+      const res = this.onClickInternal(playerIndex);
       if (res === false) {
         e.stopPropagation();
       }
     };
     element.onmousedown = (e) => {
-      const res = this.onMouseDownInternal();
+      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
+      if (playerIndex === -1) {
+        e.stopPropagation();
+        return;
+      }
+      const res = this.onMouseDownInternal(playerIndex);
       if (res === false) {
         e.stopPropagation();
       }
     };
     element.onmouseup = (e) => {
-      const res = this.onMouseUpInternal();
+      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
+      if (playerIndex === -1) {
+        e.stopPropagation();
+        return;
+      }
+      const res = this.onMouseUpInternal(playerIndex);
       if (res === false) {
         e.stopPropagation();
       }
-    };
-    element.onblur = () => {
-      this.onBlurInternal();
-    };
-    element.onfocus = () => {
-      const focusIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
-      this.onFocusInternal(focusIndex);
     };
     element.onmouseenter = (e) => {
       this.onMouseEnter(e);
     };
     element.onmouseleave = () => {
-      this.onMouseLeaveInternal();
+      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
+      if (playerIndex === -1) {
+        return;
+      }
+      this.onMouseLeaveInternal(playerIndex);
     };
   }
 
@@ -452,8 +474,11 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     }
     element.style.display = "block";
 
-    const focusIndex = this.uiService.elementFocusIndex(this);
-    if (focusIndex > -1) {
+    const focusIndices = this.uiService.elementFocusIndices(this);
+    const newFocusedIndices = focusIndices.filter((x) => !this.focusedIndices.includes(x));
+    const removedFocusedIndices = this.focusedIndices.filter((x) => !focusIndices.includes(x));
+    this.focusedIndices = focusIndices;
+    if (newFocusedIndices.length > 0) {
       if (!this.focusedStyle) {
         this.focusedStyle = {
           ...this._config.style,
@@ -475,19 +500,27 @@ export abstract class UIElement<T extends UIElementConfig = any> {
         this._element!.classList.add("focused");
         // move the focus out of the render loop to allow the blur event to fire first
         setTimeout(() => {
-          const focusIndex = this.uiService.elementFocusIndex(this);
-          if (focusIndex > -1) {
-            this.onFocus(focusIndex);
+          const focusIndex = this.uiService.elementFocusIndices(this);
+          for (const index of newFocusedIndices) {
+            if (focusIndex.includes(index)) {
+              this.onFocus(index);
+            }
           }
         }, 0);
       }
-    } else if (focusIndex === -1 && this.cachedStyle) {
-      this._config.style = this.cachedStyle;
-      this.cachedStyle = undefined;
-      this.focusedStyle = undefined;
-      this._element!.classList.remove("focused");
-      this.onBlur();
-    } else if (this._config.focusable && this._config.autoFocus) {
+    }
+    if (removedFocusedIndices.length && this.cachedStyle) {
+      if (focusIndices.length === 0) {
+        this._config.style = this.cachedStyle;
+        this.cachedStyle = undefined;
+        this.focusedStyle = undefined;
+        this._element!.classList.remove("focused");
+      }
+      for (const index of removedFocusedIndices) {
+        this.onBlur(index);
+      }
+    }
+    if (this._config.focusable && this._config.autoFocus) {
       this.uiService.attemptAutoFocus(this);
     }
 
@@ -503,7 +536,24 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       ...this._config.style,
     };
 
-    const [x, y, width, height] = positionToCanvasSpace(this.bounds, this._parent?._element ?? document.body);
+    let scale = this._config.scale ?? 1;
+    let scaleX = this._config.scaleX ?? 1;
+    let scaleY = this._config.scaleY ?? 1;
+    let parent = this._parent;
+    while (parent) {
+      scale *= parent.config.scale ?? 1;
+      scaleX *= parent.config.scaleX ?? 1;
+      scaleY *= parent.config.scaleY ?? 1;
+      // @ts-ignore
+      parent = parent._parent;
+    }
+    const [x, y, width, height] = positionToCanvasSpace(
+      this.bounds,
+      this._parent?._element ?? document.body,
+      scale,
+      scaleX,
+      scaleY
+    );
     if (styles.position === "absolute") {
       element.style.left = `${x}px`;
       element.style.top = `${y}px`;

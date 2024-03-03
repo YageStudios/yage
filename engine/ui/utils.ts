@@ -18,22 +18,30 @@ const scale = () => {
     width = (window.innerHeight * 16) / 9;
   }
 
-  return Math.max(0.5, Math.min(width / 1920, height / 1080));
+  return Math.max(0.3, Math.min(width / 1920, height / 1080));
 };
 
-export const positionToCanvasSpace = (pos: Position, element: HTMLElement): [number, number, number, number] => {
+export const positionToCanvasSpace = (
+  pos: Position,
+  element: HTMLElement,
+  additionalScale: number,
+  additionalScaleX: number,
+  additionalScaleY: number
+): [number, number, number, number] => {
   const canvasWidth = element.clientWidth;
   const canvasHeight = element.clientHeight;
 
-  const _scale = scale();
-  let width = pos.width * _scale;
+  const _scale = scale() * additionalScale;
+  const scaleX = _scale * additionalScaleX;
+  const scaleY = _scale * additionalScaleY;
+  let width = pos.width * scaleX;
   if (pos.widthPercentage) {
-    width /= 100 * _scale;
+    width /= 100 * scaleX;
     width *= canvasWidth;
   }
-  let height = pos.height * _scale;
+  let height = pos.height * scaleY;
   if (pos.heightPercentage) {
-    height /= 100 * _scale;
+    height /= 100 * scaleY;
     height *= canvasHeight;
   }
 
@@ -80,11 +88,11 @@ export const positionToCanvasSpace = (pos: Position, element: HTMLElement): [num
 
   let xPercentage = typeof pos.x == "number" ? pos.x / 100 : 0;
   let yPercentage = typeof pos.y == "number" ? pos.y / 100 : 0;
-  let xOffset = (pos.xOffset || 0) * _scale - width / 2;
+  let xOffset = (pos.xOffset || 0) * scaleX - width / 2;
   if (pos.xOffsetPercentage) {
     xOffset = (pos.xOffset / 100) * width - width / 2;
   }
-  let yOffset = (pos.yOffset || 0) * _scale - height / 2;
+  let yOffset = (pos.yOffset || 0) * scaleY - height / 2;
   if (pos.yOffsetPercentage) {
     yOffset = (pos.yOffset / 100) * height - height / 2;
   }
@@ -127,5 +135,5 @@ export const scaleFont = (fontSize: number): number => {
 
   const scale = Math.min(width / 1920, height / 1080);
 
-  return Math.floor(fontSize * Math.max(0.75, scale));
+  return Math.floor(fontSize * Math.max(0.65, scale));
 };

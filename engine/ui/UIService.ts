@@ -148,7 +148,7 @@ export class UIService {
     switch (key.toLocaleLowerCase()) {
       case "space":
         if (this._focusedElementByPlayerIndex[playerEventIndex]) {
-          this._focusedElementByPlayerIndex[playerEventIndex]!.onClick();
+          this._focusedElementByPlayerIndex[playerEventIndex]!.onClick(playerEventIndex);
           e?.preventDefault();
           e?.stopImmediatePropagation();
         }
@@ -268,13 +268,14 @@ export class UIService {
     }
   }
 
-  elementFocusIndex(element: UIElement) {
+  elementFocusIndices(element: UIElement) {
+    const indices: number[] = [];
     for (let i = 0; i < this._focusedElementByPlayerIndex.length; i++) {
       if (this._focusedElementByPlayerIndex[i] === element) {
-        return i;
+        indices.push(i);
       }
     }
-    return -1;
+    return indices;
   }
 
   traverseParentFocustByPlayerIndex(playerIndex: number) {
@@ -428,6 +429,17 @@ export class UIService {
         y: window.innerHeight / 2,
       };
     }
+    const antiPlayerIndex =
+      this.playerInputs.length > 1
+        ? this.playerInputs.reduce((acc, [], index) => {
+            if (index === playerIndex) {
+              return acc;
+            }
+            return acc.length ? ", .captureFocus" + index : ".captureFocus" + index;
+          }, "") + " .focusable"
+        : "";
+
+    const unfocusables = antiPlayerIndex.length ? Array.from(this.uiDiv.querySelectorAll(antiPlayerIndex)) : [];
 
     const capturedFocuses = this.uiDiv.querySelector(
       `.captureFocus${playerIndex}:not(:has(.captureFocus${playerIndex})):has(.focused)`
@@ -438,6 +450,7 @@ export class UIService {
     } else {
       focusables = this.uiDiv.querySelectorAll(".focusable");
     }
+    focusables = Array.from(focusables).filter((x) => !unfocusables.includes(x));
     let closestElement: UIElement | undefined;
     let closestDistance = Infinity;
     let closestAngle = 180;

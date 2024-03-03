@@ -35,14 +35,6 @@ export class TextInput extends UIElement<TextInputConfig> {
     super(bounds, config, defaultStyle);
   }
 
-  protected onClickInternal(): void | boolean {
-    if (this._config.onClick) {
-      return this._config.onClick();
-    }
-    this.focusTime = +new Date();
-    document.addEventListener("keydown", this.listenKeyPress);
-  }
-
   listenKeyPress = (e: any) => {
     e.preventDefault();
     e.stopPropagation();
@@ -56,42 +48,49 @@ export class TextInput extends UIElement<TextInputConfig> {
     }
     this._config.onChange?.(this._config.value || "");
   };
+  protected onClickInternal(playerIndex: number): void | boolean {
+    if (this._config.onClick) {
+      return this._config.onClick(playerIndex);
+    }
+    this.focusTime = +new Date();
+    document.addEventListener("keydown", this.listenKeyPress);
+  }
 
-  protected onMouseDownInternal(): void | boolean {
+  protected onMouseDownInternal(playerIndex: number): void | boolean {
     if (this._config.onMouseDown) {
-      return this._config.onMouseDown();
+      return this._config.onMouseDown(playerIndex);
     }
   }
 
-  protected onMouseUpInternal(): void | boolean {
+  protected onMouseUpInternal(playerIndex: number): void | boolean {
     if (this._config.onMouseUp) {
-      return this._config.onMouseUp();
+      return this._config.onMouseUp(playerIndex);
     }
   }
 
-  protected onBlurInternal(): void {
+  protected onBlurInternal(playerIndex: number): void {
     this.focusTime = -1;
     document.removeEventListener("keydown", this.listenKeyPress);
     if (this._config.onBlur) {
-      this._config.onBlur();
+      this._config.onBlur(playerIndex);
     }
   }
 
-  protected onFocusInternal(): void {
+  protected onFocusInternal(playerIndex: number): void {
     if (this._config.onFocus) {
-      this._config.onFocus();
+      this._config.onFocus(playerIndex);
     }
   }
 
-  protected onMouseEnterInternal(): void {
+  protected onMouseEnterInternal(playerIndex: number): void {
     if (this._config.onMouseEnter) {
-      this._config.onMouseEnter();
+      this._config.onMouseEnter(playerIndex);
     }
   }
 
-  protected onMouseLeaveInternal(): void {
+  protected onMouseLeaveInternal(playerIndex: number): void {
     if (this._config.onMouseLeave) {
-      this._config.onMouseLeave();
+      this._config.onMouseLeave(playerIndex);
     }
   }
 

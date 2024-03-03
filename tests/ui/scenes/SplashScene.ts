@@ -13,7 +13,7 @@ import { TextInputConfig } from "@/ui/TextInput";
 
 import uis from "../ui";
 import { UiMap, buildUiMap } from "@/ui/UiMap";
-import { InputManager } from "@/inputs/InputManager";
+import { InputEventType, InputManager } from "@/inputs/InputManager";
 import { KeyboardListener } from "@/inputs/KeyboardListener";
 import { GamepadListener, StandardGamepadRegions } from "@/inputs/GamepadListener";
 
@@ -64,6 +64,10 @@ export class UiSplashScene extends Scene {
     new KeyboardListener(inputManager).init(["w", "a", "s", "d", "space", "left", "right", "up", "down"]);
     new GamepadListener(inputManager).init(StandardGamepadRegions);
 
+    UIService.getInstance().playerInputs = [
+      [InputEventType.KEYBOARD, 0],
+      [InputEventType.GAMEPAD, 0],
+    ];
     UIService.getInstance().enableKeyCapture(inputManager);
 
     this.ui.background = new Text(
@@ -138,7 +142,7 @@ export class UiSplashScene extends Scene {
           testLabel: "woah nellie",
           popupOpen: false,
         },
-        (name, type, context) => {
+        (playerIndex, name, type, context) => {
           console.log(name, type, context);
           if (name === "TemplateClick") {
             console.log("UPDATING");
@@ -172,8 +176,8 @@ export class UiSplashScene extends Scene {
           start: "Start game?",
           child: "Child Test",
         },
-        (name, type, context) => {
-          console.log(name, type, context);
+        (playerIndex, name, type, context) => {
+          console.log(playerIndex, name, type, context);
           if (name === "selectCharacter") {
             console.log("UPDATING");
             const context = this.splashMap.context();
