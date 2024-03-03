@@ -40,7 +40,7 @@ export abstract class ConnectionInstance<T> {
 
   abstract updatePlayerConnect(
     player: RequireAtLeastOne<{ name: string; token: string; config: T }, "name" | "token" | "config">,
-    index?: number
+    index?: number | string
   ): void;
 
   abstract connect(): Promise<void>;

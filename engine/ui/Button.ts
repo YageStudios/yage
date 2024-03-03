@@ -93,15 +93,13 @@ export class Button extends UIElement<ButtonConfig> {
     if (this._config.focusable) {
       element.classList.add("focusable");
     }
-    if (this._config.captureFocus !== undefined) {
+    if (this._config.captureFocus !== undefined && this._config.captureFocus > -1) {
       element.classList.add("captureFocus" + this._config.captureFocus);
       this.uiService.clearFocusedElementByPlayerIndex(this._config.captureFocus);
     }
 
-    if (this._config.autoEmptyFocus) {
-      if (!this.uiService.autoEmptyFocusElements.includes(this)) {
-        this.uiService.autoEmptyFocusElements.push(this);
-      }
+    if (this._config.autoFocus) {
+      element.classList.add("autoFocus");
     }
     return element as unknown as HTMLButtonElement;
   }
@@ -117,7 +115,8 @@ export class Button extends UIElement<ButtonConfig> {
     }
     if (key === "fontSize") {
       this._config.fontSize = value;
-      this.element.style.fontSize = `${scaleFont(value)}px`;
+      const scales = this.getScales();
+      this.element.style.fontSize = `${scaleFont(value, scales[0] * scales[1] * scales[2])}px`;
       return;
     }
     super.handleConfigChange(key, value);
@@ -134,8 +133,8 @@ export class Button extends UIElement<ButtonConfig> {
     if (!buttonElement) {
       return;
     }
-
-    buttonElement.style.fontSize = `${scaleFont(this.config.fontSize || 12)}px`;
+    const scales = this.getScales();
+    buttonElement.style.fontSize = `${scaleFont(this.config.fontSize || 12, scales[0] * scales[1] * scales[2])}px`;
     this.textElement.innerText = this._config.label;
     buttonElement.onclick = (e) => {
       const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);

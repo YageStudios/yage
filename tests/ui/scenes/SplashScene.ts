@@ -238,7 +238,7 @@ export class UiSplashScene extends Scene {
         height: 50,
       }),
       {
-        autoEmptyFocus: true,
+        autoFocus: true,
         label: "alt auto focus",
         onClick: () => {},
       }

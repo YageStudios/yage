@@ -210,7 +210,11 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     playerConnect: RequireAtLeastOne<{ name: string; token: string; config: T }, "name" | "token" | "config">,
     index = 0
   ): void {
-    const player = this.localPlayers[index];
+    const player =
+      typeof index === "number" ? this.localPlayers[index] : this.localPlayers.find((player) => player.id === index);
+    if (!player) {
+      return;
+    }
     player.name = playerConnect.name ?? player.name;
     player.token = playerConnect.token ?? player.token;
     player.config = playerConnect.config ?? player.config;

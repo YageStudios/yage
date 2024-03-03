@@ -76,7 +76,8 @@ export class Text extends UIElement<TextConfig> {
     }
     if (key === "fontSize") {
       this._config.fontSize = value;
-      this.element.style.fontSize = `${scaleFont(value)}px`;
+      const scales = this.getScales();
+      this.element.style.fontSize = `${scaleFont(this.config.fontSize || 12, scales[0] * scales[1] * scales[2])}px`;
       return;
     }
     if (key === "scrollable") {
@@ -97,7 +98,9 @@ export class Text extends UIElement<TextConfig> {
       return;
     }
 
-    textElement.style.fontSize = `${scaleFont(this._config.fontSize ?? 12)}px`;
+    const scales = this.getScales();
+    textElement.style.fontSize = `${scaleFont(this.config.fontSize || 12, scales[0] * scales[1] * scales[2])}px`;
+
     if (typeof this._config.label === "string" && this._config.label.trim().startsWith("<")) {
       textElement.innerHTML = this._config.label;
     } else if (this._config.label === undefined) {
