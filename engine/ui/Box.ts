@@ -3,13 +3,13 @@ import type { Position, Rectangle } from "./Rectangle";
 import { UIElement, UIElementConfig } from "./UIElement";
 
 export type BoxConfig = UIElementConfig & {
-  onClick?: () => boolean | void;
-  onMouseDown?: () => boolean | void;
-  onMouseUp?: () => boolean | void;
-  onBlur?: () => void;
-  onFocus?: () => void;
-  onMouseEnter?: () => void;
-  onMouseLeave?: () => void;
+  onClick?: (playerIndex: number) => boolean | void;
+  onMouseDown?: (playerIndex: number) => boolean | void;
+  onMouseUp?: (playerIndex: number) => boolean | void;
+  onBlur?: (playerIndex: number) => void;
+  onFocus?: (playerIndex: number) => void;
+  onMouseEnter?: (playerIndex: number) => void;
+  onMouseLeave?: (playerIndex: number) => void;
   style?: Partial<CSSStyleDeclaration>;
   breakoutOverflow?: boolean;
   pointerEventsOnOverflow?: boolean;
@@ -33,37 +33,37 @@ export class Box<T extends BoxConfig = BoxConfig> extends UIElement<T> {
     super(bounds, { pointerEventsOnOverflow: true, ...config }, defaultStyle);
   }
 
-  protected onClickInternal(): void | boolean {
-    return this._config.onClick?.();
+  protected onClickInternal(playerIndex: number): void | boolean {
+    return this._config.onClick?.(playerIndex);
   }
 
-  protected onMouseDownInternal(): void | boolean {
-    return this._config.onMouseDown?.();
+  protected onMouseDownInternal(playerIndex: number): void | boolean {
+    return this._config.onMouseDown?.(playerIndex);
   }
 
-  protected onBlurInternal(): void {
+  protected onBlurInternal(playerIndex: number): void {
     if (this._config.onBlur) {
-      this._config.onBlur();
+      this._config.onBlur(playerIndex);
     }
   }
 
-  protected onMouseUpInternal(): void | boolean {
-    return this._config.onMouseUp?.();
+  protected onMouseUpInternal(playerIndex: number): void | boolean {
+    return this._config.onMouseUp?.(playerIndex);
   }
 
-  protected onFocusInternal(): void {
+  protected onFocusInternal(playerIndex: number): void {
     if (this._config.onFocus) {
-      this._config.onFocus();
+      this._config.onFocus(playerIndex);
     }
   }
-  protected onMouseEnterInternal(): void {
+  protected onMouseEnterInternal(playerIndex: number): void {
     if (this._config.onMouseEnter) {
-      this._config.onMouseEnter();
+      this._config.onMouseEnter(playerIndex);
     }
   }
-  protected onMouseLeaveInternal(): void {
+  protected onMouseLeaveInternal(playerIndex: number): void {
     if (this._config.onMouseLeave) {
-      this._config.onMouseLeave();
+      this._config.onMouseLeave(playerIndex);
     }
   }
 

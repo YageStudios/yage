@@ -6,6 +6,8 @@
       columns: 12,
       gap: "9px",
       // captureFocus: 0,
+      scale: 0.8,
+      scaleX: 0.5,
     },
     rect: {
       x: "center",

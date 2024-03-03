@@ -53,36 +53,36 @@ export class Button extends UIElement<ButtonConfig> {
     );
   }
 
-  protected onClickInternal(): void | boolean {
-    return this._config.onClick?.();
+  protected onClickInternal(playerIndex: number): void | boolean {
+    return this._config.onClick?.(playerIndex);
   }
 
-  protected onMouseDownInternal(): void | boolean {
-    return this._config.onMouseDown?.();
+  protected onMouseDownInternal(playerIndex: number): void | boolean {
+    return this._config.onMouseDown?.(playerIndex);
   }
 
-  protected onMouseUpInternal(): void | boolean {
-    return this._config.onMouseUp?.();
+  protected onMouseUpInternal(playerIndex: number): void | boolean {
+    return this._config.onMouseUp?.(playerIndex);
   }
 
-  protected onBlurInternal(): void {
+  protected onBlurInternal(playerIndex: number): void {
     if (this._config.onBlur) {
-      this._config.onBlur();
+      this._config.onBlur(playerIndex);
     }
   }
-  protected onFocusInternal(): void {
+  protected onFocusInternal(playerIndex: number): void {
     if (this._config.onFocus) {
-      this._config.onFocus();
+      this._config.onFocus(playerIndex);
     }
   }
-  protected onMouseEnterInternal(): void {
+  protected onMouseEnterInternal(playerIndex: number): void {
     if (this._config.onMouseEnter) {
-      this._config.onMouseEnter();
+      this._config.onMouseEnter(playerIndex);
     }
   }
-  protected onMouseLeaveInternal(): void {
+  protected onMouseLeaveInternal(playerIndex: number): void {
     if (this._config.onMouseLeave) {
-      this._config.onMouseLeave();
+      this._config.onMouseLeave(playerIndex);
     }
   }
 
@@ -138,26 +138,36 @@ export class Button extends UIElement<ButtonConfig> {
     buttonElement.style.fontSize = `${scaleFont(this.config.fontSize || 12)}px`;
     this.textElement.innerText = this._config.label;
     buttonElement.onclick = (e) => {
-      if (this.onClick() === false) {
+      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
+      if (playerIndex === -1) {
+        e.stopPropagation();
+        return;
+      }
+      this.onMouseEnter(e, true);
+
+      if (this.onClick(playerIndex) === false) {
         e.stopPropagation();
       }
     };
     buttonElement.onmousedown = (e) => {
-      if (this.onMouseDown() === false) {
+      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
+      if (playerIndex === -1) {
+        e.stopPropagation();
+        return;
+      }
+      if (this.onMouseDown(playerIndex) === false) {
         e.stopPropagation();
       }
     };
     buttonElement.onmouseup = (e) => {
-      if (this.onMouseUp() === false) {
+      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
+      if (playerIndex === -1) {
+        e.stopPropagation();
+        return;
+      }
+      if (this.onMouseUp(playerIndex) === false) {
         e.stopPropagation();
       }
-    };
-    buttonElement.onblur = () => {
-      this.onBlur();
-    };
-    buttonElement.onfocus = () => {
-      const playerEventIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
-      this.onFocus(playerEventIndex);
     };
     buttonElement.onmouseenter = (e) => {
       this.onMouseEnter(e);
