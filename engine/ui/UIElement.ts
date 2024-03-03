@@ -12,10 +12,9 @@ export type UIElementConfig = {
   parent?: UIElement | RootUIElement;
   focusable?: boolean;
   autoFocus?: boolean;
-  autoEmptyFocus?: boolean;
   captureFocus?: number;
   focusStyle?: Partial<CSSStyleDeclaration>;
-  onEscape?: () => void;
+  onEscape?: (playerIndex: number) => void;
   scale?: number;
   scaleX?: number;
   scaleY?: number;
@@ -97,14 +96,25 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       let previousCaptureFocus = this._config.captureFocus;
       this._config.captureFocus = value;
       if (this._element) {
-        if (value !== undefined) {
+        if (value !== undefined && value > -1) {
           this._element.classList.add("captureFocus" + value);
           this.uiService.clearFocusedElementByPlayerIndex(value);
           this.update();
         } else {
-          if (previousCaptureFocus !== undefined) {
+          if (previousCaptureFocus !== undefined && previousCaptureFocus > -1) {
             this._element.classList.remove("captureFocus" + previousCaptureFocus);
           }
+        }
+      }
+      return;
+    }
+    if (key === "autoFocus") {
+      this._config.autoFocus = value;
+      if (this._element) {
+        if (value) {
+          this._element.classList.add("autoFocus");
+        } else {
+          this._element.classList.remove("autoFocus");
         }
       }
       return;
@@ -241,9 +251,9 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     }
   }
 
-  onEscape() {
+  onEscape(playerIndex: number) {
     if (this._config.onEscape) {
-      this._config.onEscape();
+      this._config.onEscape(playerIndex);
     }
   }
 
@@ -282,7 +292,6 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       const nestedFocused = this._element?.querySelector(
         `.captureFocus${playerIndex}:not(:has(.captureFocus${playerIndex})):has(.focused)`
       );
-      console.log(nestedFocused);
       if (nestedFocused) {
         mouseInBounds = false;
       } else {
@@ -341,13 +350,10 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       this._element?.parentElement?.removeChild(this._element);
       this._element?.remove();
       this._element = undefined;
-      if (this._config.autoEmptyFocus) {
-        this.uiService.autoEmptyFocusElements = this.uiService.autoEmptyFocusElements.filter((x) => x !== this);
-      }
       if (!noUpdate) {
         const focusIndices = this.uiService.elementFocusIndices(this);
-        for (const focustIndex of focusIndices) {
-          this.uiService.traverseParentFocustByPlayerIndex(focustIndex);
+        for (const focusIndex of focusIndices) {
+          this.uiService.traverseParentFocusByPlayerIndex(focusIndex);
         }
         if (this.parent && !isRootUIElement(this.parent)) {
           this.parent?.update();
@@ -362,14 +368,12 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     if (this._config.focusable) {
       element.classList.add("focusable");
     }
-    if (this._config.captureFocus !== undefined) {
+    if (this._config.captureFocus !== undefined && this._config.captureFocus > -1) {
       element.classList.add("captureFocus" + this._config.captureFocus);
       this.uiService.clearFocusedElementByPlayerIndex(this._config.captureFocus);
     }
-    if (this._config.autoEmptyFocus) {
-      if (!this.uiService.autoEmptyFocusElements.includes(this)) {
-        this.uiService.autoEmptyFocusElements.push(this);
-      }
+    if (this._config.autoFocus) {
+      element.classList.add("autoFocus");
     }
     return element;
   }
@@ -460,6 +464,21 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     }
   }
 
+  getScales(): [number, number, number] {
+    let scale = this._config.scale ?? 1;
+    let scaleX = this._config.scaleX ?? 1;
+    let scaleY = this._config.scaleY ?? 1;
+    let parent = this._parent;
+    while (parent) {
+      scale *= parent.config.scale ?? 1;
+      scaleX *= parent.config.scaleX ?? 1;
+      scaleY *= parent.config.scaleY ?? 1;
+      // @ts-ignore
+      parent = parent._parent;
+    }
+    return [scale, scaleX, scaleY];
+  }
+
   _update() {
     if (!this.isVisible()) {
       this.updateVisibility();
@@ -520,9 +539,6 @@ export abstract class UIElement<T extends UIElementConfig = any> {
         this.onBlur(index);
       }
     }
-    if (this._config.focusable && this._config.autoFocus) {
-      this.uiService.attemptAutoFocus(this);
-    }
 
     const parentElement = this.parent?._element;
     if (!element.parentElement || (parentElement && element.parentElement !== parentElement)) {
@@ -536,23 +552,10 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       ...this._config.style,
     };
 
-    let scale = this._config.scale ?? 1;
-    let scaleX = this._config.scaleX ?? 1;
-    let scaleY = this._config.scaleY ?? 1;
-    let parent = this._parent;
-    while (parent) {
-      scale *= parent.config.scale ?? 1;
-      scaleX *= parent.config.scaleX ?? 1;
-      scaleY *= parent.config.scaleY ?? 1;
-      // @ts-ignore
-      parent = parent._parent;
-    }
     const [x, y, width, height] = positionToCanvasSpace(
       this.bounds,
       this._parent?._element ?? document.body,
-      scale,
-      scaleX,
-      scaleY
+      ...this.getScales()
     );
     if (styles.position === "absolute") {
       element.style.left = `${x}px`;

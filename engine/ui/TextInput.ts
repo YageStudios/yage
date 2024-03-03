@@ -105,9 +105,12 @@ export class TextInput extends UIElement<TextInputConfig> {
     if (this._config.focusable) {
       element.classList.add("focusable");
     }
-    if (this._config.captureFocus !== undefined) {
+    if (this._config.captureFocus !== undefined && this._config.captureFocus > -1) {
       element.classList.add("captureFocus" + this._config.captureFocus);
       this.uiService.clearFocusedElementByPlayerIndex(this._config.captureFocus);
+    }
+    if (this._config.autoFocus) {
+      element.classList.add("autoFocus");
     }
     return element;
   }
@@ -130,7 +133,8 @@ export class TextInput extends UIElement<TextInputConfig> {
     textInputElement.style.color = "white";
     textInputElement.style.border = `1px solid ${this._config.style.borderColor ?? "white"}`;
     textInputElement.value = this._config.value || "";
-    textInputElement.style.fontSize = `${scaleFont(this._config.fontSize ?? 12)}px`;
+    const scales = this.getScales();
+    textInputElement.style.fontSize = `${scaleFont(this.config.fontSize || 12, scales[0] * scales[1] * scales[2])}px`;
 
     textInputElement.onkeyup = (e) => {
       this._config.value = textInputElement.value;

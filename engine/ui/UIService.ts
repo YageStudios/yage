@@ -4,6 +4,7 @@ import { getGlobalSingleton, setGlobalSingleton } from "@/global";
 import { InputEventType, InputManager } from "@/inputs/InputManager";
 import { PlaySoundOptions, playSound } from "@/utils/playSound";
 import { flags } from "@/console/flags";
+import { debounce } from "lodash";
 
 const DEBUG_FOCUS = false;
 export class UIService {
@@ -17,7 +18,6 @@ export class UIService {
 
   mappedIds: { [key: string]: UIElement } = {};
   uiElements: { [key: string]: UIElement } = {};
-  autoEmptyFocusElements: UIElement[] = [];
 
   keyPressListeners: ((key: string) => void)[] = [];
 
@@ -36,7 +36,6 @@ export class UIService {
         UIService.getInstance().removeFromUI(target[prop as any]);
       }
       target[prop as any] = value;
-      // console.log(UIService.getInstance());
       UIService.getInstance().addToUI(value);
       return true;
     },
@@ -86,22 +85,28 @@ export class UIService {
     if (eventType === InputEventType.GAMEPAD) {
       left =
         key === "left" ||
-        (inputManager.keyPressed("a") && !inputManager.keyPressed("w") && !inputManager.keyPressed("s"));
+        (inputManager.keyPressed("a", eventType, inputIndex) &&
+          !inputManager.keyPressed("w", eventType, inputIndex) &&
+          !inputManager.keyPressed("s", eventType, inputIndex));
       right =
         key === "right" ||
-        (inputManager.keyPressed("d") && !inputManager.keyPressed("w") && !inputManager.keyPressed("s"));
+        (inputManager.keyPressed("d", eventType, inputIndex) &&
+          !inputManager.keyPressed("w", eventType, inputIndex) &&
+          !inputManager.keyPressed("s", eventType, inputIndex));
       up =
         key === "up" ||
-        (inputManager.keyPressed("w") && !inputManager.keyPressed("a") && !inputManager.keyPressed("d"));
+        (inputManager.keyPressed("w", eventType, inputIndex) &&
+          !inputManager.keyPressed("a", eventType, inputIndex) &&
+          !inputManager.keyPressed("d", eventType, inputIndex));
       down =
         key === "down" ||
-        (inputManager.keyPressed("s") && !inputManager.keyPressed("a") && !inputManager.keyPressed("d"));
+        (inputManager.keyPressed("s", eventType, inputIndex) &&
+          !inputManager.keyPressed("a", eventType, inputIndex) &&
+          !inputManager.keyPressed("d", eventType, inputIndex));
     }
 
     if (left || right || up || down) {
       let direction = { x: 0, y: 0 };
-
-      console.log(up, left, down, right);
 
       if (up) {
         direction.y -= 1;
@@ -121,6 +126,9 @@ export class UIService {
           this.createDebugCanvas();
         }
         this.debugCtx.clearRect(0, 0, this.debugCanvas.width, this.debugCanvas.height);
+      } else if (this.debugCanvas) {
+        this.debugCanvas.remove();
+        this.debugCanvas = undefined;
       }
 
       if (this._focusedElementByPlayerIndex[playerEventIndex]?._element) {
@@ -156,7 +164,7 @@ export class UIService {
         break;
       case "escape":
         if (this._focusedElementByPlayerIndex[playerEventIndex]) {
-          this._focusedElementByPlayerIndex[playerEventIndex]!.onEscape();
+          this._focusedElementByPlayerIndex[playerEventIndex]!.onEscape(playerEventIndex);
         }
         break;
     }
@@ -253,18 +261,41 @@ export class UIService {
     if (playerEventIndex === -1) {
       return;
     }
+    const focusables = this.getFocusables(playerEventIndex);
+    if (!focusables.includes(element._element!)) {
+      return;
+    }
     const focuedElement = this._focusedElementByPlayerIndex[playerEventIndex];
     if (focuedElement !== element) {
       this.setFocusedElementByPlayerIndex(playerEventIndex, element);
     }
   }
 
-  attemptAutoFocus(element: UIElement) {
-    for (let i = 0; i < this._focusedElementByPlayerIndex.length; i++) {
-      if (this._focusedElementByPlayerIndex[i] === undefined) {
-        this.setFocusedElementByPlayerIndex(i, element);
+  attemptAutoFocus(playerIndex: number) {
+    if (!this._focusedElementByPlayerIndex[playerIndex]) {
+      const availableAutoFocus = this.getFocusables(playerIndex, true);
+
+      if (!availableAutoFocus.length) {
         return;
       }
+      let closest = availableAutoFocus[0];
+      if (this._focusedElementPositionByPlayerIndex[playerIndex]) {
+        let closestDistance = Infinity;
+        availableAutoFocus.forEach((element) => {
+          const center = this.getElementCenter(element)!;
+          // favor the left
+          center.x += 1;
+          const distance =
+            (center.x - (this._focusedElementPositionByPlayerIndex[playerIndex]?.x ?? window.innerWidth / 2)) ** 2 +
+            (center.y - (this._focusedElementPositionByPlayerIndex[playerIndex]?.y ?? window.innerHeight / 2)) ** 2;
+          if (distance < closestDistance) {
+            closest = element;
+            closestDistance = distance;
+          }
+        });
+      }
+      this._focusedElementByPlayerIndex[playerIndex] = this.mappedIds[closest.id];
+      this.mappedIds[closest.id]._update();
     }
   }
 
@@ -278,7 +309,7 @@ export class UIService {
     return indices;
   }
 
-  traverseParentFocustByPlayerIndex(playerIndex: number) {
+  traverseParentFocusByPlayerIndex(playerIndex: number) {
     let nestedParent = this._focusedElementByPlayerIndex[playerIndex]?._parent;
     while (nestedParent) {
       if (nestedParent.config.focusable) {
@@ -304,29 +335,11 @@ export class UIService {
     }
     if (!element) {
       setTimeout(() => {
-        if (!this._focusedElementByPlayerIndex[playerIndex] && this.autoEmptyFocusElements.length > 0) {
-          let closest = this.autoEmptyFocusElements[0];
-          if (previous && previous.config.autoEmptyFocus) {
-            let closestDistance = Infinity;
-            this.autoEmptyFocusElements.forEach((element) => {
-              const center = this.getElementCenter(element._element)!;
-              // favor the left
-              center.x += 1;
-              const distance =
-                (center.x - (this._focusedElementPositionByPlayerIndex[playerIndex]?.x ?? window.innerWidth / 2)) ** 2 +
-                (center.y - (this._focusedElementPositionByPlayerIndex[playerIndex]?.y ?? window.innerHeight / 2)) ** 2;
-              if (distance < closestDistance) {
-                closest = element;
-                closestDistance = distance;
-              }
-            });
-          }
-          this._focusedElementByPlayerIndex[playerIndex] = closest;
-        }
+        this.debouncedFocusCheck();
       }, 0);
     }
 
-    if (previous) {
+    if (previous && !previous?.destroyed) {
       previous._update();
     }
   }
@@ -339,6 +352,7 @@ export class UIService {
       if (previous && !previous?.destroyed) {
         previous._update();
       }
+      this.debouncedFocusCheck();
     }, 0);
   }
 
@@ -401,6 +415,9 @@ export class UIService {
     }
 
     if (flags.DEBUG) {
+      if (!this.debugCanvas) {
+        this.createDebugCanvas();
+      }
       const ctx = this.debugCtx;
       // draw a circle at the center on the debug canvas
       ctx.fillStyle = "red";
@@ -410,9 +427,38 @@ export class UIService {
       ctx.arc(center.x, center.y, 15, 0, 2 * Math.PI);
       ctx.fill();
       ctx.stroke();
+    } else if (this.debugCanvas) {
+      this.debugCanvas.remove();
+      this.debugCanvas = undefined;
     }
 
     return center;
+  };
+
+  getFocusables = (playerIndex: number, autoFocus = false) => {
+    const antiPlayerIndex =
+      this.playerInputs.length > 1
+        ? this.playerInputs.reduce((acc, [], index) => {
+            if (index === playerIndex) {
+              return acc;
+            }
+            return acc.length ? ", .captureFocus" + index : ".captureFocus" + index;
+          }, "") + " .focusable"
+        : "";
+
+    const unfocusables = antiPlayerIndex.length ? Array.from(this.uiDiv.querySelectorAll(antiPlayerIndex)) : [];
+
+    const capturedFocuses = this.uiDiv.querySelector(
+      `.captureFocus${playerIndex}:not(:has(.captureFocus${playerIndex}))`
+    );
+    let focusables;
+    let div: Element = this.uiDiv;
+    if (capturedFocuses) {
+      div = capturedFocuses;
+    }
+    focusables = div.querySelectorAll(autoFocus ? ".autoFocus" : ".focusable");
+    focusables = Array.from(focusables).filter((x) => !unfocusables.includes(x));
+    return focusables;
   };
 
   findClosestFocusableElement(
@@ -429,32 +475,12 @@ export class UIService {
         y: window.innerHeight / 2,
       };
     }
-    const antiPlayerIndex =
-      this.playerInputs.length > 1
-        ? this.playerInputs.reduce((acc, [], index) => {
-            if (index === playerIndex) {
-              return acc;
-            }
-            return acc.length ? ", .captureFocus" + index : ".captureFocus" + index;
-          }, "") + " .focusable"
-        : "";
 
-    const unfocusables = antiPlayerIndex.length ? Array.from(this.uiDiv.querySelectorAll(antiPlayerIndex)) : [];
-
-    const capturedFocuses = this.uiDiv.querySelector(
-      `.captureFocus${playerIndex}:not(:has(.captureFocus${playerIndex})):has(.focused)`
-    );
-    let focusables;
-    if (capturedFocuses) {
-      focusables = capturedFocuses.querySelectorAll(".focusable");
-    } else {
-      focusables = this.uiDiv.querySelectorAll(".focusable");
-    }
-    focusables = Array.from(focusables).filter((x) => !unfocusables.includes(x));
     let closestElement: UIElement | undefined;
     let closestDistance = Infinity;
     let closestAngle = 180;
     const candidates: any = [];
+    const focusables = this.getFocusables(playerIndex);
     focusables.forEach((focusable) => {
       const center = this.getElementCenter(focusable);
       if (!center || (center.x === elementCenter!.x && center.y === elementCenter!.y)) {
@@ -523,7 +549,23 @@ export class UIService {
       return;
     }
     element.parent = this.root;
+    this.debouncedFocusCheck();
   }
+
+  debouncedFocusCheck = debounce(
+    () => {
+      const playerIndices = this.playerInputs.map(([, index]) => index);
+      for (let i = 0; i < playerIndices.length; i++) {
+        const playerIndex = playerIndices[i];
+        this.attemptAutoFocus(playerIndex);
+      }
+    },
+    20,
+    {
+      leading: false,
+      trailing: true,
+    }
+  );
 
   removeFromUI(element: UIElement | UIElement[]) {
     if (!element) {
@@ -581,6 +623,11 @@ export class UIService {
   clearUI() {
     console.log("Clearing UI");
     this.disableKeyCapture();
+
+    if (this.debugCanvas) {
+      this.debugCtx.clearRect(0, 0, this.debugCanvas.width, this.debugCanvas.height);
+    }
+
     this.elements.forEach((x) => {
       if (x.onDestroy) {
         x.onDestroy(true);
@@ -591,7 +638,6 @@ export class UIService {
     });
     this._focusedElementByPlayerIndex = [];
     this._focusedElementPositionByPlayerIndex = {};
-    this.autoEmptyFocusElements = [];
     this.mappedIds = {};
     this.elements = [];
   }

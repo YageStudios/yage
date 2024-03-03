@@ -125,7 +125,7 @@ export const positionToCanvasSpace = (
   ];
 };
 
-export const scaleFont = (fontSize: number): number => {
+export const scaleFont = (fontSize: number, additionalScale: number): number => {
   let width = window.innerWidth;
   let height = (window.innerWidth * 9) / 16;
   if (height > window.innerHeight) {
@@ -135,5 +135,5 @@ export const scaleFont = (fontSize: number): number => {
 
   const scale = Math.min(width / 1920, height / 1080);
 
-  return Math.floor(fontSize * Math.max(0.65, scale));
+  return Math.floor(fontSize * Math.max(0.65, scale) * additionalScale);
 };
