@@ -49,9 +49,19 @@ export class UIService {
     },
   });
 
-  getPlayerEventIndex(eventType: InputEventType, inputIndex: number): number {
+  getPlayerEventIndex(eventType: InputEventType, inputIndex: number, element?: UIElement): number {
     if (this.playerInputs[0][0] === InputEventType.ANY) {
       return 0;
+    }
+
+    if (element && eventType === InputEventType.TOUCH) {
+      const touchUsers = this.playerInputs.filter(([type]) => type === InputEventType.TOUCH);
+      for (let i = 0; i < touchUsers.length; i++) {
+        const focusables = this.getFocusables(i);
+        if (focusables.includes(element._element!)) {
+          return i;
+        }
+      }
     }
 
     for (let i = 0; i < this.playerInputs.length; i++) {
