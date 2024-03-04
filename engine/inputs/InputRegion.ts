@@ -10,6 +10,7 @@ export type InputRegion = {
 
 export type TouchRegion = InputRegion & {
   id: TouchRegionId;
+  index: number;
 };
 
 export type GamepadRegion = InputRegion & {

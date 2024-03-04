@@ -136,8 +136,18 @@ export class Button extends UIElement<ButtonConfig> {
     const scales = this.getScales();
     buttonElement.style.fontSize = `${scaleFont(this.config.fontSize || 12, scales[0] * scales[1] * scales[2])}px`;
     this.textElement.innerText = this._config.label;
+
+    let pointerType = "mouse";
+    buttonElement.onpointerdown = (e) => {
+      pointerType = e.pointerType;
+    };
+
     buttonElement.onclick = (e) => {
-      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
+      const playerIndex = this.uiService.getPlayerEventIndex(
+        pointerType === "mouse" ? InputEventType.MOUSE : InputEventType.TOUCH,
+        0,
+        this
+      );
       if (playerIndex === -1) {
         e.stopPropagation();
         return;
