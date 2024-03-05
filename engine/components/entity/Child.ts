@@ -33,6 +33,20 @@ class ChildSystem implements System {
         }
       }
 
+      const modIds = gameModel.getComponentIdsByCategory(childData.parent, ComponentCategory.ON_ADD_TO_PARENT);
+      for (let i = 0; i < modIds.length; i++) {
+        const mod = gameModel.getComponent(childData.parent, modIds[i]) as any;
+        if (mod.parent !== undefined) {
+          mod.parent = childData.parent;
+        }
+        if (mod.child !== undefined) {
+          mod.child = entity;
+        }
+
+        const system: System = gameModel.getSystem(modIds[i]);
+        system.run?.(childData.parent, gameModel);
+      }
+
       if (childData.autoAttach) {
         const { autoAttach, ...attachData } = childData;
         gameModel.setComponent(entity, "Attach", {
@@ -43,6 +57,7 @@ class ChildSystem implements System {
   }
 
   run(entity: number, gameModel: GameModel) {
+    let modIds: number[] | undefined;
     const childData = gameModel.getTypedUnsafe(entity, ChildSchema);
     if (childData.parent != undefined) {
       if (!gameModel.isActive(childData.parent)) {
@@ -60,6 +75,23 @@ class ChildSystem implements System {
         if (parentData.children.indexOf(entity) == -1) {
           parentData.children.push(entity);
           checkAttach = true;
+        }
+      }
+      if (checkAttach) {
+        modIds = modIds?.length
+          ? modIds
+          : gameModel.getComponentIdsByCategory(childData.parent, ComponentCategory.ON_ADD_TO_PARENT);
+        for (let i = 0; i < modIds.length; i++) {
+          const mod = gameModel.getComponent(childData.parent, modIds[i]) as any;
+          if (mod.parent !== undefined) {
+            mod.parent = childData.parent;
+          }
+          if (mod.child !== undefined) {
+            mod.child = entity;
+          }
+
+          const system: System = gameModel.getSystem(modIds[i]);
+          system.run?.(childData.parent, gameModel);
         }
       }
       if (checkAttach && childData.autoAttach) {

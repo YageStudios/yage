@@ -9,7 +9,6 @@ export enum ComponentCategory {
   INTERACTION,
   TRIGGER,
   MENU,
-  PICKUP,
   PHYSICS,
   RENDERING,
   UI,
@@ -18,8 +17,13 @@ export enum ComponentCategory {
   GEM,
   TYPE,
 
-  ONPICKUP,
+  PICKUP,
+  ON_PICKUP,
+  ON_ADD_TO_INVENTORY,
   ONE_OFF,
+
+  ON_ADD_TO_PARENT,
+  ON_REMOVE_FROM_PARENT,
 
   CORE,
   MAP,
@@ -29,6 +33,7 @@ export enum ComponentCategory {
   DAMAGE,
   DAMAGEMOD,
   ONDAMAGE,
+  ON_APPLY_DAMAGE,
 
   PROJECTILECOUNTMOD,
   WEAPON_AUGMENT,

@@ -446,7 +446,7 @@ export class UIService {
   };
 
   getFocusables = (playerIndex: number, autoFocus = false) => {
-    const antiPlayerIndex =
+    let antiPlayerIndex =
       this.playerInputs.length > 1
         ? this.playerInputs.reduce((acc, [], index) => {
             if (index === playerIndex) {
@@ -455,6 +455,9 @@ export class UIService {
             return acc.length ? ", .captureFocus" + index : ".captureFocus" + index;
           }, "") + " .focusable"
         : "";
+    if (antiPlayerIndex.startsWith(", ")) {
+      antiPlayerIndex = antiPlayerIndex.slice(2);
+    }
 
     const unfocusables = antiPlayerIndex.length ? Array.from(this.uiDiv.querySelectorAll(antiPlayerIndex)) : [];
 
