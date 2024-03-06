@@ -117,8 +117,9 @@ export class GameModel {
 
   app: PIXI.Application;
 
-  runList: string[] = [];
-  predrawRunList: string[] = [];
+  runList: {
+    [key: number]: [string[], string[]];
+  } = {};
 
   timings: any[] = [];
   timingFrame = 0;
@@ -282,10 +283,7 @@ export class GameModel {
   generateEntityData = (entityCount: number) => {
     canRegisterComponents(false);
     this.systems = generateSystems(this);
-    const [runList, predrawRunList] = generateRunList(Object.values(this.systems));
-
-    this.runList = runList;
-    this.predrawRunList = predrawRunList;
+    this.runList = generateRunList(Object.values(this.systems));
 
     this.state.entityComponentArray = [];
     this.state.components = [];
@@ -585,15 +583,22 @@ export class GameModel {
 
   run = () => {
     this.running = true;
-    for (let i = 0; i < this.runList.length; i++) {
-      this.runComponent(this.runList[i]);
+    const frame = this.frame % 60;
+
+    let runlist = (this.frame && frame === 0 && this.runList[60]?.[0]) || (this.runList[frame] || this.runList[0])[0];
+
+    for (let i = 0; i < runlist.length; i++) {
+      this.runComponent(runlist[i]);
     }
     this.running = false;
   };
 
   runPredraw = () => {
-    for (let i = 0; i < this.predrawRunList.length; i++) {
-      this.runComponent(this.predrawRunList[i]);
+    const frame = this.frame % 60;
+    let runlist = (this.frame && frame === 0 && this.runList[60]?.[1]) || (this.runList[frame] || this.runList[0])[1];
+
+    for (let i = 0; i < runlist.length; i++) {
+      this.runComponent(runlist[i]);
     }
   };
 

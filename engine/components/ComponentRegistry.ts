@@ -212,10 +212,43 @@ export const generateRunList = (systems: System[]) => {
         return diff;
       }
     });
-  return [
-    runList.filter((system) => (system.depth ?? 0) < DEPTHS.PREDRAW).map((c) => c.type),
-    runList.filter((system) => (system.depth ?? 0) >= DEPTHS.PREDRAW).map((c) => c.type),
-  ];
+  const coreRunList = runList.filter((system) => (system.depth ?? 0) < DEPTHS.PREDRAW);
+  const drawRunList = runList.filter((system) => (system.depth ?? 0) >= DEPTHS.PREDRAW);
+
+  const intraFrameKeys = runList.reduce((acc, system) => {
+    if (system.intraFrame) {
+      if (system.intraFrame > 60) {
+        throw new Error(`Intraframe value for ${system.type} is too high`);
+      }
+      acc.push(system.intraFrame);
+    }
+    return acc;
+  }, [] as number[]);
+  const finalRunList: {
+    [key: number]: [string[], string[]];
+  } = {};
+
+  finalRunList[0] = [coreRunList.filter((c) => !c.intraFrame).map((c) => c.type), drawRunList.map((c) => c.type)];
+  if (intraFrameKeys.length !== 0) {
+    for (let i = 1; i <= 60; i++) {
+      const frame = i;
+      finalRunList[frame] = [[], []];
+      for (let j = 0; j < runList.length; j++) {
+        const system = runList[j];
+        if (!system.intraFrame || frame % system.intraFrame === 0) {
+          finalRunList[frame][0].push(runList[j].type);
+        }
+      }
+      for (let j = 0; j < drawRunList.length; j++) {
+        const drawSystem = drawRunList[j];
+        if (!drawSystem.intraFrame || frame % drawSystem.intraFrame === 0) {
+          finalRunList[frame][1].push(drawRunList[j].type);
+        }
+      }
+    }
+  }
+
+  return finalRunList;
 };
 
 export const registerPixiComponent = (type: string, system: new () => PixiDrawSystem, zIndex = 0) => {

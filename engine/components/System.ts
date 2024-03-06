@@ -7,6 +7,7 @@ export interface System {
 
   depth?: number;
   dependencies?: string[];
+  intraFrame?: number;
 
   init?: (entity: number, gameModel: GameModel) => void;
 
