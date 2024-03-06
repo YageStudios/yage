@@ -24,6 +24,7 @@ import { assignGlobalSingleton, getGlobalSingleton, setGlobalSingleton } from "@
 */
 
 export enum DEPTHS {
+  NORUN = -10000000,
   CORE = 0,
   KILLSTATS = 1,
   HEALTH = 1000,
@@ -120,11 +121,22 @@ function _registerSchema(category: ComponentCategory | typeof Schema, schema?: t
   componentIndexMap[type] = componentList.length;
   componentsByCategory[category as ComponentCategory] = componentsByCategory[category as ComponentCategory] ?? [];
   componentsByCategory[category as ComponentCategory].push(componentList.length);
+
   componentList.push({
     category: category as ComponentCategory,
     type,
     schema,
     depth: -1,
+  });
+
+  componentsByCategory[category as ComponentCategory].sort((a, b) => {
+    const aDepth = componentList[a].depth;
+    const bDepth = componentList[b].depth;
+    if (aDepth === bDepth) {
+      return a - b;
+    } else {
+      return aDepth - bDepth;
+    }
   });
 }
 
