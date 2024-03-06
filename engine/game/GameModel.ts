@@ -374,7 +374,7 @@ export class GameModel {
     const clonedEntity = this.addEntity();
     const entityData = this.state.entityComponentArray[entity];
 
-    const children = (this.getTypedUnsafe(entity, ParentSchema) as ParentSchema).children ?? [];
+    const children = (this.getTypedUnsafe(entity, ParentSchema) as ParentSchema)?.children ?? [];
 
     const childrenData: number[] = [];
     for (let i = 0; i < children.length; i++) {
@@ -439,7 +439,7 @@ export class GameModel {
     } as EjectedEntity;
     const entityData = this.state.entityComponentArray[entity];
 
-    const children = (this.getTypedUnsafe(entity, ParentSchema) as ParentSchema).children ?? [];
+    const children = (this.getTypedUnsafe(entity, ParentSchema) as ParentSchema)?.children ?? [];
 
     for (let i = 0; i < children.length; i++) {
       const childEntity = this.ejectEntity(children[i], false);
@@ -537,7 +537,7 @@ export class GameModel {
 
   removeEntity = (entity: number, includeChildren = false) => {
     if (includeChildren) {
-      const children = this.getTypedUnsafe(entity, ParentSchema).children ?? [];
+      const children = this.getTypedUnsafe(entity, ParentSchema)?.children ?? [];
       for (let i = 0; i < children.length; i++) {
         this.removeEntity(children[i], true);
       }
@@ -751,16 +751,15 @@ export class GameModel {
   removeComponent = (entity: number, type: typeof Schema | string | number) => {
     const index = getIndex(type);
 
-    this.state.entityComponentArray[entity].disable(index);
-
     this.cleanupComponent(entity, index);
+    this.state.entityComponentArray[entity].disable(index);
 
     const activeIndex = this.state.activeByComponent[index].indexOf(entity);
 
     if (activeIndex > -1) {
       this.state.activeByComponent[index].splice(activeIndex, 1);
     }
-    this.state.components[entity][index] = new TypeSchema({ type: componentList[index].type });
+    this.state.components[entity][index] = null as any;
   };
 
   getCategory = (type: typeof Schema | string | number) => {
@@ -944,6 +943,11 @@ export class GameModel {
     return this.systems[type]?.dependencies ?? [];
   };
 
+  getDepth = (type: string | number | typeof Schema) => {
+    const index = getIndex(type);
+    return componentList[index].depth;
+  };
+
   runUIComponents = () => {
     const uiService = UIService.getInstance();
     for (let i = 0; i < uiComponents.length; i++) {
@@ -984,7 +988,7 @@ export class GameModel {
   }
 
   mapComponentEntites = (component: any, entityMap: any) => {
-    const componentData = component.data ?? component;
+    const componentData = component?.data ?? component;
     const componentId = this.getComponentIndex(component.type);
     if (componentList[componentId].schema.__entityTypes) {
       const entityKeys = Object.keys(componentList[componentId].schema.__entityTypes);
