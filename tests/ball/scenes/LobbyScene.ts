@@ -118,11 +118,11 @@ export class BallLobbyScene extends Scene {
       //   }
       // );
 
-      this.connection = new CoopConnectionInstance(inputManager, [
-        [InputEventType.KEYBOARD, 0, cloneDeep(defaultPlayerState)],
-        [InputEventType.GAMEPAD, 0, cloneDeep(defaultPlayerState)],
-      ]);
-      // this.connection = new SingleplayerConnectionInstance(inputManager, cloneDeep(defaultPlayerState));
+      // this.connection = new CoopConnectionInstance(inputManager, [
+      //   [InputEventType.KEYBOARD, 0, cloneDeep(defaultPlayerState)],
+      //   [InputEventType.GAMEPAD, 0, cloneDeep(defaultPlayerState)],
+      // ]);
+      this.connection = new SingleplayerConnectionInstance(inputManager, cloneDeep(defaultPlayerState));
 
       this.unsubPlayerConnect = this.connection.onPlayerConnect((playerConnect) => {
         console.log("PLAYER CONNECTED", playerConnect.id);

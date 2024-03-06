@@ -4,6 +4,7 @@
     "Random",
     "Sounds",
     "FrameRate",
+    "FrameTest",
     "Collisions",
     {
       type: "Physics",
