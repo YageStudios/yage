@@ -451,13 +451,7 @@ export function type(
 
       schema.setType(key, "number");
       schema.setEnum(key, type);
-    } else if (Array.isArray(type)) {
-      schema.setArrayType(key, type[0]);
-    } else if (typeof type === "object" && type?.set) {
-      schema.setArrayType(key, type.set);
-    } else if (typeof type === "function") {
-      schema.setObjectType(key, type);
-    } else if (type === "Entity" || type === "EntityArray") {
+    } else if (type === "Entity" || type === "EntityArray" || (Array.isArray(type) && type[0] === "Entity")) {
       if (type === "Entity") {
         schema.setType(key, "number");
       } else {
@@ -465,6 +459,12 @@ export function type(
       }
       target.constructor.__entityTypes = target.constructor.__entityTypes || {};
       target.constructor.__entityTypes[key] = type;
+    } else if (Array.isArray(type)) {
+      schema.setArrayType(key, type[0]);
+    } else if (typeof type === "object" && type?.set) {
+      schema.setArrayType(key, type.set);
+    } else if (typeof type === "function") {
+      schema.setObjectType(key, type);
     } else {
       target.constructor.__bitecs = target.constructor.__bitecs || {};
       target.constructor.__bitecs[key] = convertToBitecs(type as string);

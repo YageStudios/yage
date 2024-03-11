@@ -8,10 +8,12 @@ import { AttachSchema } from "@/schemas/entity/Attach";
 import { RadiusSchema } from "@/schemas/entity/Radius";
 import { GraphicSchema } from "@/schemas/render/Graphic";
 import { hexToRgbNumber } from "@/utils/colors";
+import { cloneDeep } from "lodash";
 
 export type PixiGraphicsSchema = {
   graphic: PIXI.Graphics;
   container: PIXI.Container;
+  currentSchema: GraphicSchema;
   debug?: PIXI.Container;
 };
 
@@ -55,22 +57,8 @@ export class GraphicPixiSystem implements PixiDrawSystem {
     }
   }
 
-  init(entity: number, gameModel: GameModel, viewport: Viewport) {
-    let zIndex = 2;
-
-    const instance: Partial<PixiGraphicsSchema> = {
-      container: this.instances[entity]?.container ?? new PIXI.Container(),
-      debug: this.instances[entity]?.debug,
-    };
-
-    if (!instance.debug) {
-      instance.debug = new PIXI.Container();
-      instance.debug.visible = false;
-      viewport.addChild(instance.debug);
-    }
-
-    const graphicData = gameModel.getTypedUnsafe(entity, GraphicSchema);
-    const graphics = new PIXI.Graphics();
+  drawGraphic(graphicData: GraphicSchema, graphics: PIXI.Graphics = new PIXI.Graphics()) {
+    graphics.clear();
 
     if (graphicData.fillColor) {
       graphics.beginFill(hexToRgbNumber(graphicData.fillColor));
@@ -108,6 +96,28 @@ export class GraphicPixiSystem implements PixiDrawSystem {
 
     graphics.endFill();
 
+    return graphics;
+  }
+
+  init(entity: number, gameModel: GameModel, viewport: Viewport) {
+    let zIndex = 2;
+
+    const instance: Partial<PixiGraphicsSchema> = {
+      container: this.instances[entity]?.container ?? new PIXI.Container(),
+      debug: this.instances[entity]?.debug,
+    };
+
+    if (!instance.debug) {
+      instance.debug = new PIXI.Container();
+      instance.debug.visible = false;
+      viewport.addChild(instance.debug);
+    }
+
+    const graphicData = gameModel.getTypedUnsafe(entity, GraphicSchema);
+    instance.currentSchema = cloneDeep(graphicData);
+
+    const graphics = this.drawGraphic(graphicData);
+
     instance.container!.addChild(graphics);
 
     instance.graphic = graphics;
@@ -121,15 +131,35 @@ export class GraphicPixiSystem implements PixiDrawSystem {
   }
 
   run(entity: number, gameModel: GameModel, viewport: Viewport) {
-    const spriteData = gameModel.getTypedUnsafe(entity, this.schema);
+    const graphicData = gameModel.getTypedUnsafe(entity, this.schema);
 
     if (!this.instances[entity]) {
       this.init(entity, gameModel, viewport);
     }
-    const pixiData = this.instances[entity];
-    const { graphic, container, debug } = pixiData;
+    let pixiData = this.instances[entity];
+    let { graphic, container, debug, currentSchema } = pixiData;
+    if (
+      graphicData.circle?.radius !== currentSchema.circle?.radius ||
+      graphicData.circle?.x !== currentSchema.circle?.x ||
+      graphicData.circle?.y !== currentSchema.circle?.y ||
+      graphicData.ellipse?.height !== currentSchema.ellipse?.height ||
+      graphicData.ellipse?.width !== currentSchema.ellipse?.width ||
+      graphicData.ellipse?.x !== currentSchema.ellipse?.x ||
+      graphicData.ellipse?.y !== currentSchema.ellipse?.y ||
+      graphicData.rectangle?.height !== currentSchema.rectangle?.height ||
+      graphicData.rectangle?.width !== currentSchema.rectangle?.width ||
+      graphicData.rectangle?.x !== currentSchema.rectangle?.x ||
+      graphicData.rectangle?.y !== currentSchema.rectangle?.y ||
+      graphicData.polygon?.length !== currentSchema.polygon?.length ||
+      !graphicData.polygon?.every((v, i) => v === currentSchema.polygon[i])
+    ) {
+      this.drawGraphic(graphicData, graphic);
+      pixiData.currentSchema = cloneDeep(graphicData);
+      pixiData = this.instances[entity];
+      ({ graphic, container, debug } = pixiData);
+    }
 
-    if (spriteData.opacity === 0) {
+    if (graphicData.opacity === 0) {
       graphic.visible = false;
     } else {
       graphic.visible = true;
@@ -142,8 +172,8 @@ export class GraphicPixiSystem implements PixiDrawSystem {
 
     position.y -= transformSchema.z;
 
-    let xoffset = spriteData.xoffset ?? 0;
-    let yoffset = spriteData.yoffset ?? 0;
+    let xoffset = graphicData.xoffset ?? 0;
+    let yoffset = graphicData.yoffset ?? 0;
 
     const viewY = viewport.position.y;
 
@@ -154,7 +184,7 @@ export class GraphicPixiSystem implements PixiDrawSystem {
         viewY +
         TransformSchema.store.z[owner] +
         RadiusSchema.store.radius[owner] +
-        spriteData.zIndex;
+        graphicData.zIndex;
     } else {
       // const mapStripe = TransformSchema.store.y[entity] / 320;
       container.zIndex =
@@ -162,7 +192,7 @@ export class GraphicPixiSystem implements PixiDrawSystem {
         viewY +
         TransformSchema.store.z[entity] +
         RadiusSchema.store.radius[entity] +
-        spriteData.zIndex;
+        graphicData.zIndex;
     }
 
     container.x = position.x + xoffset;
@@ -170,7 +200,7 @@ export class GraphicPixiSystem implements PixiDrawSystem {
 
     debug?.position.set(position.x, position.y);
 
-    this.transform(pixiData, entity, spriteData, gameModel, viewport);
+    this.transform(pixiData, entity, graphicData, gameModel, viewport);
   }
 
   cleanup(entity: number, gameModel: GameModel, viewport: Viewport) {

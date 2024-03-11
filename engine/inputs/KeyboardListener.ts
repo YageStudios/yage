@@ -54,6 +54,26 @@ export class KeyboardListener {
 
   handleKey(e: KeyboardEvent, prefix: string) {
     let key = e.key.toLowerCase();
+    // convert code to key
+    if (e.code) {
+      let convertedCode = e.code
+        .toLowerCase()
+        .replace("bracketleft", "[")
+        .replace("bracketright", "]")
+        .replace("backquote", "`")
+        .replace("backslash", "\\")
+        .replace("comma", ",")
+        .replace("period", ".")
+        .replace("slash", "/")
+        .replace("semicolon", ";")
+        .replace("quote", "'")
+        .replace("minus", "-")
+        .replace("equal", "=")
+        .replace(/key|digit|right|left/g, "");
+      if (convertedCode.length === 1) {
+        key = convertedCode;
+      }
+    }
     if (key.startsWith("arrow")) {
       key = key.substring(5);
     } else if (key === " ") {

@@ -42,6 +42,12 @@ class MaskPixiSystem implements PixiDrawSystem {
     if (!this.ids.has(entity)) {
       this.init(entity, gameModel, viewport);
     }
+    const maskData = gameModel.getTypedUnsafe(entity, MaskSchema);
+
+    const pixiSystem = gameModel.getPixiSystem<any>(maskData.pixiComponent);
+
+    pixiSystem.instances[entity].graphic.mask.width = maskData.width || pixiSystem.instances[entity].graphic.width;
+    pixiSystem.instances[entity].graphic.mask.height = maskData.height || pixiSystem.instances[entity].graphic.height;
   }
   cleanup(entity: number, gameModel: GameModel, viewport: Viewport) {
     this.ids.delete(entity);

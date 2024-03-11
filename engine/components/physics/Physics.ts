@@ -29,10 +29,15 @@ export class PhysicsSystem implements System {
     entityToHandle: {},
   };
 
+  coreEntity: number;
+
+  init(entity: number, gameModel: GameModel) {
+    this.coreEntity = entity;
+  }
+
   getEngine(gameModel: GameModel) {
     if (!this.world) {
-      console.error("Physics system not initialized");
-      const physics = gameModel.getTypedUnsafe(gameModel.coreEntity, PhysicsSchema);
+      const physics = gameModel.getTypedUnsafe(this.coreEntity, PhysicsSchema);
 
       this.world = new RAPIER.World({ x: physics.gravityX, y: physics.gravityY });
       this.world.timestep = 0.016;
@@ -42,16 +47,16 @@ export class PhysicsSystem implements System {
   }
 
   runAll?(gameModel: GameModel): void {
-    const dt = gameModel.dt<number>(gameModel.coreEntity);
+    const dt = gameModel.dt<number>(this.coreEntity);
     const simulatedFrames = Math.round(dt / 16.666666666666668);
 
-    const collisionsSchema = gameModel.getTypedUnsafe(gameModel.coreEntity, CollisionsSchema);
+    const collisionsSchema = gameModel.getTypedUnsafe(this.coreEntity, CollisionsSchema);
     collisionsSchema.collisions = {};
 
     const collisionMap = collisionsSchema.collisionMap;
 
-    if (gameModel.hasComponent(gameModel.coreEntity, FrameRateSchema)) {
-      const frameRateSchema = gameModel.getTypedUnsafe(gameModel.coreEntity, FrameRateSchema);
+    if (gameModel.hasComponent(this.coreEntity, FrameRateSchema)) {
+      const frameRateSchema = gameModel.getTypedUnsafe(this.coreEntity, FrameRateSchema);
       frameRateSchema.bodies = this.world.bodies.len();
     }
 

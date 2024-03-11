@@ -28,7 +28,7 @@ export enum ComponentCategory {
   CORE,
   MAP,
 
-  WEAPON_MOD,
+  PERSIST,
 
   DAMAGE,
   DAMAGEMOD,
@@ -52,6 +52,9 @@ export enum ComponentCategory {
   ONKILL,
   ONDEATH,
   ONDODGE,
+
+  ON_START,
+  ON_END,
 }
 
 export enum SoundType {
@@ -191,6 +194,7 @@ export enum DamageCategoryEnum {
   RANGED,
   ELEMENTAL,
   AOE,
+  ALL,
 }
 
 export enum FaceDirectionEnum {
