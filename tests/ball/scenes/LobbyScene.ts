@@ -233,7 +233,7 @@ export class BallLobbyScene extends Scene {
         gameModel.logEntity(player, true);
 
         const PlayerInput = gameModel.getTypedUnsafe(player, PlayerInputSchema);
-        PlayerInput.keyMap = this.connection.inputManager.buildKeyMap();
+        PlayerInput.keyMap = InputManager.buildKeyMap();
         PlayerInput.id = playerId;
         PlayerInput.name = playerConfig.name;
 

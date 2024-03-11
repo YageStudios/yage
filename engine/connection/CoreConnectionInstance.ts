@@ -179,7 +179,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       }
       for (let i = startingFrame; i < lastFrame; i += 1) {
         frameStack.push({
-          keys: this.inputManager.buildKeyMap(),
+          keys: InputManager.buildKeyMap(),
           frame: i,
           events: [],
           playerId: playerId,
@@ -686,7 +686,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     roomState.frameStack[playerId] = new Array(initalFrameOffset).fill({ keys: {} as any, frame: 0 }).map((_, ind) => {
       return {
         frame: frame + ind,
-        keys: this.inputManager.buildKeyMap(),
+        keys: InputManager.buildKeyMap(),
         events: [],
         playerId: playerId,
       };

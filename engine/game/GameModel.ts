@@ -689,6 +689,12 @@ export class GameModel {
     return this.addComponent(entity, type.__type, overrides);
   };
 
+  addIfMissing = (entity: number, type: string | number | typeof Schema, overrides?: { [key: string]: any }) => {
+    if (!this.hasComponent(entity, type)) {
+      this.addComponent(entity, type, overrides);
+    }
+  };
+
   addComponent = (
     entity: number,
     type: string | number | typeof Schema,
