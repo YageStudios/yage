@@ -21,7 +21,7 @@ class AttachSystem implements System {
 
   init(entity: number, gameModel: GameModel) {
     if (!gameModel.hasComponent(entity, "AttachPost")) {
-      gameModel.setComponent(entity, "AttachPost");
+      gameModel.addComponent(entity, "AttachPost");
     }
     const AttachData = gameModel.getTypedUnsafe(entity, AttachSchema);
 
@@ -41,7 +41,7 @@ class AttachSystem implements System {
         return;
       }
       if (!gameModel.hasComponent(AttachData.parent, "Attached")) {
-        gameModel.setComponent(AttachData.parent, "Attached", {
+        gameModel.addComponent(AttachData.parent, "Attached", {
           children: [entity],
         });
       } else {
@@ -97,7 +97,7 @@ class AttachPostSystem implements System {
         return;
       }
       if (!gameModel.hasComponent(AttachData.parent, "Attached")) {
-        gameModel.setComponent(AttachData.parent, "Attached", {
+        gameModel.addComponent(AttachData.parent, "Attached", {
           children: [entity],
         });
       } else {

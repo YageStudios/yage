@@ -23,7 +23,7 @@ class ChildSystem implements System {
     }
     if (childData.parent) {
       if (!gameModel.hasComponent(childData.parent, "Parent")) {
-        gameModel.setComponent(childData.parent, "Parent", {
+        gameModel.addComponent(childData.parent, "Parent", {
           children: [entity],
         });
       } else {
@@ -49,7 +49,7 @@ class ChildSystem implements System {
 
       if (childData.autoAttach) {
         const { autoAttach, ...attachData } = childData;
-        gameModel.setComponent(entity, "Attach", {
+        gameModel.addComponent(entity, "Attach", {
           ...attachData,
         });
       }
@@ -66,7 +66,7 @@ class ChildSystem implements System {
       }
       let checkAttach = false;
       if (!gameModel.hasComponent(childData.parent, "Parent")) {
-        gameModel.setComponent(childData.parent, "Parent", {
+        gameModel.addComponent(childData.parent, "Parent", {
           children: [entity],
         });
         checkAttach = true;
@@ -96,7 +96,7 @@ class ChildSystem implements System {
       }
       if (checkAttach && childData.autoAttach) {
         const { autoAttach, ...attachData } = childData;
-        gameModel.setComponent(entity, "Attach", {
+        gameModel.addComponent(entity, "Attach", {
           ...attachData,
         });
       }

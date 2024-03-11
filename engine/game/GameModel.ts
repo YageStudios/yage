@@ -383,7 +383,7 @@ export class GameModel {
       if (entityData.get(i)) {
         // const component = componentList[i];
         const cloned = clone(this.state.components[entity][i]);
-        this.setComponent(clonedEntity, (cloned as any).type, cloned as any);
+        this.addComponent(clonedEntity, (cloned as any).type, cloned as any);
         this.cleanupComponent(clonedEntity, (cloned as any).type, true);
       }
     }
@@ -415,7 +415,7 @@ export class GameModel {
 
     for (let i = 0; i < entityData.components.length; i++) {
       this.mapComponentEntites(entityData.components[i], entityMap);
-      this.setComponent(entityId, entityData.components[i].type, entityData.components[i].data);
+      this.addComponent(entityId, entityData.components[i].type, entityData.components[i].data);
     }
 
     Object.values(entityData.children).forEach((childEntityData: any) => {
@@ -686,10 +686,10 @@ export class GameModel {
 
   setTyped = <T>(entity: number, type: Constructor<T>, overrides?: Partial<T>) => {
     // @ts-ignore
-    return this.setComponent(entity, type.__type, overrides);
+    return this.addComponent(entity, type.__type, overrides);
   };
 
-  setComponent = (
+  addComponent = (
     entity: number,
     type: string | number | typeof Schema,
     overrides?: { [key: string]: any },

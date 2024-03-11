@@ -65,7 +65,7 @@ export class RigidCircleSystem implements System {
     physicsSystem.colliderHandleMap.entityToHandle[entity] = collider.handle;
 
     if (!gameModel.hasComponent(entity, "RigidCircleResolver")) {
-      gameModel.setComponent(entity, "RigidCircleResolver");
+      gameModel.addComponent(entity, "RigidCircleResolver");
     }
   }
 

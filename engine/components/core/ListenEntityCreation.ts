@@ -25,7 +25,7 @@ export class ListenEntityCreationSystem implements System {
   init(entity: number, gameModel: GameModel) {
     if (entity !== gameModel.coreEntity) {
       if (!gameModel.hasComponent(gameModel.coreEntity, ListenEntityCreationSchema)) {
-        gameModel.setComponent(gameModel.coreEntity, ListenEntityCreationSchema);
+        gameModel.addComponent(gameModel.coreEntity, ListenEntityCreationSchema);
       }
       const parentData = gameModel.getTypedUnsafe(gameModel.coreEntity, ListenEntityCreationSchema);
       parentData.entities.push(entity);

@@ -52,9 +52,9 @@ class FrameRateSystem implements System {
   category: ComponentCategory = ComponentCategory.CORE;
   schema = FrameRateSchema;
   init(entity: number, gameModel: GameModel) {
-    gameModel.setComponent(entity, "Frame");
-    gameModel.setComponent(entity, "FrameStart");
-    gameModel.setComponent(entity, "FrameEnd");
+    gameModel.addComponent(entity, "Frame");
+    gameModel.addComponent(entity, "FrameStart");
+    gameModel.addComponent(entity, "FrameEnd");
   }
 }
 

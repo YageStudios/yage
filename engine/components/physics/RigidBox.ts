@@ -66,7 +66,7 @@ export class RigidBoxSystem implements System {
     this.bodies[entity] = rigidBody;
 
     if (!gameModel.hasComponent(entity, "RigidBoxResolver")) {
-      gameModel.setComponent(entity, "RigidBoxResolver");
+      gameModel.addComponent(entity, "RigidBoxResolver");
     }
   }
 

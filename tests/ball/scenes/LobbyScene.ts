@@ -221,11 +221,11 @@ export class BallLobbyScene extends Scene {
       uiService: true,
       buildWorld: (gameModel: GameModel, firstPlayerConfig: PlayerState) => {
         const zero_zero = gameModel.addEntity();
-        gameModel.setComponent(zero_zero, "Transform", {
+        gameModel.addComponent(zero_zero, "Transform", {
           x: 0,
           y: 0,
         });
-        gameModel.setComponent(zero_zero, "Radius", { radius: 10 });
+        gameModel.addComponent(zero_zero, "Radius", { radius: 10 });
       },
       onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: PlayerState & { name: string }) => {
         const player = EntityFactory.getInstance().generateEntity(gameModel, "ball");
