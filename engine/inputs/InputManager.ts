@@ -66,11 +66,11 @@ export class InputManager {
   }
 
   constructor(public combineKeyMaps = true) {
-    this.keyMap = this.buildKeyMap();
+    this.keyMap = InputManager.buildKeyMap();
   }
 
   public toKeyMap(obj: { [key: string]: boolean }) {
-    const keyMap = this.buildKeyMap();
+    const keyMap = InputManager.buildKeyMap();
     for (const key in obj) {
       keyMap.set(key as any, obj[key]);
     }
@@ -78,7 +78,7 @@ export class InputManager {
   }
 
   clone(eventType?: InputEventType, typeIndex = 0): KeyMap {
-    const clone = this.buildKeyMap();
+    const clone = InputManager.buildKeyMap();
 
     let keyMap: KeyMap;
     if (this.combineKeyMaps || !eventType) {
@@ -88,7 +88,7 @@ export class InputManager {
         this.keyMapsByType[eventType] = [];
       }
       if (!this.keyMapsByType[eventType][typeIndex]) {
-        this.keyMapsByType[eventType][typeIndex] = this.buildKeyMap();
+        this.keyMapsByType[eventType][typeIndex] = InputManager.buildKeyMap();
       }
       keyMap = this.keyMapsByType[eventType][typeIndex];
     }
@@ -99,7 +99,7 @@ export class InputManager {
     return clone;
   }
 
-  public buildKeyMap(): KeyMap {
+  public static buildKeyMap(): KeyMap {
     // const newKeymap = new Map<MappedKeys, boolean>();
     // for (const x in MappedKeys) {
     //   const mappedKey: MappedKeys = MappedKeys[x as keyof typeof MappedKeys];
@@ -134,7 +134,7 @@ export class InputManager {
         this.keyMapsByType[eventType] = [];
       }
       if (!this.keyMapsByType[eventType][typeIndex]) {
-        this.keyMapsByType[eventType][typeIndex] = this.buildKeyMap();
+        this.keyMapsByType[eventType][typeIndex] = InputManager.buildKeyMap();
       }
       keyMap = this.keyMapsByType[eventType][typeIndex];
     }
