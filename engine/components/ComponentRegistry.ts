@@ -233,10 +233,10 @@ export const generateRunList = (systems: System[]) => {
     for (let i = 1; i <= 60; i++) {
       const frame = i;
       finalRunList[frame] = [[], []];
-      for (let j = 0; j < runList.length; j++) {
-        const system = runList[j];
+      for (let j = 0; j < coreRunList.length; j++) {
+        const system = coreRunList[j];
         if (!system.intraFrame || frame % system.intraFrame === 0) {
-          finalRunList[frame][0].push(runList[j].type);
+          finalRunList[frame][0].push(coreRunList[j].type);
         }
       }
       for (let j = 0; j < drawRunList.length; j++) {

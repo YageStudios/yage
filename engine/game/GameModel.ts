@@ -428,7 +428,7 @@ export class GameModel {
   ejectEntity = (entity: number, removeEjectedEntity = true): any => {
     const data = {
       entityType: EntityTypeSchema.store.entityType[entity],
-      description: this.getTypedUnsafe(entity, DescriptionSchema).description,
+      description: this.getTypedUnsafe(entity, DescriptionSchema)?.description ?? "",
       entityId: entity,
       components: [],
       entities: [],
