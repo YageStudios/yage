@@ -17,7 +17,7 @@ class OwnerSystem implements System {
       return;
     }
     if (!gameModel.hasComponent(owner, "Owned")) {
-      gameModel.setComponent(owner, "Owned", { owned: [entity] });
+      gameModel.addComponent(owner, "Owned", { owned: [entity] });
     } else {
       const owned = gameModel.getTypedUnsafe(owner, OwnedSchema);
       if (!owned.owned.includes(entity)) {

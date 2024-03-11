@@ -100,7 +100,7 @@ const Editor = (entity: number, gameModel: GameModel): EditorInstance => {
 
   addComponentButton.onclick = () => {
     const component = addComponentDropdown.value;
-    gameModel.setComponent(entity, component);
+    gameModel.addComponent(entity, component);
     editedComponent = component;
     selectedComponent = component;
     state = "component";
@@ -143,7 +143,7 @@ const Editor = (entity: number, gameModel: GameModel): EditorInstance => {
         activeJsonEditor.on("change", () => {
           const value = activeJsonEditor?.getValue();
           if (!dataset.edit) return;
-          gameModel.setComponent(entity, dataset.edit, value, true);
+          gameModel.addComponent(entity, dataset.edit, value, true);
         });
       }
     }

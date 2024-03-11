@@ -363,16 +363,16 @@ export class EntityFactory {
         const childData = gameModel.getTypedUnsafe(childId, ChildSchema);
         childData.parent = entityId;
       } else {
-        gameModel.setComponent(childId, "Child", { parent: entityId });
+        gameModel.addComponent(childId, "Child", { parent: entityId });
       }
       if (gameModel.hasComponent(entityId, "Parent")) {
         const parentData = gameModel.getTypedUnsafe(entityId, ParentSchema);
         parentData.children.push(childId);
       } else {
-        gameModel.setComponent(entityId, "Parent", { children: [childId] });
+        gameModel.addComponent(entityId, "Parent", { children: [childId] });
       }
       if (!gameModel.hasComponent(childId, "Transform")) {
-        gameModel.setComponent(childId, "Transform", {
+        gameModel.addComponent(childId, "Transform", {
           x: 0,
           y: 0,
         });
@@ -407,7 +407,7 @@ export class EntityFactory {
       try {
         if (component.enabled === false) return;
         if (componentRegistered(component.type)) {
-          gameModel.setComponent(entity, component.type, component.data ?? component);
+          gameModel.addComponent(entity, component.type, component.data ?? component);
           return;
         }
         console.warn("Component not registered: " + component.type);

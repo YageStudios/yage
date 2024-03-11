@@ -42,7 +42,7 @@ function updateTimeout(entity: number, timeout: DestroyOnTimeoutSchema, gameMode
           for (let i = 0; i < spawn.overrideComponents.length; i++) {
             const override = spawn.overrideComponents[i];
             if (override.type === "SourceStats") {
-              gameModel.setComponent(spawnedEntity, override.type, {
+              gameModel.addComponent(spawnedEntity, override.type, {
                 damageAmount: 0,
                 source: entity,
                 owner: owner,
@@ -52,7 +52,7 @@ function updateTimeout(entity: number, timeout: DestroyOnTimeoutSchema, gameMode
               if (override.inherit) {
                 overrideData = { ...gameModel.getComponent(spawnedEntity, override.type), ...(overrideData ?? {}) };
               }
-              gameModel.setComponent(spawnedEntity, override.type, overrideData);
+              gameModel.addComponent(spawnedEntity, override.type, overrideData);
             }
           }
         }
@@ -62,13 +62,13 @@ function updateTimeout(entity: number, timeout: DestroyOnTimeoutSchema, gameMode
       gameModel.removeComponent(entity, timeout.component);
       if (timeout.applyOnTimeout.length > 0) {
         timeout.applyOnTimeout.forEach((apply) => {
-          gameModel.setComponent(entity, apply.type, apply.data);
+          gameModel.addComponent(entity, apply.type, apply.data);
         });
       }
     } else {
       if (timeout.applyOnTimeout.length > 0) {
         timeout.applyOnTimeout.forEach((apply) => {
-          gameModel.setComponent(entity, apply.type, apply.data);
+          gameModel.addComponent(entity, apply.type, apply.data);
         });
       } else {
         gameModel.removeEntity(entity);
@@ -105,7 +105,7 @@ export const addToDestroyOnTimeout = (
   applyOnTimeout: ComponentDataSchema[] = []
 ) => {
   if (!gameModel.hasComponent(entity, "DestroyOnTimeout")) {
-    gameModel.setComponent(entity, "DestroyOnTimeout", {
+    gameModel.addComponent(entity, "DestroyOnTimeout", {
       component: component || "",
       timeoutMs,
       timeElapsed: 0,
@@ -121,7 +121,7 @@ export const addToDestroyOnTimeout = (
   }
 
   if (!gameModel.hasComponent(entity, "MultiDestroyOnTimeout")) {
-    gameModel.setComponent(entity, "MultiDestroyOnTimeout", {
+    gameModel.addComponent(entity, "MultiDestroyOnTimeout", {
       timeouts: [
         {
           component,

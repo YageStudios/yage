@@ -20,7 +20,7 @@ export class SwapComponentsSystem implements System {
       }
     }
     for (let i = 0; i < swapComponents.swapData.length; i++) {
-      gameModel.setComponent(entity, swapComponents.swapData[i].type, swapComponents.swapData[i].data);
+      gameModel.addComponent(entity, swapComponents.swapData[i].type, swapComponents.swapData[i].data);
       nextSwapSet.push(swapComponents.swapData[i].type);
     }
 
