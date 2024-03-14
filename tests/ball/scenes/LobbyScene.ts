@@ -125,11 +125,11 @@ export class BallLobbyScene extends Scene {
       this.connection = new SingleplayerConnectionInstance(inputManager, cloneDeep(defaultPlayerState));
 
       this.unsubPlayerConnect = this.connection.onPlayerConnect((playerConnect) => {
-        console.log("PLAYER CONNECTED", playerConnect.id);
+        console.log("PLAYER CONNECTED", playerConnect.netId);
         if (playerConnect.config) {
           if (!this.startingGame && Object.values(this.connection.players).every((p) => p.config!.ready)) {
             const host = Object.keys(this.connection.players).sort()[0];
-            const localHost = this.connection.localPlayers[0].id;
+            const localHost = this.connection.localPlayers[0].netId;
             const isHosting = host === localHost;
             this.startGame(isHosting);
           } else {
@@ -144,7 +144,7 @@ export class BallLobbyScene extends Scene {
         if (playerConnect.config) {
           if (!this.startingGame && Object.values(this.connection.players).every((p) => p.config!.ready)) {
             const host = Object.keys(this.connection.players).sort()[0];
-            const localHost = this.connection.localPlayers[0].id;
+            const localHost = this.connection.localPlayers[0].netId;
             const isHosting = host === localHost;
             this.startGame(isHosting);
           } else {

@@ -1,10 +1,8 @@
 import { ConnectionInstance } from "@/connection/ConnectionInstance";
 import { GameModel } from "./GameModel";
 import { UIService } from "@/ui/UIService";
-import { Scene } from "./Scene";
-import { GameCoordinator } from "./GameCoordinator";
-import { FrameRateSchema } from "@/schemas/core/FrameRate";
 import { flags } from "@/console/flags";
+import { AchievementService } from "@/achievements/AchievementService";
 
 export type GameInstanceOptions<T> = {
   gameName: string;
@@ -14,10 +12,12 @@ export type GameInstanceOptions<T> = {
   buildWorld: (gameModel: GameModel, firstPlayerConfig: any) => void;
   onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: any) => number;
   onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
+  achievementService?: AchievementService;
 };
 
 export class GameInstance<T> {
   public gameModel: GameModel;
+  public achievementService: AchievementService;
   private uiService?: UIService;
 
   private lastTime = 0;
@@ -28,6 +28,17 @@ export class GameInstance<T> {
     if (options.uiService) {
       this.uiService = options.uiService === true ? UIService.getInstance() : options.uiService;
     }
+    this.achievementService = options.achievementService ?? {
+      registerAchievement: () => {},
+      update: async () => {},
+      getAchievements: () => [],
+      unlockAchievement: async () => {},
+      getUnlockedAchievements: () => [],
+      getAchievement: () => null,
+      getAchievementProgress: () => 0,
+      setAchievementProgress: async () => {},
+      resetAchievementProgress: async () => {},
+    };
   }
 
   async initialize(
@@ -54,7 +65,7 @@ export class GameInstance<T> {
     } else {
       const gameModel = await this.options.connection.initialize(roomId, {
         gameInstance: this,
-        players: players ?? this.options.connection.players.map((p) => p.id),
+        players: players ?? this.options.connection.players.map((p) => p.netId),
         seed: seed ?? "NO_SEED",
         coreOverrides,
         buildWorld: this.options.buildWorld,

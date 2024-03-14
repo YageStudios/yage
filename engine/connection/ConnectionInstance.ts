@@ -6,8 +6,8 @@ import { PlayerEventManager } from "@/inputs/PlayerEventManager";
 import { GameInstance } from "@/game/GameInstance";
 
 export type PlayerConnection<T> = {
-  id: string;
-  name: string;
+  netId: string;
+  uniqueId: string;
   token: string;
   connectionId?: string;
   connected: boolean;
@@ -20,8 +20,8 @@ export type PlayerConnection<T> = {
 };
 
 export type PlayerConnect<T> = {
-  id: string;
-  name: string;
+  netId: string;
+  uniqueId: string;
   token: string;
   inputType?: InputEventType;
   inputIndex?: number;
