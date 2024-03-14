@@ -30,14 +30,16 @@ export class GameInstance<T> {
     }
     this.achievementService = options.achievementService ?? {
       registerAchievement: () => {},
+      flush: async () => {},
       update: async () => {},
       getAchievements: () => [],
-      unlockAchievement: async () => {},
+      unlockAchievement: () => {},
       getUnlockedAchievements: () => [],
       getAchievement: () => null,
       getAchievementProgress: () => 0,
-      setAchievementProgress: async () => {},
-      resetAchievementProgress: async () => {},
+      setAchievementProgress: () => false,
+      incrementAchievementProgress: () => false,
+      resetAchievementProgress: () => {},
     };
   }
 

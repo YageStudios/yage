@@ -8,17 +8,20 @@ export type Achievement = {
 export abstract class AchievementService {
   abstract update(playerId: string): Promise<void>;
 
+  abstract flush(): Promise<void>;
+
   abstract registerAchievement(achievement: Omit<Achievement, "progress">): void;
 
   abstract getAchievements(playerId: string): Achievement[];
 
-  abstract unlockAchievement(playerId: string, name: string): Promise<void>;
+  abstract unlockAchievement(playerId: string, name: string): void;
   abstract getUnlockedAchievements(playerId: string): string[];
 
   abstract getAchievement(playerId: string, name: string): Achievement | null;
 
   abstract getAchievementProgress(playerId: string, name: string): number;
-  abstract setAchievementProgress(playerId: string, name: string, progress: number): Promise<void>;
+  abstract setAchievementProgress(playerId: string, name: string, progress: number): boolean;
+  abstract incrementAchievementProgress(playerId: string, name: string, increment: number): boolean;
 
-  abstract resetAchievementProgress(playerId: string, name: string): Promise<void>;
+  abstract resetAchievementProgress(playerId: string, name: string): void;
 }
