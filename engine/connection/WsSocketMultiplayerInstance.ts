@@ -19,7 +19,7 @@ export class WsSocketMultiplayerInstance<T> extends CoreConnectionInstance<T> {
     this.socket = new WebSocket(host);
     this.connectionPromise = new Promise((resolve) => {
       this.socket.addEventListener("open", () => {
-        this.player.connectionId = this.player.id;
+        this.player.connectionId = this.player.netId;
         this.player.connected = true;
         this.lazyEmit("join", [this.options.address, this.player.connectionId, this.player]);
 
@@ -51,20 +51,20 @@ export class WsSocketMultiplayerInstance<T> extends CoreConnectionInstance<T> {
     if (event === "peer") {
       const peerId = args[0];
       const player = args[1];
-      if (!this.players.find((p) => p.id === player.id)) {
+      if (!this.players.find((p) => p.netId === player.id)) {
         this.players.push(player);
         this.handleData(["connect", player]);
 
-        if (player.id !== this.player.id) {
+        if (player.id !== this.player.netId) {
           this.emit("peer", this.player.connectionId, this.player);
         }
-      } else if (player.id !== this.player.id) {
-        const currentPlayer = this.players.find((p) => p.id === player.id);
+      } else if (player.id !== this.player.netId) {
+        const currentPlayer = this.players.find((p) => p.netId === player.id);
         if (!isEqual(currentPlayer, player)) {
-          this.players = this.players.map((p) => (p.id === player.id ? player : p));
+          this.players = this.players.map((p) => (p.netId === player.id ? player : p));
           this.handleData(["reconnect", player]);
 
-          if (player.id !== this.player.id) {
+          if (player.id !== this.player.netId) {
             this.emit("peer", this.player.connectionId, this.player);
           }
         }

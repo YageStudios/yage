@@ -7,6 +7,9 @@
     ".": {
       "import": "./dist/*.js"
     },
+    "./achievements/*": {
+      "import": "./dist/achievements/*.js"
+    },
     "./components/*": {
       "import": "./dist/components/*.js"
     },

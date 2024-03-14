@@ -11,8 +11,8 @@ export class CoopConnectionInstance<T> extends CoreConnectionInstance<T> {
   ) {
     super(
       players.map((player, index) => ({
-        id: "player" + index,
-        name: "player" + index,
+        netId: "player" + index,
+        uniqueId: "player" + index,
         token: "player" + index,
         inputType: player[0],
         inputIndex: player[1],

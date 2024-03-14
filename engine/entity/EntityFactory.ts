@@ -358,24 +358,28 @@ export class EntityFactory {
     gameModel.removeComponent(entityId, "Parent");
 
     entity.children?.forEach((child: EntityComponentDTO) => {
-      const childId = this.createEntity(gameModel, child);
-      if (gameModel.hasComponent(childId, "Child")) {
-        const childData = gameModel.getTypedUnsafe(childId, ChildSchema);
-        childData.parent = entityId;
-      } else {
-        gameModel.addComponent(childId, "Child", { parent: entityId });
+      let childComponent = child.components.find((c) => c.type === "Child");
+
+      if (!child.components.find((c) => c.type === "Transform")) {
+        child.components.push({ type: "Transform", data: { x: 0, y: 0 } });
       }
+
+      if (!childComponent) {
+        child.components.push({ type: "Child", data: { parent: entityId } });
+      } else {
+        if (childComponent.data) {
+          childComponent.data.parent = entityId;
+        } else {
+          childComponent.parent = entityId;
+        }
+      }
+
+      const childId = this.createEntity(gameModel, child);
       if (gameModel.hasComponent(entityId, "Parent")) {
         const parentData = gameModel.getTypedUnsafe(entityId, ParentSchema);
         parentData.children.push(childId);
       } else {
         gameModel.addComponent(entityId, "Parent", { children: [childId] });
-      }
-      if (!gameModel.hasComponent(childId, "Transform")) {
-        gameModel.addComponent(childId, "Transform", {
-          x: 0,
-          y: 0,
-        });
       }
     });
     return entityId;

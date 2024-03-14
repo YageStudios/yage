@@ -6,8 +6,8 @@ export class SingleplayerConnectionInstance<T> extends CoreConnectionInstance<T>
   constructor(public inputManager: InputManager, config?: T, public touchRegions?: TouchRegion[]) {
     super(
       {
-        id: "singleplayer",
-        name: "singleplayer",
+        netId: "singleplayer",
+        uniqueId: "singleplayer",
         token: "singleplayer",
         config,
       },

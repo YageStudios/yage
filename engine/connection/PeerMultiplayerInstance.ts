@@ -111,11 +111,11 @@ export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
         const conn = this.peer.connect(peerId);
         this.handleConnection(conn);
       }
-      if (!this.players.find((p) => p.id === player.id)) {
+      if (!this.players.find((p) => p.netId === player.netId)) {
         this.players.push(player);
         this.handleData(["connect", player]);
-      } else if (player.id !== this.player.id) {
-        this.players = this.players.map((p) => (p.id === player.id ? player : p));
+      } else if (player.netId !== this.player.netId) {
+        this.players = this.players.map((p) => (p.netId === player.netId ? player : p));
         this.handleData(["reconnect", player]);
       }
       return;
@@ -161,7 +161,7 @@ export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
       const player = this.players.find((p) => p.connectionId === conn.peer);
       if (player) {
         this.players = this.players.filter((p) => p.connectionId !== conn.peer);
-        this.handleData(["userDisconnect", player.id]);
+        this.handleData(["userDisconnect", player.netId]);
         if (this.players.length === 1) {
           this.player.connected = false;
           this.player.connectionTime = 0;
