@@ -14,6 +14,59 @@ export class LocalAchievementService implements AchievementService {
     window.achievementService = this;
   }
 
+  isFlushing: boolean = false;
+  flushQueue: Array<() => Promise<void>> = [];
+
+  async flush(): Promise<void> {
+    if (this.isFlushing) {
+      return new Promise<void>((resolve) => this.flushQueue.push(resolve as () => Promise<void>));
+    }
+
+    this.isFlushing = true;
+
+    const promises = [];
+    for (const playerId in this.queuedUpdates) {
+      for (let i = 0; i < this.queuedUpdates[playerId].length; i++) {
+        const name = this.queuedUpdates[playerId][i];
+        promises.push(
+          Persist.getInstance().set(`achievement-${playerId}-${name}`, this.playerStates[playerId][name] ?? 0)
+        );
+      }
+    }
+
+    // Clear the queuedUpdates
+    this.queuedUpdates = {};
+    await Promise.all(promises);
+
+    // Check if there are any pending flush calls
+    while (this.flushQueue.length > 0) {
+      const nextFlush = this.flushQueue.shift();
+      if (nextFlush) {
+        await nextFlush();
+      }
+    }
+
+    this.isFlushing = false;
+  }
+
+  autoFlush: number = 5;
+  autoFlushCounter: number = 0;
+
+  queuedUpdates: {
+    [key: string]: string[];
+  } = {};
+
+  private queueUpdate(playerId: string, achievement: string) {
+    this.queuedUpdates[playerId] = this.queuedUpdates[playerId] || [];
+    if (!this.queuedUpdates[playerId].includes(achievement)) {
+      this.queuedUpdates[playerId].push(achievement);
+    }
+    if (this.autoFlushCounter++ >= this.autoFlush) {
+      this.flush();
+      this.autoFlushCounter = 0;
+    }
+  }
+
   registerAchievement(achievement: Omit<Achievement, "progress">) {
     Persist.getInstance().set(`achievementdata-${achievement.name}`, {
       name: achievement.name,
@@ -79,12 +132,13 @@ export class LocalAchievementService implements AchievementService {
     return this.achievements;
   }
 
-  unlockAchievement(playerId: string, name: string): Promise<void> {
+  async unlockAchievement(playerId: string, name: string): Promise<void> {
     const achievement = this.achievements.find((a) => a.name === name);
     if (!achievement) {
       return Promise.reject("Achievement not found");
     }
-    return this.setAchievementProgress(playerId, name, achievement.target);
+    this.setAchievementProgress(playerId, name, achievement.target);
+    await this.flush();
   }
 
   getUnlockedAchievements(playerId: string): string[] {
@@ -99,7 +153,6 @@ export class LocalAchievementService implements AchievementService {
     if (!achievement) {
       return null;
     }
-    const key = `achievement-${playerId}-${name}`;
     return {
       name: achievement.name,
       description: achievement.description,
@@ -112,14 +165,28 @@ export class LocalAchievementService implements AchievementService {
     return this.playerStates[playerId][name] || 0;
   }
 
-  async setAchievementProgress(playerId: string, name: string, progress: number): Promise<void> {
+  setAchievementProgress(playerId: string, name: string, progress: number): boolean {
     const achievement = this.achievements.find((a) => a.name === name);
     if (!achievement) {
-      return Promise.reject("Achievement not found");
+      throw new Error("Achievement not found");
     }
     progress = Math.min(progress, achievement.target);
     this.playerStates[playerId][name] = progress;
-    await Persist.getInstance().set(`achievement-${playerId}-${name}`, progress);
+    this.queueUpdate(playerId, name);
+    if (progress >= achievement.target) {
+      this.flush();
+      return true;
+    }
+    return false;
+  }
+
+  incrementAchievementProgress(playerId: string, name: string, increment: number): boolean {
+    const achievement = this.achievements.find((a) => a.name === name);
+    if (!achievement) {
+      throw new Error("Achievement not found");
+    }
+    const progress = (this.playerStates[playerId][name] ?? 0) + increment;
+    return this.setAchievementProgress(playerId, name, progress);
   }
 
   async resetAchievementProgress(playerId: string, name: string): Promise<void> {
