@@ -64,7 +64,6 @@ class IndexedDB {
       };
       request.onsuccess = (evt: any) => {
         this.db = evt.target.result;
-        console.log("IndexedDB init success.");
         resolve(evt.target.result);
       };
       request.onupgradeneeded = (evt: any) => {
@@ -82,12 +81,11 @@ class IndexedDB {
       const request = objectStore.getAllKeys();
 
       request.onsuccess = (evt: any) => {
-        console.log("List keys success: " + evt.target.result);
         resolve(evt.target.result);
       };
 
       request.onerror = (evt: any) => {
-        console.log("List keys error: " + evt.target.errorCode);
+        console.error("List keys error: " + evt.target.errorCode);
         reject(evt.target.errorCode);
       };
     });
@@ -142,14 +140,13 @@ class IndexedDB {
       const request = objectStore.getAll();
 
       request.onsuccess = (evt: any) => {
-        console.log("List objects success: " + evt.target.result);
         if (!isRejected) {
           resolve(evt.target.result);
         }
       };
 
       request.onerror = (evt: any) => {
-        console.log("List objects error: " + evt.target.errorCode);
+        console.error("List objects error: " + evt.target.errorCode);
         isRejected = true;
         reject(evt.target.errorCode);
       };
@@ -163,12 +160,11 @@ class IndexedDB {
       const request = objectStore.put({ key, data });
 
       request.onsuccess = (evt: any) => {
-        console.log("Save object success: " + evt.target.result);
         resolve(evt.target.result);
       };
 
       request.onerror = (evt: any) => {
-        console.log("Save object error: " + evt.target.errorCode);
+        console.error("Save object error: " + evt.target.errorCode);
         reject(evt.target.errorCode);
       };
     });
@@ -197,12 +193,11 @@ class IndexedDB {
       const request = objectStore.delete(key);
 
       request.onsuccess = (evt: any) => {
-        console.log("Delete object success: " + evt.target.result);
         resolve(evt.target.result);
       };
 
       request.onerror = (evt: any) => {
-        console.log("Delete object error: " + evt.target.errorCode);
+        console.error("Delete object error: " + evt.target.errorCode);
         reject(evt.target.errorCode);
       };
     });
