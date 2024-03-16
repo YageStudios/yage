@@ -60,7 +60,8 @@
     },
     "./vendor/*": {
       "import": "./dist/vendor/*.js"
-    }
+    },
+    "./style.css": "./dist/style.css"
   },
   "scripts": {
     "dev": "vite",
@@ -77,6 +78,7 @@
     "@types/lodash": "^4.14.191",
     "@types/ndarray": "^1.0.11",
     "@types/seedrandom": "^3.0.2",
+    "@types/toastify-js": "^1.12.3",
     "@types/toposort": "^2.0.3",
     "@typescript-eslint/eslint-plugin": "^5.55.0",
     "@typescript-eslint/parser": "^5.55.0",
@@ -106,6 +108,7 @@
     "pixi.js": "^7.3.2",
     "seedrandom": "^3.0.5",
     "socket.io-client": "^4.7.2",
+    "toastify-js": "^1.12.0",
     "toposort": "^2.0.2",
     "url": "^0.11.0",
     "ws": "^8.16.0"

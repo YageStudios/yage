@@ -30,22 +30,32 @@ if (flags.PERFORMANCE_LOGS) {
     thead.appendChild(tr);
     table.appendChild(thead);
     const tbody = document.createElement("tbody");
-    timings.forEach((timing) => {
-      if (!performanceOverOneSecond[timing.type]) performanceOverOneSecond[timing.type] = [];
-      performanceOverOneSecond[timing.type].push(timing.time);
-      if (performanceOverOneSecond[timing.type].length > 60) performanceOverOneSecond[timing.type].shift();
-      const tr = document.createElement("tr");
-      const td1 = document.createElement("td");
-      td1.innerText = timing.type;
-      const td2 = document.createElement("td");
-      td2.innerText = timing.time.toFixed(2);
-      const td3 = document.createElement("td");
-      td3.innerText = performanceOverOneSecond[timing.type].reduce((acc, val) => acc + val, 0).toFixed(2);
-      tr.appendChild(td1);
-      tr.appendChild(td2);
-      tr.appendChild(td3);
-      tbody.appendChild(tr);
-    });
+    timings
+      .sort((timingA, timingB) => {
+        if (performanceOverOneSecond[timingA.type] && performanceOverOneSecond[timingB.type]) {
+          return (
+            performanceOverOneSecond[timingB.type].reduce((acc, val) => acc + val, 0) -
+            performanceOverOneSecond[timingA.type].reduce((acc, val) => acc + val, 0)
+          );
+        }
+        return timingB.time - timingA.time;
+      })
+      .forEach((timing) => {
+        if (!performanceOverOneSecond[timing.type]) performanceOverOneSecond[timing.type] = [];
+        performanceOverOneSecond[timing.type].push(timing.time);
+        if (performanceOverOneSecond[timing.type].length > 60) performanceOverOneSecond[timing.type].shift();
+        const tr = document.createElement("tr");
+        const td1 = document.createElement("td");
+        td1.innerText = timing.type;
+        const td2 = document.createElement("td");
+        td2.innerText = timing.time.toFixed(2);
+        const td3 = document.createElement("td");
+        td3.innerText = performanceOverOneSecond[timing.type].reduce((acc, val) => acc + val, 0).toFixed(2);
+        tr.appendChild(td1);
+        tr.appendChild(td2);
+        tr.appendChild(td3);
+        tbody.appendChild(tr);
+      });
     table.appendChild(tbody);
     const total = Math.round(timings.reduce((acc, val) => acc + val.time, 0) * 1000) / 1000;
     performanceContainer.innerHTML = `

@@ -52,6 +52,8 @@ export enum ComponentCategory {
   ONKILL,
   ONDEATH,
   ONDODGE,
+  ONHEAL,
+  ONLEVELUP,
 
   ON_START,
   ON_END,

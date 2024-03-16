@@ -1,5 +1,7 @@
 import { Persist } from "@/persist/persist";
 import { Achievement, AchievementService } from "./AchievementService";
+import Toastify from "toastify-js";
+import "toastify-js/src/toastify.css";
 
 export class LocalAchievementService implements AchievementService {
   private achievements: Achievement[] = [];
@@ -45,11 +47,12 @@ export class LocalAchievementService implements AchievementService {
         await nextFlush();
       }
     }
+    this.autoFlushCounter = 0;
 
     this.isFlushing = false;
   }
 
-  autoFlush: number = 5;
+  autoFlush: number = 100;
   autoFlushCounter: number = 0;
 
   queuedUpdates: {
@@ -63,7 +66,6 @@ export class LocalAchievementService implements AchievementService {
     }
     if (this.autoFlushCounter++ >= this.autoFlush) {
       this.flush();
-      this.autoFlushCounter = 0;
     }
   }
 
@@ -170,10 +172,23 @@ export class LocalAchievementService implements AchievementService {
     if (!achievement) {
       throw new Error("Achievement not found");
     }
+    const isCompleteAlready = this.playerStates[playerId][name] >= achievement.target;
     progress = Math.min(progress, achievement.target);
     this.playerStates[playerId][name] = progress;
     this.queueUpdate(playerId, name);
+    if (isCompleteAlready) {
+      console.log("Already complete", name, progress, achievement.target);
+      return true;
+    }
+
     if (progress >= achievement.target) {
+      Toastify({
+        text: `Achievement unlocked: ${achievement.name}`,
+        duration: 3000,
+        gravity: "top",
+        position: "right",
+        backgroundColor: "green",
+      }).showToast();
       this.flush();
       return true;
     }
