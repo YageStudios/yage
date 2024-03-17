@@ -25,6 +25,18 @@ export const RightStick: TouchRegion = {
   key: ["i", "j", "k", "l"],
 };
 
+export const SingleStick: TouchRegion = {
+  id: {
+    x: 0,
+    y: 0,
+    width: 1920,
+    height: 1080,
+  },
+  index: 0,
+  type: "joystick",
+  key: ["w", "a", "s", "d"],
+};
+
 export const LeftDoubleTap: TouchRegion = {
   id: {
     x: 0,
@@ -53,6 +65,7 @@ const TwinStickDoubleTap: TouchRegion[] = [LeftStick, RightStick, LeftDoubleTap,
 
 export const PreconfiguredTouchRegions = {
   TwinStickDoubleTap,
+  SingleStick: [SingleStick],
 };
 
 export class TouchListener {
