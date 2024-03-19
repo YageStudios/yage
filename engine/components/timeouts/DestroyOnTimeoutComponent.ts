@@ -23,7 +23,7 @@ registerSystem(DestroyOnTimeoutSystem);
 
 function updateTimeout(entity: number, timeout: DestroyOnTimeoutSchema, gameModel: GameModel) {
   timeout.timeElapsed += gameModel.dt<number>(entity);
-  if (timeout.timeElapsed > timeout.timeoutMs) {
+  if (timeout.timeElapsed > timeout.timeout) {
     if (timeout.spawnOnTimeout.length > 0) {
       let owner = entity;
       if (gameModel.hasComponent(entity, "Owner")) {
@@ -99,7 +99,7 @@ registerSystem(MultiDestroyOnTimeoutSystem);
 export const addToDestroyOnTimeout = (
   entity: number,
   component: string | null,
-  timeoutMs: number,
+  timeout: number,
   gameModel: GameModel,
   spawnOnTimeout: SpawnSchema[] = [],
   applyOnTimeout: ComponentDataSchema[] = []
@@ -107,7 +107,7 @@ export const addToDestroyOnTimeout = (
   if (!gameModel.hasComponent(entity, "DestroyOnTimeout")) {
     gameModel.addComponent(entity, "DestroyOnTimeout", {
       component: component || "",
-      timeoutMs,
+      timeout,
       timeElapsed: 0,
     });
     return;
@@ -115,7 +115,7 @@ export const addToDestroyOnTimeout = (
 
   const dotData = gameModel.getTypedUnsafe(entity, DestroyOnTimeoutSchema);
   if (dotData.component === component) {
-    dotData.timeoutMs = timeoutMs;
+    dotData.timeout = timeout;
     dotData.timeElapsed = 0;
     return;
   }
@@ -125,7 +125,7 @@ export const addToDestroyOnTimeout = (
       timeouts: [
         {
           component,
-          timeoutMs,
+          timeout,
           timeElapsed: 0,
         },
       ],
@@ -137,14 +137,14 @@ export const addToDestroyOnTimeout = (
   if (prevIndex === -1) {
     const destroyOnTimeout: DestroyOnTimeoutSchema = {
       component: component || "",
-      timeoutMs,
+      timeout,
       timeElapsed: 0,
       spawnOnTimeout: spawnOnTimeout,
       applyOnTimeout: applyOnTimeout,
     };
     data.timeouts.push(destroyOnTimeout);
   } else {
-    data.timeouts[prevIndex].timeoutMs = timeoutMs;
+    data.timeouts[prevIndex].timeout = timeout;
     data.timeouts[prevIndex].timeElapsed = 0;
   }
 };

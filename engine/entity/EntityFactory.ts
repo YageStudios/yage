@@ -4,7 +4,7 @@ import { componentRegistered } from "@/components/ComponentRegistry";
 import type { GameModel } from "@/game/GameModel";
 import { clone } from "@/utils/clone";
 import { StringToEnum } from "@/utils/typehelpers";
-import * as enums from "@/constants/enums";
+import { getEnum } from "@/constants/";
 import AssetLoader from "@/loader/AssetLoader";
 import type { Random } from "@/utils/rand";
 import { generate } from "@/utils/rand";
@@ -193,13 +193,13 @@ export class EntityFactory {
       if (data.startsWith("enum:")) {
         const enumClassName = data.substring(5).split(".");
         // @ts-ignore
-        return StringToEnum<any>(enumClassName[1], enums[enumClassName[0]]);
+        return StringToEnum<any>(enumClassName[1], getEnum(enumClassName[0]));
       }
       if (data.includes("::enum::")) {
         const enumClassName = data.substring(5).split(".");
         const [prefix, suffix] = data.split("::enum::");
         // @ts-ignore
-        return prefix + StringToEnum<any>(enumClassName[1], enums[enumClassName[0]]) + suffix;
+        return prefix + StringToEnum<any>(enumClassName[1], getEnum(enumClassName[0])) + suffix;
       }
       if (data.startsWith("rgb:")) {
         return hexToRgbNumber(data.substring(4));
