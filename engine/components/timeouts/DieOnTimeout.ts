@@ -19,7 +19,7 @@ registerSystem(DieOnTimeoutSystem);
 
 function updateTimeout(entity: number, timeout: DieOnTimeoutSchema, gameModel: GameModel) {
   timeout.timeElapsed += gameModel.dt<number>(entity);
-  if (timeout.timeElapsed > timeout.timeoutMs) {
+  if (timeout.timeElapsed > timeout.timeout) {
     gameModel.getComponentUnsafe(entity, "Health").health = 0;
   }
 }

@@ -10,7 +10,7 @@ export class DestroyOnTimeoutSchema extends Schema {
 
   @type("number")
   @defaultValue(1000)
-  timeoutMs: number;
+  timeout: number;
 
   @type("string")
   @defaultValue("")

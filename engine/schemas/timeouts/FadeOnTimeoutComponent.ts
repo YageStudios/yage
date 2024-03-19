@@ -12,7 +12,7 @@ export class FadeOnTimeoutSchema extends Schema {
 
   @type("number")
   @defaultValue(1000)
-  timeoutMs: number;
+  timeout: number;
 
   @type("number")
   @defaultValue(1000)
@@ -31,7 +31,7 @@ class FadeOnTimeoutSystem implements System {
   run(entity: number, gameModel: GameModel) {
     const data = gameModel.getTypedUnsafe(entity, FadeOnTimeoutSchema);
     if (data.startFrame === 0) {
-      data.startFrame = data.timeoutMs + data.fadeMs;
+      data.startFrame = data.timeout + data.fadeMs;
     } else {
       data.startFrame -= gameModel.frameDt;
     }

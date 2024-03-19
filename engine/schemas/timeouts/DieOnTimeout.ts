@@ -8,5 +8,5 @@ export class DieOnTimeoutSchema extends Schema {
 
   @type("number")
   @defaultValue(1)
-  timeoutMs: number;
+  timeout: number;
 }
