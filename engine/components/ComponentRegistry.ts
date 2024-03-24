@@ -34,8 +34,9 @@ export enum DEPTHS {
   DAMAGE = 5000,
   ITEMS = 6000,
   TRIGGERS = 7000,
-  PREDRAW = 8000,
-  DRAW = 9000,
+  ANIMATE = 8000,
+  PREDRAW = 9000,
+  DRAW = 10000,
 }
 export const getIndex = (type: typeof Schema | string | number): number => {
   let index: number;

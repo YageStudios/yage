@@ -25,6 +25,9 @@
     "./constants/*": {
       "import": "./dist/constants/*.js"
     },
+    "./constants/": {
+      "import": "./dist/constants/index.js"
+    },
     "./decorators/*": {
       "import": "./dist/decorators/*.js"
     },

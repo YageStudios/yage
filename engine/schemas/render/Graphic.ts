@@ -77,6 +77,14 @@ export class GraphicSchema extends Schema {
   @defaultValue(0)
   zIndex: number;
 
+  @type("boolean")
+  @defaultValue(true)
+  inheritParentZIndex: boolean;
+
+  @type("boolean")
+  @defaultValue(true)
+  relativeZIndex: boolean;
+
   @type("number")
   @defaultValue(1)
   opacity: number;

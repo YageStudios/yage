@@ -847,8 +847,17 @@ export class GameModel {
     return componentIndexMap[type];
   };
 
-  getComponentActives = (type: string | number) => {
+  getComponentActives = (type: string | number | typeof Schema) => {
     return this.state.activeByComponent[getIndex(type)];
+  };
+
+  getActivesByDescription = (description: string) => {
+    const actives = this.getComponentActives("Description");
+    return (
+      actives?.filter((entity) => {
+        return this.getTypedUnsafe(entity, DescriptionSchema).description === description;
+      }) ?? []
+    );
   };
 
   getComponentIdsByCategory = (entity: number, category: ComponentCategory) => {

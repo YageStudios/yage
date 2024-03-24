@@ -177,7 +177,7 @@ export class GraphicPixiSystem implements PixiDrawSystem {
 
     const viewY = viewport.position.y;
 
-    if (gameModel.hasComponent(entity, AttachSchema)) {
+    if (graphicData.inheritParentZIndex && gameModel.hasComponent(entity, AttachSchema)) {
       const owner = gameModel.getComponentUnsafe(entity, AttachSchema).parent;
       container.zIndex =
         TransformSchema.store.y[owner] -
@@ -185,7 +185,7 @@ export class GraphicPixiSystem implements PixiDrawSystem {
         TransformSchema.store.z[owner] +
         RadiusSchema.store.radius[owner] +
         graphicData.zIndex;
-    } else {
+    } else if (graphicData.relativeZIndex) {
       // const mapStripe = TransformSchema.store.y[entity] / 320;
       container.zIndex =
         TransformSchema.store.y[entity] -
