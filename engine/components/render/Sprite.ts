@@ -248,7 +248,7 @@ export class SpriteComponentPixi implements PixiDrawSystem {
         TransformSchema.store.z[owner] +
         RadiusSchema.store.radius[owner] +
         spriteData.zIndex;
-    } else {
+    } else if (spriteData.relativeZIndex) {
       // const mapStripe = TransformSchema.store.y[entity] / 320;
       container.zIndex =
         TransformSchema.store.y[entity] -
@@ -256,6 +256,8 @@ export class SpriteComponentPixi implements PixiDrawSystem {
         TransformSchema.store.z[entity] +
         RadiusSchema.store.radius[entity] +
         spriteData.zIndex;
+    } else {
+      container.zIndex = spriteData.zIndex;
     }
 
     container.x = position.x + xoffset;

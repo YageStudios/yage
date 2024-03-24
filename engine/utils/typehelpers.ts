@@ -1,17 +1,10 @@
-const steMemo: { [enumToCheck: string]: { [key: string]: any } } = {};
-
 export const StringToEnum = <T>(rep: number | string | undefined, enumToCheck: any): T | undefined => {
   if (rep === undefined) {
     return undefined;
   }
   if (typeof rep === "string") {
-    if (steMemo[enumToCheck.name]?.[rep] !== undefined) {
-      return steMemo[enumToCheck.name][rep];
-    }
     for (const [key, value] of Object.entries(enumToCheck)) {
       if (key.toLowerCase() === rep.toLowerCase()) {
-        steMemo[enumToCheck.name] = steMemo[enumToCheck.name] || {};
-        steMemo[enumToCheck.name][rep] = value;
         rep = value as number;
         break;
       }
