@@ -5,31 +5,31 @@ import type { GameModel } from "@/game/GameModel";
 import type { System } from "../../components/System";
 import { EntityFactory } from "@/entity/EntityFactory";
 import { OwnerSchema } from "@/schemas/core/Owner";
-import { DestroyOnTimeoutSchema, MultiDestroyOnTimeoutSchema } from "@/schemas/timeouts/DestroyOnTimeoutComponent";
+import { SpawnOnTimeoutSchema, MultiSpawnOnTimeoutSchema } from "@/schemas/timeouts/SpawnOnTimeoutComponent";
 import type { SpawnSchema } from "@/components/entity/Spawn";
 
-class DestroyOnTimeoutSystem implements System {
-  type = "DestroyOnTimeout";
+class SpawnOnTimeoutSystem implements System {
+  type = "SpawnOnTimeout";
   category: ComponentCategory = ComponentCategory.BEHAVIOR;
-  schema = DestroyOnTimeoutSchema;
+  schema = SpawnOnTimeoutSchema;
   depth = DEPTHS.HEALTH + 1;
   run(entity: number, gameModel: GameModel) {
-    const data = gameModel.getTypedUnsafe(entity, DestroyOnTimeoutSchema);
-    updateTimeout(entity, data as unknown as DestroyOnTimeoutSchema, gameModel);
+    const data = gameModel.getTypedUnsafe(entity, SpawnOnTimeoutSchema);
+    updateTimeout(entity, data as unknown as SpawnOnTimeoutSchema, gameModel);
   }
 }
 
-registerSystem(DestroyOnTimeoutSystem);
+registerSystem(SpawnOnTimeoutSystem);
 
-function updateTimeout(entity: number, timeout: DestroyOnTimeoutSchema, gameModel: GameModel) {
+function updateTimeout(entity: number, timeout: SpawnOnTimeoutSchema, gameModel: GameModel) {
   timeout.timeElapsed += gameModel.dt<number>(entity);
-  if (timeout.timeElapsed > timeout.timeout) {
-    if (timeout.spawnOnTimeout.length > 0) {
+  if (timeout.timeElapsed > timeout.timeout && !timeout.timedOut) {
+    if (timeout.spawn.length > 0) {
       let owner = entity;
       if (gameModel.hasComponent(entity, "Owner")) {
         owner = gameModel.getTypedUnsafe(entity, OwnerSchema).owner ?? entity;
       }
-      (timeout.spawnOnTimeout as SpawnSchema[]).forEach((spawn) => {
+      (timeout.spawn as SpawnSchema[]).forEach((spawn) => {
         const spawnedEntity = EntityFactory.getInstance().generateEntity(gameModel, spawn.description, {
           SourceStats: {
             damageAmount: 0,
@@ -58,91 +58,72 @@ function updateTimeout(entity: number, timeout: DestroyOnTimeoutSchema, gameMode
         }
       });
     }
-    if (timeout.component !== "") {
-      gameModel.removeComponent(entity, timeout.component);
-      if (timeout.applyOnTimeout.length > 0) {
-        timeout.applyOnTimeout.forEach((apply) => {
-          gameModel.addComponent(entity, apply.type, apply.data);
-        });
-      }
-    } else {
-      if (timeout.applyOnTimeout.length > 0) {
-        timeout.applyOnTimeout.forEach((apply) => {
-          gameModel.addComponent(entity, apply.type, apply.data);
-        });
-      } else {
-        gameModel.removeEntity(entity);
-      }
-    }
+    timeout.timedOut = true;
   }
 }
 
-class MultiDestroyOnTimeoutSystem implements System {
-  type = "MultiDestroyOnTimeout";
+class MultiSpawnOnTimeoutSystem implements System {
+  type = "MultiSpawnOnTimeout";
   category: ComponentCategory = ComponentCategory.BEHAVIOR;
-  schema = MultiDestroyOnTimeoutSchema;
+  schema = MultiSpawnOnTimeoutSchema;
   depth = DEPTHS.HEALTH + 1;
   run(entity: number, gameModel: GameModel) {
-    const data = gameModel.getTypedUnsafe(entity, MultiDestroyOnTimeoutSchema);
+    const data = gameModel.getTypedUnsafe(entity, MultiSpawnOnTimeoutSchema);
     for (let i = 0; i < data.timeouts.length; ++i) {
-      const timeout = data.timeouts[i] as DestroyOnTimeoutSchema;
+      const timeout = data.timeouts[i] as SpawnOnTimeoutSchema;
       updateTimeout(entity, timeout, gameModel);
+      if (timeout.timedOut) {
+        data.timeouts.splice(i, 1);
+        i--;
+      }
     }
     if (data.timeouts.length === 0) {
-      gameModel.removeComponent(entity, "MultiDestroyOnTimeout");
+      gameModel.removeComponent(entity, "MultiSpawnOnTimeout");
     }
   }
 }
 
-registerSystem(MultiDestroyOnTimeoutSystem);
+registerSystem(MultiSpawnOnTimeoutSystem);
 
-export const addToDestroyOnTimeout = (
+export const addToSpawnOnTimeout = (
   entity: number,
-  component: string | null,
   timeout: number,
   gameModel: GameModel,
   spawnOnTimeout: SpawnSchema[] = [],
   applyOnTimeout: ComponentDataSchema[] = []
 ) => {
-  if (!gameModel.hasComponent(entity, "DestroyOnTimeout")) {
-    gameModel.addComponent(entity, "DestroyOnTimeout", {
-      component: component || "",
+  if (!gameModel.hasComponent(entity, "SpawnOnTimeout")) {
+    gameModel.addTyped(entity, SpawnOnTimeoutSchema, {
       timeout,
       timeElapsed: 0,
+      spawn: spawnOnTimeout,
     });
     return;
   }
 
-  const dotData = gameModel.getTypedUnsafe(entity, DestroyOnTimeoutSchema);
-  if (dotData.component === component) {
-    dotData.timeout = timeout;
-    dotData.timeElapsed = 0;
-    return;
-  }
-
-  if (!gameModel.hasComponent(entity, "MultiDestroyOnTimeout")) {
-    gameModel.addComponent(entity, "MultiDestroyOnTimeout", {
+  if (!gameModel.hasComponent(entity, "MultiSpawnOnTimeout")) {
+    gameModel.addComponent(entity, "MultiSpawnOnTimeout", {
       timeouts: [
         {
-          component,
           timeout,
           timeElapsed: 0,
+          spawn: spawnOnTimeout,
         },
       ],
     });
     return;
   }
-  const data = gameModel.getTypedUnsafe(entity, MultiDestroyOnTimeoutSchema);
-  const prevIndex = data.timeouts.findIndex((t: DestroyOnTimeoutSchema) => t.component === component);
+  const data = gameModel.getTypedUnsafe(entity, MultiSpawnOnTimeoutSchema);
+  const spawnString = JSON.stringify(spawnOnTimeout);
+  const prevIndex = data.timeouts.findIndex((t: SpawnOnTimeoutSchema) => JSON.stringify(t.spawn) === spawnString);
   if (prevIndex === -1) {
-    const destroyOnTimeout: DestroyOnTimeoutSchema = {
-      component: component || "",
+    const SpawnOnTimeout: SpawnOnTimeoutSchema = {
       timeout,
+      timedOut: false,
       timeElapsed: 0,
-      spawnOnTimeout: spawnOnTimeout,
-      applyOnTimeout: applyOnTimeout,
+      spawn: spawnOnTimeout,
     };
-    data.timeouts.push(destroyOnTimeout);
+    data.timeouts.push(SpawnOnTimeout);
   } else {
     data.timeouts[prevIndex].timeout = timeout;
     data.timeouts[prevIndex].timeElapsed = 0;

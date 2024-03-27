@@ -3,8 +3,8 @@ import { ComponentDataSchema } from "../../components/types";
 import { Component, defaultValue, Schema, type } from "../../decorators/type";
 import { SpawnSchema } from "@/components/entity/Spawn";
 
-@Component("DestroyOnTimeout")
-export class DestroyOnTimeoutSchema extends Schema {
+@Component("SpawnOnTimeout")
+export class SpawnOnTimeoutSchema extends Schema {
   @type("number")
   @defaultValue(0)
   timeElapsed: number;
@@ -13,22 +13,18 @@ export class DestroyOnTimeoutSchema extends Schema {
   @defaultValue(1000)
   timeout: number;
 
-  @type("string")
-  @defaultValue("")
-  component: string;
+  @type("boolean")
+  @defaultValue(false)
+  timedOut: boolean;
 
   @type([SpawnSchema])
   @defaultValue([])
-  spawnOnTimeout: Partial<SpawnSchema>[];
-
-  @type([ComponentDataSchema])
-  @defaultValue([])
-  applyOnTimeout: ComponentDataSchema[];
+  spawn: Partial<SpawnSchema>[];
 }
 
-@Component("MultiDestroyOnTimeout")
-export class MultiDestroyOnTimeoutSchema extends Schema {
-  @type([DestroyOnTimeoutSchema])
+@Component("MultiSpawnOnTimeout")
+export class MultiSpawnOnTimeoutSchema extends Schema {
+  @type([SpawnOnTimeoutSchema])
   @defaultValue([])
-  timeouts: DestroyOnTimeoutSchema[];
+  timeouts: SpawnOnTimeoutSchema[];
 }
