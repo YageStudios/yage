@@ -695,6 +695,11 @@ export class GameModel {
     }
   };
 
+  addTyped = <T extends Schema>(entity: number, type: Constructor<T>, overrides?: Partial<T>) => {
+    // @ts-ignore
+    return this.addComponent(entity, type.__type, overrides);
+  };
+
   addComponent = (
     entity: number,
     type: string | number | typeof Schema,
