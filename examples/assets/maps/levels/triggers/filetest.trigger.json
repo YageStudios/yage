@@ -1,0 +1,10 @@
+{
+  "trigger": {
+    "event": "ENTITY",
+    "name": "MobSpawner"
+  },
+  "MobSpawn": {
+    "spawnLimit": 10,
+    "spawnName": "Rat"
+  }
+}

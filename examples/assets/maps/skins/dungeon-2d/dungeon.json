@@ -1,0 +1,22 @@
+{
+  "name": "dungeon-2d",
+  "walls": [
+    "dungeon-2d_wall_EW",
+    "dungeon-2d_wall_NE",
+    "dungeon-2d_wall_NS",
+    "dungeon-2d_wall_NW",
+    "dungeon-2d_wall_SE",
+    "dungeon-2d_wall_SN",
+    "dungeon-2d_wall_SW",
+    "dungeon-2d_wall_WE",
+    "dungeon-2d_corner_NE",
+    "dungeon-2d_corner_NW",
+    "dungeon-2d_corner_SE",
+    "dungeon-2d_corner_SW",
+    "dungeon-2d_floor"
+  ],
+  "floor": {
+    "baseColor": "#56655E",
+    "isometric": false
+  }
+}

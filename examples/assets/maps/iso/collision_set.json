@@ -1,0 +1,14 @@
+{ "columns":1,
+ "image":"./collision_set.png",
+ "imageheight":32,
+ "imagewidth":64,
+ "margin":0,
+ "name":"collision_set",
+ "spacing":0,
+ "tilecount":1,
+ "tiledversion":"1.9.2",
+ "tileheight":32,
+ "tilewidth":64,
+ "type":"tileset",
+ "version":"1.9"
+}
