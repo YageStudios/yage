@@ -1,4 +1,4 @@
-import { ComponentCategory } from "yage/components/types";
+import { ComponentCategory } from "yage/systems/types";
 import { Component, Schema, System, SystemImpl } from "minecs";
 import type { GameModel } from "yage/game/GameModel";
 import { MappedKeys } from "yage/inputs/InputManager";

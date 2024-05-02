@@ -1,5 +1,5 @@
 import { Component, type } from "minecs";
-import { ComponentCategory } from "yage/components/types";
+import { ComponentCategory } from "yage/systems/types";
 import { Schema } from "minecs";
 
 @Component(ComponentCategory.BEHAVIOR)

@@ -104,9 +104,11 @@ export class GraphicDrawSystem extends DrawSystemImpl<ReadOnlyGameModel> {
     const viewport = getSystem(renderModel, PixiViewportSystem).viewport;
     const zIndex = 2;
 
-    const instance: Partial<PixiGraphics> = {
+    const instance: PixiGraphics = {
       container: this.instances[entity]?.container ?? new PIXI.Container(),
       debug: this.instances[entity]?.debug,
+      graphic: null as any,
+      current: { ...renderModel(PixiGraphic, entity) },
     };
 
     if (!instance.debug) {
@@ -115,20 +117,15 @@ export class GraphicDrawSystem extends DrawSystemImpl<ReadOnlyGameModel> {
       viewport.addChild(instance.debug);
     }
 
-    const graphicData = renderModel.getTypedUnsafe(PixiGraphic, entity);
-    instance.current = { ...graphicData };
+    const graphics = this.drawGraphic(instance.current);
 
-    const graphics = this.drawGraphic(graphicData);
-
-    instance.container!.addChild(graphics);
-
+    instance.container.addChild(graphics);
     instance.graphic = graphics;
-
-    instance.container!.zIndex = zIndex;
+    instance.container.zIndex = zIndex;
     instance.graphic.position.set(0, 0);
 
-    this.instances[entity] = instance as PixiGraphics;
-    viewport.addChild(instance.container!);
+    this.instances[entity] = instance;
+    viewport.addChild(instance.container);
   };
 
   run = (renderModel: ReadOnlyGameModel, entity: number) => {
@@ -181,13 +178,15 @@ export class GraphicDrawSystem extends DrawSystemImpl<ReadOnlyGameModel> {
     const viewY = viewport.position.y;
 
     if (graphicData.inheritParentZIndex && renderModel.hasComponent(Attach, entity)) {
-      const owner = renderModel.getTypedUnsafe(Attach, entity).parent!;
-      container.zIndex =
-        renderModel(Transform).store.y[owner] -
-        viewY +
-        renderModel(Transform).store.z[owner] +
-        renderModel(Radius).store.radius[owner] +
-        graphicData.zIndex;
+      const owner = renderModel.getTypedUnsafe(Attach, entity).parent;
+      if (owner !== null) {
+        container.zIndex =
+          renderModel(Transform).store.y[owner] -
+          viewY +
+          renderModel(Transform).store.z[owner] +
+          renderModel(Radius).store.radius[owner] +
+          graphicData.zIndex;
+      }
     } else if (graphicData.relativeZIndex) {
       // const mapStripe = Transform.store.y[entity] / 320;
       container.zIndex =

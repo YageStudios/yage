@@ -10,11 +10,11 @@
     "./achievements/*": {
       "import": "./dist/achievements/*.js"
     },
-    "./components/*": {
-      "import": "./dist/components/*.js"
+    "./systems/*": {
+      "import": "./dist/systems/*.js"
     },
     "./components": {
-      "import": "./dist/components/index.js"
+      "import": "./dist/systems/index.js"
     },
     "./connection/*": {
       "import": "./dist/connection/*.js"
@@ -66,6 +66,11 @@
     },
     "./style.css": "./dist/style.css"
   },
+  "overrides": {
+    "pixi-viewport": {
+      "@pixi/core": "7.4.2"
+    }
+  },
   "scripts": {
     "dev": "vite",
     "lint": "eslint --ext .ts ./src ./engine",
@@ -105,12 +110,12 @@
     "js-base64": "^3.7.7",
     "l1-path-finder": "^1.0.0",
     "lodash": "^4.17.21",
-    "minecs": "^0.0.5",
+    "minecs": "^0.0.8",
     "nanoid": "^5.0.2",
     "ndarray": "^1.0.19",
     "peerjs": "^1.5.1",
     "pixi-spine": "^4.0.4",
-    "pixi-viewport": "^5.1.0",
+    "pixi-viewport": "^5.0.2",
     "pixi.js": "^7.3.2",
     "poly-decomp": "^0.3.0",
     "seedrandom": "^3.0.5",

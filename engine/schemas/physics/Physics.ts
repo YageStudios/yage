@@ -7,6 +7,6 @@ export class Physics extends Schema {
   gravityX: number;
 
   @type("number")
-  @defaultValue(1)
+  @defaultValue(0)
   gravityY: number;
 }

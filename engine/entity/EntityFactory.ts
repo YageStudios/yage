@@ -1,4 +1,4 @@
-import type { ComponentData } from "../components/types";
+import type { ComponentData } from "../systems/types";
 import { EnemyTypeEnum, EntityType } from "../constants/enums";
 import type { GameModel } from "yage/game/GameModel";
 import { clone } from "yage/utils/clone";
@@ -10,7 +10,7 @@ import { getGlobalSingleton, setGlobalSingleton } from "yage/global";
 import { cloneDeep } from "lodash";
 import { hexToRgbNumber } from "yage/utils/colors";
 import { Parent } from "yage/schemas/entity/Parent";
-import { ListenEntityCreationSystem } from "yage/components/core/ListenEntityCreation";
+import { ListenEntityCreationSystem } from "yage/systems/core/ListenEntityCreation";
 import { ListenEntityCreation } from "yage/schemas/core/ListenEntityCreation";
 import { componentList } from "minecs";
 
@@ -101,14 +101,14 @@ export class EntityFactory {
               AssetLoader.getInstance().loadSound(key, url, soundOptions);
               break;
             }
+            case "ui":
+              AssetLoader.getInstance().loadUi(asset.key, asset.url);
+              break;
             case "spine":
               AssetLoader.getInstance().loadSpine(asset.key, asset.url);
               break;
             case "map":
               AssetLoader.getInstance().loadMap(asset.key, asset.url);
-              break;
-            case "mapskin":
-              AssetLoader.getInstance().loadMapSkin(asset.key, asset.url);
               break;
           }
         });

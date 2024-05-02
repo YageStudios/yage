@@ -110,7 +110,7 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
       worldWidth: 1000000,
       worldHeight: 1000000,
 
-      // events: pixiApp.renderer.events, // the interaction module is important for wheel to work properly when renderer.view is placed or scaled
+      events: pixiApp.renderer.events, // the interaction module is important for wheel to work properly when renderer.view is placed or scaled
     });
 
     this.baseZoom = window.innerWidth / 1920;

@@ -31,23 +31,9 @@ export class ListenEntityCreationSystem extends SystemImpl<GameModel> {
         i--;
         continue;
       }
-      const onEntityCreationMods = gameModel.getComponentSchemasByCategory(
-        ComponentCategory.ON_ENTITY_CREATION,
-        entityId
-      );
-
-      if (onEntityCreationMods.length) {
-        for (let j = 0; j < onEntityCreationMods.length; j++) {
-          const mod = gameModel.getComponent(onEntityCreationMods[j], entityId);
-          if (mod?.entity !== undefined) {
-            mod.entity = data.entity;
-          }
-          const system = gameModel.getSystemsByType((mod as any).type, entityId);
-          for (let k = 0; k < system.length; k++) {
-            system[k].run?.(gameModel, entityId);
-          }
-        }
-      }
+      gameModel.runMods(entityId, ComponentCategory.ON_ENTITY_CREATION, {
+        entity: entityId,
+      });
     }
   };
 }

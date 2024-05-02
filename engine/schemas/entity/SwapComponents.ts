@@ -1,5 +1,5 @@
 import { Component, defaultValue, Schema, type } from "minecs";
-import { ComponentDataSchema } from "yage/components/types";
+import { ComponentDataSchema } from "yage/systems/types";
 
 @Component()
 export class SwapComponents extends Schema {

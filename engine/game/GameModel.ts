@@ -20,12 +20,13 @@ import {
 } from "minecs";
 import { Random } from "yage/schemas/core/Random";
 import type { Random as RandomType } from "yage/utils/rand";
-import "yage/components";
-import type { PhysicsSaveState } from "yage/components/physics/Physics";
-import { PhysicsSystem } from "yage/components/physics/Physics";
+import "yage/systems";
+import type { PhysicsSaveState } from "yage/systems/physics/Physics";
+import { PhysicsSystem } from "yage/systems/physics/Physics";
 import Description from "yage/schemas/core/Description";
 import { flags } from "yage/console/flags";
 import { EntityFactory } from "yage/entity/EntityFactory";
+import type { ComponentCategory } from "yage/constants/enums";
 
 export type GameModelState = {
   core: number;
@@ -68,6 +69,13 @@ export type GameModel = World & {
   serializeState: () => any;
   destroy: () => void;
   logEntity: (entity: number, debugOverride?: boolean) => void;
+  runMods: (
+    entity: number | number[],
+    category: ComponentCategory,
+    overrides?: {
+      [key: string]: any;
+    }
+  ) => void;
 };
 
 export const GameModel = ({
@@ -84,6 +92,33 @@ export const GameModel = ({
     acc[component.category].push(component);
     return acc;
   }, {} as Record<number, (typeof Schema)[]>);
+  const sortedSystemsByCategory = Object.entries(componentsByCategory).reduce((acc, [category, components]) => {
+    acc[parseInt(category)] = components
+      .map((component) =>
+        getSystemsByType(world, component.type).sort(
+          (a, b) => (a.constructor as typeof SystemImpl).depth - (b.constructor as typeof SystemImpl).depth
+        )
+      )
+      .flat()
+      .filter((system, index, array) => array.indexOf(system) === index);
+    return acc;
+  }, {} as Record<number, SystemImpl<any>[]>);
+
+  const sortedSystemsByComponent = componentList.reduce((acc, component) => {
+    acc[component.type] = getSystemsByType(world, component.type).sort(
+      (a, b) => (a.constructor as typeof SystemImpl).depth - (b.constructor as typeof SystemImpl).depth
+    );
+    return acc;
+  }, {} as Record<string, SystemImpl<any>[]>);
+
+  const componentsBySystem = Object.entries(sortedSystemsByComponent).reduce((acc, [type, systems]) => {
+    systems.forEach((system) => {
+      acc[system.constructor.name] = acc[system.constructor.name] || [];
+      acc[system.constructor.name].push(type);
+    });
+    return acc;
+  }, {} as Record<string, string[]>);
+
   const gameModel = Object.assign(world, {
     roomId: roomId ?? "",
     coreEntity: addEntity(world),
@@ -148,6 +183,54 @@ export const GameModel = ({
         removeComponent(world, type as unknown as typeof Schema, entity);
       }
     },
+    getSystemsByType: <T extends Schema>(type: Constructor<T> | string, entity?: number) => {
+      if (typeof type !== "string") {
+        type = type.name;
+      }
+      if (entity === undefined) {
+        return sortedSystemsByComponent[type] || [];
+      }
+      return sortedSystemsByComponent[type].filter((system) => system.query.has(gameModel, entity));
+    },
+    runMods: (
+      entity: number | number[],
+      category: ComponentCategory,
+      overrides?: {
+        [key: string]: any;
+      }
+    ) => {
+      const systems = sortedSystemsByCategory[category];
+      const entities = Array.isArray(entity) ? entity : [entity];
+      const overrideKeys = Object.keys(overrides || {});
+      for (let i = 0; i < systems.length; i++) {
+        const system = systems[i];
+        if ((system.constructor as typeof SystemImpl).depth >= 0) {
+          break;
+        }
+        for (let j = 0; j < entities.length; j++) {
+          const entity = entities[j];
+          if (overrideKeys.length > 0) {
+            const systemComponents = componentsBySystem[system.constructor.name];
+            for (let k = 0; k < systemComponents.length; k++) {
+              const type = systemComponents[k];
+              const schema = getComponentByType(type);
+              if (schema?.category === category) {
+                const component = gameModel.getComponent(schema, entity) as any;
+                if (component) {
+                  for (const key of overrideKeys) {
+                    if (component[key] !== undefined) {
+                      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                      component[key] = overrides![key];
+                    }
+                  }
+                }
+              }
+            }
+          }
+          system.run?.(gameModel, entities[j]);
+        }
+      }
+    },
     hasComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => {
       if (typeof type === "string") {
         const schema = getComponentByType(type);
@@ -176,13 +259,6 @@ export const GameModel = ({
         );
       }
       return componentsByCategory[category] || [];
-    },
-    getSystemsByType: (type: string, entity?: number) => {
-      const systems = getSystemsByType(world, type);
-      if (entity === undefined) {
-        return systems;
-      }
-      return systems.filter((system) => system.query(world).includes(entity));
     },
     getSystem: <T extends typeof SystemImpl<any>>(system: T) => {
       return getSystem(world, system);
@@ -223,9 +299,8 @@ export const GameModel = ({
   });
 
   if (world.frame === 0) {
+    gameModel.coreEntity = EntityFactory.getInstance().generateEntity(gameModel, "core");
     addComponent(gameModel, Random, gameModel.coreEntity, { seed: seed ?? "" });
-
-    EntityFactory.getInstance().generateEntity(gameModel, "core");
   }
 
   Object.defineProperty(gameModel, "players", {
