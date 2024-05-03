@@ -24,7 +24,7 @@
       radius: 5,
     },
     {
-      type: "Sprite",
+      type: "PixiSprite",
       imageKey: "character::ranger",
       scale: 0.5,
       zIndex: 0,

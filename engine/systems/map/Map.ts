@@ -429,6 +429,7 @@ class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
 
   init = (renderModel: ReadOnlyGameModel, entity: number) => {
     const viewport = getSystem(renderModel, PixiViewportSystem).viewport;
+    console.error("INITIALIZING");
     const mapData = renderModel.getTypedUnsafe(Map, entity);
     const mapAsset = AssetLoader.getInstance().getMap(mapData.map);
     const skinData = AssetLoader.getInstance().getMapSkin(mapData.skin);

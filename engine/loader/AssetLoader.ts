@@ -46,6 +46,7 @@ export default class AssetLoader {
     await Promise.all(assetPromises);
     await RAPIER.init();
     await Persist.getInstance().init();
+    await ImageLoader.getInstance().promise;
 
     try {
       await SpriteLoader.getInstance().waitForAll();
@@ -117,6 +118,7 @@ export default class AssetLoader {
 
   async loadMapSkin(name: string, url: string): Promise<string> {
     const assetPath = `assets/maps/${url}`;
+    console.log(name, url, assetPath);
     this.assetCache[n(name)] = {
       type: AssetType.SPRITE,
       promise: MapLoader.getInstance()

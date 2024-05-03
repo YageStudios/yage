@@ -25,7 +25,7 @@ QuickStart(
       return player;
     },
     preload: async () => {
-      await import("./components");
+      await import("./systems");
       const entityDefinitions = (await import("./entities")).default;
       EntityFactory.configureEntityFactory(entityDefinitions);
 

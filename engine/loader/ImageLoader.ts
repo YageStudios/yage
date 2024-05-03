@@ -39,6 +39,10 @@ export default class ImageLoader {
   private imageCache: { [key: string]: ImageObj } = {};
   private promises: Promise<ImageObj>[] = [];
 
+  get promise() {
+    return Promise.all(this.promises);
+  }
+
   loadImage(name: string, url: string, imageOptions?: Partial<ImageOptions>): Promise<ImageObj> {
     if (typeof window === "undefined") {
       // @ts-ignore
@@ -85,6 +89,7 @@ export default class ImageLoader {
     this.promises.push(loadPromise);
     loadPromise.then(() => {
       this.promises = this.promises.filter((p) => p !== loadPromise);
+      console.log("done");
     });
     return loadPromise;
   }

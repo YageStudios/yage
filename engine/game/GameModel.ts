@@ -402,14 +402,15 @@ export const GameModel = ({
       console.log(entityData);
     },
     createWorld: () => {
-      gameModel.worlds.push({
-        entities: new Set<number>(),
-        destroyed: false,
-        id: gameModel.worlds.length,
-      });
+      // gameModel.worlds.push({
+      //   entities: new Set<number>(),
+      //   destroyed: false,
+      //   id: gameModel.worlds.length,
+      // });
       return gameModel.worlds.length - 1;
     },
     changeWorld: (world: number, entity: number) => {
+      console.log(world, entity);
       const children = gameModel.getTyped(Parent, entity)?.children ?? [];
       for (let i = 0; i < children.length; i++) {
         gameModel.changeWorld(world, children[i]);
