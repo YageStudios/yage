@@ -1,4 +1,5 @@
 import { Component, defaultValue, Schema, type } from "minecs";
+import type { ComponentData } from "yage/systems/types";
 import { ComponentDataSchema } from "yage/systems/types";
 
 @Component()
@@ -7,7 +8,7 @@ export class SwapComponents extends Schema {
   swapComponents: string[] = [];
 
   @type([ComponentDataSchema])
-  swapData: ComponentDataSchema[] = [];
+  swapData: ComponentData[] = [];
 
   @type("boolean")
   @defaultValue(false)

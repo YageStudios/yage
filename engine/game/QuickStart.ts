@@ -48,8 +48,8 @@ export const QuickStart = async <T>(
 ) => {
   const timestep: SceneTimestep = "fixed";
 
-  const initializeTicker = (run: (dt: number) => void) => {
-    const ticker = new Ticker(timestep, 1000 / dt ?? 60);
+  const initializeTicker = (run: (dt?: number) => void) => {
+    const ticker = new Ticker(timestep, dt ? 1000 / dt : 60);
     ticker.add(run);
     return ticker;
   };
@@ -96,7 +96,7 @@ export const QuickStart = async <T>(
 
   await preload(UIService.getInstance());
 
-  const run = (dt: number) => {
+  const run = (dt?: number) => {
     instance.run();
   };
 

@@ -1,4 +1,7 @@
-const games = [["ball", () => import("./ball")]] as const;
+const games = [
+  ["map", () => import("./map")],
+  ["ball", () => import("./ball")],
+] as const;
 
 let found = false;
 for (const game of games) {

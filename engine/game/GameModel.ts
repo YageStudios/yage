@@ -27,6 +27,12 @@ import Description from "yage/schemas/core/Description";
 import { flags } from "yage/console/flags";
 import { EntityFactory } from "yage/entity/EntityFactory";
 import type { ComponentCategory } from "yage/constants/enums";
+import type { ComponentData } from "yage/systems/types";
+import { EntityType } from "yage/schemas/entity/Types";
+import { Parent } from "yage/schemas/entity/Parent";
+import { World as WorldSchema } from "yage/schemas/core/World";
+import { Transform } from "yage/schemas/entity/Transform";
+import { WorldSystem } from "yage/systems/core/World";
 
 export type GameModelState = {
   core: number;
@@ -34,6 +40,16 @@ export type GameModelState = {
   frame: number;
   world: SerializedWorld;
   physics: PhysicsSaveState;
+};
+
+export type EjectedEntity = {
+  entityType: string;
+  description: string;
+  entityId: number;
+  components: ComponentData[];
+  entities: number[];
+  children: { [key: number]: EjectedEntity };
+  hasChildren: boolean;
 };
 
 export type GameModel = World & {
@@ -47,11 +63,16 @@ export type GameModel = World & {
   destroyed: boolean;
   localNetIds: string[];
   currentWorld: number;
+  worlds: { entities: Set<number>; destroyed: boolean; id: number }[];
+  createWorld: () => number;
+  changeWorld: (world: number, entity: number) => void;
   step: (dt?: number) => void;
   getTypedUnsafe: <T extends Schema>(type: Constructor<T>, entity: number) => T;
   getTyped: <T extends Schema>(type: Constructor<T>, entity: number) => T | null;
   hasComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => boolean;
   getComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => T | any | null;
+  ejectComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => ComponentData | null;
+  ejectEntity: (entity: number) => EjectedEntity;
   addComponent: <T extends Schema>(
     type: Constructor<T> | string,
     entity: number,
@@ -59,7 +80,7 @@ export type GameModel = World & {
     reset?: boolean
   ) => void;
   getComponentActives: (type: string | typeof Schema) => number[];
-  getComponentSchemasByCategory: (category: number, entity?: number) => (typeof Schema)[];
+  getComponentsByCategory: (category: number, entity?: number) => (typeof Schema)[];
   removeComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => void;
   isActive: (entity: number) => boolean;
   getSystemsByType: (type: string, entity?: number) => SystemImpl<any>[];
@@ -129,7 +150,14 @@ export const GameModel = ({
     destroyed: false,
     players: [],
     localNetIds: [],
-    currentWorld: -1,
+    currentWorld: 0,
+    worlds: [
+      {
+        entities: new Set<number>(),
+        destroyed: false,
+        id: 0,
+      },
+    ] as { entities: Set<number>; destroyed: boolean; id: number }[],
     step: (dt?: number) => {
       gameModel.timeElapsed += dt || 16;
       stepWorld(gameModel);
@@ -169,6 +197,68 @@ export const GameModel = ({
     getTyped: <T extends Schema>(type: Constructor<T>, entity: number) => {
       if (hasComponent(world, type, entity)) {
         return world(type, entity);
+      }
+      return null;
+    },
+    ejectEntity: (entity: number, removeEjectedEntity = true): any => {
+      const data = {
+        entityType: gameModel(EntityType).store.entityType[entity],
+        description: gameModel.getTypedUnsafe(Description, entity)?.description ?? "",
+        entityId: entity,
+        components: [],
+        entities: [],
+        children: {},
+        hasChildren: false,
+      } as EjectedEntity;
+      const children = gameModel.getTypedUnsafe(Parent, entity)?.children ?? [];
+
+      for (let i = 0; i < children.length; i++) {
+        const childEntity = gameModel.ejectEntity(children[i], false);
+
+        data.entities.push(...childEntity.entities);
+        data.children[childEntity.entityId] = childEntity;
+      }
+
+      const components: ComponentData[] = [];
+
+      componentList.forEach((component) => {
+        if (hasComponent(world, component, entity)) {
+          const componentData = gameModel.ejectComponent(component, entity);
+          if (componentData) {
+            components.push(componentData);
+          }
+        }
+      });
+      data.components = components;
+      data.entities.push(entity);
+      data.entities = data.entities.filter((e: number) => gameModel.isActive(e));
+      if (removeEjectedEntity) {
+        gameModel.removeEntity(entity);
+      }
+      data.hasChildren = !!children.length;
+      return data;
+    },
+    ejectComponent: <T extends Schema>(type: Constructor<T> | string, entity: number): ComponentData | null => {
+      if (typeof type === "string") {
+        type = getComponentByType(type) as unknown as Constructor<T>;
+        if (!type) {
+          return null;
+        }
+      }
+      if (hasComponent(world, type, entity)) {
+        const component = world(type, entity);
+        // @ts-ignore
+        const { type: componentType, ...data } = component;
+        // @ts-ignore
+        if (component.ejecting !== undefined) {
+          // @ts-ignore
+          component.ejecting = true;
+        }
+        gameModel.removeComponent(type, entity);
+        return {
+          type: componentType,
+          data,
+        };
       }
       return null;
     },
@@ -252,7 +342,7 @@ export const GameModel = ({
     isActive: (entity: number) => {
       return entityExists(world, entity);
     },
-    getComponentSchemasByCategory: (category: number, entity?: number) => {
+    getComponentsByCategory: (category: number, entity?: number) => {
       if (entity !== undefined) {
         return componentList.filter(
           (component) => component.category === category && hasComponent(world, component, entity)
@@ -263,7 +353,14 @@ export const GameModel = ({
     getSystem: <T extends typeof SystemImpl<any>>(system: T) => {
       return getSystem(world, system);
     },
-    addEntity: () => addEntity(world),
+    addEntity: () => {
+      const entity = addEntity(world);
+      gameModel.worlds[gameModel.currentWorld].entities.add(entity);
+      gameModel.addComponent(WorldSchema, entity, {
+        world: gameModel.currentWorld,
+      });
+      return entity;
+    },
     removeEntity: (entity: number) => removeEntity(world, entity),
     serializeState(): GameModelState {
       const physicsSystem = this.getSystem(PhysicsSystem);
@@ -295,6 +392,28 @@ export const GameModel = ({
         }
       });
       console.log(entityData);
+    },
+    createWorld: () => {
+      gameModel.worlds.push({
+        entities: new Set<number>(),
+        destroyed: false,
+        id: gameModel.worlds.length,
+      });
+      return gameModel.worlds.length - 1;
+    },
+    changeWorld: (world: number, entity: number) => {
+      const children = gameModel.getTyped(Parent, entity)?.children ?? [];
+      for (let i = 0; i < children.length; i++) {
+        gameModel.changeWorld(world, children[i]);
+      }
+
+      gameModel.worlds[gameModel.getTypedUnsafe(WorldSchema, entity).world].entities.delete(entity);
+      gameModel.worlds[world].entities.add(entity);
+      gameModel(WorldSchema).store.world[entity] = world;
+      if (gameModel.hasComponent(Transform, entity)) {
+        const transform = gameModel.getTypedUnsafe(Transform, entity);
+        transform.x = getSystem(gameModel, WorldSystem).toWorldSpace(gameModel, entity, transform.x);
+      }
     },
   });
 
