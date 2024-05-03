@@ -1,26 +1,30 @@
-import { DEPTHS, registerSystem } from "yage/components/ComponentRegistry";
-import { ComponentCategory } from "yage/constants/enums";
+import { ComponentCategory, DEPTHS } from "yage/constants/enums";
 import type { GameModel } from "yage/game/GameModel";
 import { BaseTriggerSystem } from "./BaseTrigger";
-import { TimeTriggerSchema } from "yage/schemas/triggers/TimeTrigger";
+import { TimeTrigger } from "yage/schemas/triggers/TimeTrigger";
+import { System } from "minecs";
 
+@System(TimeTrigger)
 export class TimeTriggerSystem extends BaseTriggerSystem {
   type = "TimeTrigger";
   category: ComponentCategory = ComponentCategory.TRIGGER;
-  schema = TimeTriggerSchema;
   depth = DEPTHS.ITEMS + 10;
 
-  init(entity: number, gameModel: GameModel) {
-    const trigger = gameModel.getTypedUnsafe(entity, this.schema);
-    trigger.initialTime = gameModel.timeElapsed;
+  getTrigger(gameModel: GameModel, entity: number): TimeTrigger {
+    return gameModel.getTypedUnsafe(TimeTrigger, entity);
   }
 
-  shouldTrigger(entity: number, gameModel: GameModel): false | number[] {
-    if (!super.shouldTrigger(entity, gameModel)) {
+  init = (gameModel: GameModel, entity: number) => {
+    const trigger = this.getTrigger(gameModel, entity);
+    trigger.initialTime = gameModel.timeElapsed;
+  };
+
+  shouldTrigger(gameModel: GameModel, entity: number): false | number[] {
+    if (!super.shouldTrigger(gameModel, entity)) {
       console.log("not triggering time");
       return false;
     }
-    const trigger = gameModel.getComponent(entity, this.type) as TimeTriggerSchema;
+    const trigger = this.getTrigger(gameModel, entity);
 
     if (gameModel.timeElapsed - trigger.initialTime < trigger.value) {
       return false;
@@ -29,5 +33,3 @@ export class TimeTriggerSystem extends BaseTriggerSystem {
     return gameModel.players;
   }
 }
-
-registerSystem(TimeTriggerSystem);

@@ -89,6 +89,7 @@ export type GameModel = World & {
   removeEntity: (entity: number) => void;
   serializeState: () => any;
   destroy: () => void;
+  getEntityByDescription: (description: string) => number[] | undefined;
   logEntity: (entity: number, debugOverride?: boolean) => void;
   runMods: (
     entity: number | number[],
@@ -158,6 +159,13 @@ export const GameModel = ({
         id: 0,
       },
     ] as { entities: Set<number>; destroyed: boolean; id: number }[],
+    getEntityByDescription(description: string): number[] | undefined {
+      const entities = this.getComponentActives("Description");
+      return entities?.filter((entity) => {
+        const desc = this.getTypedUnsafe(Description, entity);
+        return desc.description === description;
+      });
+    },
     step: (dt?: number) => {
       gameModel.timeElapsed += dt || 16;
       stepWorld(gameModel);

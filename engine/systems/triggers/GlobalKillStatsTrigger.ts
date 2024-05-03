@@ -1,38 +1,31 @@
-import { DEPTHS, registerSystem } from "yage/components/ComponentRegistry";
-import type { System } from "yage/components/System";
-import { ComponentCategory } from "yage/components/types";
-import { EnemyTypeEnum } from "yage/constants/enums";
+import { ComponentCategory, DEPTHS, EnemyTypeEnum } from "yage/constants/enums";
 import type { GameModel } from "yage/game/GameModel";
-import { TransformSchema } from "yage/schemas/entity/Transform";
+import { Transform } from "yage/schemas/entity/Transform";
 import { TriggerEventSystem } from "./TriggerEvent";
-import { MapSpriteSchema } from "yage/schemas/render/MapSprite";
-import { SpriteSchema } from "yage/schemas/render/Sprite";
-import type { KillFrameSchema, KillStatsSchema } from "yage/schemas/player/KillStats";
-import { GlobalKillStatsTriggerSchema } from "yage/schemas/triggers/GlobalKillStatsTrigger";
-import { TriggerEventSchema } from "yage/schemas/triggers/TriggerEvent";
-import { WorldSchema } from "yage/schemas/core/World";
+import { PixiSprite } from "yage/schemas/render/PixiSprite";
+import { GlobalKillStats, type KillFrame } from "yage/schemas/player/KillStats";
+import { GlobalKillStatsTrigger } from "yage/schemas/triggers/GlobalKillStatsTrigger";
+import { TriggerEvent } from "yage/schemas/triggers/TriggerEvent";
+import { World } from "yage/schemas/core/World";
+import { System, SystemImpl } from "minecs";
 
-export class GlobalKillStatsTriggerSystem implements System {
-  type = "GlobalKillStatsTrigger";
-  category: ComponentCategory = ComponentCategory.TRIGGER;
-  schema = GlobalKillStatsTriggerSchema;
-  depth = DEPTHS.HEALTH + 2;
-  dependencies?: string[] | undefined;
+@System(GlobalKillStatsTrigger)
+export class GlobalKillStatsTriggerSystem extends SystemImpl<GameModel> {
+  static category: ComponentCategory = ComponentCategory.TRIGGER;
+  static depth = DEPTHS.HEALTH + 2;
 
-  runAll(gameModel: GameModel): void {
-    const entities = gameModel.getComponentActives(this.type);
+  runAll = (gameModel: GameModel) => {
+    const entities = this.query(gameModel);
     for (let i = 0; i < entities.length; i++) {
       const entity = entities[i];
-      gameModel.currentWorld = WorldSchema.store.world[entity];
+      gameModel.currentWorld = gameModel(World).store.world[entity];
 
-      const trigger = gameModel.getComponent(entity, this.type) as GlobalKillStatsTriggerSchema;
+      const trigger = gameModel.getTypedUnsafe(GlobalKillStatsTrigger, entity);
 
       if (trigger.disableOnHidden) {
-        let sprite; //gameModel.getTyped(entity, SpriteSchema);
-        if (gameModel.hasComponent(entity, "Sprite")) {
-          sprite = gameModel.getTyped(entity, SpriteSchema);
-        } else if (gameModel.hasComponent(entity, "MapSprite")) {
-          sprite = gameModel.getTyped(entity, MapSpriteSchema);
+        let sprite; //gameModel.getTyped(entity, Sprite);
+        if (gameModel.hasComponent(PixiSprite, entity)) {
+          sprite = gameModel.getTyped(PixiSprite, entity);
         } else {
           continue;
         }
@@ -42,8 +35,8 @@ export class GlobalKillStatsTriggerSystem implements System {
       for (let j = 0; j < gameModel.players.length; j++) {
         const playerId = gameModel.players[j];
 
-        let killFrame: KillFrameSchema | null = null;
-        const killStats = gameModel.getComponent(gameModel.coreEntity, "GlobalKillStats") as KillStatsSchema;
+        let killFrame: KillFrame | null = null;
+        const killStats = gameModel.getTypedUnsafe(GlobalKillStats, gameModel.coreEntity);
 
         const kills = killStats.kills[trigger.enemyType] || 0;
         const prevKills = killStats.previousStats.kills[trigger.enemyType] || 0;
@@ -60,15 +53,15 @@ export class GlobalKillStatsTriggerSystem implements System {
             let location = trigger.location;
             switch (trigger.locationType) {
               case "PLAYER":
-                location = { x: TransformSchema.store.x[playerId], y: TransformSchema.store.y[playerId] };
+                location = { x: gameModel(Transform).store.x[playerId], y: gameModel(Transform).store.y[playerId] };
                 break;
               case "FRAME":
                 location = killFrame.position;
                 break;
             }
-            const triggerEvent = gameModel.getTypedUnsafe(entity, TriggerEventSchema);
+            const triggerEvent = gameModel.getTypedUnsafe(TriggerEvent, entity);
             triggerEvent.location = location;
-            gameModel.getSystem(TriggerEventSystem).run(entity, gameModel);
+            gameModel.getSystem(TriggerEventSystem).run(gameModel, entity);
             trigger.triggerCount++;
 
             if (
@@ -82,7 +75,5 @@ export class GlobalKillStatsTriggerSystem implements System {
         }
       }
     }
-  }
+  };
 }
-
-registerSystem(GlobalKillStatsTriggerSystem);
