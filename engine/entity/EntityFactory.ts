@@ -37,8 +37,6 @@ export class EntityFactory {
   entityDefinitionStringMap = new Map<string, string>();
 
   constructor(entityDefinitions: FlexibleEntityDefinition[]) {
-    console.log("entity factory constructor!");
-
     let list = entityDefinitions.slice();
     let inheritanceFailureCount = 0;
     let inheritanceList: FlexibleEntityDefinition[] = [];

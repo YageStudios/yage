@@ -716,7 +716,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   generateFrameStack = (gameModel: GameModel, playerId: string, frame: number) => {
     const initalFrameOffset = this.frameOffset;
     const roomState = this.roomStates[gameModel.roomId];
-    console.error("GENERATING FRAME STACK");
+
     roomState.frameStack[playerId] = new Array(initalFrameOffset).fill({ keys: {} as any, frame: 0 }).map((_, ind) => {
       return {
         frame: frame + ind,
