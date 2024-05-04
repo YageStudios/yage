@@ -9,9 +9,8 @@ import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import { UIService } from "../ui/UIService";
 import { HistoryConnectionInstance } from "yage/connection/HistoryConnectionInstance";
 
-export const QuickStart = async <T>(
+export const QuickStart = async <T = null>(
   {
-    gameName = "QuickStart",
     roomId = "QuickStart",
     seed = "QuickStart",
     connection = "SINGLEPLAYER",
@@ -64,9 +63,6 @@ export const QuickStart = async <T>(
       return new HistoryConnectionInstance<T>(JSON.parse(localStorage.getItem("history") ?? "{}"));
     }
     if (connection === "SINGLEPLAYER") {
-      if (!playerConfig) {
-        throw new Error("Player config required");
-      }
       return new SingleplayerConnectionInstance<T>(inputManager, playerConfig);
     }
     throw new Error("Connection type not supported");
@@ -74,7 +70,6 @@ export const QuickStart = async <T>(
 
   const initializeGameInstance = (connection: ConnectionInstance<T>) => {
     return new GameInstance({
-      gameName: gameName,
       connection: connection,
       uiService: true,
       buildWorld,

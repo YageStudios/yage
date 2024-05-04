@@ -1,5 +1,5 @@
 import { InputManager } from "yage/inputs/InputManager";
-import type { HistoryStack } from "./CoreConnectionInstance";
+import type { ReplayStack } from "./CoreConnectionInstance";
 import { CoreConnectionInstance } from "./CoreConnectionInstance";
 import type { GameModel } from "yage/game/GameModel";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
@@ -8,8 +8,8 @@ import { detailedDiff } from "deep-object-diff";
 import { cloneDeep } from "lodash";
 
 export class HistoryConnectionInstance<T> extends CoreConnectionInstance<T> {
-  replayHistory: HistoryStack<T>;
-  constructor(history: HistoryStack<T>) {
+  replayHistory: ReplayStack<T>;
+  constructor(history: ReplayStack<T>) {
     super(
       {
         netId: Object.keys(history.configs)[0],
@@ -45,7 +45,7 @@ export class HistoryConnectionInstance<T> extends CoreConnectionInstance<T> {
 
           for (let j = gameModel.frame; j < this.replayHistory.frames[netId].length; ++j) {
             roomState.frameStack[netId].push({
-              ...this.replayHistory.frames[netId][j],
+              ...cloneDeep(this.replayHistory.frames[netId][j]),
               keys: new Map<string, boolean>(Object.entries(this.replayHistory.frames[netId][j].keys)),
             });
           }
@@ -56,16 +56,37 @@ export class HistoryConnectionInstance<T> extends CoreConnectionInstance<T> {
     return super.startFrame(gameModel);
   }
 
-  firstFrame = async (gameModel: GameModel, firstPlayerConfig: any) => {
-    console.log(cloneDeep(this.replayHistory.snapshots[300]));
-    const snapshot = this.replayHistory.snapshots[300];
-    // const serializedState = gameModel.linearSerializeState();
-    await gameModel.deserializeState(snapshot);
-    const serializedState = md5(JSON.stringify(snapshot));
-    this.stacked = false;
+  loadClosestFrame(gameModel: GameModel, frame: number) {
+    // find the closest snapshot
+    let closestSnapshot = 0;
 
-    console.log(serializedState);
-  };
+    Object.keys(this.replayHistory.snapshots).some((snap) => {
+      const snapKey = parseInt(snap, 10);
+      if (snapKey > frame) {
+        return true;
+      }
+      closestSnapshot = snapKey;
+    });
+
+    gameModel.deserializeState(cloneDeep(this.replayHistory.snapshots[closestSnapshot]));
+    this.stacked = false;
+    return closestSnapshot;
+  }
+
+  firstFrame(gameModel: GameModel, _firstPlayerConfig: any): void | Promise<void> {
+    return;
+  }
+
+  // firstFrame = async (gameModel: GameModel, firstPlayerConfig: any) => {
+  //   console.log(cloneDeep(this.replayHistory.snapshots[300]));
+  //   const snapshot = this.replayHistory.snapshots[300];
+  //   // const serializedState = gameModel.linearSerializeState();
+  //   await gameModel.deserializeState(snapshot);
+  //   const serializedState = md5(JSON.stringify(snapshot));
+  //   this.stacked = false;
+
+  //   console.log(serializedState);
+  // };
 
   endFrame(gameModel: GameModel) {
     // const stateHistoryHash = this.replayHistory.stateHashes.shift()!;

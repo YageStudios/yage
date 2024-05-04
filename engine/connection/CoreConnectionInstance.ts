@@ -17,7 +17,7 @@ export type Frame = { keys: KeyMap | { [key: string]: boolean }; frame: number; 
 
 export type FrameStack = { [playerId: string]: Frame[] };
 
-export type HistoryStack<T> = {
+export type ReplayStack<T> = {
   seed: string;
   frames: FrameStack;
   configs: { [playerId: string]: T | undefined };
@@ -79,7 +79,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   players: PlayerConnection<T>[] = [];
   localPlayers: PlayerConnection<T>[] = [];
 
-  history: HistoryStack<T> = {
+  history: ReplayStack<T> = {
     seed: "",
     frames: {},
     configs: {},
@@ -115,7 +115,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     if (!Array.isArray(player)) {
       player = [player];
     }
-    this.history.configs[player[0].netId] = player[0].config;
+    this.history.configs[player[0].netId] = player[0].config ?? ({} as any);
 
     for (let i = 0; i < player.length; ++i) {
       const playerConnection = {
@@ -615,7 +615,12 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     return roomState.gameModel;
   }
 
-  firstFrame(_gameModel: GameModel, _firstPlayerConfig: any): void | Promise<void> {
+  firstFrame(gameModel: GameModel, _firstPlayerConfig: any): void | Promise<void> {
+    const state = gameModel.serializeState();
+    const serializedState = md5(JSON.stringify(state));
+    this.history.stateHashes[gameModel.frame] = serializedState;
+    this.history.snapshots[gameModel.frame] = state;
+
     return;
   }
 

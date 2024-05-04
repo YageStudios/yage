@@ -1,6 +1,6 @@
 import type { ConnectionInstance } from "yage/connection/ConnectionInstance";
 import type { GameModel } from "./GameModel";
-import { UIService } from "yage/ui/UIService";
+import type { UIService } from "yage/ui/UIService";
 import { flags } from "yage/console/flags";
 import type { AchievementService } from "yage/achievements/AchievementService";
 import { stepWorldDraw } from "minecs";
@@ -8,7 +8,6 @@ import Ticker from "./Ticker";
 import type { SceneTimestep } from "./Scene";
 
 export type GameInstanceOptions<T> = {
-  gameName: string;
   connection: ConnectionInstance<T>;
   uiService: boolean | UIService;
   seed?: string;
@@ -21,21 +20,15 @@ export type GameInstanceOptions<T> = {
 export class GameInstance<T> {
   public gameModel: GameModel;
   public achievementService: AchievementService;
-  private uiService?: UIService;
+  protected dt = 16;
 
-  private lastTime = 0;
-  private dt = 16;
-
-  private ticker: Ticker;
-  private timestep: Readonly<SceneTimestep> = "fixed";
-  private targetFPS: number = 60;
+  protected ticker: Ticker;
+  protected timestep: Readonly<SceneTimestep> = "fixed";
+  protected targetFPS: number = 60;
 
   render30Fps: boolean;
 
   constructor(public options: GameInstanceOptions<T>) {
-    if (options.uiService) {
-      this.uiService = options.uiService === true ? UIService.getInstance() : options.uiService;
-    }
     this.achievementService = options.achievementService ?? {
       registerAchievement: () => {},
       flush: async () => {},
@@ -95,7 +88,7 @@ export class GameInstance<T> {
     ticker.start();
   }
 
-  private async join(roomId: string, seed?: string, playerConfig?: T, coreOverrides?: { [key: string]: any }) {
+  protected async join(roomId: string, seed?: string, playerConfig?: T, coreOverrides?: { [key: string]: any }) {
     if (!this.options.connection.player.connected) {
       throw new Error("Player not connected");
     }
@@ -134,10 +127,8 @@ export class GameInstance<T> {
       if (this.options.connection.startFrame(this.gameModel) === false) {
         return;
       }
-      const dt = this.dt;
-      this.lastTime = performance.now();
 
-      this.gameModel.step(dt);
+      this.gameModel.step(this.dt);
 
       if (this.gameModel.destroyed) {
         console.log("destroyed");
@@ -147,7 +138,6 @@ export class GameInstance<T> {
       if (!flags.FPS_30 || this.gameModel.frame % 2 === 0) {
         stepWorldDraw(this.gameModel);
       }
-      this.gameModel.timeElapsed += dt;
 
       this.options.connection.endFrame(this.gameModel);
     } catch (e) {

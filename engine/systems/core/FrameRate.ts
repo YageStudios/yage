@@ -2,6 +2,7 @@ import { UIService } from "yage/ui/UIService";
 import { ComponentCategory } from "../types";
 import type { GameModel, ReadOnlyGameModel } from "yage/game/GameModel";
 import { FrameRate, Frame, FrameEnd } from "yage/schemas/core/FrameRate";
+import type { QueryInstance } from "minecs";
 import { DrawSystemImpl, System, SystemImpl } from "minecs";
 import { DEPTHS } from "yage/constants/enums";
 import type { UIElement } from "yage/ui/UIElement";
@@ -93,7 +94,7 @@ export class RenderFramerateSystem extends DrawSystemImpl<ReadOnlyGameModel> {
   uiService: UIService;
   uiMap: UiMap;
 
-  constructor(query: (gameModel: ReadOnlyGameModel) => number[]) {
+  constructor(query: QueryInstance) {
     super(query);
     this.uiService = UIService.getInstance();
   }
