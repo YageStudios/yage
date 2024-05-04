@@ -2,8 +2,6 @@ import type { ConnectionInstance } from "../connection/ConnectionInstance";
 import { SingleplayerConnectionInstance } from "../connection/SingleplayerConnectionInstance";
 import { GameInstance } from "./GameInstance";
 import type { GameModel } from "./GameModel";
-import type { SceneTimestep } from "./Scene";
-import Ticker from "./Ticker";
 import { InputManager } from "../inputs/InputManager";
 import { KeyboardListener } from "../inputs/KeyboardListener";
 import AssetLoader from "../loader/AssetLoader";
@@ -17,7 +15,7 @@ export const QuickStart = async <T>(
     roomId = "QuickStart",
     seed = "QuickStart",
     connection = "SINGLEPLAYER",
-    buildWorld = (gameModel: GameModel, firstPlayerConfig: T) => {},
+    buildWorld = () => {},
     onPlayerJoin,
     onPlayerLeave = (gameModel: GameModel, playerId: string) => {
       const players = gameModel.getComponentActives("PlayerInput");
@@ -29,7 +27,6 @@ export const QuickStart = async <T>(
         gameModel.removeEntity(player);
       }
     },
-    dt = 16,
     preload = async () => {
       await AssetLoader.getInstance().load();
     },
@@ -46,14 +43,6 @@ export const QuickStart = async <T>(
   },
   playerConfig?: T
 ) => {
-  const timestep: SceneTimestep = "fixed";
-
-  const initializeTicker = (run: (dt?: number) => void) => {
-    const ticker = new Ticker(timestep, dt ? 1000 / dt : 60);
-    ticker.add(run);
-    return ticker;
-  };
-
   let inputManager: InputManager;
   const unsubscribes: (() => void)[] = [];
 
@@ -72,7 +61,7 @@ export const QuickStart = async <T>(
       return connection;
     }
     if (connection === "REPLAY") {
-      return new HistoryConnectionInstance<T>(JSON.parse(localStorage.getItem("history")!));
+      return new HistoryConnectionInstance<T>(JSON.parse(localStorage.getItem("history") ?? "{}"));
     }
     if (connection === "SINGLEPLAYER") {
       if (!playerConfig) {
@@ -96,21 +85,11 @@ export const QuickStart = async <T>(
 
   await preload(UIService.getInstance());
 
-  const run = (dt?: number) => {
-    instance.run();
-  };
-
-  const ticker = initializeTicker(run);
-
   initializeInputManager();
 
   if (typeof connection === "string") {
     connection = initializeConnection(connection, playerConfig);
   }
-
   const instance: GameInstance<T> = initializeGameInstance(connection);
-
   instance.initializeRoom(roomId, seed);
-
-  ticker.start();
 };
