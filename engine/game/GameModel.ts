@@ -16,6 +16,7 @@ import {
   removeEntity,
   stepWorldDraw,
   serializeWorld,
+  deserializeWorld,
   SerialMode,
 } from "minecs";
 import { Random } from "yage/schemas/core/Random";
@@ -87,7 +88,8 @@ export type GameModel = World & {
   getSystem: <T extends typeof SystemImpl<any>>(system: T) => InstanceType<T>;
   addEntity: () => number;
   removeEntity: (entity: number) => void;
-  serializeState: () => any;
+  serializeState: () => GameModelState;
+  deserializeState: (state: GameModelState) => Promise<void>;
   destroy: () => void;
   getEntityByDescription: (description: string) => number[] | undefined;
   logEntity: (entity: number, debugOverride?: boolean) => void;
@@ -384,6 +386,18 @@ export const GameModel = ({
         world: serializeWorld(SerialMode.JSON, world),
         physics: physicsSystem.save(),
       };
+    },
+    deserializeState: async (state: GameModelState) => {
+      gameModel.coreEntity = state.core;
+      gameModel.timeElapsed = state.timeElapsed;
+      gameModel.frame = state.frame;
+
+      deserializeWorld(state.world, world);
+
+      const physicsSystem = getSystem(gameModel, PhysicsSystem);
+      physicsSystem.init(gameModel, state.core);
+      physicsSystem.getEngine?.(gameModel);
+      await physicsSystem.restore(state.physics);
     },
     destroy: () => {
       gameModel.destroyed = true;
