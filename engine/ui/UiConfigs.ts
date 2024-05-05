@@ -5,7 +5,7 @@ import type { ButtonConfig } from "./Button";
 import { Button } from "./Button";
 import type { ImageBoxConfig } from "./ImageBox";
 import { ImageBox } from "./ImageBox";
-import type { Position} from "./Rectangle";
+import type { Position } from "./Rectangle";
 import type { TextConfig } from "./Text";
 import { Text } from "./Text";
 import type { TextInputConfig } from "./TextInput";
