@@ -1,5 +1,5 @@
 import type { ComponentData } from "../systems/types";
-import { EnemyTypeEnum, EntityType } from "../constants/enums";
+import { EnemyTypeEnum, EntityTypeEnum } from "../constants/enums";
 import type { GameModel } from "yage/game/GameModel";
 import { clone } from "yage/utils/clone";
 import { StringToEnum } from "yage/utils/typehelpers";
@@ -225,11 +225,11 @@ export class EntityFactory {
     return data;
   }
 
-  getEntityType = (entityName: string): EntityType => {
+  getEntityType = (entityName: string): EntityTypeEnum => {
     try {
-      const entityType = StringToEnum<EntityType>(
+      const entityType = StringToEnum<EntityTypeEnum>(
         this.entityDefinitionMap.get(entityName.toLowerCase())?.type || "",
-        EntityType
+        EntityTypeEnum
       );
       if (!entityType) {
         throw new Error(`Could not find entity type for ${entityName}`);
@@ -392,7 +392,7 @@ export class EntityFactory {
   generateComponents = (definition: EntityDefinition): EntityComponentDTO => {
     const components: ComponentData[] = definition.components ?? [];
 
-    const type = StringToEnum<EntityType>(definition.type, EntityType) ?? EntityType.ENTITY;
+    const type = StringToEnum<EntityTypeEnum>(definition.type, EntityTypeEnum) ?? EntityTypeEnum.ENTITY;
 
     const mapComponent = (name: string, data: any) => {
       const component = {
@@ -404,8 +404,8 @@ export class EntityFactory {
       }
     };
 
-    if (type === EntityType.PLAYER) {
-      mapComponent("EntityType", { type: "EntityType", entityType: EntityType.ALLY });
+    if (type === EntityTypeEnum.PLAYER) {
+      mapComponent("EntityType", { type: "EntityType", entityType: EntityTypeEnum.ALLY });
     } else {
       mapComponent("EntityType", { type: "EntityType", entityType: type });
     }
@@ -416,14 +416,14 @@ export class EntityFactory {
     });
 
     switch (type) {
-      case EntityType.PLAYER:
+      case EntityTypeEnum.PLAYER:
         mapComponent("PlayerType", { type: "PlayerType" });
         mapComponent("AllyType", { type: "AllyType" });
         break;
-      case EntityType.ALLY:
+      case EntityTypeEnum.ALLY:
         mapComponent("AllyType", { type: "AllyType" });
         break;
-      case EntityType.ENEMY: {
+      case EntityTypeEnum.ENEMY: {
         const enemyType = EnemyTypeEnum.U_DEF;
         mapComponent("EnemyType", {
           type: "EnemyType",
@@ -431,25 +431,25 @@ export class EntityFactory {
         });
         break;
       }
-      case EntityType.ALTAR:
+      case EntityTypeEnum.ALTAR:
         mapComponent("AltarType", { type: "AltarType" });
         break;
-      case EntityType.PICKUP:
+      case EntityTypeEnum.PICKUP:
         mapComponent("PickupType", { type: "PickupType" });
         break;
-      case EntityType.PROJECTILE:
+      case EntityTypeEnum.PROJECTILE:
         mapComponent("ProjectileType", { type: "ProjectileType" });
         break;
-      case EntityType.INTERACTABLE:
+      case EntityTypeEnum.INTERACTABLE:
         mapComponent("InteractableType", { type: "InteractableType" });
         break;
-      case EntityType.WALL:
+      case EntityTypeEnum.WALL:
         mapComponent("WallType", { type: "WallType" });
         break;
-      case EntityType.DOOR:
+      case EntityTypeEnum.DOOR:
         mapComponent("DoorType", { type: "DoorType" });
         break;
-      case EntityType.WEAPON:
+      case EntityTypeEnum.WEAPON:
         // mapComponent("WeaponType", { type: "WeaponType" });
         break;
     }
