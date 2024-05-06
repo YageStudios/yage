@@ -1,13 +1,13 @@
 {
   type: "Player",
-  name: "Ball",
+  name: "ball",
   children: ["child-ball"],
   components: [
     "PlayerInput",
     "PlayerMovement",
     {
       type: "CollisionFilters",
-      filters: ["enum:EntityType.ENEMY"],
+      filters: ["enum:EntityTypeEnum.ENEMY"],
     },
     {
       type: "PixiGraphic",
