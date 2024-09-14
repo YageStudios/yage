@@ -1,0 +1,124 @@
+{
+  "name": "yage",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/*.js"
+    },
+    "./achievements/*": {
+      "import": "./dist/achievements/*.js"
+    },
+    "./components/*": {
+      "import": "./dist/components/*.js"
+    },
+    "./components": {
+      "import": "./dist/components/index.js"
+    },
+    "./connection/*": {
+      "import": "./dist/connection/*.js"
+    },
+    "./console/*": {
+      "import": "./dist/console/*.js"
+    },
+    "./constants/*": {
+      "import": "./dist/constants/*.js"
+    },
+    "./constants/": {
+      "import": "./dist/constants/index.js"
+    },
+    "./decorators/*": {
+      "import": "./dist/decorators/*.js"
+    },
+    "./entity/*": {
+      "import": "./dist/entity/*.js"
+    },
+    "./game/*": {
+      "import": "./dist/game/*.js"
+    },
+    "./inputs/*": {
+      "import": "./dist/inputs/*.js"
+    },
+    "./loader/*": {
+      "import": "./dist/loader/*.js"
+    },
+    "./persist/*": {
+      "import": "./dist/persist/*.js"
+    },
+    "./schemas/*": {
+      "import": "./dist/schemas/*.js"
+    },
+    "./schemas": {
+      "import": "./dist/schemas/index.js"
+    },
+    "./types/*": {
+      "import": "./dist/types/*.js"
+    },
+    "./ui/*": {
+      "import": "./dist/ui/*.js"
+    },
+    "./utils/*": {
+      "import": "./dist/utils/*.js"
+    },
+    "./vendor/*": {
+      "import": "./dist/vendor/*.js"
+    },
+    "./style.css": "./dist/style.css"
+  },
+  "scripts": {
+    "dev": "vite",
+    "lint": "eslint --ext .ts ./src ./engine",
+    "build:watch": "nodemon --watch engine --exec \"npm run build\" --ext ts",
+    "tsc": "tsc --noEmit",
+    "test": "vitest",
+    "examples": "vite examples",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "pretty": "prettier --write \"./**/*.{js,jsx,json,ts}\""
+  },
+  "devDependencies": {
+    "@rollup/pluginutils": "^5.1.0",
+    "@types/lodash": "^4.17.0",
+    "@types/ndarray": "^1.0.11",
+    "@types/seedrandom": "^3.0.2",
+    "@types/toastify-js": "^1.12.3",
+    "@types/toposort": "^2.0.3",
+    "@typescript-eslint/eslint-plugin": "^5.55.0",
+    "@typescript-eslint/parser": "^5.55.0",
+    "eslint": "^8.36.0",
+    "eslint-plugin-unused-imports": "^2.0.0",
+    "json5": "^2.2.3",
+    "nodemon": "^3.0.2",
+    "prettier": "^2.8.0",
+    "typescript": "^5.0.2",
+    "vite": "^5.2.10",
+    "vite-plugin-dts": "^3.6.4"
+  },
+  "dependencies": {
+    "@dimforge/rapier2d-compat": "^0.12.0",
+    "@json-editor/json-editor": "^2.9.0-beta.0",
+    "@pixi/sound": "^5.2.3",
+    "@types/ws": "^8.5.10",
+    "ajv": "^8.12.0",
+    "deep-object-diff": "^1.1.9",
+    "js-base64": "^3.7.7",
+    "l1-path-finder": "^1.0.0",
+    "lodash": "^4.17.21",
+    "minecs": "^0.0.5",
+    "nanoid": "^5.0.2",
+    "ndarray": "^1.0.19",
+    "peerjs": "^1.5.1",
+    "pixi-spine": "^4.0.4",
+    "pixi-viewport": "^5.1.0",
+    "pixi.js": "^7.3.2",
+    "poly-decomp": "^0.3.0",
+    "seedrandom": "^3.0.5",
+    "socket.io-client": "^4.7.2",
+    "toastify-js": "^1.12.0",
+    "toposort": "^2.0.2",
+    "url": "^0.11.0",
+    "vitest": "^1.5.2",
+    "ws": "^8.16.0"
+  }
+}

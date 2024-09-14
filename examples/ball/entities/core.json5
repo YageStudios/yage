@@ -1,0 +1,21 @@
+{
+  name: "core",
+  components: [
+    "Sounds",
+    "FrameRate",
+    "PixiViewport",
+    "Collisions",
+    {
+      type: "Physics",
+      gravityX: 0,
+      gravityY: 0,
+    },
+  ],
+  assets: [
+    {
+      type: "sound",
+      key: "ding",
+      url: "ding.mp3",
+    },
+  ],
+}
