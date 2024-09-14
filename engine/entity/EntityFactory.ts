@@ -110,6 +110,9 @@ export class EntityFactory {
             case "map":
               AssetLoader.getInstance().loadMap(asset.key, asset.url);
               break;
+            case "mapskin":
+              AssetLoader.getInstance().loadMapSkin(asset.key, asset.url);
+              break;
           }
         });
       }

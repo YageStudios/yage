@@ -41,7 +41,7 @@ const getEntityController = (gameModel: GameModel, entity: number) => {
   return entity;
 };
 
-@System(MapSpawn, Transform, MapSession)
+@System(MapSpawn, Transform)
 export class MapSpawnSystem extends SystemImpl<GameModel> {
   static depth = -1;
   static category: ComponentCategory = ComponentCategory.MAP;
@@ -73,7 +73,7 @@ export class MapSpawnSystem extends SystemImpl<GameModel> {
       mapId = EntityFactory.getInstance().generateEntity(gameModel, mapSpawn.map);
     }
     const worldId = gameModel(World).store.world[mapId];
-    gameModel.changeWorld(getEntityController(gameModel, entity), worldId);
+    gameModel.changeWorld(worldId, getEntityController(gameModel, entity));
     gameModel.currentWorld = worldId;
 
     mapSpawn.mapId = mapId;
