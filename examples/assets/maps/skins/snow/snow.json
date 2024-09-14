@@ -13,7 +13,8 @@
     "snow_1_corner_NW",
     "snow_1_corner_SE",
     "snow_1_corner_SW",
-    "snow_1_floor"
+    "snow_1_floor",
+    "snow_1_quadwall"
   ],
   "floor": {
     "baseColor": "#56655E",

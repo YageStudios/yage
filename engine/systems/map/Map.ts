@@ -88,13 +88,29 @@ export class MapSystem extends SystemImpl<GameModel> {
     if (!spawnTrigger) {
       throw new Error(`Spawn point ${spawnPoint} not found`);
     }
-    const worldPos = toWorldSpace(spawnTrigger, map.scale * 640);
-    return skinData.floor.isometric ? fromWorldSpace(worldPos) : worldPos;
+
+    // Calculate the spawn position based on isometric or non-isometric layout
+    let spawnPosition;
+    if (skinData.floor.isometric) {
+      // For isometric layout
+      const isoX = (spawnTrigger.x - spawnTrigger.y) * Math.cos(Math.PI / 4) * Math.SQRT2;
+      const isoY = (spawnTrigger.x + spawnTrigger.y) * Math.sin(Math.PI / 4) * 0.5 * Math.SQRT2;
+      spawnPosition = { x: isoX, y: isoY };
+    } else {
+      // For non-isometric layout
+      spawnPosition = { x: spawnTrigger.x, y: spawnTrigger.y };
+    }
+
+    // Scale the position
+    const scaledPosition = scaleVector2d(spawnPosition, map.scale * 640);
+
+    return scaledPosition;
   }
 
   processTriggers(gameModel: GameModel, mapId: number) {
     const map = gameModel.getTypedUnsafe(Map, mapId);
     const mapData = AssetLoader.getInstance().getMap(map.map);
+    const skinData = AssetLoader.getInstance().getMapSkin(map.skin);
     const triggers = mapData.triggers as SBGameTrigger[];
 
     // console.log(triggers);
@@ -108,10 +124,26 @@ export class MapSystem extends SystemImpl<GameModel> {
           mapId,
         },
       };
+
+      // Calculate the trigger position based on isometric or non-isometric layout
+      let triggerPosition;
+      if (skinData.floor.isometric) {
+        // For isometric layout
+        const isoX = (trigger.x - trigger.y) * Math.cos(Math.PI / 4) * Math.SQRT2;
+        const isoY = (trigger.x + trigger.y) * Math.sin(Math.PI / 4) * 0.5 * Math.SQRT2;
+        triggerPosition = { x: isoX, y: isoY };
+      } else {
+        // For non-isometric layout
+        triggerPosition = { x: trigger.x, y: trigger.y };
+      }
+
+      // Scale the position
+      const scaledPosition = scaleVector2d(triggerPosition, map.scale * 640);
+
       const triggerEvent: TriggerEvent = {
         event: trigger.type,
         name: trigger.properties?.trigger?.name ?? trigger.name,
-        location: scaleVector2d(toWorldSpace(trigger), map.scale * 640),
+        location: scaledPosition,
         overrideProperties: overrideProperties,
         components: trigger.components,
         width: trigger.width * map.scale,
@@ -119,10 +151,12 @@ export class MapSystem extends SystemImpl<GameModel> {
         triggerEntities: [],
         count: 0,
       };
+
       if (trigger.type === "CAMERABOUNDARY") {
         triggerEvent.width = scaleVector2d({ x: trigger.width, y: 0 }, map.scale * 640).x;
         triggerEvent.height = scaleVector2d({ x: 0, y: trigger.height }, map.scale * 640).y;
       }
+      
       if (trigger.condition.type && trigger.condition.type !== "NONE") {
         const triggerEntity = gameModel.addEntity();
         gameModel.addComponent(MapId, triggerEntity, {
@@ -228,6 +262,7 @@ export class MapSystem extends SystemImpl<GameModel> {
 
     const mapArray = ndarray<any[]>(new Array(width * 20 * height * 20).fill(0), [width * 20, height * 20]);
     const worldOffset = gameModel.currentWorld * WORLD_WIDTH;
+    const size = 640 * map.scale;
 
     this.collisionBodies[entity] = [];
 
@@ -238,11 +273,10 @@ export class MapSystem extends SystemImpl<GameModel> {
         map.tileOffsets[tileId * 2 + 1] = 0;
         const tile = data[tileId];
 
-        const size = 640 * map.scale;
         let x, y;
         if (skinData.floor.isometric) {
           x = (i - j) * size;
-          y = ((i + j) * size) / 2;
+          y = ((i + j) * size) / 2 ;
         } else {
           x = i * size;
           y = j * size;
@@ -330,6 +364,9 @@ export class MapSystem extends SystemImpl<GameModel> {
                 console.error("Failed to create convex hull for ellipse");
               }
             } else {
+              if (object.width === 0 || object.height === 0) {
+                return;
+              }
               // Handle rectangle (default case when neither polygon nor ellipse is specified)
               let vertices = [
                 { x: object.x, y: object.y },

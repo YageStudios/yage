@@ -13,7 +13,8 @@
     "dungeon-2d_corner_NW",
     "dungeon-2d_corner_SE",
     "dungeon-2d_corner_SW",
-    "dungeon-2d_floor"
+    "dungeon-2d_floor",
+    "dungeon-2d_quadwall"
   ],
   "floor": {
     "baseColor": "#56655E",
