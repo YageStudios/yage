@@ -4,6 +4,8 @@ import { UIService } from "yage/ui/UIService";
 import { flags } from "yage/console/flags";
 import type { AchievementService } from "yage/achievements/AchievementService";
 import { stepWorldDraw } from "minecs";
+import Ticker from "./Ticker";
+import type { SceneTimestep } from "./Scene";
 
 export type GameInstanceOptions<T> = {
   gameName: string;
@@ -23,6 +25,11 @@ export class GameInstance<T> {
 
   private lastTime = 0;
   private dt = 16;
+
+  private ticker: Ticker;
+  private timestep: Readonly<SceneTimestep> = "fixed";
+  private targetFPS: number = 60;
+
   render30Fps: boolean;
 
   constructor(public options: GameInstanceOptions<T>) {
@@ -78,6 +85,14 @@ export class GameInstance<T> {
 
       this.gameModel = gameModel;
     }
+
+    if (this.ticker) {
+      this.ticker.stop();
+    }
+    const ticker = new Ticker(this.timestep, this.targetFPS);
+    ticker.add(() => this.run());
+
+    ticker.start();
   }
 
   private async join(roomId: string, seed?: string, playerConfig?: T, coreOverrides?: { [key: string]: any }) {
