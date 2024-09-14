@@ -68,7 +68,7 @@ export enum SoundType {
   AMBIENT,
 }
 
-export enum EntityType {
+export enum EntityTypeEnum {
   ENTITY,
   ENEMY,
   ALTAR,

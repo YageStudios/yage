@@ -1,4 +1,4 @@
-import { EnemyTypeEnum, EntityType as EntityTypeEnum, WeaponTypeEnum } from "yage/constants/enums";
+import { EnemyTypeEnum, EntityTypeEnum, WeaponTypeEnum } from "yage/constants/enums";
 import { Component, defaultValue, Schema, type } from "minecs";
 import { ComponentCategory } from "yage/systems/types";
 
