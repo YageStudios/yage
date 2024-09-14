@@ -299,7 +299,16 @@ following conditions.
           Measures to, Adapted Material that restrict exercise of the
           rights granted under the Adapter's License You apply.
 
+   c. Prohibition for Use in AI Software
 
+      The Covered Software and any modifications made to it may not be used
+      for the purpose of training or improving machine learning algorithms,
+      including but not limited to artificial intelligence, natural language
+      processing, or data mining. This condition applies to any derivatives,
+      modifications, or updates based on the Covered Software code. Any usage
+      of the Covered Software in an AI-training dataset is considered a breach
+      of this License.
+      
 Section 4 -- Sui Generis Database Rights.
 
 Where the Licensed Rights include Sui Generis Database Rights that
