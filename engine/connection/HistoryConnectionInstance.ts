@@ -60,7 +60,7 @@ export class HistoryConnectionInstance<T> extends CoreConnectionInstance<T> {
     console.log(cloneDeep(this.replayHistory.snapshots[300]));
     const snapshot = this.replayHistory.snapshots[300];
     // const serializedState = gameModel.linearSerializeState();
-    // await gameModel.deserializeState(snapshot);
+    await gameModel.deserializeState(snapshot);
     const serializedState = md5(JSON.stringify(snapshot));
     this.stacked = false;
 
