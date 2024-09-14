@@ -59,7 +59,8 @@ export class AnimateSystem extends SystemImpl<GameModel> {
             const overrides: any = {
               Child: { parent: entity },
             };
-            for (let i = 0; i < animation.spawnChildOnComplete.overrideComponents?.length ?? 0; i++) {
+            const length = animation.spawnChildOnComplete.overrideComponents?.length ?? 0;
+            for (let i = 0; i < length; i++) {
               const override = animation.spawnChildOnComplete.overrideComponents[i];
               overrides[override.type] = override.data;
             }

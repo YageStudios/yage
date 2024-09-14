@@ -1,0 +1,30 @@
+{
+  name: "core",
+  components: [
+    "Random",
+    "Sounds",
+    {
+      type: "FrameRate",
+      uiMap: "core/FrameRate",
+    },
+    "PixiViewport",
+    "Collisions",
+    {
+      type: "Physics",
+      gravityX: 0,
+      gravityY: 0,
+    },
+  ],
+  assets: [
+    {
+      type: "sound",
+      key: "ding",
+      url: "ding.mp3",
+    },
+    {
+      type: "ui",
+      key: "core/FrameRate",
+      url: "core/FrameRate.json5",
+    },
+  ],
+}

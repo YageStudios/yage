@@ -1,0 +1,25 @@
+{
+  type: "Map",
+  name: "Intro",
+  components: [
+    {
+      type: "Map",
+      map: "levels/intro",
+      skin: "dungeon-2d",
+      scale: 1,
+    },
+  ],
+  assets: [
+    {
+      type: "map",
+      mapType: "overview",
+      key: "levels/intro",
+      url: "levels/intro.json",
+    },
+    {
+      type: "mapskin",
+      key: "dungeon-2d",
+      url: "skins/dungeon-2d/dungeon.json",
+    },
+  ],
+}

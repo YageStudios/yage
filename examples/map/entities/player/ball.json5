@@ -1,0 +1,47 @@
+{
+  type: "Player",
+  name: "Ball",
+  components: [
+    "PlayerInput",
+    "PlayerMovement",
+    "SelfCamera",
+    {
+      type: "PixiGraphic",
+      fillColor: "#ff0000",
+      circle: {
+        x: 5,
+        y: 5,
+        radius: 5,
+      },
+    },
+    {
+      type: "MapSpawn",
+      location: "Spawn Point",
+      map: "intro",
+    },
+    {
+      type: "Radius",
+      radius: 5,
+    },
+    {
+      type: "Sprite",
+      imageKey: "character::ranger",
+      scale: 0.5,
+      zIndex: 0,
+      faceDirection: "enum:FaceDirectionEnum.HORIZONTAL",
+    },
+    {
+      type: "RigidCircle",
+      collisionCategory: "enum:CollisionCategoryEnum.ALLY",
+      collisionMask: ["enum:CollisionCategoryEnum.ALL"],
+      mass: 200,
+      collisionEvents: true,
+    },
+    "Transform",
+    {
+      type: "Locomotion",
+      speed: 10,
+    },
+  ],
+  assets: [{ type: "image", key: "character::ranger", url: "Ranger.png" }],
+}
