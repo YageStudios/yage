@@ -7,7 +7,7 @@
       map: "levels/intro",
       // skin: "dungeon-2d",
       skin: "snow_1",
-      scale: 2,
+      scale: 1,
     },
   ],
   assets: [

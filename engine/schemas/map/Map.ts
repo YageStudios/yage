@@ -31,6 +31,10 @@ export class Map extends Schema {
   shouldUpdatePath: boolean;
 }
 
+@Component("MapIsometric")
+export class MapIsometric extends Schema {}
+
+
 export type SBGameTrigger = GameTrigger & {
   type:
     | "ENTITY"

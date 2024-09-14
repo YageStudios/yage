@@ -28,7 +28,7 @@ import RAPIER from "@dimforge/rapier2d-compat";
 import polyDecomp from "poly-decomp";
 import MapLoader from "yage/loader/MapLoader";
 import type { SBGameTrigger } from "yage/schemas/map/Map";
-import { Map } from "yage/schemas/map/Map";
+import { Map, MapIsometric } from "yage/schemas/map/Map";
 import { AtLocationTrigger } from "yage/schemas/triggers/AtLocationTrigger";
 import { GlobalKillStatsTrigger } from "yage/schemas/triggers/GlobalKillStatsTrigger";
 import { KillStatsTrigger } from "yage/schemas/triggers/KillStatsTrigger";
@@ -241,6 +241,7 @@ export class MapSystem extends SystemImpl<GameModel> {
     const map = gameModel.getTypedUnsafe(Map, entity);
 
     this.updatePathFinder(gameModel, entity, this.generateMapArray(gameModel, entity));
+    
     map.shouldUpdatePath = false;
 
     this.processTriggers(gameModel, entity);
@@ -250,12 +251,19 @@ export class MapSystem extends SystemImpl<GameModel> {
     const map = gameModel.getTypedUnsafe(Map, entity);
     const mapData = AssetLoader.getInstance().getMap(map.map);
     const skinData = AssetLoader.getInstance().getMapSkin(map.skin);
+    
 
     const height = mapData.source.height;
     const width = mapData.source.width;
     const data = mapData.map.data;
     const physicsSystem = gameModel.getSystem(PhysicsSystem);
     const engine = physicsSystem.getEngine(gameModel);
+
+    if (skinData.floor.isometric) {
+      gameModel.addComponent(MapIsometric, gameModel.coreEntity);
+    } else {
+      gameModel.removeComponent(MapIsometric, gameModel.coreEntity);
+    }
 
     map.width = width;
     map.height = height;

@@ -4,9 +4,10 @@ import type { GameModel } from "yage/game/GameModel";
 import { MappedKeys } from "yage/inputs/InputManager";
 import { Locomotion } from "yage/schemas/entity/Locomotion";
 import { keyDown } from "yage/utils/keys";
-import { normalizeSafeVector2d } from "yage/utils/vector";
+import { normalizeSafeVector2d, rotateDegVector2d } from "yage/utils/vector";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import { DEPTHS } from "yage/constants/enums";
+import { MapIsometric } from "yage/schemas/map/Map";
 
 @Component()
 export class PlayerMovement extends Schema {}
@@ -17,6 +18,7 @@ export class PlayerMovementSystem extends SystemImpl<GameModel> {
   static depth = DEPTHS.PLAYER_MOVEMENT;
 
   run = (gameModel: GameModel, entity: number) => {
+    const isIso = gameModel.hasComponent(MapIsometric, gameModel.coreEntity);
     const netData = gameModel.getTypedUnsafe(PlayerInput, entity);
     const locomotion = gameModel.getTypedUnsafe(Locomotion, entity);
     const speed = locomotion.speed;
@@ -26,7 +28,7 @@ export class PlayerMovementSystem extends SystemImpl<GameModel> {
       return;
     }
 
-    const offset = {
+    let offset = {
       x: 0,
       y: 0,
     };
@@ -50,7 +52,30 @@ export class PlayerMovementSystem extends SystemImpl<GameModel> {
       // gameModel.queueSound("ding");
     }
 
-    if (offset.x != 0 || offset.y != 0) {
+    if (isIso) {
+      if (offset.x != 0 || offset.y != 0) {
+        if (offset.x != 0 && offset.y != 0) {
+          // snap to closest 26.565 degree angle
+          if (offset.x < 0 && offset.y < 0) {
+            offset = rotateDegVector2d({ x: 0, y: -1 }, -63.435);
+          } else if (offset.x < 0 && offset.y > 0) {
+            offset = rotateDegVector2d({ x: 0, y: -1 }, -116.565);
+          } else if (offset.x > 0 && offset.y < 0) {
+            offset = rotateDegVector2d({ x: 0, y: -1 }, 63.435);
+          } else {
+            offset = rotateDegVector2d({ x: 0, y: -1 }, 116.565);
+          }
+        }
+  
+        const direction = normalizeSafeVector2d(offset);
+        locomotion.directionX = direction.x;
+        locomotion.directionY = direction.y;
+  
+        offset.x = direction.x * speed;
+        offset.y = direction.y * speed;
+      }
+  
+    } else if (offset.x != 0 || offset.y != 0) {
       const direction = normalizeSafeVector2d(offset);
       locomotion.directionX = direction.x;
       locomotion.directionY = direction.y;
@@ -58,6 +83,7 @@ export class PlayerMovementSystem extends SystemImpl<GameModel> {
       offset.x = direction.x * speed;
       offset.y = direction.y * speed;
     }
+    console.log(offset)
 
     locomotion.x = offset.x;
     locomotion.y = offset.y;
