@@ -624,11 +624,11 @@ class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
         const tileId = data[tileKey];
         let x, y;
         if (isIsometric) {
-          x = (i - j) * tileWidth;
-          y = ((i + j) * tileWidth) / 2;
+          x = (i - j) * tileWidth / scale;
+          y = ((i + j) * tileWidth) / 2 / scale;
         } else {
-          x = i * tileWidth;
-          y = j * tileWidth;
+          x = i * tileWidth / scale;
+          y = j * tileWidth / scale;
         }
 
         const floorTexture = ImageLoader.getInstance().getPixiTexture(`${mapData.skin}_floor_${rand.int(0, 4)}`);
