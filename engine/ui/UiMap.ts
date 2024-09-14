@@ -168,6 +168,15 @@ const remapTemplateQueries = (json: any, contextMap: any, parent = "") => {
   });
 };
 
+export const getUiMapTemplate = (templateName: string, elementName?: string) => {
+  if (registeredTemplates.has(templateName)) {
+    if (!elementName) {
+      return registeredTemplates.get(templateName);
+    }
+    return registeredTemplates.get(templateName)[elementName];
+  }
+};
+
 export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partial<BoxConfig>): UiMap => {
   json = cloneDeep(json);
 

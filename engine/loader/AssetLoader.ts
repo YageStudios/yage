@@ -20,6 +20,7 @@ import type { SoundOptions } from "./SoundLoader";
 import { PixiSoundLoader } from "./SoundLoader";
 import type { Sound } from "@pixi/sound";
 import { Persist } from "yage/persist/persist";
+import { UiLoader } from "./UiLoader";
 
 const n = (name: string) => name?.toLowerCase().replace(/ /g, "_");
 
@@ -53,15 +54,6 @@ export default class AssetLoader {
       throw e;
     }
     return true;
-  }
-
-  async loadUi(name: string, ui: UIConfig[]) {
-    this.assetCache[n(name)] = {
-      type: AssetType.UI,
-      promise: Promise.resolve(n(name)),
-    };
-    this.uiCache[n(name)] = ui;
-    return this.assetCache[n(name)].promise;
   }
 
   async loadImage(
@@ -145,8 +137,19 @@ export default class AssetLoader {
     return this.assetCache[n(name)].promise;
   }
 
+  async loadUi(name: string, url: string): Promise<string> {
+    const assetPath = `assets/ui/${url}`;
+    this.assetCache[n(name)] = {
+      type: AssetType.UI,
+      promise: UiLoader.getInstance()
+        .loadUi(n(name), assetPath)
+        .then(() => n(name)),
+    };
+    return this.assetCache[n(name)].promise;
+  }
+
   getUi(name: string): UIConfig[] {
-    return JSON.parse(JSON.stringify(this.uiCache[n(name)]));
+    return UiLoader.getInstance().get(n(name));
   }
 
   getImage(name: string): ImageObj {

@@ -1,5 +1,5 @@
-import type { ComponentData } from "yage/components/types";
-import { ComponentDataSchema } from "yage/components/types";
+import type { ComponentData } from "yage/systems/types";
+import { ComponentDataSchema } from "yage/systems/types";
 import type { DamageTypeEnum } from "yage/constants/enums";
 import { DamageCategoryEnum } from "yage/constants/enums";
 import { Schema, type, required, Component, defaultValue } from "minecs";

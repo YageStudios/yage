@@ -1,6 +1,6 @@
 import type { GameModel } from "yage/game/GameModel";
-import { ComponentCategory } from "../../components/types";
-import { PhysicsSystem } from "yage/components/physics/Physics";
+import { ComponentCategory } from "yage/systems/types";
+import { PhysicsSystem } from "yage/systems/physics/Physics";
 import { angleOfVector2d, scaleVector2d } from "yage/utils/vector";
 import { CollisionCategoryEnum, DEPTHS } from "yage/constants/enums";
 import RAPIER from "@dimforge/rapier2d-compat";

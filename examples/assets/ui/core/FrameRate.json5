@@ -1,0 +1,43 @@
+{
+  frame: {
+    type: "text",
+    rect: {
+      x: "right",
+      y: "top",
+      xOffset: -130,
+    },
+    config: {
+      label: "Frame: $$frame",
+      fontSize: 20,
+      class: "StrokeText",
+    },
+  },
+  frameRate: {
+    type: "text",
+    rect: {
+      x: "right",
+      y: "top",
+      yOffset: 24,
+      xOffset: -130,
+    },
+    config: {
+      label: "FPS: $$frameRate",
+      fontSize: 20,
+      class: "StrokeText",
+    },
+  },
+  bodies: {
+    type: "text",
+    rect: {
+      x: "right",
+      y: "top",
+      yOffset: 48,
+      xOffset: -130,
+    },
+    config: {
+      label: "Bodies: $$bodies",
+      fontSize: 20,
+      class: "StrokeText",
+    },
+  },
+}

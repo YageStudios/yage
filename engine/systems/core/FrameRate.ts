@@ -1,10 +1,13 @@
 import { UIService } from "yage/ui/UIService";
 import { ComponentCategory } from "../types";
-import type { GameModel } from "yage/game/GameModel";
+import type { GameModel, ReadOnlyGameModel } from "yage/game/GameModel";
 import { FrameRate, Frame, FrameEnd } from "yage/schemas/core/FrameRate";
-import { System, SystemImpl } from "minecs";
+import { DrawSystemImpl, System, SystemImpl } from "minecs";
 import { DEPTHS } from "yage/constants/enums";
 import type { UIElement } from "yage/ui/UIElement";
+import AssetLoader from "yage/loader/AssetLoader";
+import type { UiMap } from "yage/ui/UiMap";
+import { buildUiMap } from "yage/ui/UiMap";
 
 @System(FrameRate, Frame)
 class FrameStartSystem extends SystemImpl<GameModel> {
@@ -13,7 +16,7 @@ class FrameStartSystem extends SystemImpl<GameModel> {
   static depth = DEPTHS.CORE;
 
   run = (gameModel: GameModel, entity: number) => {
-    gameModel(Frame, gameModel.coreEntity).frame = gameModel.frame;
+    gameModel(Frame, entity).frame = gameModel.frame;
     const data = gameModel.getSystem(FrameRateSystem).get(entity);
 
     const startFrameStamp = performance.now();
@@ -83,6 +86,50 @@ export class FrameRateSystem extends SystemImpl<GameModel> {
 }
 
 let ui: UIElement[] | null = null;
+
+@System(FrameRate)
+export class RenderFramerateSystem extends DrawSystemImpl<ReadOnlyGameModel> {
+  ui: UIElement[] | null = null;
+  uiService: UIService;
+  uiMap: UiMap;
+
+  constructor(query: (gameModel: ReadOnlyGameModel) => number[]) {
+    super(query);
+    this.uiService = UIService.getInstance();
+  }
+
+  init = (gameModel: ReadOnlyGameModel, entity: number) => {
+    const uiMap = gameModel(FrameRate, entity).uiMap;
+    if (uiMap) {
+      this.uiMap = buildUiMap(AssetLoader.getInstance().getUi(uiMap));
+      this.ui = [];
+      this.ui.push(...Object.values(this.uiMap.build({ frame: 0, frameRate: 0, bodies: 0, ping: 0 }, () => {})));
+      for (const ui of this.ui) {
+        this.uiService.addToUI(ui);
+      }
+    }
+  };
+
+  run = (gameModel: ReadOnlyGameModel, entity: number) => {
+    if (this.ui === null) {
+      return;
+    }
+    const data = gameModel.getSystem(FrameRateSystem).get(entity);
+    this.uiMap.update({
+      frame: gameModel(Frame, entity).frame,
+      frameRate: data.averageFrameRate.toFixed(0),
+      bodies: data.bodies,
+      ping: gameModel.ping,
+    });
+  };
+
+  cleanup = (gameModel: ReadOnlyGameModel, entity: number) => {
+    if (this.ui) {
+      this.uiService.removeFromUI(this.ui);
+      this.ui = null;
+    }
+  };
+}
 
 // registerUIComponent("FrameRate", (uiService, entity, renderModel) => {
 //   if (!ui) {

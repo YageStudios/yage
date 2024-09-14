@@ -1,4 +1,4 @@
-import { ComponentCategory, ComponentDataSchema } from "yage/components/types";
+import { ComponentCategory, ComponentDataSchema } from "yage/systems/types";
 import { Component, defaultValue, required, Schema, type } from "minecs";
 
 @Component(ComponentCategory.CORE)

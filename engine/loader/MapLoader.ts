@@ -5,7 +5,7 @@ import type { ImageObj } from "./ImageLoader";
 import ImageLoader from "./ImageLoader";
 // @ts-ignore
 import noise from "yage/vendor/noise";
-import type { ComponentData } from "yage/components/types";
+import type { ComponentData } from "yage/systems/types";
 import * as url from "url";
 import { assignGlobalSingleton } from "yage/global";
 

@@ -1,13 +1,13 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import type { GameModel } from "yage/game/GameModel";
-import { ComponentCategory } from "yage/components/types";
+import { ComponentCategory } from "yage/systems/types";
 import { EntityType } from "yage/schemas/entity/Types";
 import type { RigidBodyDesc } from "@dimforge/rapier2d-compat";
 import RAPIER, { World } from "@dimforge/rapier2d-compat";
 import { FrameRate } from "yage/schemas/core/FrameRate";
 import { CollisionFilters, Collisions } from "yage/schemas/physics/Collisions";
 import { Physics } from "yage/schemas/physics/Physics";
-import { FrameRateSystem } from "../core/FrameRate";
+import { FrameRateSystem } from "yage/systems/core/FrameRate";
 import { Base64 } from "js-base64";
 import { cloneDeep } from "lodash";
 import { System, SystemImpl } from "minecs";
@@ -117,6 +117,10 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
 
   init = (gameModel: GameModel, entity: number) => {
     this.coreEntity = entity;
+
+    if (!gameModel.hasComponent(Collisions, entity)) {
+      gameModel.addComponent(Collisions, entity);
+    }
     this.getEngine(gameModel);
   };
 

@@ -2,6 +2,8 @@ import { Component, defaultValue, Schema, type } from "minecs";
 
 @Component()
 export class FrameRate extends Schema {
+  @type("string")
+  uiMap: string;
   // @type("number")
   // @defaultValue(0)
   // startFrameStamp: number;

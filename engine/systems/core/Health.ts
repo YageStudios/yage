@@ -7,7 +7,6 @@ import type { Vector2d } from "yage/utils/vector";
 import { getLastDamage } from "yage/utils/getLastDamage";
 import { EnemyType } from "yage/schemas/entity/Types";
 import { ShareOnKill } from "yage/schemas/share/ShareOnKill";
-import { generateShareList } from "yage/utils/generateShareList";
 import { ShareOnDeath } from "yage/schemas/share/ShareOnDeath";
 import { Health } from "yage/schemas/core/Health";
 import { World } from "yage/schemas/core/World";
@@ -34,29 +33,15 @@ export class HealthSystem extends SystemImpl<GameModel> {
     entity: number,
     gameModel: GameModel
   ) {
-    const shareList = generateShareList(entity, ShareOnKill, ComponentCategory.ONKILL, gameModel);
-    if (shareList.length > 0) {
-      for (let i = 0; i < shareList.length; i++) {
-        const [component, entities] = shareList[i];
-        for (let j = 0; j < entities.length; j++) {
-          const entityId = entities[j];
-          const mod = gameModel.getComponent(component, entityId);
-          if (mod.owner !== undefined) {
-            mod.owner = lastDamage.owner;
-          }
-          if (mod.killedEntity !== undefined) {
-            mod.killedEntity = killedEntity;
-          }
-          if (mod.killSource !== undefined) {
-            mod.killSource = entity;
-          }
-          const system = gameModel.getSystemsByType((mod as any).type, entityId);
-          for (let k = 0; k < system.length; k++) {
-            system[k].run?.(gameModel, entityId);
-          }
-        }
+    gameModel.runMods(
+      [entity, ...(gameModel.getTyped(ShareOnKill, entity)?.entities ?? [])],
+      ComponentCategory.ONKILL,
+      {
+        owner: lastDamage.owner,
+        killedEntity,
+        killSource: entity,
       }
-    }
+    );
 
     const killStats = gameModel.hasComponent("KillStats", entity)
       ? gameModel.getTypedUnsafe(KillStats, entity)
@@ -99,22 +84,13 @@ export class HealthSystem extends SystemImpl<GameModel> {
             this.incrementKill(enemyType, lastDamage, entity, position, lastDamage.source, gameModel);
           }
         }
-        const shareList = generateShareList(entity, ShareOnDeath, ComponentCategory.ONDEATH, gameModel);
-        if (shareList.length > 0) {
-          for (let i = 0; i < shareList.length; i++) {
-            const [component, entities] = shareList[i];
-            for (let j = 0; j < entities.length; j++) {
-              const entityId = entities[j];
-              const mod = gameModel.getComponent(component, entityId);
-              if (mod.killedEntity !== undefined) {
-                mod.killedEntity = entity;
-              }
-
-              const system = gameModel.getSystem((mod as any).type);
-              system.run?.(entityId, gameModel);
-            }
+        gameModel.runMods(
+          [entity, ...(gameModel.getTyped(ShareOnDeath, entity)?.entities ?? [])],
+          ComponentCategory.ONDEATH,
+          {
+            killedEntity: entity,
           }
-        }
+        );
         gameModel.removeEntity(entity);
       }
       if (health > maxHealth) {

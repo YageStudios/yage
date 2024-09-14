@@ -9,7 +9,7 @@ export type EntityAsset =
   | {
       key: string;
       url: string;
-      type: "spine" | "sound" | "animation" | "font" | "map" | "mapskin";
+      type: "spine" | "sound" | "animation" | "font" | "map" | "ui";
     };
 
 export type SoundAsset = Partial<SoundOptions> & {

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import type { PhysicsSaveState } from "yage/components/physics/Physics";
+import type { PhysicsSaveState } from "yage/systems/physics/Physics";
 import { GameModel } from "yage/game/GameModel";
 import type { KeyMap } from "yage/inputs/InputManager";
 import { InputManager } from "yage/inputs/InputManager";
