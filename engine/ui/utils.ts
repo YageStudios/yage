@@ -1,5 +1,5 @@
 import type { Vector2d } from "yage/utils/vector";
-import type { Position} from "./Rectangle";
+import type { Position } from "./Rectangle";
 
 export const toCanvasSpace = (mouseX: number, mouseY: number, element: HTMLElement): Vector2d => {
   const { width, height, top: offsetY, left: offsetX } = element.getBoundingClientRect();

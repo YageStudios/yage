@@ -1,4 +1,4 @@
-import type { Position} from "./Rectangle";
+import type { Position } from "./Rectangle";
 import { Rectangle } from "./Rectangle";
 import { UIElement } from "./UIElement";
 import type { BoxConfig } from "./Box";
