@@ -20,6 +20,7 @@ const flagConfig: { [flagName: string]: FlagingConfig } = {
   _General: { label: "General" }, // PRETTY LISTS
 
   ACTIVE_ONLY: {},
+  SERIALIZE_TO_BUFFER: {},
   PERFORMANCE_LOGS: {},
   DEBUG: {
     action: (active: boolean) => {

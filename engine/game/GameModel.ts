@@ -18,6 +18,7 @@ import {
   serializeWorld,
   deserializeWorld,
   SerialMode,
+  deleteWorld,
 } from "minecs";
 import { Random } from "yage/schemas/core/Random";
 import type { Random as RandomType } from "yage/utils/rand";
@@ -39,7 +40,8 @@ export type GameModelState = {
   core: number;
   timeElapsed: number;
   frame: number;
-  world: SerializedWorld;
+  world: SerializedWorld | string;
+  jsonWorld?: SerializedWorld;
   physics: PhysicsSaveState;
 };
 
@@ -103,7 +105,7 @@ export type GameModel = World & {
 };
 
 export const GameModel = ({
-  world = createWorld(),
+  world = createWorld(1000),
   seed,
   roomId,
 }: {
@@ -377,13 +379,15 @@ export const GameModel = ({
     removeEntity: (entity: number) => removeEntity(world, entity),
     serializeState(): GameModelState {
       const physicsSystem = this.getSystem(PhysicsSystem);
-      // const serializedWorld = bitecs.serializeWorld(this.bitecsWorld, state.activeByComponent);
 
       return {
         core: gameModel.coreEntity,
         timeElapsed: gameModel.timeElapsed,
         frame: gameModel.frame,
-        world: serializeWorld(SerialMode.JSON, world),
+        world: flags.SERIALIZE_TO_BUFFER
+          ? serializeWorld(SerialMode.BASE64, world)
+          : serializeWorld(SerialMode.JSON, world),
+        jsonWorld: flags.SERIALIZE_TO_BUFFER ? serializeWorld(SerialMode.JSON, world) : undefined,
         physics: physicsSystem.save(),
       };
     },
@@ -391,6 +395,8 @@ export const GameModel = ({
       gameModel.coreEntity = state.core;
       gameModel.timeElapsed = state.timeElapsed;
       gameModel.frame = state.frame;
+
+      deleteWorld(world);
 
       deserializeWorld(state.world, world);
 

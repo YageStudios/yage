@@ -14,7 +14,7 @@ export class PixiViewport extends Schema {
   @defaultValue(1080)
   minHeight: number;
 
-  @type("number")
-  @defaultValue(true)
+  @type("boolean")
+  @defaultValue(false)
   fillScreen: boolean;
 }
