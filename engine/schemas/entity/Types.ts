@@ -6,7 +6,7 @@ import { ComponentCategory } from "yage/systems/types";
 export class EntityType extends Schema {
   @type(EntityTypeEnum)
   @defaultValue(EntityTypeEnum.ENTITY)
-  entityType: EntityType;
+  entityType: EntityTypeEnum;
 }
 
 @Component(ComponentCategory.TYPE)
