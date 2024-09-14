@@ -1,28 +1,23 @@
-import type { System } from "yage/components/System";
-import { ComponentCategory } from "yage/components/types";
+import { ComponentCategory } from "yage/systems/types";
 import type { GameModel } from "yage/game/GameModel";
 import { TriggerEventSystem } from "./TriggerEvent";
-import { SpriteSchema } from "yage/schemas/render/Sprite";
-import { MapSpriteSchema } from "yage/schemas/render/MapSprite";
-import { TransformSchema } from "yage/schemas/entity/Transform";
-import { BaseTriggerSchema } from "yage/schemas/triggers/BaseTrigger";
-import { TriggerEventSchema } from "yage/schemas/triggers/TriggerEvent";
+import { Transform } from "yage/schemas/entity/Transform";
+import type { BaseTrigger } from "yage/schemas/triggers/BaseTrigger";
+import { TriggerEvent } from "yage/schemas/triggers/TriggerEvent";
+import { SystemImpl } from "minecs";
+import { PixiSprite } from "yage/schemas/render/PixiSprite";
 
-export class BaseTriggerSystem implements System {
-  schema = BaseTriggerSchema;
-  type = "BaseTrigger";
-  category: ComponentCategory = ComponentCategory.CORE;
+export abstract class BaseTriggerSystem extends SystemImpl<GameModel> {
+  static depth = -1;
+  static category: ComponentCategory = ComponentCategory.CORE;
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  shouldTrigger(entity: number, gameModel: GameModel): false | number[] {
-    const trigger = gameModel.getComponent(entity, this.type) as BaseTriggerSchema;
+  shouldTrigger(gameModel: GameModel, entity: number): false | number[] {
+    const trigger = this.getTrigger(gameModel, entity);
 
     if (trigger.disableOnHidden) {
       let sprite;
-      if (gameModel.hasComponent(entity, "Sprite")) {
-        sprite = gameModel.getTypedUnsafe(entity, SpriteSchema);
-      } else if (gameModel.hasComponent(entity, "MapSprite")) {
-        sprite = gameModel.getTypedUnsafe(entity, MapSpriteSchema);
+      if (gameModel.hasComponent(PixiSprite, entity)) {
+        sprite = gameModel.getTypedUnsafe(PixiSprite, entity);
       } else {
         return false;
       }
@@ -31,7 +26,7 @@ export class BaseTriggerSystem implements System {
     return gameModel.players;
   }
 
-  triggerEvent(entity: number, triggerEntities: number[], trigger: BaseTriggerSchema, gameModel: GameModel) {
+  triggerEvent(entity: number, triggerEntities: number[], trigger: BaseTrigger, gameModel: GameModel) {
     let triggered = false;
     const triggerEvent = trigger.triggerEvent;
     let inheritedLocation;
@@ -39,35 +34,37 @@ export class BaseTriggerSystem implements System {
       triggerEntities = [entity];
     }
     if (trigger.inheritLocation) {
-      TransformSchema.id = entity;
-      inheritedLocation = TransformSchema.position;
+      const transform = gameModel.getTypedUnsafe(Transform, entity);
+      inheritedLocation = { x: transform.x, y: transform.y };
     }
     if (triggerEvent.length) {
       for (let i = 0; i < triggerEvent.length; i++) {
         const location = trigger.inheritLocation ? inheritedLocation : triggerEvent[i].location;
-        gameModel.addComponent(entity, TriggerEventSchema, { ...triggerEvent[i], triggerEntities, location });
-        triggered = gameModel.getSystem(TriggerEventSystem).run(entity, gameModel) || triggered;
+        gameModel.addComponent(TriggerEvent, entity, { ...triggerEvent[i], triggerEntities, location });
+        triggered = gameModel.getSystem(TriggerEventSystem).run(gameModel, entity) || triggered;
       }
     } else {
-      const triggerEvent = gameModel.getTypedUnsafe(entity, TriggerEventSchema);
+      const triggerEvent = gameModel.getTypedUnsafe(TriggerEvent, entity);
       triggerEvent.triggerEntities = triggerEntities;
       if (trigger.inheritLocation && inheritedLocation) {
         triggerEvent.location = inheritedLocation;
       }
-      triggered = gameModel.getSystem(TriggerEventSystem).run(entity, gameModel);
+      triggered = gameModel.getSystem(TriggerEventSystem).run(gameModel, entity);
     }
     return triggered;
   }
 
-  run(entity: number, gameModel: GameModel) {
-    const trigger = gameModel.getComponent(entity, this.type) as BaseTriggerSchema;
+  abstract getTrigger(gameModel: GameModel, entity: number): BaseTrigger;
+
+  run = (gameModel: GameModel, entity: number) => {
+    const trigger = this.getTrigger(gameModel, entity);
     const players = gameModel.players;
 
     if (players.length === 0) {
       return;
     }
 
-    const validPlayers = this.shouldTrigger(entity, gameModel);
+    const validPlayers = this.shouldTrigger(gameModel, entity);
     if (!validPlayers) {
       return;
     }
@@ -78,5 +75,5 @@ export class BaseTriggerSystem implements System {
         }
       }
     }
-  }
+  };
 }

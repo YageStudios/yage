@@ -1,26 +1,28 @@
-import { DEPTHS, registerSystem } from "yage/components/ComponentRegistry";
-import { ComponentCategory } from "yage/constants/enums";
+import { ComponentCategory, DEPTHS } from "yage/constants/enums";
 import type { GameModel } from "yage/game/GameModel";
-import { HealthSchema } from "yage/schemas/core/Health";
+import { Health } from "yage/schemas/core/Health";
 import { BaseTriggerSystem } from "./BaseTrigger";
-import { MapIdSchema } from "yage/schemas/map/MapSpawn";
-import { SpawnTriggerSchema } from "yage/schemas/triggers/SpawnTrigger";
+import { MapId } from "yage/schemas/map/MapSpawn";
+import { SpawnTrigger } from "yage/schemas/triggers/SpawnTrigger";
+import { System } from "minecs";
+import { Transform } from "yage/schemas/entity/Transform";
 
+@System(SpawnTrigger, Transform)
 export class SpawnTriggerSystem extends BaseTriggerSystem {
-  type = "SpawnTrigger";
-  category: ComponentCategory = ComponentCategory.TRIGGER;
-  schema = SpawnTriggerSchema;
-  depth = DEPTHS.DAMAGE + 10;
+  static category: ComponentCategory = ComponentCategory.TRIGGER;
+  static depth = DEPTHS.DAMAGE + 10;
 
-  dependencies = ["Transform"];
+  getTrigger(gameModel: GameModel, entity: number): SpawnTrigger {
+    return gameModel.getTypedUnsafe(SpawnTrigger, entity);
+  }
 
-  shouldTrigger(entity: number, gameModel: GameModel): false | number[] {
-    if (!super.shouldTrigger(entity, gameModel)) {
+  shouldTrigger(gameModel: GameModel, entity: number): false | number[] {
+    if (!super.shouldTrigger(gameModel, entity)) {
       return false;
     }
-    const trigger = gameModel.getComponent(entity, this.type) as SpawnTriggerSchema;
+    const trigger = this.getTrigger(gameModel, entity);
 
-    const health = gameModel.getTypedUnsafe(entity, HealthSchema);
+    const health = gameModel.getTypedUnsafe(Health, entity);
 
     if (health.health > 0) {
       return false;
@@ -33,7 +35,7 @@ export class SpawnTriggerSystem extends BaseTriggerSystem {
         name: trigger.spawnName,
         overrideProperties: {
           MapId: {
-            mapId: gameModel.getTyped(entity, MapIdSchema)?.mapId ?? -1,
+            mapId: gameModel.getTyped(MapId, entity)?.mapId ?? -1,
           },
         },
       },
@@ -41,5 +43,3 @@ export class SpawnTriggerSystem extends BaseTriggerSystem {
     return gameModel.players;
   }
 }
-
-registerSystem(SpawnTriggerSystem);
