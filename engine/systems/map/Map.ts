@@ -1,3 +1,6 @@
+// NEW MAP RENDERER
+
+
 // eslint-disable-next-line @typescript-eslint/triple-slash-reference
 /// <reference path="../../vendor/types/l1-path-finder.d.ts" />
 
@@ -224,6 +227,8 @@ export class MapSystem extends SystemImpl<GameModel> {
 
           map.tiles[tileId] = tileName;
           const wall = skinData.tiles[tileName];
+
+          console.log(tileName, wall, skinData);
           const collisionData = wall.layers.find((layer) => layer.name === "collision") as TiledObjectLayer;
 
           let furthestLeft = 0;
@@ -435,6 +440,8 @@ class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
     const skinData = AssetLoader.getInstance().getMapSkin(mapData.skin);
     const pathfinder = renderModel.getSystem(MapSystem).getPathfinders(renderModel, entity);
     const mapArray = pathfinder.map;
+
+    console.log(mapAsset, skinData);
 
     const scale = mapData.scale;
     const rand = generate(123);

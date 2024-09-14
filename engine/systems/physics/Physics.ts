@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import type { GameModel } from "yage/game/GameModel";
+import type { GameModel, ReadOnlyGameModel } from "yage/game/GameModel";
 import { ComponentCategory } from "yage/systems/types";
 import { EntityType } from "yage/schemas/entity/Types";
 import type { RigidBodyDesc } from "@dimforge/rapier2d-compat";
@@ -10,8 +10,11 @@ import { Physics } from "yage/schemas/physics/Physics";
 import { FrameRateSystem } from "yage/systems/core/FrameRate";
 import { Base64 } from "js-base64";
 import { cloneDeep } from "lodash";
-import { System, SystemImpl } from "minecs";
+import { DrawSystemImpl, System, SystemImpl } from "minecs";
 import { DEPTHS } from "yage/constants/enums";
+import { flags } from "yage/console/flags";
+import { PixiViewportSystem } from "../render/PixiViewport";
+import * as PIXI from "pixi.js";
 
 export type PhysicsSaveState = {
   bodies: {
@@ -325,6 +328,48 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
     this.world = null;
   };
 }
+
+@System(Physics)
+export class PhysicsDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
+  static category: ComponentCategory = ComponentCategory.CORE;
+  static depth = DEPTHS.COLLISION;
+
+  lines: PIXI.Graphics | undefined;
+
+  run = (gameModel: ReadOnlyGameModel) => {
+    const physics = gameModel.getTypedUnsafe(Physics, gameModel.coreEntity);
+    let lines = this.lines;
+    if (flags.PHYSICS) {
+      const viewport = gameModel.getSystem(PixiViewportSystem);
+      const pixi = viewport.pixiApp;
+
+        if (!lines) {
+          lines = new PIXI.Graphics();
+          lines.zIndex = Number.MAX_SAFE_INTEGER;
+          viewport.viewport.addChild(lines);
+        }
+        const buffers = gameModel.getSystem(PhysicsSystem).world.debugRender();
+        const vtx = buffers.vertices;
+        const cls = buffers.colors;
+
+        lines.clear();
+
+        for (let i = 0; i < vtx.length / 4; i += 1) {
+          const color = PIXI.Color.shared.setValue([cls[i * 8], cls[i * 8 + 1], cls[i * 8 + 2]]).toHex();
+          lines.lineStyle(1.0, color, cls[i * 8 + 3], 0.5, true);
+          lines.moveTo(vtx[i * 4], vtx[i * 4 + 1]);
+          lines.lineTo(vtx[i * 4 + 2], vtx[i * 4 + 3]);
+        }
+      } else if (lines) {
+        lines.clear();
+        lines.destroy();
+        lines = undefined;
+      }
+      this.lines = lines;
+    }
+
+}
+
 
 // let lines: PIXI.Graphics | undefined;
 
