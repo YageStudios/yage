@@ -2,6 +2,7 @@
   "name": "yage",
   "version": "0.0.1",
   "type": "module",
+  "license": "LicenseRef-LICENSE.txt",
   "exports": {
     ".": {
       "import": "./dist/*.js"
@@ -64,11 +65,6 @@
       "import": "./dist/vendor/*.js"
     },
     "./style.css": "./dist/style.css"
-  },
-  "overrides": {
-    "pixi-viewport": {
-      "@pixi/core": "7.4.2"
-    }
   },
   "scripts": {
     "dev": "vite",
