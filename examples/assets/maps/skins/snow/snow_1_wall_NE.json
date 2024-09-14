@@ -39,49 +39,26 @@
          "name":"collision",
          "objects":[
                 {
-                 "class":"",
-                 "height":264.389275074479,
-                 "id":1,
+                 "height":355.592320683831,
+                 "id":7,
                  "name":"",
                  "rotation":0,
+                 "type":"",
                  "visible":true,
-                 "width":132.194637537239,
-                 "x":196.067527308838,
-                 "y":-2.22442899702089
+                 "width":101.471754041292,
+                 "x":252.212456485024,
+                 "y":-16.621514493503
                 }, 
                 {
-                 "class":"",
-                 "height":132.830188679245,
-                 "id":3,
+                 "height":128.3838279392,
+                 "id":10,
                  "name":"",
                  "rotation":0,
+                 "type":"",
                  "visible":true,
-                 "width":340.655412115194,
-                 "x":297.755710029792,
-                 "y":216.405163853029
-                }, 
-                {
-                 "class":"",
-                 "height":0,
-                 "id":4,
-                 "name":"",
-                 "rotation":0,
-                 "visible":true,
-                 "width":0,
-                 "x":343.515392254221,
-                 "y":485.243296921549
-                }, 
-                {
-                 "class":"",
-                 "ellipse":true,
-                 "height":150,
-                 "id":5,
-                 "name":"",
-                 "rotation":0,
-                 "visible":true,
-                 "width":150,
-                 "x":199.245283018868,
-                 "y":198.609731876862
+                 "width":512.211767138869,
+                 "x":118.093268534795,
+                 "y":241.910867542136
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -90,10 +67,10 @@
          "y":0
         }],
  "nextlayerid":4,
- "nextobjectid":7,
+ "nextobjectid":13,
  "orientation":"isometric",
  "renderorder":"right-down",
- "tiledversion":"1.9.2",
+ "tiledversion":"1.11.0",
  "tileheight":32,
  "tilesets":[
         {
@@ -106,6 +83,6 @@
         }],
  "tilewidth":64,
  "type":"map",
- "version":"1.9",
+ "version":"1.10",
  "width":20
 }

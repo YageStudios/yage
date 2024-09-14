@@ -172,6 +172,7 @@ export default class AssetLoader {
 
   getMapSkin(name: string): {
     floor: {
+      isometric?: boolean;
       stamp: string;
       density: number;
       baseColor: string;

@@ -5,6 +5,7 @@
     {
       type: "Map",
       map: "levels/intro",
+      // skin: "dungeon-2d",
       skin: "snow_1",
       scale: 1,
     },
@@ -16,11 +17,11 @@
       key: "levels/intro",
       url: "levels/intro.json",
     },
-    // {
-    //   type: "mapskin",
-    //   key: "dungeon-2d",
-    //   url: "skins/dungeon-2d/dungeon.json",
-    // },
+    {
+      type: "mapskin",
+      key: "dungeon-2d",
+      url: "skins/dungeon-2d/dungeon.json",
+    },
     {
       type: "mapskin",
       key: "snow_1",
