@@ -38,6 +38,7 @@ export default defineConfig({
         "pixi-viewport",
         "@dimforge/rapier2d-compat",
         "ajv",
+        "minecs",
         "l1-path-finder",
         "lodash",
         "nanoid",
@@ -50,7 +51,12 @@ export default defineConfig({
       ],
     },
   },
-  plugins: [dts()],
+  plugins: [
+    dts({
+      entryRoot: "./engine",
+      outDir: "./dist",
+    }),
+  ],
   resolve: {
     alias: {
       yage: resolve(__dirname, "./engine"),
