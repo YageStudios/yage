@@ -16,11 +16,6 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
 
   pixiApp: PIXI.Application;
 
-  constructor(query: any) {
-    super(query);
-    console.error("PixiViewportSystem constructor");
-  }
-
   init = (gameModel: ReadOnlyGameModel, entity: number) => {
     if (this.viewport) {
       this.viewport.destroy();
@@ -35,7 +30,7 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
     // }
   };
 
-  run = (gameModel: ReadOnlyGameModel) => {
+  run = () => {
     this.pixiApp.renderer.render(this.pixiApp.stage);
   };
 

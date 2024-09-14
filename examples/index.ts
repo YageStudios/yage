@@ -1,6 +1,7 @@
 const games = [
   ["map", () => import("./map")],
   ["ball", () => import("./ball")],
+  ["reba", () => import("./reball")],
 ] as const;
 
 let found = false;

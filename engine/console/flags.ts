@@ -93,7 +93,6 @@ export const flags: { [flagName: string]: boolean } = Object.entries(flagConfig)
   },
   {}
 );
-console.log("RUNNING HACKS");
 Object.entries(flags).forEach(([flagName]) => {
   if (typeof window === "undefined") {
     return;

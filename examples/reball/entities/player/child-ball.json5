@@ -1,0 +1,29 @@
+{
+  type: "Enemy",
+  name: "child-ball",
+  components: [
+    // { type: "EnemyColliders", applyToCollisionFilters: true },
+    {
+      type: "CollisionFilters",
+      filters: ["enum:EntityType.ALLY"],
+    },
+    {
+      type: "PixiGraphic",
+      fillColor: "#0000ff",
+      circle: {
+        x: 50,
+        y: 50,
+        radius: 25,
+      },
+    },
+    {
+      type: "Radius",
+      radius: 25,
+    },
+    "Transform",
+    {
+      type: "Locomotion",
+      speed: 10,
+    },
+  ],
+}

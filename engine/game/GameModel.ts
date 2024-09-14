@@ -298,6 +298,9 @@ export const GameModel = ({
       }
     ) => {
       const systems = sortedSystemsByCategory[category];
+      if (!systems) {
+        return;
+      }
       const entities = Array.isArray(entity) ? entity : [entity];
       const overrideKeys = Object.keys(overrides || {});
       for (let i = 0; i < systems.length; i++) {
@@ -399,7 +402,7 @@ export const GameModel = ({
           entityData.components[component.name] = { ...world(component, entity) };
         }
       });
-      console.log(entityData);
+      console.trace(entityData);
     },
     createWorld: () => {
       // gameModel.worlds.push({
