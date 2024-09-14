@@ -1,6 +1,6 @@
 {
   type: "Player",
-  name: "Ball",
+  name: "ball",
   components: [
     "PlayerInput",
     "PlayerMovement",

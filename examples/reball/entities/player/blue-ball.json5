@@ -5,7 +5,7 @@
     // { type: "EnemyColliders", applyToCollisionFilters: true },
     {
       type: "CollisionFilters",
-      filters: ["enum:EntityType.ALLY"],
+      filters: ["enum:EntityTypeEnum.ALLY"],
     },
     {
       type: "PixiGraphic",
