@@ -83,7 +83,6 @@ export class PlayerMovementSystem extends SystemImpl<GameModel> {
       offset.x = direction.x * speed;
       offset.y = direction.y * speed;
     }
-    console.log(offset)
 
     locomotion.x = offset.x;
     locomotion.y = offset.y;
