@@ -1,6 +1,5 @@
 // NEW MAP RENDERER
 
-
 // eslint-disable-next-line @typescript-eslint/triple-slash-reference
 /// <reference path="../../vendor/types/l1-path-finder.d.ts" />
 
@@ -156,7 +155,7 @@ export class MapSystem extends SystemImpl<GameModel> {
         triggerEvent.width = scaleVector2d({ x: trigger.width, y: 0 }, map.scale * 640).x;
         triggerEvent.height = scaleVector2d({ x: 0, y: trigger.height }, map.scale * 640).y;
       }
-      
+
       if (trigger.condition.type && trigger.condition.type !== "NONE") {
         const triggerEntity = gameModel.addEntity();
         gameModel.addComponent(MapId, triggerEntity, {
@@ -241,7 +240,7 @@ export class MapSystem extends SystemImpl<GameModel> {
     const map = gameModel.getTypedUnsafe(Map, entity);
 
     this.updatePathFinder(gameModel, entity, this.generateMapArray(gameModel, entity));
-    
+
     map.shouldUpdatePath = false;
 
     this.processTriggers(gameModel, entity);
@@ -251,7 +250,6 @@ export class MapSystem extends SystemImpl<GameModel> {
     const map = gameModel.getTypedUnsafe(Map, entity);
     const mapData = AssetLoader.getInstance().getMap(map.map);
     const skinData = AssetLoader.getInstance().getMapSkin(map.skin);
-    
 
     const height = mapData.source.height;
     const width = mapData.source.width;
@@ -284,7 +282,7 @@ export class MapSystem extends SystemImpl<GameModel> {
         let x, y;
         if (skinData.floor.isometric) {
           x = (i - j) * size;
-          y = ((i + j) * size) / 2 ;
+          y = ((i + j) * size) / 2;
         } else {
           x = i * size;
           y = j * size;
@@ -312,7 +310,7 @@ export class MapSystem extends SystemImpl<GameModel> {
               if (skinData.floor.isometric) {
                 vertices = vertices.map((v) => ({
                   x: (v.x - v.y) * Math.cos(Math.PI / 4) * Math.SQRT2,
-                  y: (v.x + v.y) * Math.sin(Math.PI / 4) * 0.5 * Math.SQRT2
+                  y: (v.x + v.y) * Math.sin(Math.PI / 4) * 0.5 * Math.SQRT2,
                 }));
               }
 
@@ -330,9 +328,9 @@ export class MapSystem extends SystemImpl<GameModel> {
                 colliderDesc = RAPIER.ColliderDesc.convexHull(pointsF32);
               });
             } else if (object.ellipse) {
-                // Handle ellipse
-              let radiusX = object.width / 2 * map.scale;
-              let radiusY = object.height / 2 * map.scale;
+              // Handle ellipse
+              let radiusX = (object.width / 2) * map.scale;
+              let radiusY = (object.height / 2) * map.scale;
               let position = { x: object.x + radiusX, y: object.y + radiusY };
 
               // Transform the center position for isometric view
@@ -340,7 +338,7 @@ export class MapSystem extends SystemImpl<GameModel> {
                 position = toWorldSpace(position, map.scale);
                 position = {
                   x: (position.x - position.y) * Math.cos(Math.PI / 4) * Math.SQRT2,
-                  y: (position.x + position.y) * Math.sin(Math.PI / 4) * 0.5 * Math.SQRT2
+                  y: (position.x + position.y) * Math.sin(Math.PI / 4) * 0.5 * Math.SQRT2,
                 };
               } else {
                 position = toWorldSpace(position, map.scale);
@@ -380,17 +378,17 @@ export class MapSystem extends SystemImpl<GameModel> {
                 { x: object.x, y: object.y },
                 { x: object.x + object.width, y: object.y },
                 { x: object.x + object.width, y: object.y + object.height },
-                { x: object.x, y: object.y + object.height }
-              ].map(v => toWorldSpace(v, map.scale));
+                { x: object.x, y: object.y + object.height },
+              ].map((v) => toWorldSpace(v, map.scale));
 
               if (skinData.floor.isometric) {
                 vertices = vertices.map((v) => ({
                   x: (v.x - v.y) * Math.cos(Math.PI / 4) * Math.SQRT2,
-                  y: (v.x + v.y) * Math.sin(Math.PI / 4) * 0.5 * Math.SQRT2
+                  y: (v.x + v.y) * Math.sin(Math.PI / 4) * 0.5 * Math.SQRT2,
                 }));
               }
 
-              const pointsF32 = new Float32Array(vertices.flatMap(v => [v.x, v.y]));
+              const pointsF32 = new Float32Array(vertices.flatMap((v) => [v.x, v.y]));
               colliderDesc = RAPIER.ColliderDesc.convexHull(pointsF32);
             }
 
@@ -492,15 +490,19 @@ export class MapSystem extends SystemImpl<GameModel> {
     return mapArray;
   }
 
-  updatePathFinder(gameModel: GameModel, entity: number, mapArray?: NdArray<number[] | TypedArray | GenericArray<number>>) {
+  updatePathFinder(
+    gameModel: GameModel,
+    entity: number,
+    mapArray?: NdArray<number[] | TypedArray | GenericArray<number>>
+  ) {
     mapArray = mapArray ?? this.pathfinders[entity].map ?? [];
     const map = gameModel.getTypedUnsafe(Map, entity);
     const skinData = AssetLoader.getInstance().getMapSkin(map.skin);
-    
+
     if (skinData.floor.isometric) {
       mapArray = convertGridToIsometric(mapArray);
     }
-    
+
     this.pathfinders[entity] = pathFinder(mapArray);
     this.pathfinders[entity].map = mapArray;
 
@@ -607,7 +609,7 @@ class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
       for (let j = 0; j < mapHeight; ++j) {
         const hasTile = mapArray.get(i, j);
         if (hasTile) {
-          const tile = new PIXI.Rectangle(i * tileWidth / 20, j * tileHeight / 20, tileWidth / 20, tileHeight / 20);
+          const tile = new PIXI.Rectangle((i * tileWidth) / 20, (j * tileHeight) / 20, tileWidth / 20, tileHeight / 20);
           colliders.addChild(new PIXI.Graphics().beginFill(0x000000).drawRect(tile.x, tile.y, tile.width, tile.height));
         }
       }
@@ -632,11 +634,11 @@ class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
         const tileId = data[tileKey];
         let x, y;
         if (isIsometric) {
-          x = (i - j) * tileWidth / scale;
+          x = ((i - j) * tileWidth) / scale;
           y = ((i + j) * tileWidth) / 2 / scale;
         } else {
-          x = i * tileWidth / scale;
-          y = j * tileWidth / scale;
+          x = (i * tileWidth) / scale;
+          y = (j * tileWidth) / scale;
         }
 
         const floorTexture = ImageLoader.getInstance().getPixiTexture(`${mapData.skin}_floor_${rand.int(0, 4)}`);
@@ -694,9 +696,8 @@ class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
                     : zindexCollider.x;
                   wall.x = (x + sprite.x + zIndexX + zindexCollider.width / 2) * scale + xOffset;
                   wall.y = (y + sprite.y + sprite.height / 2) * scale + yOffset;
-                  wall.zIndex = isIsometric
-                    ? (y + sprite.y + sprite.height / 2) * scale + yOffset + zindexCollider.y * scale * 0.33
-                    : (y + sprite.y + sprite.height / 2) * scale + yOffset;
+                  wall.zIndex =
+                    (y + sprite.y + sprite.height / 2 + (zindexCollider.y - sprite.height / 2)) * scale + yOffset;
                   // @ts-ignore
                   wall.originalZIndex = wall.zIndex;
                   viewport.addChild(wall);
@@ -728,10 +729,10 @@ class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
     const { colliders, minimap, walls } = this.entities[entity];
     const mapData = renderModel.getTypedUnsafe(Map, entity);
     const skinData = AssetLoader.getInstance().getMapSkin(mapData.skin);
-    
+
     colliders.visible = flags.DEBUG;
     minimap.visible = flags.DEBUG;
-    const viewY = viewport.position.y;
+    const viewY = viewport.toWorld(0, 0).y;
 
     if (skinData.floor.isometric) {
       walls.forEach((wall) => {

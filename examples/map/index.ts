@@ -14,7 +14,7 @@ QuickStart(
     roomId: "QuickStart",
     seed: "QuickStart",
     onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: any) => {
-      const player = EntityFactory.getInstance().generateEntity(gameModel, "ball");
+      const player = EntityFactory.getInstance().generateEntity(gameModel, "Player");
 
       gameModel.logEntity(player, true);
 

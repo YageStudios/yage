@@ -175,7 +175,7 @@ export class GraphicDrawSystem extends DrawSystemImpl<ReadOnlyGameModel> {
     const xoffset = graphicData.xoffset ?? 0;
     const yoffset = graphicData.yoffset ?? 0;
 
-    const viewY = viewport.position.y;
+    const viewY = viewport.toWorld(0, 0).y; // viewport.position.y;
 
     if (graphicData.inheritParentZIndex && renderModel.hasComponent(Attach, entity)) {
       const owner = renderModel.getTypedUnsafe(Attach, entity).parent;

@@ -1,6 +1,6 @@
 {
   type: "Player",
-  name: "Ball",
+  name: "Player",
   components: [
     "PlayerInput",
     "PlayerMovement",
@@ -8,6 +8,7 @@
     {
       type: "PixiGraphic",
       fillColor: "#ff0000",
+        zIndex: 10,
       circle: {
         x: 5,
         y: 5,
@@ -28,6 +29,7 @@
       imageKey: "character::ranger",
       scale: 0.5,
       zIndex: 0,
+      yoffset: -50,
       faceDirection: "enum:FaceDirectionEnum.HORIZONTAL",
     },
     {
