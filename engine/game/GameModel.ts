@@ -35,9 +35,8 @@ import { Parent } from "yage/schemas/entity/Parent";
 import { World as WorldSchema } from "yage/schemas/core/World";
 import { Transform } from "yage/schemas/entity/Transform";
 import { WorldSystem } from "yage/systems/core/World";
-
 // @ts-expect-error - MineCS doesn't have a type for this
-type EntityWithComponent<T extends Schema> = number & { [K in T['type']]: T };
+type EntityWithComponent<T extends Schema> = number & { __hasComponent: T["type"] };
 
 export type GameModelState = {
   core: number;
@@ -79,7 +78,7 @@ export type GameModel = World & {
     <T extends Schema>(type: Constructor<T>, entity: EntityWithComponent<T>): T;
     <T extends Schema>(type: Constructor<T>, entity: number): T | null;
   };
-   hasComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => entity is EntityWithComponent<T>;
+  hasComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => entity is EntityWithComponent<T>;
   getComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => T | any | null;
   ejectComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => ComponentData | null;
   ejectEntity: (entity: number) => EjectedEntity;
@@ -345,7 +344,10 @@ export const GameModel = ({
         }
       }
     },
-    hasComponent: <T extends Schema>(type: Constructor<T> | string, entity: number): entity is EntityWithComponent<T> => {
+    hasComponent: <T extends Schema>(
+      type: Constructor<T> | string,
+      entity: number
+    ): entity is EntityWithComponent<T> => {
       if (typeof type === "string") {
         const schema = getComponentByType(type);
         if (!schema) {
