@@ -36,6 +36,9 @@ import { World as WorldSchema } from "yage/schemas/core/World";
 import { Transform } from "yage/schemas/entity/Transform";
 import { WorldSystem } from "yage/systems/core/World";
 
+// @ts-expect-error - MineCS doesn't have a type for this
+type EntityWithComponent<T extends Schema> = number & { [K in T['type']]: T };
+
 export type GameModelState = {
   core: number;
   timeElapsed: number;
@@ -66,13 +69,17 @@ export type GameModel = World & {
   destroyed: boolean;
   localNetIds: string[];
   currentWorld: number;
+  frameDt: number;
   worlds: { entities: Set<number>; destroyed: boolean; id: number }[];
   createWorld: () => number;
   changeWorld: (world: number, entity: number) => void;
   step: (dt?: number) => void;
   getTypedUnsafe: <T extends Schema>(type: Constructor<T>, entity: number) => T;
-  getTyped: <T extends Schema>(type: Constructor<T>, entity: number) => T | null;
-  hasComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => boolean;
+  getTyped: {
+    <T extends Schema>(type: Constructor<T>, entity: EntityWithComponent<T>): T;
+    <T extends Schema>(type: Constructor<T>, entity: number): T | null;
+  };
+   hasComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => entity is EntityWithComponent<T>;
   getComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => T | any | null;
   ejectComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => ComponentData | null;
   ejectEntity: (entity: number) => EjectedEntity;
@@ -151,6 +158,7 @@ export const GameModel = ({
     timeElapsed: 0,
     rand: null as any,
     ping: 0,
+    frameDt: 16,
     paused: false,
     destroyed: false,
     players: [],
@@ -172,6 +180,7 @@ export const GameModel = ({
     },
     step: (dt?: number) => {
       gameModel.timeElapsed += dt || 16;
+      gameModel.frameDt = dt || 16;
       stepWorld(gameModel);
     },
     stepDraw: () => {
@@ -206,7 +215,7 @@ export const GameModel = ({
     getTypedUnsafe: <T extends Schema>(type: Constructor<T>, entity: number) => {
       return world(type, entity);
     },
-    getTyped: <T extends Schema>(type: Constructor<T>, entity: number) => {
+    getTyped: <T extends Schema>(type: Constructor<T>, entity: number | EntityWithComponent<T>): T | null => {
       if (hasComponent(world, type, entity)) {
         return world(type, entity);
       }
@@ -336,7 +345,7 @@ export const GameModel = ({
         }
       }
     },
-    hasComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => {
+    hasComponent: <T extends Schema>(type: Constructor<T> | string, entity: number): entity is EntityWithComponent<T> => {
       if (typeof type === "string") {
         const schema = getComponentByType(type);
         if (!schema) {

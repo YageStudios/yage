@@ -620,8 +620,7 @@ class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
     viewport.addChild(collidersContainer);
 
     const { width, height, data, customTiles } = mapAsset.map;
-    // @ts-ignore
-    // renderModel.gameCoordinator.currentScene.pixiApp.renderer.background.color = hexToRgbNumber(skinData.floor.baseColor);
+    getSystem(renderModel, PixiViewportSystem).pixiApp.renderer.background.color = hexToRgbNumber(skinData.floor.baseColor);
 
     const walls: PIXI.Sprite[] = [];
     const worldOffset = renderModel.currentWorld * WORLD_WIDTH;
