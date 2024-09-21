@@ -63,11 +63,13 @@ export class HealthSystem extends SystemImpl<GameModel> {
   runAll = (gameModel: GameModel) => {
     const entities = this.query(gameModel);
 
-    const healthStore = gameModel(World).store;
+    const healthStore = gameModel(Health).store;
+    const worldStore = gameModel(World).store;
 
+    const initialWorld = gameModel.currentWorld;
     for (let i = 0; i < entities.length; i++) {
       const entity = entities[i];
-      gameModel.currentWorld = healthStore.world[entity];
+      gameModel.currentWorld = worldStore.world[entity];
       const health = healthStore.health[entity];
       const maxHealth = healthStore.maxHealth[entity];
 
@@ -97,5 +99,6 @@ export class HealthSystem extends SystemImpl<GameModel> {
         healthStore.health[entity] = maxHealth;
       }
     }
+    gameModel.currentWorld = initialWorld;
   };
 }
