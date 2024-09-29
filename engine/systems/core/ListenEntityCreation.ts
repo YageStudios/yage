@@ -9,7 +9,7 @@ export class ListenEntityCreationSystem extends SystemImpl<GameModel> {
   schema = ListenEntityCreation;
   type = "ListenEntityCreation";
 
-  category = ComponentCategory.ONKILL;
+  category = ComponentCategory.ON_KILL;
   dependencies = ["Child"];
 
   init = (gameModel: GameModel, entity: number) => {

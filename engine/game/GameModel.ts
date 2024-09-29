@@ -28,7 +28,7 @@ import { PhysicsSystem } from "yage/systems/physics/Physics";
 import Description from "yage/schemas/core/Description";
 import { flags } from "yage/console/flags";
 import { EntityFactory } from "yage/entity/EntityFactory";
-import type { ComponentCategory } from "yage/constants/enums";
+import type { ComponentCategory, EntityTypeEnum } from "yage/constants/enums";
 import type { ComponentData } from "yage/systems/types";
 import { EntityType } from "yage/schemas/entity/Types";
 import { Parent } from "yage/schemas/entity/Parent";
@@ -100,13 +100,20 @@ export type GameModel = World & {
   deserializeState: (state: GameModelState) => Promise<void>;
   destroy: () => void;
   getEntityByDescription: (description: string) => number[] | undefined;
+  getEntityByType(type: EntityTypeEnum | EntityTypeEnum[]): number[];
   logEntity: (entity: number, debugOverride?: boolean) => void;
   runMods: (
     entity: number | number[],
     category: ComponentCategory,
     overrides?: {
       [key: string]: any;
-    }
+    },
+    after?: (
+      system: SystemImpl<GameModel>,
+      components: Schema[],
+      overrides: { [key: string]: any },
+      isLast: boolean
+    ) => void | boolean
   ) => void;
 };
 
@@ -175,6 +182,16 @@ export const GameModel = ({
       return entities?.filter((entity) => {
         const desc = this.getTypedUnsafe(Description, entity);
         return desc.description === description;
+      });
+    },
+    getEntityByType(type: EntityTypeEnum | EntityTypeEnum[]): number[] {
+      const entities = this.getComponentActives("EntityType");
+      return entities?.filter((entity) => {
+        const entityType = this.getTypedUnsafe(EntityType, entity);
+        if (Array.isArray(type)) {
+          return type.includes(entityType.entityType);
+        }
+        return entityType.entityType === type;
       });
     },
     step: (dt?: number) => {
@@ -307,14 +324,21 @@ export const GameModel = ({
       category: ComponentCategory,
       overrides?: {
         [key: string]: any;
-      }
+      },
+      after?: (
+        system: SystemImpl<GameModel>,
+        components: Schema[],
+        overrides: { [key: string]: any },
+        isLast: boolean
+      ) => void | boolean
     ) => {
       const systems = sortedSystemsByCategory[category];
       if (!systems) {
         return;
       }
+      overrides = overrides || {};
       const entities = Array.isArray(entity) ? entity : [entity];
-      const overrideKeys = Object.keys(overrides || {});
+      const overrideKeys = Object.keys(overrides);
       for (let i = 0; i < systems.length; i++) {
         const system = systems[i];
         if ((system.constructor as typeof SystemImpl).depth >= 0) {
@@ -332,8 +356,7 @@ export const GameModel = ({
                 if (component) {
                   for (const key of overrideKeys) {
                     if (component[key] !== undefined) {
-                      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                      component[key] = overrides![key];
+                      component[key] = overrides[key];
                     }
                   }
                 }
@@ -341,6 +364,18 @@ export const GameModel = ({
             }
           }
           system.run?.(gameModel, entities[j]);
+          if (after) {
+            const systemComponents = componentsBySystem[system.constructor.name];
+            let shouldContinue = after(
+              system,
+              systemComponents,
+              overrides,
+              i === systems.length - 1 && j === entities.length - 1
+            );
+            if (shouldContinue === false) {
+              return;
+            }
+          }
         }
       }
     },

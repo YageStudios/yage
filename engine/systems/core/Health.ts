@@ -35,7 +35,7 @@ export class HealthSystem extends SystemImpl<GameModel> {
   ) {
     gameModel.runMods(
       [entity, ...(gameModel.getTyped(ShareOnKill, entity)?.entities ?? [])],
-      ComponentCategory.ONKILL,
+      ComponentCategory.ON_KILL,
       {
         owner: lastDamage.owner,
         killedEntity,
@@ -88,7 +88,7 @@ export class HealthSystem extends SystemImpl<GameModel> {
         }
         gameModel.runMods(
           [entity, ...(gameModel.getTyped(ShareOnDeath, entity)?.entities ?? [])],
-          ComponentCategory.ONDEATH,
+          ComponentCategory.ON_DEATH,
           {
             killedEntity: entity,
           }

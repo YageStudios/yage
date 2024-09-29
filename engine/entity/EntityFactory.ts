@@ -292,6 +292,7 @@ export class EntityFactory {
     const entityComponents = this.generateComponents(entityDefinition);
 
     if (componentOverrides) {
+      const overrideKeys = Object.keys(componentOverrides);
       entityComponents.components.forEach((c, i) => {
         if (componentOverrides[c.type]) {
           if (typeof componentOverrides[c.type] === "function") {
@@ -305,8 +306,12 @@ export class EntityFactory {
               ...componentOverrides[c.type],
             };
           }
+          overrideKeys.splice(overrideKeys.indexOf(c.type), 1);
         }
       });
+      if (overrideKeys.length) {
+        console.warn("Unused overrides: ", overrideKeys);
+      }
     }
 
     if (entityDefinition.children) {
