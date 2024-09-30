@@ -13,6 +13,7 @@ import { Parent } from "yage/schemas/entity/Parent";
 import { ListenEntityCreationSystem } from "yage/systems/core/ListenEntityCreation";
 import { ListenEntityCreation } from "yage/schemas/core/ListenEntityCreation";
 import { componentList } from "minecs";
+import toposort from "toposort";
 
 export interface EntityDefinition {
   name: string;
@@ -313,6 +314,32 @@ export class EntityFactory {
         console.warn("Unused overrides: ", overrideKeys);
       }
     }
+
+    const dependencyOrder = [];
+    const graphList: [string, string][] = [];
+    const dependencyDict: { [key: string]: ComponentData } = {};
+    entityComponents.components.forEach((c) => {
+      dependencyDict[c.type] = c;
+      const systems = gameModel.getSystemsByType(c.type) as { dependencies?: string[] }[];
+      const dependencies = systems.flatMap((s) => s.dependencies).filter((d) => d !== c.type) as string[];
+      if (!dependencies.length) {
+        dependencyOrder.push(c.type);
+      } else {
+        for (let i = 0; i < dependencies.length; i++) {
+          graphList.push([c.type, dependencies[i]]);
+        }
+      }
+    });
+
+    dependencyOrder.push(...toposort(graphList).reverse());
+
+    const finalComponentList: ComponentData[] = [];
+    dependencyOrder.forEach((c) => {
+      if (dependencyDict[c]) {
+        finalComponentList.push(dependencyDict[c]);
+      }
+    });
+    entityComponents.components = finalComponentList;
 
     if (entityDefinition.children) {
       entityComponents.children = entityDefinition.children.map((childName) => {
