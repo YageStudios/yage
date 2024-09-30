@@ -68,15 +68,16 @@ export class RigidBoxSystem extends SystemImpl<GameModel> {
 
       const rigidBox = gameModel.getTypedUnsafe(RigidBox, entity);
 
-      const body = physicsSystem.getRigidBody(entity);
+      let body = physicsSystem.getRigidBody(entity);
 
       if (rigidBox.disabled) {
-        if (physicsSystem.getRigidBody(entity) !== undefined) {
+        if (body !== undefined) {
           this.cleanup(gameModel, entity);
         }
         continue;
-      } else if (physicsSystem.getRigidBody(entity) === undefined) {
+      } else if (body === undefined) {
         this.init(gameModel, entity);
+        body = physicsSystem.getRigidBody(entity);
       }
 
       const transform = gameModel.getTypedUnsafe(Transform, entity);
