@@ -339,7 +339,12 @@ export class EntityFactory {
         finalComponentList.push(dependencyDict[c]);
       }
     });
-    entityComponents.components = finalComponentList;
+    const description = finalComponentList.find((c) => c.type === "Description");
+    if (description?.data?.description === "PlayerCharacter") {
+      console.log(finalComponentList, entityComponents.components, "test????");
+    } else {
+      entityComponents.components = finalComponentList;
+    }
 
     if (entityDefinition.children) {
       entityComponents.children = entityDefinition.children.map((childName) => {
