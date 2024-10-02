@@ -13,6 +13,8 @@ export class AttachSystem extends SystemImpl<GameModel> {
   static category: ComponentCategory = ComponentCategory.BEHAVIOR;
   static depth = DEPTHS.LOCOMOTION + 10;
 
+  dependencies = ["Owner", "Transform", "Locomotion"];
+
   init = (gameModel: GameModel, entity: number) => {
     if (!gameModel.hasComponent(AttachPost, entity)) {
       gameModel.addComponent(AttachPost, entity);

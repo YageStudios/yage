@@ -12,6 +12,7 @@ import { Attach } from "yage/schemas/entity/Attach";
 export class ChildSystem extends SystemImpl<GameModel> {
   static category: ComponentCategory = ComponentCategory.BEHAVIOR;
   static depth = DEPTHS.LOCOMOTION + 10;
+  dependencies = ["Owner", "Transform", "Locomotion"];
 
   init = (gameModel: GameModel, entity: number) => {
     const childData = gameModel.getTypedUnsafe(Child, entity);

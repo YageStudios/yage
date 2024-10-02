@@ -12,8 +12,8 @@ import { System, SystemImpl } from "minecs";
 
 @System(RigidBox, Transform)
 export class RigidBoxSystem extends SystemImpl<GameModel> {
-  static category: ComponentCategory = ComponentCategory.PHYSICS;
   static depth = DEPTHS.COLLISION - 0.0001;
+  dependencies = ["Locomotion", "Transform"];
 
   init = (gameModel: GameModel, entity: number) => {
     const rigidBox = gameModel.getTypedUnsafe(RigidBox, entity);

@@ -321,7 +321,7 @@ export class EntityFactory {
     entityComponents.components.forEach((c) => {
       dependencyDict[c.type] = c;
       const systems = gameModel.getSystemsByType(c.type) as { dependencies?: string[] }[];
-      const dependencies = systems.flatMap((s) => s.dependencies).filter((d) => d !== c.type) as string[];
+      const dependencies = systems.flatMap((s) => s.dependencies).filter((d) => d && d !== c.type) as string[];
       if (!dependencies.length) {
         dependencyOrder.push(c.type);
       } else {
@@ -340,11 +340,7 @@ export class EntityFactory {
       }
     });
     const description = finalComponentList.find((c) => c.type === "Description");
-    if (description?.data?.description === "PlayerCharacter") {
-      console.log(finalComponentList, entityComponents.components, "test????");
-    } else {
-      entityComponents.components = finalComponentList;
-    }
+    entityComponents.components = finalComponentList;
 
     if (entityDefinition.children) {
       entityComponents.children = entityDefinition.children.map((childName) => {

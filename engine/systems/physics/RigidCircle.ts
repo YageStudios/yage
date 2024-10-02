@@ -13,8 +13,8 @@ import { System, SystemImpl } from "minecs";
 
 @System(RigidCircle, Transform)
 export class RigidCircleSystem extends SystemImpl<GameModel> {
-  static category: ComponentCategory = ComponentCategory.PHYSICS;
   depth = DEPTHS.COLLISION - 0.0001;
+  dependencies = ["Locomotion", "Transform"];
 
   init = (gameModel: GameModel, entity: number) => {
     const transform = gameModel.getTypedUnsafe(Transform, entity);
