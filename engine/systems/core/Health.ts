@@ -52,7 +52,10 @@ export class HealthSystem extends SystemImpl<GameModel> {
       killStats.killsThisFrame.push({
         description: gameModel.getComponent("Description", killedEntity)?.description || "",
         type: enemyType,
-        position: killPosition,
+        position: {
+          x: killPosition.x,
+          y: killPosition.y,
+        },
         owner: lastDamage.owner,
         source: entity,
       });
