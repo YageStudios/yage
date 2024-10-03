@@ -10,7 +10,7 @@ class OwnerSystem extends SystemImpl<GameModel> {
 
   init = (gameModel: GameModel, entity: number) => {
     const owner = gameModel.getTypedUnsafe(Owner, entity).owner;
-    if (owner === null) return;
+    if (owner === null || owner === undefined) return;
     if (!gameModel.isActive(owner)) {
       gameModel.getTypedUnsafe(Owner, entity).owner = null;
       return;
