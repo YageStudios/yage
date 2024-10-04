@@ -179,7 +179,11 @@ export class EntityFactory {
       return data.map((d) => this.mapComplexValues(d, gameModel));
     } else if (typeof data === "object") {
       for (const key in data) {
-        data[key] = this.mapComplexValues(data[key], gameModel);
+        const mappedkey = this.mapComplexValues(key, gameModel).toString();
+        data[mappedkey] = this.mapComplexValues(data[key], gameModel);
+        if (mappedkey !== key) {
+          delete data[key];
+        }
       }
     } else if (typeof data === "string") {
       if (data.startsWith("enum:")) {
