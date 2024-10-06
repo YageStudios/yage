@@ -41,6 +41,10 @@ export class RigidCircle extends Schema {
 
   @type(["number"])
   collisionMask: CollisionCategoryEnum[];
+
+  @type("boolean")
+  @defaultValue(false)
+  isometric: boolean;
 }
 
 @Component()

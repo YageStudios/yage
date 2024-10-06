@@ -10,6 +10,7 @@ import { Transform } from "yage/schemas/entity/Transform";
 import { RigidCircleResolver, RigidCircle } from "yage/schemas/physics/RigidCircle";
 import { World } from "yage/schemas/core/World";
 import { System, SystemImpl } from "minecs";
+import { MapIsometric } from "yage/schemas/map/Map";
 
 @System(RigidCircle, Transform)
 export class RigidCircleSystem extends SystemImpl<GameModel> {
@@ -26,14 +27,43 @@ export class RigidCircleSystem extends SystemImpl<GameModel> {
     if (physicsSystem.getRigidBody(entity) !== undefined) {
       return;
     }
+
     const rigidBodyDesc = rigidCircle.isStatic ? RAPIER.RigidBodyDesc.fixed() : RAPIER.RigidBodyDesc.dynamic();
     rigidBodyDesc.setTranslation(position.x, position.y);
 
-    const rigidBody = physicsSystem.createRigidBody(entity, rigidBodyDesc);
-    // Create a cuboid collider attached to the dynamic rigidBody.
-    let colliderDesc = RAPIER.ColliderDesc.ball(rigidCircle.radius || gameModel(Radius).store.radius[entity]).setMass(
-      rigidCircle.mass
-    );
+    let colliderDesc;
+    if (rigidCircle.isometric && gameModel.hasComponent(MapIsometric, gameModel.coreEntity)) {
+      rigidBodyDesc.rotationsEnabled = false;
+      // Create an approximation of the isometric circle using a convex hull
+      const numPoints = 16;
+      const vertices = [];
+      const radius = rigidCircle.radius || gameModel(Radius).store.radius[entity];
+
+      for (let i = 0; i < numPoints; i++) {
+        const angle = (i / numPoints) * 2 * Math.PI;
+        let x = radius * Math.cos(angle);
+        let y = radius * Math.sin(angle);
+
+        // Apply isometric transformation
+        const isoX = (x - y) * Math.cos(Math.PI / 4) * Math.SQRT2;
+        const isoY = (x + y) * Math.sin(Math.PI / 4) * 0.5 * Math.SQRT2;
+
+        vertices.push(isoX, isoY);
+      }
+
+      const pointsF32 = new Float32Array(vertices);
+      colliderDesc = RAPIER.ColliderDesc.convexHull(pointsF32);
+
+      if (!colliderDesc) {
+        console.error("Failed to create convex hull for isometric circle");
+        return;
+      }
+    } else {
+      colliderDesc = RAPIER.ColliderDesc.ball(rigidCircle.radius || gameModel(Radius).store.radius[entity]);
+    }
+
+    colliderDesc.setMass(rigidCircle.mass);
+
     let filterMask = CollisionCategoryEnum.ALL as number;
     if (rigidCircle.collisionMask) {
       filterMask = rigidCircle.collisionMask.reduce((acc, val) => acc | val, 0);
@@ -48,6 +78,7 @@ export class RigidCircleSystem extends SystemImpl<GameModel> {
       colliderDesc.setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);
     }
 
+    const rigidBody = physicsSystem.createRigidBody(entity, rigidBodyDesc);
     physicsSystem.createCollider(entity, colliderDesc, rigidBody);
 
     if (!gameModel.hasComponent("RigidCircleResolver", entity)) {

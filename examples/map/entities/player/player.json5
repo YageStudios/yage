@@ -8,7 +8,7 @@
     {
       type: "PixiGraphic",
       fillColor: "#ff0000",
-        zIndex: 10,
+      zIndex: 10,
       circle: {
         x: 5,
         y: 5,
@@ -22,7 +22,7 @@
     },
     {
       type: "Radius",
-      radius: 5,
+      radius: 50,
     },
     {
       type: "PixiSprite",
@@ -38,6 +38,7 @@
       collisionMask: ["enum:CollisionCategoryEnum.ALL"],
       mass: 200,
       collisionEvents: true,
+      isometric: true,
     },
     "Transform",
     {
