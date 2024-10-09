@@ -345,6 +345,7 @@ export const GameModel = ({
           break;
         }
         for (let j = 0; j < entities.length; j++) {
+          const components: Schema[] = [];
           const entity = entities[j];
           if (overrideKeys.length > 0) {
             const systemComponents = componentsBySystem[system.constructor.name];
@@ -352,10 +353,13 @@ export const GameModel = ({
               const type = systemComponents[k];
               const schema = getComponentByType(type);
               if (schema?.category === category) {
+                const store = gameModel(schema).store;
                 const component = gameModel.getComponent(schema, entity) as any;
+                components.push(component);
+
                 if (component) {
                   for (const key of overrideKeys) {
-                    if (component[key] !== undefined) {
+                    if (store[key] !== undefined) {
                       component[key] = overrides[key];
                     }
                   }
@@ -365,10 +369,9 @@ export const GameModel = ({
           }
           system.run?.(gameModel, entities[j]);
           if (after) {
-            const systemComponents = componentsBySystem[system.constructor.name];
             let shouldContinue = after(
               system,
-              systemComponents,
+              components,
               overrides,
               i === systems.length - 1 && j === entities.length - 1
             );

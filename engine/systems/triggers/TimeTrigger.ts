@@ -6,9 +6,8 @@ import { System } from "minecs";
 
 @System(TimeTrigger)
 export class TimeTriggerSystem extends BaseTriggerSystem {
-  type = "TimeTrigger";
-  category: ComponentCategory = ComponentCategory.TRIGGER;
-  depth = DEPTHS.ITEMS + 10;
+  static category: ComponentCategory = ComponentCategory.TRIGGER;
+  static depth = DEPTHS.ITEMS + 10;
 
   getTrigger(gameModel: GameModel, entity: number): TimeTrigger {
     return gameModel.getTypedUnsafe(TimeTrigger, entity);

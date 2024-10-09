@@ -5,8 +5,6 @@ import { Owner } from "yage/schemas/core/Owner";
 
 @System(Owned)
 export class OwnedSystem extends SystemImpl<GameModel> {
-  static depth = -1;
-
   cleanup = (gameModel: GameModel, entity: number) => {
     const owned = gameModel.getTypedUnsafe(Owned, entity);
     owned.owned.forEach((ownedEntity) => {

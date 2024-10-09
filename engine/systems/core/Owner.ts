@@ -4,9 +4,8 @@ import { Owned } from "yage/schemas/core/Owned";
 import { Owner } from "yage/schemas/core/Owner";
 
 @System(Owner)
-class OwnerSystem extends SystemImpl<GameModel> {
-  schema = Owner;
-  type = "Owner";
+export class OwnerSystem extends SystemImpl<GameModel> {
+  static depth = -1;
 
   init = (gameModel: GameModel, entity: number) => {
     const owner = gameModel.getTypedUnsafe(Owner, entity).owner;

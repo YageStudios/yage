@@ -4,9 +4,12 @@ import { Transform } from "yage/schemas/entity/Transform";
 import { PixiViewportSystem } from "../render/PixiViewport";
 import { SelfCamera } from "yage/schemas/camera/SelfCamera";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
+import { DEPTHS } from "yage/constants/enums";
 
 @System(SelfCamera)
 export class SelfCameraSystem extends DrawSystemImpl<GameModel> {
+  static depth = DEPTHS.PREDRAW;
+
   run = (world: GameModel, entity: number) => {
     const viewport = getSystem(world, PixiViewportSystem).viewport;
 

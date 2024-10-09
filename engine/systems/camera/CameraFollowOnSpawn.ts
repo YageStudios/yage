@@ -6,8 +6,6 @@ import { EntityCamera } from "yage/schemas/camera/EntityCamera";
 
 @System(CameraFollowOnSpawn)
 export class CameraFollowOnSpawnSystem extends SystemImpl<GameModel> {
-  static category: ComponentCategory = ComponentCategory.CORE;
-
   init = (gameModel: GameModel, entity: number) => {
     gameModel.getTypedUnsafe(EntityCamera, gameModel.coreEntity).entity = entity;
   };
