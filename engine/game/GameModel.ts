@@ -340,7 +340,7 @@ export const GameModel = ({
         return;
       }
       overrides = overrides || {};
-      const entities = Array.isArray(entity) ? entity : [entity];
+      let entities = Array.isArray(entity) ? entity : [entity];
       if (!entities.length) {
         return;
       }
@@ -360,15 +360,18 @@ export const GameModel = ({
               for (let m = 0; m < systemComponents.length; m++) {
                 const type = systemComponents[m];
                 const schema = getComponentByType(type);
+                if (schema && !gameModel.hasComponent(schema, entity)) {
+                  k++;
+                  break;
+                }
+
                 if (schema?.category === category) {
-                  const store = gameModel(schema).store;
-                  console.log(schema, entity);
                   const component = gameModel.getComponent(schema, entity) as any;
                   components.push(component);
 
                   if (component) {
                     for (const key of overrideKeys) {
-                      if (store[key] !== undefined) {
+                      if (component[key] !== undefined) {
                         component[key] = overrides[key];
                       }
                     }
@@ -386,7 +389,8 @@ export const GameModel = ({
                 i === systemsSet.length - 1 && k === entities.length - 1
               );
               if (shouldContinue === false) {
-                return;
+                entities = entities.slice(k + 1);
+                k = 0;
               }
             }
           }
