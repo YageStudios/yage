@@ -151,7 +151,7 @@ export const GameModel = ({
   }, {} as Record<string, SystemImpl<any>[]>);
 
   const componentsBySystem = Object.entries(sortedSystemsByComponent).reduce((acc, [type, systems]) => {
-    systems.forEach((system) => {
+    systems.flat().forEach((system) => {
       acc[system.constructor.name] = acc[system.constructor.name] || [];
       acc[system.constructor.name].push(type);
     });
@@ -332,51 +332,62 @@ export const GameModel = ({
         isLast: boolean
       ) => void | boolean
     ) => {
-      const systems = sortedSystemsByCategory[category];
-      if (!systems) {
+      const systemsSet = sortedSystemsByCategory[category];
+      if (!systemsSet) {
+        return;
+      }
+      if (entity === undefined) {
         return;
       }
       overrides = overrides || {};
       const entities = Array.isArray(entity) ? entity : [entity];
+      if (!entities.length) {
+        return;
+      }
       const overrideKeys = Object.keys(overrides);
-      for (let i = 0; i < systems.length; i++) {
-        const system = systems[i];
-        if ((system.constructor as typeof SystemImpl).depth >= 0) {
-          break;
-        }
-        for (let j = 0; j < entities.length; j++) {
-          const components: Schema[] = [];
-          const entity = entities[j];
-          if (overrideKeys.length > 0) {
-            const systemComponents = componentsBySystem[system.constructor.name];
-            for (let k = 0; k < systemComponents.length; k++) {
-              const type = systemComponents[k];
-              const schema = getComponentByType(type);
-              if (schema?.category === category) {
-                const store = gameModel(schema).store;
-                const component = gameModel.getComponent(schema, entity) as any;
-                components.push(component);
+      for (let i = 0; i < systemsSet.length; i++) {
+        const systems = systemsSet[i] as unknown as SystemImpl<GameModel>[];
+        for (let j = 0; j < systems.length; j++) {
+          const system = systems[i];
+          if ((system.constructor as typeof SystemImpl).depth >= 0) {
+            break;
+          }
+          for (let k = 0; k < entities.length; k++) {
+            const components: Schema[] = [];
+            const entity = entities[k];
+            if (overrideKeys.length > 0) {
+              const systemComponents = componentsBySystem[system.constructor.name];
+              for (let m = 0; m < systemComponents.length; m++) {
+                const type = systemComponents[m];
+                const schema = getComponentByType(type);
+                if (schema?.category === category) {
+                  const store = gameModel(schema).store;
+                  console.log(schema, entity);
+                  const component = gameModel.getComponent(schema, entity) as any;
+                  components.push(component);
 
-                if (component) {
-                  for (const key of overrideKeys) {
-                    if (store[key] !== undefined) {
-                      component[key] = overrides[key];
+                  if (component) {
+                    for (const key of overrideKeys) {
+                      if (store[key] !== undefined) {
+                        component[key] = overrides[key];
+                      }
                     }
                   }
                 }
               }
             }
-          }
-          system.run?.(gameModel, entities[j]);
-          if (after) {
-            let shouldContinue = after(
-              system,
-              components,
-              overrides,
-              i === systems.length - 1 && j === entities.length - 1
-            );
-            if (shouldContinue === false) {
-              return;
+            system.run?.(gameModel, entities[k]);
+            if (after) {
+              console.log(components);
+              let shouldContinue = after(
+                system,
+                components,
+                overrides,
+                i === systemsSet.length - 1 && k === entities.length - 1
+              );
+              if (shouldContinue === false) {
+                return;
+              }
             }
           }
         }
