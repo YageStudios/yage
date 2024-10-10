@@ -381,7 +381,6 @@ export const GameModel = ({
             }
             system.run?.(gameModel, entities[k]);
             if (after) {
-              console.log(components);
               let shouldContinue = after(
                 system,
                 components,
