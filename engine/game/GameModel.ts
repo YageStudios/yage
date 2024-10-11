@@ -48,7 +48,7 @@ export type GameModelState = {
 };
 
 export type EjectedEntity = {
-  entityType: string;
+  entityType: string | EntityTypeEnum;
   description: string;
   entityId: number;
   components: ComponentData[];
@@ -526,6 +526,6 @@ export const GameModel = ({
 
 export interface ReadOnlyGameModel extends GameModel {
   <T extends Schema>(schema: Constructor<T>, eid: number): Readonly<T>;
-  <T extends Schema>(schema: Constructor<T>): Readonly<WorldComponent>;
+  <T extends Schema>(schema: Constructor<T>): Readonly<WorldComponent<T>>;
   getComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => Readonly<T> | null;
 }
