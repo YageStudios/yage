@@ -1,7 +1,7 @@
 import { UIService } from "yage/ui/UIService";
 import { CustomUIParser } from "yage/ui/UiMapNext";
 
-UIService.getInstance();
+const uiService = UIService.getInstance();
 const parser = new CustomUIParser(`
 <Box>
   <Text label="Welcome, {{user.name}}!" />
@@ -22,8 +22,4 @@ const element = parser.build(
   }
 );
 
-UIService.getInstance().addToUI(element);
-
-console.log(element);
-
-document.body.appendChild(element._element!);
+uiService.addToUI(element);
