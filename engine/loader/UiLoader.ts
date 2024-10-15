@@ -20,6 +20,8 @@ export class UiLoader {
     } else if (assetPath.endsWith(".json5")) {
       const parsed = JSON5.parse(await map.text());
       registerTemplate(name, parsed);
+    } else if (assetPath.endsWith(".hbs")) {
+      registerTemplate(name, await map.text());
     }
     this.uiLibrary.set(name, getUiMapTemplate(name));
   }
