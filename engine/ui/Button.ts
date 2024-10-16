@@ -45,6 +45,7 @@ export class Button extends UIElement<ButtonConfig> {
           outline: "2px solid #2FA6FF",
         },
         focusable: true,
+        label: "",
         ...config,
       },
       defaultStyle

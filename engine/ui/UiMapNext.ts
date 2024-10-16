@@ -231,11 +231,26 @@ export class CustomUIParser {
     });
 
     // Create UIElement based on tag
-    const position = new Position(0, 0); // You may adjust positions as needed
+
+    if (!isNaN(config.x)) {
+      config.x = parseFloat(config.x);
+    }
+    if (!isNaN(config.y)) {
+      config.y = parseFloat(config.y);
+    }
+    const position = new Position(config.x ?? 0, config.y ?? 0, {
+      width: config.width,
+      height: config.height,
+      maxHeight: config.maxHeight,
+      maxWidth: config.maxWidth,
+      minHeight: config.minHeight,
+      minWidth: config.minWidth,
+    });
+
     const uiElement = createByType({
       rect: position,
       type: tag.toLowerCase() as any,
-      ...config,
+      config,
     });
 
     return uiElement;
@@ -267,7 +282,7 @@ export class CustomUIParser {
     eventListener?: (playerIndex: number, eventName: string, eventType: string, context: any) => void
   ) {
     const handler = eventListener;
-    return events
+    return events && Object.keys(events).length > 0
       ? {
           onEscape: (playerIndex: number) => {
             if (events.onescape && handler) {

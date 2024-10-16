@@ -35,7 +35,7 @@ export class Text extends UIElement<TextConfig> {
     if (Array.isArray(bounds)) {
       bounds = new Position(bounds[0], bounds[1], { width: 0, height: 0 });
     }
-    super(bounds, config, defaultStyle);
+    super(bounds, { label: "", ...config }, defaultStyle);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-empty-function

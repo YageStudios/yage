@@ -13,6 +13,8 @@ const sizeToPixels = (size: Size): [number, boolean] => {
       size = inchesToPixels(size);
     } else if (size.endsWith("px")) {
       size = parseFloat(size.replace("px", ""));
+    } else {
+      size = parseFloat(size);
     }
   }
   return [size as number, isPercentage];
