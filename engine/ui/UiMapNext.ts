@@ -30,6 +30,17 @@ export class CustomUIParser {
     this.rootElement = new Box(new Position(0, 0), { children: [] });
   }
 
+  private processTemplateString(templateStr: string, variableCallback?: (variableName: string) => void): string {
+    return templateStr.replace(/{{\s*(.+?)\s*}}/g, (match, p1) => {
+      const variableName = p1.trim();
+      if (variableCallback) {
+        variableCallback(variableName);
+      }
+      const value = this.getValueFromContext(variableName);
+      return value !== undefined ? value : "";
+    });
+  }
+
   /** Step 1: Preprocess the template into an AST */
   private parseTemplate(template: string): ASTNode {
     const tokens = this.tokenize(template);
@@ -149,10 +160,10 @@ export class CustomUIParser {
     if (existingElement) {
       // Update existing element
       uiElement = existingElement;
-      this.updateAttributes(uiElement, node.attributes);
+      this.updateAttributes(uiElement, node.attributes, node.key!);
     } else {
       // Create new element
-      uiElement = this.createElement(node.tag, node.attributes);
+      uiElement = this.createElement(node.tag, node.attributes, node.key!);
       this.uiElements.set(node.key!, uiElement);
       parentElement.addChild(uiElement);
     }
@@ -195,8 +206,7 @@ export class CustomUIParser {
     this.variableDependencies.get(node.name)!.add(key);
   }
 
-  private createElement(tag: string, attributes: Record<string, any>): UIElement<any> {
-    // Map attributes to config
+  private createElement(tag: string, attributes: Record<string, any>, key: string): UIElement<any> {
     const config: any = {};
 
     // Handle label separately for Text and Button elements
@@ -224,9 +234,16 @@ export class CustomUIParser {
       "onblur",
       "onescape",
     ];
-    Object.entries(attributes).forEach(([key, value]) => {
-      if (!eventAttributes.includes(key)) {
-        config[key] = value;
+
+    Object.entries(attributes).forEach(([attrKey, value]) => {
+      if (!eventAttributes.includes(attrKey)) {
+        const processedValue = this.processTemplateString(value, (variableName) => {
+          if (!this.variableDependencies.has(variableName)) {
+            this.variableDependencies.set(variableName, new Set());
+          }
+          this.variableDependencies.get(variableName)!.add(key);
+        });
+        config[attrKey] = processedValue;
       }
     });
 
@@ -331,9 +348,25 @@ export class CustomUIParser {
       : {};
   }
 
-  private updateAttributes(uiElement: UIElement<any>, attributes: Record<string, any>): void {
-    Object.entries(attributes).forEach(([key, value]) => {
-      uiElement.config[key] = value;
+  private updateAttributes(uiElement: UIElement<any>, attributes: Record<string, any>, key: string): void {
+    // Remove previous variable dependencies for this key
+    this.variableDependencies.forEach((keysSet, variableName) => {
+      if (keysSet.has(key)) {
+        keysSet.delete(key);
+      }
+      if (keysSet.size === 0) {
+        this.variableDependencies.delete(variableName);
+      }
+    });
+
+    Object.entries(attributes).forEach(([attrKey, value]) => {
+      const processedValue = this.processTemplateString(value, (variableName) => {
+        if (!this.variableDependencies.has(variableName)) {
+          this.variableDependencies.set(variableName, new Set());
+        }
+        this.variableDependencies.get(variableName)!.add(key);
+      });
+      uiElement.config[attrKey] = processedValue;
     });
   }
 
