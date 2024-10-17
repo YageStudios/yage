@@ -32,7 +32,7 @@ uiService.enableKeyCapture(inputManager);
 const parser = new CustomUIParser(`
   <Box width="1920" x="left" height="1080" y="top">
 <Grid items="{{children}}" width="full" x="left" height="full" y="top">
-  <Box width="100" height="100">
+  <Box width="{{test}}" height="100">
     {{this.test}}
   </Box>
 </Grid>

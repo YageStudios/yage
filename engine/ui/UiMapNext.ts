@@ -3,6 +3,7 @@ import { UIElement } from "./UIElement";
 import { Text } from "./Text";
 import { createByType } from "./UiConfigs";
 import { Box } from "./Box";
+import { isEqual } from "lodash";
 
 type ASTNode =
   | { type: "Element"; tag: string; attributes: Record<string, any>; children: ASTNode[]; key?: string }
@@ -144,6 +145,20 @@ export class CustomUIParser {
     let match;
     while ((match = attrRegex.exec(tagString)) !== null) {
       attrs[match[1]] = match[2];
+      if (match[1] === "style" && match[2].includes(";")) {
+        const styleAttrs = match[2].split(";");
+        styleAttrs.forEach((styleAttr) => {
+          const [key, value] = styleAttr.split(":");
+          attrs.style = { ...attrs.style, [key.trim()]: value.trim() };
+        });
+      } else if (match[1] === "style" && match[2].startsWith("{")) {
+        const styleString = match[2].slice(1, -1);
+        const styleAttrs = styleString.split(",");
+        styleAttrs.forEach((styleAttr) => {
+          const [key, value] = styleAttr.split(":");
+          attrs.style = { ...attrs.style, [key.trim()]: value.trim() };
+        });
+      }
     }
     return attrs;
   }
@@ -244,10 +259,17 @@ export class CustomUIParser {
             if (existingChildElement) {
               // Update existing child element
               this.updateAttributes(existingChildElement, childNode.attributes, childKey, itemContext);
-              this.renderNode(childNode, uiElement, itemContext);
+              // this.renderNode(childNode, uiElement, itemContext);
             } else {
               // Create new child element
               const clonedChildNode = { ...childNode, key: childKey };
+              clonedChildNode.attributes = { ...clonedChildNode.attributes };
+              clonedChildNode.attributes.style = {
+                position: "relative",
+                flex: "0 0 auto",
+                pointerEvents: "auto",
+                ...clonedChildNode.attributes.style,
+              };
               this.renderNode(clonedChildNode, uiElement, itemContext);
             }
           } else {
@@ -298,6 +320,28 @@ export class CustomUIParser {
     this.variableDependencies.get(node.name)!.add(key);
   }
 
+  private processStyleAttribute(attribute: Record<string, any>, contextOverride?: any): Record<string, any> {
+    const context = contextOverride || this.context;
+    const style = attribute.style || {};
+    const processedStyle: Record<string, any> = {};
+
+    Object.entries(style).forEach(([key, value]) => {
+      const processedValue = this.processTemplateString(
+        value?.toString() || "",
+        (variableName) => {
+          if (!this.variableDependencies.has(variableName)) {
+            this.variableDependencies.set(variableName, new Set());
+          }
+          this.variableDependencies.get(variableName)!.add("style");
+        },
+        context
+      );
+      processedStyle[key] = processedValue;
+    });
+
+    return { ...attribute, ...processedStyle };
+  }
+
   private createElement(
     tag: string,
     attributes: Record<string, any>,
@@ -334,7 +378,9 @@ export class CustomUIParser {
     ];
 
     Object.entries(attributes).forEach(([attrKey, value]) => {
-      if (!eventAttributes.includes(attrKey) && attrKey !== "items") {
+      if (attrKey === "style") {
+        config.style = this.processStyleAttribute(attributes.style, context);
+      } else if (!eventAttributes.includes(attrKey) && attrKey !== "items") {
         const processedValue = this.processTemplateString(
           value,
           (variableName) => {
@@ -508,6 +554,7 @@ export class CustomUIParser {
     changedVariables.forEach((variableName) => {
       const affectedKeys = this.variableDependencies.get(variableName);
       if (affectedKeys) {
+        console.log(variableName, affectedKeys);
         affectedKeys.forEach((key) => {
           const uiElement = this.uiElements.get(key);
           if (uiElement) {
@@ -530,7 +577,7 @@ export class CustomUIParser {
     allVariables.forEach((variableName) => {
       const oldValue = this.getValueFromContext(variableName);
       const newValue = this.getValueFromNewContext(variableName, newContext);
-      if (oldValue !== newValue) {
+      if (newValue !== undefined && !isEqual(oldValue, newValue)) {
         changedVariables.add(variableName);
       }
     });
