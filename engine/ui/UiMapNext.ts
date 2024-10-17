@@ -23,6 +23,7 @@ export class CustomUIParser {
   constructor(template: string) {
     this.template = template;
     this.ast = this.parseTemplate(template);
+    console.log(this.ast);
     this.context = {};
     this.previousContext = {};
     this.uiElements = new Map();
@@ -30,15 +31,35 @@ export class CustomUIParser {
     this.rootElement = new Box(new Position(0, 0), { children: [] });
   }
 
-  private processTemplateString(templateStr: string, variableCallback?: (variableName: string) => void): string {
+  private processTemplateString(
+    templateStr: string,
+    variableCallback?: (variableName: string) => void,
+    contextOverride?: any
+  ): string {
+    const context = contextOverride || this.context;
     return templateStr.replace(/{{\s*(.+?)\s*}}/g, (match, p1) => {
       const variableName = p1.trim();
       if (variableCallback) {
         variableCallback(variableName);
       }
-      const value = this.getValueFromContext(variableName);
+      const value = this.getValueFromContext(variableName, context);
       return value !== undefined ? value : "";
     });
+  }
+
+  private getValueFromContext(path: string, contextOverride?: any): any {
+    const context = contextOverride || this.context;
+    const parts = path.split(".");
+    let acc = context;
+
+    for (const part of parts) {
+      if (part === "this") {
+        acc = acc && acc["this"];
+      } else {
+        acc = acc && acc[part];
+      }
+    }
+    return acc;
   }
 
   /** Step 1: Preprocess the template into an AST */
@@ -57,17 +78,23 @@ export class CustomUIParser {
     while (tokens.length > 0) {
       const token = tokens[0];
       if (token.startsWith("<")) {
-        body.push(this.parseElement(tokens));
+        const element = this.parseElement(tokens);
+        if (element) {
+          body.push(element);
+        }
       } else if (token.startsWith("{{")) {
         body.push(this.parseVariable(tokens.shift()!));
       } else {
-        body.push({ type: "Text", content: tokens.shift()!.trim() });
+        const textTokens = tokens.shift()!.trim();
+        if (textTokens !== "") {
+          body.push({ type: "Text", content: textTokens });
+        }
       }
     }
     return { type: "Program", body };
   }
 
-  private parseElement(tokens: string[]): ASTNode {
+  private parseElement(tokens: string[], depth = 0): ASTNode | null {
     const token = tokens.shift()!;
     const isClosingTag = token.startsWith("</");
     const tagMatch = token.match(/^<\/?([A-Za-z][^\s/>]*)/);
@@ -75,21 +102,27 @@ export class CustomUIParser {
     const tag = tagMatch[1];
 
     if (isClosingTag) {
-      return { type: "Text", content: "" }; // Ignore closing tags here
+      return null; // Ignore closing tags here
     }
 
     const attributes = this.parseAttributes(token);
-    const selfClosing = token.endsWith("/>") || ["Box", "Text", "Button", "TextInput", "Image"].indexOf(tag) === -1;
+    const selfClosing = token.endsWith("/>");
     const children: ASTNode[] = [];
 
     if (!selfClosing) {
       while (tokens.length > 0 && !tokens[0].startsWith(`</${tag}>`)) {
         if (tokens[0].startsWith("<")) {
-          children.push(this.parseElement(tokens));
+          const childElement = this.parseElement(tokens, depth + 1);
+          if (childElement) {
+            children.push(childElement);
+          }
         } else if (tokens[0].startsWith("{{")) {
           children.push(this.parseVariable(tokens.shift()!));
         } else {
-          children.push({ type: "Text", content: tokens.shift()!.trim() });
+          const textTokens = tokens.shift()!.trim();
+          if (textTokens !== "") {
+            children.push({ type: "Text", content: textTokens });
+          }
         }
       }
       // Remove the closing tag
@@ -136,69 +169,128 @@ export class CustomUIParser {
     return this.rootElement;
   }
 
-  private renderNode(node: ASTNode, parentElement: UIElement<any>): void {
+  private renderNode(node: ASTNode, parentElement: UIElement<any>, contextOverride?: any): void {
+    const context = contextOverride || this.context;
     switch (node.type) {
       case "Program":
-        node.body.forEach((child) => this.renderNode(child, parentElement));
+        node.body.forEach((child) => this.renderNode(child, parentElement, context));
         break;
       case "Element":
-        this.renderElementNode(node, parentElement);
+        this.renderElementNode(node as ASTNode & { type: "Element" }, parentElement, context);
         break;
       case "Text":
-        this.renderTextNode(node, parentElement);
+        this.renderTextNode(node as ASTNode & { type: "Text" }, parentElement, context);
         break;
       case "Variable":
-        this.renderVariableNode(node, parentElement);
+        this.renderVariableNode(node as ASTNode & { type: "Variable" }, parentElement, context);
         break;
     }
   }
 
-  private renderElementNode(node: ASTNode & { type: "Element" }, parentElement: UIElement<any>): void {
+  private renderElementNode(
+    node: ASTNode & { type: "Element" },
+    parentElement: UIElement<any>,
+    contextOverride?: any
+  ): void {
+    const context = contextOverride || this.context;
     const existingElement = this.uiElements.get(node.key!);
     let uiElement: UIElement<any>;
 
     if (existingElement) {
       // Update existing element
       uiElement = existingElement;
-      this.updateAttributes(uiElement, node.attributes, node.key!);
+      this.updateAttributes(uiElement, node.attributes, node.key!, context);
     } else {
       // Create new element
-      uiElement = this.createElement(node.tag, node.attributes, node.key!);
+      uiElement = this.createElement(node.tag, node.attributes, node.key!, context);
       this.uiElements.set(node.key!, uiElement);
       parentElement.addChild(uiElement);
     }
 
-    // Recursively render or update children
-    node.children.forEach((childNode) => this.renderNode(childNode, uiElement));
+    if (node.tag === "Grid") {
+      const itemsAttr = node.attributes.items;
+      let items = [];
+      if (itemsAttr) {
+        const itemPath = itemsAttr.replace(/{{\s*(.+?)\s*}}/g, "$1");
+        if (!this.variableDependencies.has(itemPath)) {
+          this.variableDependencies.set(itemPath, new Set());
+        }
+        this.variableDependencies.get(itemPath)!.add(node.key!);
+        items = this.getValueFromContext(itemPath, context) || [];
+      }
+
+      const existingChildren = uiElement.getChildren() ?? [];
+      const totalChildrenNeeded = items.length * node.children.length;
+
+      if (existingChildren.length > totalChildrenNeeded) {
+        const childrenToRemove = existingChildren.slice(totalChildrenNeeded);
+        childrenToRemove.forEach((child: UIElement) => {
+          uiElement.removeChild(child);
+          this.uiElements.delete(child.id);
+        });
+      }
+
+      for (let i = 0; i < items.length; i++) {
+        const itemData = items[i];
+        const itemContext = { ...context, this: itemData, $index: i };
+
+        for (let j = 0; j < node.children.length; j++) {
+          const childNode = node.children[j];
+          if (childNode.type === "Element") {
+            const childKey = `${node.key!}_${i}_${childNode.key || j}`;
+
+            const existingChildElement = this.uiElements.get(childKey);
+
+            if (existingChildElement) {
+              // Update existing child element
+              this.updateAttributes(existingChildElement, childNode.attributes, childKey, itemContext);
+              this.renderNode(childNode, uiElement, itemContext);
+            } else {
+              // Create new child element
+              const clonedChildNode = { ...childNode, key: childKey };
+              this.renderNode(clonedChildNode, uiElement, itemContext);
+            }
+          } else {
+            this.renderNode(childNode, uiElement, itemContext);
+          }
+        }
+      }
+    } else {
+      // Recursively render or update children
+      node.children.forEach((childNode) => this.renderNode(childNode, uiElement, context));
+    }
   }
 
-  private renderTextNode(node: ASTNode & { type: "Text" }, parentElement: UIElement<any>): void {
+  private renderTextNode(node: ASTNode & { type: "Text" }, parentElement: UIElement<any>, contextOverride?: any): void {
+    const context = contextOverride || this.context;
     if (node.content.trim() === "") return;
 
-    // For Text and Button elements, append the text to the label
+    const processedContent = this.processTemplateString(node.content, undefined, context);
+
     if (parentElement.config.label !== undefined) {
-      parentElement.config.label += node.content;
+      parentElement.config.label += processedContent;
     } else {
-      // For other elements, create a Text UIElement
-      const textElement = new Text(new Position(0, 0), { label: node.content });
+      const textElement = new Text(new Position(0, 0), { label: processedContent });
       parentElement.addChild(textElement);
     }
   }
 
-  private renderVariableNode(node: ASTNode & { type: "Variable" }, parentElement: UIElement<any>): void {
-    const value = this.getValueFromContext(node.name);
+  private renderVariableNode(
+    node: ASTNode & { type: "Variable" },
+    parentElement: UIElement<any>,
+    contextOverride?: any
+  ): void {
+    const context = contextOverride || this.context;
+    const value = this.getValueFromContext(node.name, context);
     const valueStr = String(value);
 
-    // For Text and Button elements, append the variable value to the label
     if (parentElement.config.label !== undefined) {
       parentElement.config.label += valueStr;
     } else {
-      // For other elements, create a Text UIElement
       const textElement = new Text(new Position(0, 0), { label: valueStr });
       parentElement.addChild(textElement);
     }
 
-    // Track variable dependencies
     const key = parentElement.id;
     if (!this.variableDependencies.has(node.name)) {
       this.variableDependencies.set(node.name, new Set());
@@ -206,7 +298,13 @@ export class CustomUIParser {
     this.variableDependencies.get(node.name)!.add(key);
   }
 
-  private createElement(tag: string, attributes: Record<string, any>, key: string): UIElement<any> {
+  private createElement(
+    tag: string,
+    attributes: Record<string, any>,
+    key: string,
+    contextOverride?: any
+  ): UIElement<any> {
+    const context = contextOverride || this.context;
     const config: any = {};
 
     // Handle label separately for Text and Button elements
@@ -218,12 +316,12 @@ export class CustomUIParser {
     const eventHandlers = this.extractEventHandlers(attributes);
 
     // Generate event listener methods
-    const events = this.generateEventListener(eventHandlers, this.context, this.eventHandler);
+    const events = this.generateEventListener(eventHandlers, context, this.eventHandler);
 
     // Merge events into config
     Object.assign(config, events);
 
-    // Map other attributes to config (excluding event handler attributes)
+    // Map other attributes to config (excluding event handler attributes and items)
     const eventAttributes = [
       "onclick",
       "onmousedown",
@@ -236,13 +334,17 @@ export class CustomUIParser {
     ];
 
     Object.entries(attributes).forEach(([attrKey, value]) => {
-      if (!eventAttributes.includes(attrKey)) {
-        const processedValue = this.processTemplateString(value, (variableName) => {
-          if (!this.variableDependencies.has(variableName)) {
-            this.variableDependencies.set(variableName, new Set());
-          }
-          this.variableDependencies.get(variableName)!.add(key);
-        });
+      if (!eventAttributes.includes(attrKey) && attrKey !== "items") {
+        const processedValue = this.processTemplateString(
+          value,
+          (variableName) => {
+            if (!this.variableDependencies.has(variableName)) {
+              this.variableDependencies.set(variableName, new Set());
+            }
+            this.variableDependencies.get(variableName)!.add(key);
+          },
+          context
+        );
         config[attrKey] = processedValue;
       }
     });
@@ -264,11 +366,31 @@ export class CustomUIParser {
       minWidth: config.minWidth,
     });
 
-    const uiElement = createByType({
-      rect: position,
-      type: tag.toLowerCase() as any,
-      config,
-    });
+    let uiElement: UIElement<any>;
+
+    if (tag === "Grid") {
+      config.renderOnScroll = true;
+      config.style = {
+        border: "none",
+        display: "flex",
+        flexWrap: "wrap",
+        overflow: "auto",
+        padding: "2px",
+        alignContent: "flex-start",
+        boxSizing: "border-box",
+        pointerEvents: "none",
+        gap: config.gap || "0",
+        ...config.style,
+      };
+
+      uiElement = new Box(position, config);
+    } else {
+      uiElement = createByType({
+        rect: position,
+        type: tag.toLowerCase() as any,
+        config,
+      });
+    }
 
     return uiElement;
   }
@@ -348,7 +470,13 @@ export class CustomUIParser {
       : {};
   }
 
-  private updateAttributes(uiElement: UIElement<any>, attributes: Record<string, any>, key: string): void {
+  private updateAttributes(
+    uiElement: UIElement<any>,
+    attributes: Record<string, any>,
+    key: string,
+    contextOverride?: any
+  ): void {
+    const context = contextOverride || this.context;
     // Remove previous variable dependencies for this key
     this.variableDependencies.forEach((keysSet, variableName) => {
       if (keysSet.has(key)) {
@@ -360,18 +488,18 @@ export class CustomUIParser {
     });
 
     Object.entries(attributes).forEach(([attrKey, value]) => {
-      const processedValue = this.processTemplateString(value, (variableName) => {
-        if (!this.variableDependencies.has(variableName)) {
-          this.variableDependencies.set(variableName, new Set());
-        }
-        this.variableDependencies.get(variableName)!.add(key);
-      });
+      const processedValue = this.processTemplateString(
+        value,
+        (variableName) => {
+          if (!this.variableDependencies.has(variableName)) {
+            this.variableDependencies.set(variableName, new Set());
+          }
+          this.variableDependencies.get(variableName)!.add(key);
+        },
+        context
+      );
       uiElement.config[attrKey] = processedValue;
     });
-  }
-
-  private getValueFromContext(path: string): any {
-    return path.split(".").reduce((acc, part) => acc && acc[part], this.context);
   }
 
   /** Detect changes and update affected nodes */
@@ -383,10 +511,10 @@ export class CustomUIParser {
         affectedKeys.forEach((key) => {
           const uiElement = this.uiElements.get(key);
           if (uiElement) {
-            // Re-render the node
             const node = this.findNodeByKey(this.ast, key);
             if (node && uiElement.parent) {
-              this.renderNode(node, uiElement.parent as UIElement<any>);
+              const context = { ...this.context, ...newContext };
+              this.renderNode(node, uiElement.parent as UIElement<any>, context);
             }
           }
         });

@@ -210,6 +210,9 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     }
     this.update();
   }
+  getChildren() {
+    return this._config.children;
+  }
 
   addChild(child: UIElement) {
     if (!this._config.children) {
