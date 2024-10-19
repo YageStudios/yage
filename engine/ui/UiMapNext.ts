@@ -16,7 +16,7 @@ export class CustomUIParser {
   private ast: ASTNode;
   private context: any;
   private previousContext: any;
-  private uiElements: Map<string, UIElement<any>>;
+  private uiElements: Map<string, [UIElement<any>, ASTNode]>;
   private rootElement: UIElement<any>;
   private variableDependencies: Map<string, Set<string>>;
   private eventHandler?: (playerIndex: number, eventName: string, eventType: string, context: any) => void;
@@ -213,12 +213,14 @@ export class CustomUIParser {
 
     if (existingElement) {
       // Update existing element
-      uiElement = existingElement;
+      [uiElement] = existingElement;
+      console.log("Existing child element", uiElement, node?.attributes);
+
       this.updateAttributes(uiElement, node.attributes, node.key!, context);
     } else {
       // Create new element
       uiElement = this.createElement(node.tag, node.attributes, node.key!, context);
-      this.uiElements.set(node.key!, uiElement);
+      this.uiElements.set(node.key!, [uiElement, node]);
       parentElement.addChild(uiElement);
     }
 
@@ -254,8 +256,7 @@ export class CustomUIParser {
           if (childNode.type === "Element") {
             const childKey = `${node.key!}_${i}_${childNode.key || j}`;
 
-            const existingChildElement = this.uiElements.get(childKey);
-
+            const [existingChildElement] = this.uiElements.get(childKey) ?? [];
             if (existingChildElement) {
               // Update existing child element
               this.updateAttributes(existingChildElement, childNode.attributes, childKey, itemContext);
@@ -544,6 +545,7 @@ export class CustomUIParser {
         },
         context
       );
+      console.log(processedValue);
       uiElement.config[attrKey] = processedValue;
     });
   }
@@ -554,11 +556,9 @@ export class CustomUIParser {
     changedVariables.forEach((variableName) => {
       const affectedKeys = this.variableDependencies.get(variableName);
       if (affectedKeys) {
-        console.log(variableName, affectedKeys);
         affectedKeys.forEach((key) => {
-          const uiElement = this.uiElements.get(key);
+          const [uiElement, node] = this.uiElements.get(key) ?? [];
           if (uiElement) {
-            const node = this.findNodeByKey(this.ast, key);
             if (node && uiElement.parent) {
               const context = { ...this.context, ...newContext };
               this.renderNode(node, uiElement.parent as UIElement<any>, context);
