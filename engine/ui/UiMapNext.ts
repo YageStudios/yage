@@ -19,6 +19,7 @@ export class CustomUIParser {
   private uiElements: Map<string, [UIElement<any>, ASTNode]>;
   private rootElement: UIElement<any>;
   private variableDependencies: Map<string, Set<string>>;
+  private functionPointers: Map<string, Map<string, (val: any) => void>> = new Map();
   private eventHandler?: (playerIndex: number, eventName: string, eventType: string, context: any) => void;
 
   constructor(template: string) {
@@ -144,20 +145,25 @@ export class CustomUIParser {
     const attrs: Record<string, any> = {};
     let match;
     while ((match = attrRegex.exec(tagString)) !== null) {
-      attrs[match[1]] = match[2];
-      if (match[1] === "style" && match[2].includes(";")) {
+      if (match[1] === "style" && (match[2].includes(";") || !match[2].endsWith("}"))) {
         const styleAttrs = match[2].split(";");
         styleAttrs.forEach((styleAttr) => {
+          if (styleAttr.trim() === "") return;
           const [key, value] = styleAttr.split(":");
+          if (attrs.style === undefined) {
+            attrs.style = {};
+          }
           attrs.style = { ...attrs.style, [key.trim()]: value.trim() };
         });
       } else if (match[1] === "style" && match[2].startsWith("{")) {
-        const styleString = match[2].slice(1, -1);
-        const styleAttrs = styleString.split(",");
-        styleAttrs.forEach((styleAttr) => {
-          const [key, value] = styleAttr.split(":");
-          attrs.style = { ...attrs.style, [key.trim()]: value.trim() };
-        });
+        // const styleString = match[2].slice(1, -1);
+        // const styleAttrs = styleString.split(",");
+        // styleAttrs.forEach((styleAttr) => {
+        //   const [key, value] = styleAttr.split(":");
+        //   attrs.style = { ...attrs.style, [key.trim()]: value.trim() };
+        // });
+      } else {
+        attrs[match[1]] = match[2];
       }
     }
     return attrs;
@@ -227,57 +233,67 @@ export class CustomUIParser {
     if (node.tag === "Grid") {
       const itemsAttr = node.attributes.items;
       let items = [];
+
+      const updateChildren = (items: any[]) => {
+        const existingChildren = uiElement.getChildren() ?? [];
+        const totalChildrenNeeded = items.length * node.children.length;
+
+        if (existingChildren.length > totalChildrenNeeded) {
+          const childrenToRemove = existingChildren.slice(totalChildrenNeeded);
+          childrenToRemove.forEach((child: UIElement) => {
+            uiElement.removeChild(child);
+            this.uiElements.delete(child.id);
+          });
+        }
+
+        for (let i = 0; i < items.length; i++) {
+          const itemData = items[i];
+          const itemContext = { ...context, this: itemData, $index: i };
+
+          for (let j = 0; j < node.children.length; j++) {
+            const childNode = node.children[j];
+            if (childNode.type === "Element") {
+              const childKey = `${node.key!}_${i}_${childNode.key || j}`;
+
+              const [existingChildElement] = this.uiElements.get(childKey) ?? [];
+              if (existingChildElement) {
+                // Update existing child element
+                this.updateAttributes(existingChildElement, childNode.attributes, childKey, itemContext);
+                // this.renderNode(childNode, uiElement, itemContext);
+              } else {
+                // Create new child element
+                const clonedChildNode = { ...childNode, key: childKey };
+                clonedChildNode.attributes = { ...clonedChildNode.attributes };
+                clonedChildNode.attributes.style = {
+                  position: "relative",
+                  flex: "0 0 auto",
+                  pointerEvents: "auto",
+                  ...clonedChildNode.attributes.style,
+                };
+                this.renderNode(clonedChildNode, uiElement, itemContext);
+              }
+            } else {
+              this.renderNode(childNode, uiElement, itemContext);
+            }
+          }
+        }
+      };
+
       if (itemsAttr) {
         const itemPath = itemsAttr.replace(/{{\s*(.+?)\s*}}/g, "$1");
         if (!this.variableDependencies.has(itemPath)) {
           this.variableDependencies.set(itemPath, new Set());
         }
-        this.variableDependencies.get(itemPath)!.add(node.key!);
+        this.variableDependencies.get(itemPath)!.add(uiElement.id);
+
+        if (!this.functionPointers.has(uiElement.id)) {
+          this.functionPointers.set(uiElement.id, new Map());
+        }
+        this.functionPointers.get(uiElement.id)!.set(itemPath, updateChildren);
         items = this.getValueFromContext(itemPath, context) || [];
       }
 
-      const existingChildren = uiElement.getChildren() ?? [];
-      const totalChildrenNeeded = items.length * node.children.length;
-
-      if (existingChildren.length > totalChildrenNeeded) {
-        const childrenToRemove = existingChildren.slice(totalChildrenNeeded);
-        childrenToRemove.forEach((child: UIElement) => {
-          uiElement.removeChild(child);
-          this.uiElements.delete(child.id);
-        });
-      }
-
-      for (let i = 0; i < items.length; i++) {
-        const itemData = items[i];
-        const itemContext = { ...context, this: itemData, $index: i };
-
-        for (let j = 0; j < node.children.length; j++) {
-          const childNode = node.children[j];
-          if (childNode.type === "Element") {
-            const childKey = `${node.key!}_${i}_${childNode.key || j}`;
-
-            const [existingChildElement] = this.uiElements.get(childKey) ?? [];
-            if (existingChildElement) {
-              // Update existing child element
-              this.updateAttributes(existingChildElement, childNode.attributes, childKey, itemContext);
-              // this.renderNode(childNode, uiElement, itemContext);
-            } else {
-              // Create new child element
-              const clonedChildNode = { ...childNode, key: childKey };
-              clonedChildNode.attributes = { ...clonedChildNode.attributes };
-              clonedChildNode.attributes.style = {
-                position: "relative",
-                flex: "0 0 auto",
-                pointerEvents: "auto",
-                ...clonedChildNode.attributes.style,
-              };
-              this.renderNode(clonedChildNode, uiElement, itemContext);
-            }
-          } else {
-            this.renderNode(childNode, uiElement, itemContext);
-          }
-        }
-      }
+      updateChildren(items);
     } else {
       // Recursively render or update children
       node.children.forEach((childNode) => this.renderNode(childNode, uiElement, context));
@@ -305,42 +321,100 @@ export class CustomUIParser {
   ): void {
     const context = contextOverride || this.context;
     const value = this.getValueFromContext(node.name, context);
-    const valueStr = String(value);
+    let textElement: Text | undefined;
+    let prevLabel: string;
 
-    if (parentElement.config.label !== undefined) {
-      parentElement.config.label += valueStr;
-    } else {
-      const textElement = new Text(new Position(0, 0), { label: valueStr });
-      parentElement.addChild(textElement);
-    }
+    const updateText = (value: any) => {
+      const valueStr = String(value);
 
-    const key = parentElement.id;
+      if (parentElement.config.label !== undefined) {
+        prevLabel = parentElement.config.label;
+        parentElement.config.label = prevLabel + valueStr;
+      } else if (!textElement) {
+        textElement = new Text(new Position(0, 0), { label: valueStr });
+        parentElement.addChild(textElement);
+      } else {
+        textElement.config.label = valueStr;
+      }
+    };
+
+    updateText(value);
+
     if (!this.variableDependencies.has(node.name)) {
       this.variableDependencies.set(node.name, new Set());
     }
-    this.variableDependencies.get(node.name)!.add(key);
+    this.variableDependencies.get(node.name)!.add(textElement?.id ?? parentElement.id);
+    if (!this.functionPointers.has(textElement?.id ?? parentElement.id)) {
+      this.functionPointers.set(textElement?.id ?? parentElement.id, new Map());
+    }
+    this.functionPointers.get(textElement?.id ?? parentElement.id)!.set(node.name, updateText);
   }
 
-  private processStyleAttribute(attribute: Record<string, any>, contextOverride?: any): Record<string, any> {
+  private generateStyleAttribute(attribute: Record<string, any>, contextOverride?: any): Record<string, any> {
     const context = contextOverride || this.context;
     const style = attribute.style || {};
     const processedStyle: Record<string, any> = {};
 
     Object.entries(style).forEach(([key, value]) => {
-      const processedValue = this.processTemplateString(
+      const processedValue = this.processTemplateString(value?.toString() || "", undefined, context);
+      processedStyle[key] = processedValue;
+    });
+
+    return { ...attribute, ...processedStyle };
+  }
+
+  private watchStyleAttributes(attribute: Record<string, any>, element: UIElement): void {
+    const style = attribute.style || {};
+
+    Object.entries(style).forEach(([key, value]) => {
+      this.processTemplateString(
         value?.toString() || "",
         (variableName) => {
           if (!this.variableDependencies.has(variableName)) {
             this.variableDependencies.set(variableName, new Set());
           }
-          this.variableDependencies.get(variableName)!.add("style");
+          this.variableDependencies.get(variableName)!.add(element.id);
+          if (!this.functionPointers.has(element.id)) {
+            this.functionPointers.set(element.id, new Map());
+          }
+          this.functionPointers.get(element.id)!.set(variableName, (processedValue) => {
+            element.config.style[key] = processedValue;
+          });
         },
-        context
+        {}
       );
-      processedStyle[key] = processedValue;
     });
+  }
 
-    return { ...attribute, ...processedStyle };
+  private watchVariables(variables: [string, string][], element: UIElement): void {
+    variables.forEach(([variableName, key]) => {
+      if (!this.variableDependencies.has(variableName)) {
+        this.variableDependencies.set(variableName, new Set());
+      }
+      this.variableDependencies.get(variableName)!.add(element.id);
+      if (!this.functionPointers.has(element.id)) {
+        this.functionPointers.set(element.id, new Map());
+      }
+      this.functionPointers.get(element.id)!.set(variableName, (processedValue) => {
+        element.config[key] = processedValue;
+      });
+    });
+  }
+
+  private watchPositionVariables(variables: [string, string][], element: UIElement): void {
+    variables.forEach(([variableName, key]) => {
+      if (!this.variableDependencies.has(variableName)) {
+        this.variableDependencies.set(variableName, new Set());
+      }
+      this.variableDependencies.get(variableName)!.add(element.id);
+      if (!this.functionPointers.has(element.id)) {
+        this.functionPointers.set(element.id, new Map());
+      }
+      this.functionPointers.get(element.id)!.set(variableName, (processedValue) => {
+        // @ts-expect-error - too lazy to fix this
+        element.position[key] = processedValue;
+      });
+    });
   }
 
   private createElement(
@@ -378,21 +452,38 @@ export class CustomUIParser {
       "onescape",
     ];
 
+    const position = new Position(0, 0);
+    const positionAttributes = ["x", "y", "width", "height", "maxHeight", "maxWidth", "minHeight", "minWidth"];
+
+    let stylesGenerated = false;
+
+    let variablesToWatch: [string, string][] = [];
+    let positionVariablesToWatch: [string, string][] = [];
+
     Object.entries(attributes).forEach(([attrKey, value]) => {
       if (attrKey === "style") {
-        config.style = this.processStyleAttribute(attributes.style, context);
-      } else if (!eventAttributes.includes(attrKey) && attrKey !== "items") {
+        config.style = this.generateStyleAttribute(attributes.style, context);
+        stylesGenerated = true;
+      } else if (!eventAttributes.includes(attrKey) && attrKey !== "items" && !positionAttributes.includes(attrKey)) {
         const processedValue = this.processTemplateString(
           value,
           (variableName) => {
-            if (!this.variableDependencies.has(variableName)) {
-              this.variableDependencies.set(variableName, new Set());
-            }
-            this.variableDependencies.get(variableName)!.add(key);
+            variablesToWatch.push([variableName, attrKey]);
           },
           context
         );
         config[attrKey] = processedValue;
+      } else if (positionAttributes.includes(attrKey)) {
+        const processedValue = this.processTemplateString(
+          value,
+          (variableName) => {
+            positionVariablesToWatch.push([variableName, attrKey]);
+          },
+          context
+        );
+
+        // @ts-expect-error - too lazy to fix this
+        position[attrKey] = processedValue;
       }
     });
 
@@ -404,14 +495,6 @@ export class CustomUIParser {
     if (!isNaN(config.y)) {
       config.y = parseFloat(config.y);
     }
-    const position = new Position(config.x ?? 0, config.y ?? 0, {
-      width: config.width,
-      height: config.height,
-      maxHeight: config.maxHeight,
-      maxWidth: config.maxWidth,
-      minHeight: config.minHeight,
-      minWidth: config.minWidth,
-    });
 
     let uiElement: UIElement<any>;
 
@@ -438,6 +521,14 @@ export class CustomUIParser {
         config,
       });
     }
+
+    if (stylesGenerated) {
+      this.watchStyleAttributes(attributes, uiElement);
+    }
+
+    this.watchVariables(variablesToWatch, uiElement);
+
+    this.watchPositionVariables(positionVariablesToWatch, uiElement);
 
     return uiElement;
   }
@@ -557,13 +648,7 @@ export class CustomUIParser {
       const affectedKeys = this.variableDependencies.get(variableName);
       if (affectedKeys) {
         affectedKeys.forEach((key) => {
-          const [uiElement, node] = this.uiElements.get(key) ?? [];
-          if (uiElement) {
-            if (node && uiElement.parent) {
-              const context = { ...this.context, ...newContext };
-              this.renderNode(node, uiElement.parent as UIElement<any>, context);
-            }
-          }
+          this.functionPointers.get(key)?.get(variableName)?.(this.getValueFromContext(variableName, newContext));
         });
       }
     });

@@ -21,27 +21,23 @@ const sizeToPixels = (size: Size): [number, boolean] => {
 };
 
 export class Position {
-  x: number | "left" | "center" | "right" | "full";
-  y: number | "top" | "center" | "bottom" | "full";
-
-  xOffset: number = 0;
+  private _x: number | "left" | "center" | "right" | "full";
+  private _y: number | "top" | "center" | "bottom" | "full";
+  private _xOffset: number = 0;
   xOffsetPercentage: boolean = false;
-  yOffset: number = 0;
+  private _yOffset: number = 0;
   yOffsetPercentage: boolean = false;
-
-  width: number = 0;
+  private _width: number = 0;
   widthPercentage: boolean = false;
-  height: number = 0;
+  private _height: number = 0;
   heightPercentage: boolean = false;
-
-  minWidth: number = 0;
+  private _minWidth: number = 0;
   minWidthPercentage: boolean = false;
-  minHeight: number = 0;
+  private _minHeight: number = 0;
   minHeightPercentage: boolean = false;
-
-  maxWidth: number = 0;
+  private _maxWidth: number = 0;
   maxWidthPercentage: boolean = false;
-  maxHeight: number = 0;
+  private _maxHeight: number = 0;
   maxHeightPercentage: boolean = false;
 
   constructor(
@@ -67,16 +63,88 @@ export class Position {
       maxHeight?: Size;
     } = {}
   ) {
-    this.x = x;
-    this.y = y;
-    [this.width, this.widthPercentage] = sizeToPixels(width || this.width);
-    [this.height, this.heightPercentage] = sizeToPixels(height || this.height);
-    [this.minWidth, this.minWidthPercentage] = sizeToPixels(minWidth || this.minWidth);
-    [this.minHeight, this.minHeightPercentage] = sizeToPixels(minHeight || this.minHeight);
-    [this.maxWidth, this.maxWidthPercentage] = sizeToPixels(maxWidth || this.maxWidth);
-    [this.maxHeight, this.maxHeightPercentage] = sizeToPixels(maxHeight || this.maxHeight);
-    [this.xOffset, this.xOffsetPercentage] = sizeToPixels(xOffset || this.xOffset);
-    [this.yOffset, this.yOffsetPercentage] = sizeToPixels(yOffset || this.yOffset);
+    this._x = x;
+    this._y = y;
+    this.width = width || this._width;
+    this.height = height || this._height;
+    this.minWidth = minWidth || this._minWidth;
+    this.minHeight = minHeight || this._minHeight;
+    this.maxWidth = maxWidth || this._maxWidth;
+    this.maxHeight = maxHeight || this._maxHeight;
+    this.xOffset = xOffset || this._xOffset;
+    this.yOffset = yOffset || this._yOffset;
+  }
+
+  // Getters
+  get x() {
+    return this._x;
+  }
+  get y() {
+    return this._y;
+  }
+  get xOffset() {
+    return this._xOffset;
+  }
+  get yOffset() {
+    return this._yOffset;
+  }
+  get width() {
+    return this._width;
+  }
+  get height() {
+    return this._height;
+  }
+  get minWidth() {
+    return this._minWidth;
+  }
+  get minHeight() {
+    return this._minHeight;
+  }
+  get maxWidth() {
+    return this._maxWidth;
+  }
+  get maxHeight() {
+    return this._maxHeight;
+  }
+
+  // Setters
+  set x(value: number | "left" | "center" | "right" | "full") {
+    this._x = value;
+  }
+  set y(value: number | "top" | "center" | "bottom" | "full") {
+    this._y = value;
+  }
+
+  set width(size: Size) {
+    [this._width, this.widthPercentage] = sizeToPixels(size);
+  }
+
+  set height(size: Size) {
+    [this._height, this.heightPercentage] = sizeToPixels(size);
+  }
+
+  set xOffset(size: Size) {
+    [this._xOffset, this.xOffsetPercentage] = sizeToPixels(size);
+  }
+
+  set yOffset(size: Size) {
+    [this._yOffset, this.yOffsetPercentage] = sizeToPixels(size);
+  }
+
+  set minWidth(size: Size) {
+    [this._minWidth, this.minWidthPercentage] = sizeToPixels(size);
+  }
+
+  set minHeight(size: Size) {
+    [this._minHeight, this.minHeightPercentage] = sizeToPixels(size);
+  }
+
+  set maxWidth(size: Size) {
+    [this._maxWidth, this.maxWidthPercentage] = sizeToPixels(size);
+  }
+
+  set maxHeight(size: Size) {
+    [this._maxHeight, this.maxHeightPercentage] = sizeToPixels(size);
   }
 }
 
