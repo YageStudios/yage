@@ -441,16 +441,28 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     return visible;
   };
 
-  update = debounce(
-    () => {
-      if (this.destroyed) {
-        return;
-      }
+  requestingAnimationFrame = false;
+  update = () => {
+    if (this.requestingAnimationFrame || this.destroyed) {
+      return;
+    }
+    this.requestingAnimationFrame = true;
+    requestAnimationFrame(() => {
+      this.requestingAnimationFrame = false;
       this._update();
-    },
-    0,
-    { leading: false }
-  );
+    });
+  };
+
+  // debounce(
+  //   () => {
+  //     if (this.destroyed) {
+  //       return;
+  //     }
+  //     this._update();
+  //   },
+  //   0,
+  //   { leading: false }
+  // );
 
   updateVisibility() {
     if (!this.isVisible()) {

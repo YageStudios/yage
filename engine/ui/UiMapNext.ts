@@ -365,10 +365,10 @@ export class CustomUIParser {
 
   private watchStyleAttributes(attribute: Record<string, any>, element: UIElement): void {
     const style = attribute.style || {};
-
     Object.entries(style).forEach(([key, value]) => {
+      const originalValue = value?.toString() || "";
       this.processTemplateString(
-        value?.toString() || "",
+        originalValue,
         (variableName) => {
           if (!this.variableDependencies.has(variableName)) {
             this.variableDependencies.set(variableName, new Set());
@@ -377,7 +377,8 @@ export class CustomUIParser {
           if (!this.functionPointers.has(element.id)) {
             this.functionPointers.set(element.id, new Map());
           }
-          this.functionPointers.get(element.id)!.set(variableName, (processedValue) => {
+          this.functionPointers.get(element.id)!.set(variableName, () => {
+            const processedValue = this.processTemplateString(originalValue, undefined, this.context);
             element.config.style[key] = processedValue;
           });
         },
@@ -386,8 +387,8 @@ export class CustomUIParser {
     });
   }
 
-  private watchVariables(variables: [string, string][], element: UIElement): void {
-    variables.forEach(([variableName, key]) => {
+  private watchVariables(variables: [string, string, string][], element: UIElement): void {
+    variables.forEach(([variableName, key, originalValue]) => {
       if (!this.variableDependencies.has(variableName)) {
         this.variableDependencies.set(variableName, new Set());
       }
@@ -395,14 +396,15 @@ export class CustomUIParser {
       if (!this.functionPointers.has(element.id)) {
         this.functionPointers.set(element.id, new Map());
       }
-      this.functionPointers.get(element.id)!.set(variableName, (processedValue) => {
+      this.functionPointers.get(element.id)!.set(variableName, () => {
+        const processedValue = this.processTemplateString(originalValue, undefined, this.context);
         element.config[key] = processedValue;
       });
     });
   }
 
-  private watchPositionVariables(variables: [string, string][], element: UIElement): void {
-    variables.forEach(([variableName, key]) => {
+  private watchPositionVariables(variables: [string, string, string][], element: UIElement): void {
+    variables.forEach(([variableName, key, originalValue]) => {
       if (!this.variableDependencies.has(variableName)) {
         this.variableDependencies.set(variableName, new Set());
       }
@@ -410,7 +412,8 @@ export class CustomUIParser {
       if (!this.functionPointers.has(element.id)) {
         this.functionPointers.set(element.id, new Map());
       }
-      this.functionPointers.get(element.id)!.set(variableName, (processedValue) => {
+      this.functionPointers.get(element.id)!.set(variableName, () => {
+        const processedValue = this.processTemplateString(originalValue, undefined, this.context);
         // @ts-expect-error - too lazy to fix this
         element.position[key] = processedValue;
       });
@@ -457,31 +460,32 @@ export class CustomUIParser {
 
     let stylesGenerated = false;
 
-    let variablesToWatch: [string, string][] = [];
-    let positionVariablesToWatch: [string, string][] = [];
+    let variablesToWatch: [string, string, string][] = [];
+    let positionVariablesToWatch: [string, string, string][] = [];
 
     Object.entries(attributes).forEach(([attrKey, value]) => {
       if (attrKey === "style") {
         config.style = this.generateStyleAttribute(attributes.style, context);
         stylesGenerated = true;
       } else if (!eventAttributes.includes(attrKey) && attrKey !== "items" && !positionAttributes.includes(attrKey)) {
+        const originalValue = value;
         const processedValue = this.processTemplateString(
           value,
           (variableName) => {
-            variablesToWatch.push([variableName, attrKey]);
+            variablesToWatch.push([variableName, attrKey, originalValue]);
           },
           context
         );
         config[attrKey] = processedValue;
       } else if (positionAttributes.includes(attrKey)) {
+        const originalValue = value;
         const processedValue = this.processTemplateString(
           value,
           (variableName) => {
-            positionVariablesToWatch.push([variableName, attrKey]);
+            positionVariablesToWatch.push([variableName, attrKey, originalValue]);
           },
           context
         );
-
         // @ts-expect-error - too lazy to fix this
         position[attrKey] = processedValue;
       }
