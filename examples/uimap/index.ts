@@ -29,27 +29,27 @@ uiService.enableKeyCapture(inputManager);
 // </Grid>
 //   `);
 
-// const parser = new CustomUIParser(`
-//   <Box width="1920" x="left" height="1080" y="top">
-// <Grid items="{{children}}" width="full" x="left" height="full" y="top">
-//   <Box width="100" height="100">
-//     {{test}}
-//   </Box>
-// </Grid>
-// <Box x="left" y="bottom" width="{{test}}" style="backgroundColor: red" height="100">
-//     {{test}}
-//   </Box>
-// </Box>
-//   `);
-
 const parser = new CustomUIParser(`
   <Box width="1920" x="left" height="1080" y="top">
-
+<Grid items="{{children}}" width="full" x="left" height="full" y="top">
+  <Box width="100" height="100">
+    {{this.test}} and {{test}}
+  </Box>
+</Grid>
 <Box x="left" y="bottom" width="{{test}}%" style="backgroundColor: red;" height="100">
-    Hello?
+    {{test}}
   </Box>
 </Box>
   `);
+
+// const parser = new CustomUIParser(`
+//   <Box width="1920" x="left" height="1080" y="top">
+
+// <Box x="left" y="bottom" width="{{test}}%" style="backgroundColor: red;" height="100">
+//     Hello?
+//   </Box>
+// </Box>
+//   `);
 const element = parser.build(
   {
     user: {
