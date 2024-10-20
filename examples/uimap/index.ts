@@ -29,7 +29,18 @@ uiService.enableKeyCapture(inputManager);
 // </Grid>
 //   `);
 
-const parser = new CustomUIParser(`
+const partials = {
+  header: `
+  <Box width="1920" x="left" height="100" y="top">
+    test {{test}}
+    </Box>`,
+  box: `<Box width="100" height="100">
+    {{this.test}} / {{test / 2}}
+  </Box>`,
+};
+
+const parser = new CustomUIParser(
+  `{{> header}}
   <Box width="1920" x="left" height="1080" y="top">
 <Grid items="{{children}}" width="full" x="left" height="full" y="top">
   <Box width="100" height="100">
@@ -40,7 +51,9 @@ const parser = new CustomUIParser(`
     {{test}}
   </Box>
 </Box>
-  `);
+  `,
+  partials
+);
 
 // const parser = new CustomUIParser(`
 //   <Box width="1920" x="left" height="1080" y="top">

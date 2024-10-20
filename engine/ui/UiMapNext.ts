@@ -8,10 +8,13 @@ import { isEqual } from "lodash";
 type ASTNode =
   | { type: "Element"; tag: string; attributes: Record<string, any>; children: ASTNode[]; key?: string }
   | { type: "Text"; content: string }
-  | { type: "Program"; body: ASTNode[] };
+  | { type: "Program"; body: ASTNode[] }
+  | { type: "Partial"; name: string; context?: string; params?: Record<string, any>; children?: ASTNode[] }
+  | { type: "InlinePartial"; name: string; content: ASTNode[] };
 
 export class CustomUIParser {
   private template: string;
+  private partials: Record<string, string>;
   private ast: ASTNode;
   private context: any;
   private previousContext: any;
@@ -21,8 +24,9 @@ export class CustomUIParser {
   private functionPointers: Map<string, Map<string, () => void>> = new Map();
   private eventHandler?: (playerIndex: number, eventName: string, eventType: string, context: any) => void;
 
-  constructor(template: string) {
+  constructor(template: string, partials: Record<string, string> = {}) {
     this.template = template;
+    this.partials = partials;
     this.ast = this.parseTemplate(template);
     console.log(this.ast);
     this.context = {};
@@ -221,7 +225,7 @@ export class CustomUIParser {
   }
 
   private tokenize(template: string): string[] {
-    const regex = /<\/?[A-Za-z][^>]*>|{{[^}]+}}|[^<{{]+/g;
+    const regex = /{{#\*?[^}]+}}|{{\/[^}]+}}|{{[^}]+}}|<\/?[A-Za-z][^>]*>|[^<{{]+/g;
     return template.match(regex) || [];
   }
 
@@ -229,6 +233,14 @@ export class CustomUIParser {
     const body: ASTNode[] = [];
     while (tokens.length > 0) {
       const token = tokens[0];
+      if (token.startsWith("{{")) {
+        console.log(token);
+        const partialNode = this.parsePartial(tokens);
+        if (partialNode) {
+          body.push(partialNode);
+          continue;
+        }
+      }
       if (token.startsWith("<")) {
         const element = this.parseElement(tokens);
         if (element) {
@@ -246,6 +258,67 @@ export class CustomUIParser {
       }
     }
     return { type: "Program", body };
+  }
+
+  private parsePartial(tokens: string[]): ASTNode | null {
+    const token = tokens.shift()!;
+    // Match partial syntax
+    const partialOpenMatch = token.match(/^{{\s*(#\*?|\^?>)\s*(.+?)\s*}}$/);
+    const partialCloseMatch = token.match(/^{{\/\s*(.+?)\s*}}$/);
+
+    if (partialOpenMatch) {
+      const [_, type, content] = partialOpenMatch;
+      if (type === ">" || type === "^?>") {
+        // Basic or dynamic partial
+        const [name, ...params] = content.split(/\s+/);
+        const paramMap = this.parseParams(params.join(" "));
+        return { type: "Partial", name, params: paramMap };
+      } else if (type === "#>") {
+        // Partial block
+        const name = content.trim();
+        const children: ASTNode[] = [];
+        // Parse until the closing tag
+        while (tokens.length > 0 && !(tokens[0].trim() === `{{/${name}}}`)) {
+          const childNode = this.parseProgram(tokens);
+          children.push(childNode);
+        }
+        // Consume closing tag
+        if (tokens.length > 0) tokens.shift();
+        return { type: "Partial", name, children };
+      } else if (type === "#*inline") {
+        // Inline partial
+        const nameMatch = content.match(/"(.+?)"/);
+        const name = nameMatch ? nameMatch[1] : "";
+        const children: ASTNode[] = [];
+        // Parse until the closing tag
+        while (tokens.length > 0 && !(tokens[0].trim() === "{{/inline}}")) {
+          const childNode = this.parseProgram(tokens);
+          children.push(childNode);
+        }
+        // Consume closing tag
+        if (tokens.length > 0) tokens.shift();
+        return { type: "InlinePartial", name, content: children };
+      }
+    }
+
+    if (partialCloseMatch) {
+      // It's a closing tag, do nothing (handled in open tag parsing)
+      return null;
+    }
+
+    // Not a partial, put the token back
+    tokens.unshift(token);
+    return null;
+  }
+
+  private parseParams(paramString: string): Record<string, any> {
+    const params: Record<string, any> = {};
+    const regex = /(\w+)=(["'])(.*?)\2/g;
+    let match;
+    while ((match = regex.exec(paramString)) !== null) {
+      params[match[1]] = match[3];
+    }
+    return params;
   }
 
   private parseElement(tokens: string[], depth = 0): ASTNode | null {
@@ -351,7 +424,98 @@ export class CustomUIParser {
       case "Text":
         this.renderTextNode(node as ASTNode & { type: "Text" }, parentElement, context, contextPath);
         break;
+      case "Partial":
+        this.renderPartialNode(node as ASTNode & { type: "Partial" }, parentElement, context, contextPath);
+        break;
+      case "InlinePartial":
+        this.registerInlinePartial(node as ASTNode & { type: "InlinePartial" }, context, contextPath);
+        break;
     }
+  }
+
+  private renderPartialNode(
+    node: ASTNode & { type: "Partial" },
+    parentElement: UIElement<any>,
+    contextOverride?: any,
+    contextPath: string[] = []
+  ): void {
+    const context = contextOverride || this.context;
+
+    // Handle dynamic partials
+    let partialName = node.name;
+    if (partialName.startsWith("(") && partialName.endsWith(")")) {
+      const expression = partialName.slice(1, -1).trim();
+      partialName = this.evaluateExpression(expression, context, contextPath);
+    }
+
+    // Retrieve partial content
+    let partialTemplate = this.partials[partialName];
+    if (!partialTemplate && node.children) {
+      // Use partial block content as fallback
+      partialTemplate = node.children.map((child) => this.nodeToString(child)).join("");
+    }
+
+    if (!partialTemplate) {
+      console.warn(`Partial "${partialName}" not found.`);
+      return;
+    }
+
+    // Parse partial template
+    const partialAST = this.parseTemplate(partialTemplate);
+
+    // // Merge parameters into context
+    // let partialContext = context;
+    // if (node.params) {
+    //   partialContext = { ...context, ...node.params };
+    // }
+
+    let partialContext = context;
+    if (node.params) {
+      if (node.params[0]) {
+        const contextExpression = node.params[0];
+        const newContext = this.evaluateExpression(contextExpression, context, contextPath);
+        partialContext = newContext;
+      }
+      // Merge hash parameters
+      partialContext = { ...partialContext, ...node.params };
+    }
+
+    // Render partial
+    this.renderNode(partialAST, parentElement, partialContext, contextPath);
+  }
+
+  private nodeToString(node: ASTNode): string {
+    switch (node.type) {
+      case "Text":
+        return node.content;
+      case "Element":
+        const attrs = Object.entries(node.attributes)
+          .map(([key, value]) => `${key}="${value}"`)
+          .join(" ");
+        const children = node.children.map((child) => this.nodeToString(child)).join("");
+        return `<${node.tag} ${attrs}>${children}</${node.tag}>`;
+      case "Partial":
+        // Simplified; you may need to handle params and context
+        return `{{> ${node.name} }}`;
+      case "Program":
+        return node.body.map((child) => this.nodeToString(child)).join("");
+      case "InlinePartial":
+        // Simplified
+        return `{{#*inline "${node.name}"}}${node.content
+          .map((child) => this.nodeToString(child))
+          .join("")}}{{/inline}}`;
+      default:
+        return "";
+    }
+  }
+
+  private registerInlinePartial(
+    node: ASTNode & { type: "InlinePartial" },
+    contextOverride?: any,
+    contextPath: string[] = []
+  ): void {
+    const content = node.content.map((child) => this.nodeToString(child)).join("");
+    this.partials[node.name] = content;
   }
 
   private renderElementNode(
