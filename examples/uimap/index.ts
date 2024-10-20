@@ -33,7 +33,7 @@ const parser = new CustomUIParser(`
   <Box width="1920" x="left" height="1080" y="top">
 <Grid items="{{children}}" width="full" x="left" height="full" y="top">
   <Box width="100" height="100">
-    {{this.test}} and {{test}}
+    {{this.test}} / {{test / 2}}
   </Box>
 </Grid>
 <Box x="left" y="bottom" width="{{test}}%" style="backgroundColor: red;" height="100">
@@ -58,7 +58,7 @@ const element = parser.build(
     test: 100,
     children: [
       {
-        test: 98,
+        test: "blah",
       },
       {
         test: 99,
