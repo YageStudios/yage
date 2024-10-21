@@ -196,7 +196,6 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   }
 
   removeAllChildren() {
-    this._config.children = [];
     this._config.children?.forEach((x) => {
       x.onDestroy(true);
     });

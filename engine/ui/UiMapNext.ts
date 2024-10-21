@@ -11,7 +11,9 @@ type ASTNode =
   | { type: "Program"; body: ASTNode[] }
   | { type: "Partial"; name: string; contextVariable?: string; params?: Record<string, any>; children?: ASTNode[] }
   | { type: "InlinePartial"; name: string; content: ASTNode[] }
-  | { type: "ScopedBlock"; contextVariable: string; body: ASTNode[] };
+  | { type: "ScopedBlock"; contextVariable: string; body: ASTNode[] }
+  | { type: "IfBlock"; condition: string; consequent: ASTNode[]; alternate?: ASTNode[] }
+  | { type: "UnlessBlock"; condition: string; body: ASTNode[] };
 
 export class CustomUIParser {
   private template: string;
@@ -297,8 +299,70 @@ export class CustomUIParser {
     const isCommand = tokens[0].trim().startsWith("{{#");
     if (!isCommand) return null;
 
+    // Try parsing if and unless blocks
+    let blockNode = this.parseIfUnlessBlock(tokens);
+    if (blockNode) return blockNode;
+
     let scopedBlock = this.parseScopedBlock(tokens);
     if (scopedBlock) return scopedBlock;
+    return null;
+  }
+
+  /** Parsing {{#if}}, {{#unless}} blocks */
+  private parseIfUnlessBlock(tokens: string[]): ASTNode | null {
+    const token = tokens.shift()!;
+    // Match if block syntax
+    const ifOpenMatch = token.match(/^{{#if (.+?)}}$/);
+    const ifCloseMatch = token.match(/^{{\/if}}$/);
+    const unlessOpenMatch = token.match(/^{{#unless (.+?)}}$/);
+    const unlessCloseMatch = token.match(/^{{\/unless}}$/);
+
+    if (ifOpenMatch) {
+      const condition = ifOpenMatch[1].trim();
+      // Parse consequent body until {{else}} or {{/if}}
+      const consequent = this.parseNodes(tokens, (tokens) => {
+        const nextToken = tokens[0]?.trim();
+        return nextToken === "{{else}}" || nextToken === "{{/if}}";
+      });
+      let alternate: ASTNode[] | undefined = undefined;
+      if (tokens[0]?.trim() === "{{else}}") {
+        tokens.shift(); // Consume {{else}}
+        // Parse alternate body until {{/if}}
+        alternate = this.parseNodes(tokens, (tokens) => tokens[0]?.trim() === "{{/if}}");
+      }
+      if (tokens[0]?.trim() === "{{/if}}") {
+        tokens.shift(); // Consume {{/if}}
+      } else {
+        throw new Error("Missing closing tag for {{#if}}");
+      }
+      return {
+        type: "IfBlock",
+        condition,
+        consequent: this.joinTextNodes(consequent),
+        alternate: alternate ? this.joinTextNodes(alternate) : undefined,
+      };
+    }
+
+    if (unlessOpenMatch) {
+      const condition = unlessOpenMatch[1].trim();
+      // Parse body until {{/unless}}
+      const body = this.parseNodes(tokens, (tokens) => tokens[0]?.trim() === "{{/unless}}");
+      if (tokens[0]?.trim() === "{{/unless}}") {
+        tokens.shift(); // Consume {{/unless}}
+      } else {
+        throw new Error("Missing closing tag for {{#unless}}");
+      }
+      return { type: "UnlessBlock", condition, body: this.joinTextNodes(body) };
+    }
+
+    // If it's a closing tag for if or unless, we should not have gotten here
+    if (ifCloseMatch || unlessCloseMatch) {
+      // It's a closing tag, do nothing (handled in open tag parsing)
+      return null;
+    }
+
+    // Not an if or unless block, put the token back
+    tokens.unshift(token);
     return null;
   }
 
@@ -480,6 +544,74 @@ export class CustomUIParser {
       case "InlinePartial":
         this.registerInlinePartial(node as ASTNode & { type: "InlinePartial" }, contextPath);
         break;
+      case "IfBlock":
+        this.renderIfBlockNode(node as ASTNode & { type: "IfBlock" }, parentElement, contextPath);
+        break;
+      case "UnlessBlock":
+        this.renderUnlessBlockNode(node as ASTNode & { type: "UnlessBlock" }, parentElement, contextPath);
+        break;
+    }
+  }
+
+  private renderIfBlockNode(
+    node: ASTNode & { type: "IfBlock" },
+    parentElement: UIElement<any>,
+    contextPath: string[] = []
+  ): void {
+    const conditionResult = this.evaluateExpression(node.condition, this.context, contextPath);
+
+    // Set up variable watchers for the condition
+    const variablesInCondition = this.extractVariablesFromExpression(node.condition);
+    variablesInCondition.forEach((variableName) => {
+      const fullPath = this.resolveFullPath(variableName, contextPath);
+      if (!this.variableDependencies.has(fullPath)) {
+        this.variableDependencies.set(fullPath, new Set());
+      }
+      this.variableDependencies.get(fullPath)!.add(parentElement.id);
+      if (!this.functionPointers.has(parentElement.id)) {
+        this.functionPointers.set(parentElement.id, new Map());
+      }
+      this.functionPointers.get(parentElement.id)!.set(fullPath, () => {
+        // When condition variable changes, re-render the if block
+        // parentElement.removeAllChildren();
+        // this.renderIfBlockNode(node, parentElement, contextPath);
+      });
+    });
+
+    if (conditionResult) {
+      this.renderNode({ type: "Program", body: node.consequent }, parentElement, contextPath);
+    } else if (node.alternate) {
+      this.renderNode({ type: "Program", body: node.alternate }, parentElement, contextPath);
+    }
+  }
+
+  private renderUnlessBlockNode(
+    node: ASTNode & { type: "UnlessBlock" },
+    parentElement: UIElement<any>,
+    contextPath: string[] = []
+  ): void {
+    const conditionResult = this.evaluateExpression(node.condition, this.context, contextPath);
+
+    // Set up variable watchers for the condition
+    const variablesInCondition = this.extractVariablesFromExpression(node.condition);
+    variablesInCondition.forEach((variableName) => {
+      const fullPath = this.resolveFullPath(variableName, contextPath);
+      if (!this.variableDependencies.has(fullPath)) {
+        this.variableDependencies.set(fullPath, new Set());
+      }
+      this.variableDependencies.get(fullPath)!.add(parentElement.id);
+      if (!this.functionPointers.has(parentElement.id)) {
+        this.functionPointers.set(parentElement.id, new Map());
+      }
+      this.functionPointers.get(parentElement.id)!.set(fullPath, () => {
+        // When condition variable changes, re-render the unless block
+        parentElement.removeAllChildren();
+        this.renderUnlessBlockNode(node, parentElement, contextPath);
+      });
+    });
+
+    if (!conditionResult) {
+      this.renderNode({ type: "Program", body: node.body }, parentElement, contextPath);
     }
   }
 
@@ -554,6 +686,13 @@ export class CustomUIParser {
           .join("")}}{{/inline}}`;
       case "ScopedBlock":
         return node.body.map((child) => this.nodeToString(child)).join("");
+      case "IfBlock":
+        const consequent = node.consequent.map((child) => this.nodeToString(child)).join("");
+        const alternate = node.alternate ? node.alternate.map((child) => this.nodeToString(child)).join("") : "";
+        return `{{#if ${node.condition}}}${consequent}${node.alternate ? `{{else}}${alternate}` : ""}{{/if}}`;
+      case "UnlessBlock":
+        const body = node.body.map((child) => this.nodeToString(child)).join("");
+        return `{{#unless ${node.condition}}}${body}{{/unless}}`;
       default:
         return "";
     }

@@ -80,11 +80,13 @@ const parser = new CustomUIParser(
     {{ test }}
   </Box>
 
+  {{#if test > 50}}
   <Box x="right" y="top" yOffset="200" xOffset="-200">
     {{#with children.1.user}}
-    test? {{ name }}
+    test? {{ name }}?????????
     {{/with}}
   </Box>
+  {{/if}}
 
   <Box x="right" y="top" yOffset="200" xOffset="-300" width="300">
     {{> test user}}
