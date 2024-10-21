@@ -201,7 +201,7 @@ export class CustomUIParser {
     } else if (variableName === "$index") {
       return [...contextPath, variableName].join(".");
     } else {
-      return variableName;
+      return [...contextPath, variableName].join(".");
     }
   }
 
@@ -453,35 +453,29 @@ export class CustomUIParser {
     this.previousContext = this.context;
     this.context = context;
     this.eventHandler = eventHandler;
-    this.renderNode(this.ast, this.rootElement, context, []);
+    this.renderNode(this.ast, this.rootElement, []);
     return this.rootElement;
   }
 
-  private renderNode(
-    node: ASTNode,
-    parentElement: UIElement<any>,
-    contextOverride?: any,
-    contextPath: string[] = []
-  ): void {
-    const context = contextOverride || this.context;
+  private renderNode(node: ASTNode, parentElement: UIElement<any>, contextPath: string[] = []): void {
     switch (node.type) {
       case "Program":
-        node.body.forEach((child) => this.renderNode(child, parentElement, context, contextPath));
+        node.body.forEach((child) => this.renderNode(child, parentElement, contextPath));
         break;
       case "Element":
-        this.renderElementNode(node as ASTNode & { type: "Element" }, parentElement, context, contextPath);
+        this.renderElementNode(node as ASTNode & { type: "Element" }, parentElement, contextPath);
         break;
       case "Text":
-        this.renderTextNode(node as ASTNode & { type: "Text" }, parentElement, context, contextPath);
+        this.renderTextNode(node as ASTNode & { type: "Text" }, parentElement, contextPath);
         break;
       case "ScopedBlock":
-        this.renderScopedBlockNode(node as ASTNode & { type: "ScopedBlock" }, parentElement, context, contextPath);
+        this.renderScopedBlockNode(node as ASTNode & { type: "ScopedBlock" }, parentElement, contextPath);
         break;
       case "Partial":
-        this.renderPartialNode(node as ASTNode & { type: "Partial" }, parentElement, context, contextPath);
+        this.renderPartialNode(node as ASTNode & { type: "Partial" }, parentElement, contextPath);
         break;
       case "InlinePartial":
-        this.registerInlinePartial(node as ASTNode & { type: "InlinePartial" }, context, contextPath);
+        this.registerInlinePartial(node as ASTNode & { type: "InlinePartial" }, contextPath);
         break;
     }
   }
@@ -492,20 +486,17 @@ export class CustomUIParser {
     contextOverride?: any,
     contextPath: string[] = []
   ): void {
-    const parentContext = contextOverride || this.context;
-    const nestedContext = this.evaluateExpression(node.contextVariable, parentContext, contextPath);
     const fullPath = this.resolveFullPath(node.contextVariable, contextPath);
     const newContextPath = fullPath.split(".");
-    this.renderNode({ type: "Program", body: node.body }, parentElement, nestedContext, newContextPath);
+    this.renderNode({ type: "Program", body: node.body }, parentElement, newContextPath);
   }
 
   private renderPartialNode(
     node: ASTNode & { type: "Partial" },
     parentElement: UIElement<any>,
-    contextOverride?: any,
     contextPath: string[] = []
   ): void {
-    const context = contextOverride || this.context;
+    const context = this.context;
 
     // Handle dynamic partials
     let partialName = node.name;
@@ -528,15 +519,8 @@ export class CustomUIParser {
 
     // Parse partial template
     const partialAST = this.parseTemplate(partialTemplate);
-
-    let partialContext = context;
-    if (node.contextVariable) {
-      const newContext = this.evaluateExpression(node.contextVariable, context, contextPath);
-      partialContext = newContext;
-    }
-
     // Render partial
-    this.renderNode(partialAST, parentElement, partialContext, contextPath);
+    this.renderNode(partialAST, parentElement, contextPath);
   }
 
   private nodeToString(node: ASTNode): string {
@@ -576,20 +560,18 @@ export class CustomUIParser {
   private renderElementNode(
     node: ASTNode & { type: "Element" },
     parentElement: UIElement<any>,
-    contextOverride?: any,
     contextPath: string[] = []
   ): void {
-    const context = contextOverride || this.context;
     const existingElement = this.uiElements.get(node.key!);
     let uiElement: UIElement<any>;
 
     if (existingElement) {
       // Update existing element
       [uiElement] = existingElement;
-      this.updateAttributes(uiElement, node.attributes, node.key!, context, contextPath);
+      this.updateAttributes(uiElement, node.attributes, node.key!, this.context, contextPath);
     } else {
       // Create new element
-      uiElement = this.createElement(node.tag, node.attributes, node.key!, context, contextPath);
+      uiElement = this.createElement(node.tag, node.attributes, node.key!, contextPath);
       this.uiElements.set(node.key!, [uiElement, node, contextPath]);
       parentElement.addChild(uiElement);
     }
@@ -605,7 +587,7 @@ export class CustomUIParser {
           (variableName, fullPath) => {
             itemVariablePath = fullPath;
           },
-          context,
+          this.context,
           contextPath
         );
 
@@ -614,7 +596,7 @@ export class CustomUIParser {
         }
         this.variableDependencies.get(itemVariablePath)!.add(uiElement.id);
 
-        items = this.getValueFromContextPath(itemVariablePath, context) || [];
+        items = this.getValueFromContextPath(itemVariablePath, this.context) || [];
       }
 
       const updateChildren = (items: any[]) => {
@@ -632,7 +614,7 @@ export class CustomUIParser {
         for (let i = 0; i < items.length; i++) {
           const itemData = items[i];
           const itemContextPath = [...contextPath, itemVariablePath.split(".").pop() || "", i.toString()];
-          const itemContext = { ...context, this: itemData, $index: i };
+          const itemContext = { ...this.context, this: itemData, $index: i };
 
           for (let j = 0; j < node.children.length; j++) {
             const childNode = node.children[j];
@@ -658,10 +640,10 @@ export class CustomUIParser {
                   pointerEvents: "auto",
                   ...clonedChildNode.attributes.style,
                 };
-                this.renderNode(clonedChildNode, uiElement, itemContext, itemContextPath);
+                this.renderNode(clonedChildNode, uiElement, itemContextPath);
               }
             } else {
-              this.renderNode(childNode, uiElement, itemContext, itemContextPath);
+              this.renderNode(childNode, uiElement, itemContextPath);
             }
           }
         }
@@ -670,18 +652,17 @@ export class CustomUIParser {
       updateChildren(items);
     } else {
       // Recursively render or update children
-      node.children.forEach((childNode) => this.renderNode(childNode, uiElement, context, contextPath));
+      node.children.forEach((childNode) => this.renderNode(childNode, uiElement, contextPath));
     }
   }
 
   private renderTextNode(
     node: ASTNode & { type: "Text" },
     parentElement: UIElement<any>,
-    contextOverride?: any,
     contextPath: string[] = []
   ): void {
-    const context = contextOverride || this.context;
     if (node.content.trim() === "") return;
+    contextPath = [...contextPath];
 
     let variablesInExpression: string[] = [];
     const processedContent = this.processTemplateString(
@@ -689,7 +670,7 @@ export class CustomUIParser {
       (variableName, fullPath) => {
         variablesInExpression.push(variableName);
       },
-      context,
+      this.context,
       contextPath
     );
 
@@ -720,12 +701,8 @@ export class CustomUIParser {
     });
   }
 
-  private generateStyleAttribute(
-    attribute: Record<string, any>,
-    contextOverride?: any,
-    contextPath: string[] = []
-  ): Record<string, any> {
-    const context = contextOverride || this.context;
+  private generateStyleAttribute(attribute: Record<string, any>, contextPath: string[] = []): Record<string, any> {
+    const context = this.context;
     const style = attribute.style || {};
     const processedStyle: Record<string, any> = {};
 
@@ -805,10 +782,8 @@ export class CustomUIParser {
     tag: string,
     attributes: Record<string, any>,
     key: string,
-    contextOverride?: any,
     contextPath: string[] = []
   ): UIElement<any> {
-    const context = contextOverride || this.context;
     const config: any = {};
 
     // Handle label separately for Text and Button elements
@@ -820,7 +795,7 @@ export class CustomUIParser {
     const eventHandlers = this.extractEventHandlers(attributes);
 
     // Generate event listener methods
-    const events = this.generateEventListener(eventHandlers, context, this.eventHandler, contextPath);
+    const events = this.generateEventListener(eventHandlers, this.eventHandler, contextPath);
 
     // Merge events into config
     Object.assign(config, events);
@@ -858,7 +833,7 @@ export class CustomUIParser {
 
     Object.entries(attributes).forEach(([attrKey, value]) => {
       if (attrKey === "style") {
-        config.style = this.generateStyleAttribute(attributes.style, context, contextPath);
+        config.style = this.generateStyleAttribute(attributes.style, contextPath);
         stylesGenerated = true;
       } else if (!eventAttributes.includes(attrKey) && attrKey !== "items" && !positionAttributes.includes(attrKey)) {
         const originalValue = value;
@@ -868,7 +843,7 @@ export class CustomUIParser {
           (variableName, fullPath) => {
             variablesInExpression.push(variableName);
           },
-          context,
+          this.context,
           contextPath
         );
         variablesToWatch.push([variablesInExpression, attrKey, originalValue, contextPath]);
@@ -881,7 +856,7 @@ export class CustomUIParser {
           (variableName, fullPath) => {
             variablesInExpression.push(variableName);
           },
-          context,
+          this.context,
           contextPath
         );
         positionVariablesToWatch.push([variablesInExpression, attrKey, originalValue, contextPath]);
@@ -956,10 +931,10 @@ export class CustomUIParser {
 
   private generateEventListener(
     events: Record<string, string>,
-    contextRef: any,
     eventListener?: (playerIndex: number, eventName: string, eventType: string, context: any) => void,
     contextPath: string[] = []
   ) {
+    const contextRef = this.context;
     const handler = eventListener;
     return events && Object.keys(events).length > 0
       ? {
@@ -1035,7 +1010,7 @@ export class CustomUIParser {
 
     Object.entries(attributes).forEach(([attrKey, value]) => {
       if (attrKey === "style") {
-        uiElement.config.style = this.generateStyleAttribute(attributes.style, context, contextPath);
+        uiElement.config.style = this.generateStyleAttribute(attributes.style, contextPath);
         this.watchStyleAttributes(attributes, uiElement, contextPath);
       } else if (!positionAttributes.includes(attrKey)) {
         const originalValue = value;
