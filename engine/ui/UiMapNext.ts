@@ -422,11 +422,14 @@ export class CustomUIParser {
     const attrs: Record<string, any> = {};
     let match;
     while ((match = attrRegex.exec(tagString)) !== null) {
-      if (match[1] === "style" && (match[2].includes(";") || !match[2].endsWith("}"))) {
+      if (match[1] === "style" && match[2].includes(":")) {
         const styleAttrs = match[2].split(";");
         styleAttrs.forEach((styleAttr) => {
           if (styleAttr.trim() === "") return;
-          const [key, value] = styleAttr.split(":");
+          let [key, value] = styleAttr.split(":");
+          if (key.includes("-")) {
+            key = key.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+          }
           if (attrs.style === undefined) {
             attrs.style = {};
           }
@@ -519,6 +522,14 @@ export class CustomUIParser {
 
     // Parse partial template
     const partialAST = this.parseTemplate(partialTemplate);
+
+    if (node.contextVariable) {
+      const fullPath = this.resolveFullPath(node.contextVariable, contextPath);
+      const newContextPath = fullPath.split(".");
+      this.renderNode(partialAST, parentElement, newContextPath);
+      return;
+    }
+
     // Render partial
     this.renderNode(partialAST, parentElement, contextPath);
   }

@@ -61,8 +61,8 @@ const partials = {
     test {{this}} {{test}}
     </Box>`,
   test: `
-    <Text x="left" y="top" yOffset="200">
-      test? {{name}}
+    <Text x="center" y="center" yOffset="{{test}}" >
+      test? {{name}}!
       </Text>`,
 
   box: `<Box width="100" height="100">
@@ -72,26 +72,25 @@ const partials = {
 
 const parser = new CustomUIParser(
   `
-  <Box width="1920" x="left" height="1080" y="top">
-  <Grid items="{{children}}" width="full" x="left" height="full" y="top">
-  <Box width="100" height="100">
-    test? {{this.user.name}}
+<Box width="1920" x="left" height="1080" y="top">
+  <Grid items="{{ children }}" width="full" x="left" height="full" y="top">
+    <Box width="100" height="100"> test? {{ this.user.name }} </Box>
+  </Grid>
+  <Box x="left" y="bottom" width="{{ test }}%" style="background-color: red" height="100">
+    {{ test }}
   </Box>
-</Grid>
-<Box x="left" y="bottom" width="{{test}}%" style="backgroundColor: red;" height="100">
-    {{test}}
+
+  <Box x="right" y="top" yOffset="200" xOffset="-200">
+    {{#with children.1.user}}
+    test? {{ name }}
+    {{/with}}
+  </Box>
+
+  <Box x="right" y="top" yOffset="200" xOffset="-300" width="300">
+    {{> test user}}
+    {{> test }}
   </Box>
 </Box>
-<Text x="left" y="top" yOffset="200">
-      test? {{name}}
-</Text>
-
-<Text x="left" y="bottom" yOffset="200">
-{{#with user}}
-      test? {{name}}
-{{/with}}
-      </Text>
-
   `,
   partials
 );
