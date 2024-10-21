@@ -195,7 +195,7 @@ export class CustomUIParser {
 
   private resolveFullPath(variableName: string, contextPath: string[]): string {
     if (variableName.startsWith("this.")) {
-      return [...contextPath.slice(0, -1), variableName.replace(/^this\./, "")].filter(Boolean).join(".");
+      return [...contextPath, variableName.replace(/^this\./, "")].filter(Boolean).join(".");
     } else if (variableName === "this") {
       return contextPath.join(".");
     } else if (variableName === "$index") {
@@ -232,24 +232,39 @@ export class CustomUIParser {
   }
 
   private parseProgram(tokens: string[]): ASTNode {
-    const body: ASTNode[] = [];
+    const body = this.parseNodes(tokens);
+    return { type: "Program", body };
+  }
+
+  private parseNodes(tokens: string[], stopCondition?: (tokens: string[]) => boolean): ASTNode[] {
+    const nodes: ASTNode[] = [];
     while (tokens.length > 0) {
+      if (stopCondition && stopCondition(tokens)) {
+        break;
+      }
+
       const token = tokens[0];
+
+      if (!token.trim()) {
+        tokens.shift();
+        continue;
+      }
+
       if (token.startsWith("{{")) {
-        const partialNode = this.parsePartial(tokens);
-        if (partialNode) {
-          body.push(partialNode);
+        const commandNode = this.parseCommand(tokens);
+        if (commandNode) {
+          nodes.push(commandNode);
           continue;
         } else {
           // Not a partial, treat as text
           const textToken = tokens.shift()!;
-          body.push({ type: "Text", content: textToken });
+          nodes.push({ type: "Text", content: textToken });
           continue;
         }
       } else if (token.startsWith("<")) {
         const element = this.parseElement(tokens);
         if (element) {
-          body.push(element);
+          nodes.push(element);
         }
       } else {
         // Text content
@@ -258,11 +273,58 @@ export class CustomUIParser {
           content += tokens.shift()!;
         }
         if (content.trim() !== "") {
-          body.push({ type: "Text", content });
+          nodes.push({ type: "Text", content });
         }
       }
     }
-    return { type: "Program", body };
+    return nodes;
+  }
+
+  private joinTextNodes(nodes: ASTNode[]): ASTNode[] {
+    return nodes.reduce((acc, node) => {
+      if (node.type === "Text" && acc.length > 0 && acc[acc.length - 1].type === "Text") {
+        (acc[acc.length - 1] as { type: "Text"; content: string }).content += node.content;
+      } else {
+        acc.push(node);
+      }
+      return acc;
+    }, [] as ASTNode[]);
+  }
+
+  private parseCommand(tokens: string[]): ASTNode | null {
+    let partial = this.parsePartial(tokens);
+    if (partial) return partial;
+    const isCommand = tokens[0].trim().startsWith("{{#");
+    if (!isCommand) return null;
+
+    let scopedBlock = this.parseScopedBlock(tokens);
+    if (scopedBlock) return scopedBlock;
+    return null;
+  }
+
+  private parseScopedBlock(tokens: string[]): ASTNode | null {
+    const token = tokens.shift()!;
+    // Match block syntax
+    const scopedOpenMatch = token.match(/^{{#with (.+?)}}$/);
+    const scopedCloseMatch = token.match(/^{{\/with}}$/);
+
+    if (scopedOpenMatch) {
+      const contextVariable = scopedOpenMatch[1];
+      // Parse until the closing tag
+      const body = this.parseNodes(tokens, (tokens) => tokens[0]?.trim() === `{{/with}}`);
+      // Consume closing tag
+      if (tokens.length > 0) tokens.shift();
+      return { type: "ScopedBlock", contextVariable, body: this.joinTextNodes(body) };
+    }
+
+    if (scopedCloseMatch) {
+      // It's a closing tag, do nothing (handled in open tag parsing)
+      return null;
+    }
+
+    // Not a with block, put the token back
+    tokens.unshift(token);
+    return null;
   }
 
   private parsePartial(tokens: string[]): ASTNode | null {
@@ -287,28 +349,20 @@ export class CustomUIParser {
       } else if (type === "#>") {
         // Partial block
         const name = content.trim();
-        const children: ASTNode[] = [];
         // Parse until the closing tag
-        while (tokens.length > 0 && !(tokens[0].trim() === `{{/${name}}}`)) {
-          const childNode = this.parseProgram(tokens);
-          children.push(childNode);
-        }
+        const children = this.parseNodes(tokens, (tokens) => tokens[0]?.trim() === `{{/${name}}}`);
         // Consume closing tag
         if (tokens.length > 0) tokens.shift();
-        return { type: "Partial", name, children };
+        return { type: "Partial", name, children: this.joinTextNodes(children) };
       } else if (type === "#*inline") {
         // Inline partial
         const nameMatch = content.match(/"(.+?)"/);
         const name = nameMatch ? nameMatch[1] : "";
-        const children: ASTNode[] = [];
         // Parse until the closing tag
-        while (tokens.length > 0 && !(tokens[0].trim() === "{{/inline}}")) {
-          const childNode = this.parseProgram(tokens);
-          children.push(childNode);
-        }
+        const children = this.parseNodes(tokens, (tokens) => tokens[0]?.trim() === "{{/inline}}");
         // Consume closing tag
         if (tokens.length > 0) tokens.shift();
-        return { type: "InlinePartial", name, content: children };
+        return { type: "InlinePartial", name, content: this.joinTextNodes(children) };
       }
     }
 
@@ -332,7 +386,7 @@ export class CustomUIParser {
     return params;
   }
 
-  private parseElement(tokens: string[], depth = 0): ASTNode | null {
+  private parseElement(tokens: string[]): ASTNode | null {
     const token = tokens.shift()!;
     const isClosingTag = token.startsWith("</");
     const tagMatch = token.match(/^<\/?([A-Za-z][^\s/>]*)/);
@@ -345,47 +399,17 @@ export class CustomUIParser {
 
     const attributes = this.parseAttributes(token);
     const selfClosing = token.endsWith("/>");
-    const children: ASTNode[] = [];
+    let children: ASTNode[] = [];
 
     if (!selfClosing) {
-      while (tokens.length > 0 && !tokens[0].startsWith(`</${tag}>`)) {
-        if (tokens[0].startsWith("<")) {
-          const childElement = this.parseElement(tokens, depth + 1);
-          if (childElement) {
-            children.push(childElement);
-          }
-        } else if (tokens[0].startsWith("{{")) {
-          const partialNode = this.parsePartial(tokens);
-          if (partialNode) {
-            children.push(partialNode);
-            continue;
-          } else {
-            // Not a partial, treat as text
-            const textToken = tokens.shift()!;
-            children.push({ type: "Text", content: textToken });
-          }
-        } else {
-          // Text content
-          let content = "";
-          while (
-            tokens.length > 0 &&
-            !tokens[0].startsWith("<") &&
-            !tokens[0].startsWith(`</${tag}>`) &&
-            !tokens[0].startsWith("{{")
-          ) {
-            content += tokens.shift()!;
-          }
-          if (content.trim() !== "") {
-            children.push({ type: "Text", content });
-          }
-        }
-      }
+      children = this.parseNodes(tokens, (tokens) => tokens[0]?.startsWith(`</${tag}>`));
       // Remove the closing tag
       if (tokens.length > 0 && tokens[0].startsWith(`</${tag}>`)) {
         tokens.shift();
       } else {
         throw new Error(`Missing closing tag for <${tag}>`);
       }
+      children = this.joinTextNodes(children);
     }
 
     const key = this.generateKey();
@@ -814,7 +838,18 @@ export class CustomUIParser {
     ];
 
     const position = new Position(0, 0);
-    const positionAttributes = ["x", "y", "width", "height", "maxHeight", "maxWidth", "minHeight", "minWidth"];
+    const positionAttributes = [
+      "x",
+      "y",
+      "yOffset",
+      "xOffset",
+      "width",
+      "height",
+      "maxHeight",
+      "maxWidth",
+      "minHeight",
+      "minWidth",
+    ];
 
     let stylesGenerated = false;
 

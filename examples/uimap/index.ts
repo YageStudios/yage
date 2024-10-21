@@ -29,6 +29,32 @@ uiService.enableKeyCapture(inputManager);
 // </Grid>
 //   `);
 
+// const parser = new CustomUIParser(
+//   `
+//   <Box width="1920" x="left" height="1080" y="top">
+//   <Grid items="{{children}}" width="full" x="left" height="full" y="top">
+//   <Box width="100" height="100">
+//     test? {{this.user.name}}
+//   </Box>
+// </Grid>
+// <Box x="left" y="bottom" width="{{test}}%" style="backgroundColor: red;" height="100">
+//     {{test}}
+//   </Box>
+// </Box>
+// <Text x="left" y="top" yOffset="200">
+//       test? {{name}}
+// </Text>
+
+// <Text x="left" y="bottom" yOffset="200">
+// {{#with user}}
+//       test? {{name}}
+// {{/with}}
+//       </Text>
+
+//   `,
+//   partials
+// );
+
 const partials = {
   header: `
   <Box width="1920" x="left" height="100" y="top">
@@ -58,7 +84,14 @@ const parser = new CustomUIParser(
 </Box>
 <Text x="left" y="top" yOffset="200">
       test? {{name}}
+</Text>
+
+<Text x="left" y="bottom" yOffset="200">
+{{#with user}}
+      test? {{name}}
+{{/with}}
       </Text>
+
   `,
   partials
 );
@@ -75,7 +108,7 @@ const element = parser.build(
   {
     name: "John Doe",
     user: {
-      name: "John Doe",
+      name: "Bob Doelen",
     },
     test: 100,
     children: [
