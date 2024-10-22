@@ -981,7 +981,7 @@ export class CustomUIParser {
     } else if (parentElement instanceof Text) {
       parentElement.config.label = (parentElement.config.label || "") + processedContent;
     } else {
-      const textElement = new Text(new Position(0, 0), { label: processedContent });
+      const textElement = new Text(new Position("center", "center"), { label: processedContent });
       parentElement.addChild(textElement);
       parentElement = textElement;
     }

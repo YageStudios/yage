@@ -1,6 +1,5 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import type { GameModel } from "yage/game/GameModel";
-import type { Rectangle } from "./Rectangle";
+import { Rectangle } from "./Rectangle";
 import { Position } from "./Rectangle";
 import type { UIElementConfig } from "./UIElement";
 import { UIElement } from "./UIElement";
@@ -27,7 +26,6 @@ const defaultStyle: Partial<CSSStyleDeclaration> = {
   fontFamily: "YageFont",
 };
 
-// Utility function to measure text dimensions
 function measureText(text: string, fontSize: number, font: string = "YageFont"): { width: number; height: number } {
   const measurer = document.createElement("span");
   measurer.style.fontSize = `${fontSize}px`;
@@ -53,30 +51,59 @@ function measureText(text: string, fontSize: number, font: string = "YageFont"):
 }
 
 export class Text extends UIElement<TextConfig> {
+  private autoWidth: boolean = false;
+  private autoHeight: boolean = false;
+
   constructor(bounds: Position, config: Partial<TextConfig>);
   constructor(bounds: Rectangle, config: Partial<TextConfig>);
   constructor(bounds: [number, number], config: Partial<TextConfig>);
   constructor(bounds: Position | Rectangle | [number, number], config: Partial<TextConfig>) {
+    let autoWidth = false;
+    let autoHeight = false;
     if (Array.isArray(bounds)) {
-      const position = new Position(bounds[0], bounds[1], { width: 0, height: 0 });
-      bounds = position;
+      bounds = new Position(bounds[0], bounds[1], { width: 0, height: 0 });
     }
 
-    // If bounds is a Position, calculate dynamic dimensions if needed
     if (bounds instanceof Position) {
-      const { width, height } = bounds;
-      if (width === 0 || height === 0) {
+      // Set auto-size flags based on initial dimensions
+      autoWidth = bounds.width === 0;
+      autoHeight = bounds.height === 0;
+
+      if (autoWidth || autoHeight) {
         const fontSize = config.fontSize || 12;
         const label = config.label || "";
         const measured = measureText(label, fontSize, config.font);
 
-        // Only update dimensions that aren't explicitly set
-        bounds.width = width === 0 ? measured.width : width;
-        bounds.height = height === 0 ? measured.height : height;
+        bounds.width = autoWidth ? measured.width : bounds.width;
+        bounds.height = autoHeight ? measured.height : bounds.height;
       }
     }
 
     super(bounds, { label: "", ...config }, defaultStyle);
+    this.autoWidth = autoWidth;
+    this.autoHeight = autoHeight;
+  }
+
+  set position(value: Position | Rectangle) {
+    if (value instanceof Position) {
+      // Update auto-size flags if explicit dimensions are set
+      if (value.width > 0) this.autoWidth = false;
+      if (value.height > 0) this.autoHeight = false;
+    }
+
+    // Convert Rectangle to Position if needed
+    this.bounds = value instanceof Rectangle ? value.toPosition() : value;
+    this.update();
+  }
+
+  get position() {
+    return new Proxy(this.bounds, {
+      set: (target: any, key, value) => {
+        target[key] = value;
+        this.update();
+        return true;
+      },
+    });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-empty-function
@@ -121,17 +148,16 @@ export class Text extends UIElement<TextConfig> {
         this._config.fontSize = value;
       }
 
-      // Recalculate dimensions if they weren't explicitly set
-      const bounds = this.bounds;
-      if (bounds instanceof Position) {
-        const { width, height } = bounds;
-        if (width === 0 || height === 0) {
+      // Only recalculate auto-sized dimensions
+      if (this.autoWidth || this.autoHeight) {
+        const bounds = this.bounds;
+        if (bounds instanceof Position) {
           const fontSize = this._config.fontSize || 12;
           const label = this._config.label || "";
           const measured = measureText(label, fontSize, this._config.font);
 
-          bounds.width = width === 0 ? measured.width : width;
-          bounds.height = height === 0 ? measured.height : height;
+          if (this.autoWidth) bounds.width = measured.width;
+          if (this.autoHeight) bounds.height = measured.height;
         }
       }
 
