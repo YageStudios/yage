@@ -93,8 +93,8 @@ const parser = new CustomUIParser(
   {{/if}}
 
   {{#unless test > 75}}
-  <Box x="right" y="top" yOffset="300" xOffset="-200" width="200" height="200" style="background-color: {{ test > 25 ? test1 : test2 }};">
-    unless
+  <Box x="right" y="top" yOffset="300" xOffset="-200" width="200" height="200" style="background-color: {{ test > 25 ? test1 : 'purple' }};">
+    <Text x="center" y="center">unless</Text>
   </Box>
   {{/unless}}
 

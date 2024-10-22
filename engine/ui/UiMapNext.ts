@@ -61,7 +61,16 @@ export class CustomUIParser {
   }
 
   private extractVariablesFromExpression(expression: string): string[] {
-    const variableRegex = /\b[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*\b/g;
+    // First, let's replace the contents of string literals with placeholders
+    const stringPlaceholders: string[] = [];
+    let sanitizedExpression = expression.replace(/(["'])((?:\\.|(?!\1)[^\\])*)\1/g, (match) => {
+      stringPlaceholders.push(match);
+      return "_STRING_PLACEHOLDER_" + (stringPlaceholders.length - 1);
+    });
+
+    // Original regex modified to ignore our placeholder pattern
+    const variableRegex = /\b[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*\b(?!_PLACEHOLDER_)/g;
+
     const excludedKeywords = new Set([
       // JavaScript reserved words and built-in objects/functions
       "break",
@@ -141,12 +150,14 @@ export class CustomUIParser {
       "decodeURI",
       "decodeURIComponent",
       "eval",
+      "true",
+      "false",
     ]);
 
     const variables = new Set<string>();
     let match: RegExpExecArray | null;
 
-    while ((match = variableRegex.exec(expression)) !== null) {
+    while ((match = variableRegex.exec(sanitizedExpression)) !== null) {
       const varName = match[0];
       if (!excludedKeywords.has(varName)) {
         variables.add(varName);
