@@ -27,14 +27,55 @@ const defaultStyle: Partial<CSSStyleDeclaration> = {
   fontFamily: "YageFont",
 };
 
+// Utility function to measure text dimensions
+function measureText(text: string, fontSize: number, font: string = "YageFont"): { width: number; height: number } {
+  const measurer = document.createElement("span");
+  measurer.style.fontSize = `${fontSize}px`;
+  measurer.style.fontFamily = font;
+  measurer.style.position = "absolute";
+  measurer.style.left = "-9999px";
+  measurer.style.whiteSpace = "nowrap";
+
+  if (text.trim().startsWith("<")) {
+    measurer.innerHTML = text;
+  } else {
+    measurer.textContent = text;
+  }
+
+  document.body.appendChild(measurer);
+  const dimensions = {
+    width: measurer.offsetWidth,
+    height: measurer.offsetHeight,
+  };
+  document.body.removeChild(measurer);
+
+  return dimensions;
+}
+
 export class Text extends UIElement<TextConfig> {
   constructor(bounds: Position, config: Partial<TextConfig>);
   constructor(bounds: Rectangle, config: Partial<TextConfig>);
   constructor(bounds: [number, number], config: Partial<TextConfig>);
   constructor(bounds: Position | Rectangle | [number, number], config: Partial<TextConfig>) {
     if (Array.isArray(bounds)) {
-      bounds = new Position(bounds[0], bounds[1], { width: 0, height: 0 });
+      const position = new Position(bounds[0], bounds[1], { width: 0, height: 0 });
+      bounds = position;
     }
+
+    // If bounds is a Position, calculate dynamic dimensions if needed
+    if (bounds instanceof Position) {
+      const { width, height } = bounds;
+      if (width === 0 || height === 0) {
+        const fontSize = config.fontSize || 12;
+        const label = config.label || "";
+        const measured = measureText(label, fontSize, config.font);
+
+        // Only update dimensions that aren't explicitly set
+        bounds.width = width === 0 ? measured.width : width;
+        bounds.height = height === 0 ? measured.height : height;
+      }
+    }
+
     super(bounds, { label: "", ...config }, defaultStyle);
   }
 
@@ -65,28 +106,46 @@ export class Text extends UIElement<TextConfig> {
     if (this.destroyed) {
       return;
     }
-    if (key === "label") {
-      this._config.label = value;
-      if (typeof this._config.label === "string" && value.trim().startsWith("<")) {
-        this.element.innerHTML = value;
-      } else if (this._config.label === undefined) {
-        this.element.innerText = "";
+
+    if (key === "label" || key === "fontSize") {
+      if (key === "label") {
+        this._config.label = value;
+        if (typeof value === "string" && value.trim().startsWith("<")) {
+          this.element.innerHTML = value;
+        } else if (value === undefined) {
+          this.element.innerText = "";
+        } else {
+          this.element.innerText = value;
+        }
       } else {
-        this.element.innerText = value;
+        this._config.fontSize = value;
       }
-      return;
-    }
-    if (key === "fontSize") {
-      this._config.fontSize = value;
+
+      // Recalculate dimensions if they weren't explicitly set
+      const bounds = this.bounds;
+      if (bounds instanceof Position) {
+        const { width, height } = bounds;
+        if (width === 0 || height === 0) {
+          const fontSize = this._config.fontSize || 12;
+          const label = this._config.label || "";
+          const measured = measureText(label, fontSize, this._config.font);
+
+          bounds.width = width === 0 ? measured.width : width;
+          bounds.height = height === 0 ? measured.height : height;
+        }
+      }
+
       const scales = this.getScales();
       this.element.style.fontSize = `${scaleFont(this.config.fontSize || 12, scales[0] * scales[1] * scales[2])}px`;
       return;
     }
+
     if (key === "scrollable") {
       this._config.scrollable = value;
       this.element.style.overflow = value ? "auto" : "visible";
       return;
     }
+
     super.handleConfigChange(key, value);
   }
 
