@@ -70,41 +70,51 @@ const partials = {
   </Box>`,
 };
 
+// const parser = new CustomUIParser(
+//   `
+// <Box width="1920" x="left" height="1080" y="top">
+//   <Grid items="{{ children }}" width="full" x="left" height="full" y="top">
+//     <Box width="100" height="100"> test? {{ this.user.name }} </Box>
+//   </Grid>
+//   <Box x="left" y="bottom" width="{{ test }}%" style="background-color: red" height="100">
+//     {{ test }}
+//   </Box>
+
+//   {{#if test > 50}}
+//   <Box x="right" y="top" yOffset="200" xOffset="-200">
+//     {{#with children.1.user}}
+//     test? {{ name }}?????????
+//     {{/with}}
+//   </Box>
+//   {{else}}
+//   <Box x="right" y="top" yOffset="200" xOffset="-200">
+//     woah
+//   </Box>
+//   {{/if}}
+
+//   {{#unless test > 75}}
+//   <Box x="right" y="top" yOffset="300" xOffset="-200" style="background-color: {{ test > 25 ? 'red' : 'blue' }};">
+//     unless
+//   </Box>
+//   {{/unless}}
+
+//   <Box x="right" y="top" yOffset="200" xOffset="-300" width="300">
+//     {{> test user}}
+//     {{> test }}
+//   </Box>
+// </Box>
+//   `,
+//   partials
+// );
+
 const parser = new CustomUIParser(
   `
 <Box width="1920" x="left" height="1080" y="top">
-  <Grid items="{{ children }}" width="full" x="left" height="full" y="top">
-    <Box width="100" height="100"> test? {{ this.user.name }} </Box>
-  </Grid>
-  <Box x="left" y="bottom" width="{{ test }}%" style="background-color: red" height="100">
-    {{ test }}
-  </Box>
-
-  {{#if test > 50}}
-  <Box x="right" y="top" yOffset="200" xOffset="-200">
-    {{#with children.1.user}}
-    test? {{ name }}?????????
-    {{/with}}
-  </Box>
-  {{else}}
-  <Box x="right" y="top" yOffset="200" xOffset="-200">
-    woah
-  </Box>
-  {{/if}}
-  
-  {{#unless test > 75}}
-  <Box x="right" y="top" yOffset="300" xOffset="-200">
-    unless
-  </Box>
-  {{/unless}}
-
-  <Box x="right" y="top" yOffset="200" xOffset="-300" width="300">
-    {{> test user}}
-    {{> test }}
+  <Box x="right" y="top" yOffset="300" xOffset="-200" style="background-color: {{ test > 25 ? 'red' : 'blue' }};">
+    conditional style
   </Box>
 </Box>
-  `,
-  partials
+  `
 );
 
 // const parser = new CustomUIParser(`

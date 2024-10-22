@@ -229,8 +229,59 @@ export class CustomUIParser {
   }
 
   private tokenize(template: string): string[] {
-    const regex = /{{#\*?[^}]+}}|{{\/[^}]+}}|{{[^}]+}}|<\/?[A-Za-z][^>]*>|[^<{{}}]+/g;
-    return template.match(regex) || [];
+    const tokens: string[] = [];
+    let i = 0;
+    const length = template.length;
+
+    while (i < length) {
+      if (template[i] === "<") {
+        // Start of a tag
+        const start = i;
+        i++;
+        let inQuote = false;
+        let quoteChar = "";
+        while (i < length) {
+          const c = template[i];
+          if (inQuote) {
+            if (c === quoteChar) {
+              inQuote = false;
+              quoteChar = "";
+            }
+          } else {
+            if (c === '"' || c === "'") {
+              inQuote = true;
+              quoteChar = c;
+            } else if (c === ">") {
+              i++; // Include '>'
+              break;
+            }
+          }
+          i++;
+        }
+        tokens.push(template.substring(start, i));
+      } else if (template[i] === "{" && template[i + 1] === "{") {
+        // Start of a handlebars expression
+        const start = i;
+        i += 2;
+        while (i < length) {
+          if (template[i] === "}" && template[i + 1] === "}") {
+            i += 2;
+            break;
+          }
+          i++;
+        }
+        tokens.push(template.substring(start, i));
+      } else {
+        // Text content
+        const start = i;
+        while (i < length && template[i] !== "<" && !(template[i] === "{" && template[i + 1] === "{")) {
+          i++;
+        }
+        tokens.push(template.substring(start, i));
+      }
+    }
+
+    return tokens;
   }
 
   private parseProgram(tokens: string[]): ASTNode {
