@@ -558,8 +558,10 @@ export class CustomUIParser {
     parentElement: UIElement<any>,
     contextPath: string[] = []
   ): void {
-    const conditionResult = this.evaluateExpression(node.condition, this.context, contextPath);
-
+    let conditionResult = this.evaluateExpression(node.condition, this.context, contextPath);
+    const container = new Box(new Position("left", "top", { width: "100%", height: "100%" }));
+    this.uiElements.set(container.id, [container, node, contextPath]);
+    parentElement.addChild(container);
     // Set up variable watchers for the condition
     const variablesInCondition = this.extractVariablesFromExpression(node.condition);
     variablesInCondition.forEach((variableName) => {
@@ -567,21 +569,31 @@ export class CustomUIParser {
       if (!this.variableDependencies.has(fullPath)) {
         this.variableDependencies.set(fullPath, new Set());
       }
-      this.variableDependencies.get(fullPath)!.add(parentElement.id);
-      if (!this.functionPointers.has(parentElement.id)) {
-        this.functionPointers.set(parentElement.id, new Map());
+      this.variableDependencies.get(fullPath)!.add(container.id);
+      if (!this.functionPointers.has(container.id)) {
+        this.functionPointers.set(container.id, new Map());
       }
-      this.functionPointers.get(parentElement.id)!.set(fullPath, () => {
+      this.functionPointers.get(container.id)!.set(fullPath, () => {
         // When condition variable changes, re-render the if block
-        // parentElement.removeAllChildren();
-        // this.renderIfBlockNode(node, parentElement, contextPath);
+        let nextConditionResult = this.evaluateExpression(node.condition, this.context, contextPath);
+        if (nextConditionResult !== conditionResult) {
+          container.removeAllChildren();
+
+          if (nextConditionResult) {
+            this.renderNode({ type: "Program", body: node.consequent }, container, contextPath);
+          } else if (node.alternate) {
+            this.renderNode({ type: "Program", body: node.alternate }, container, contextPath);
+          }
+          container.update();
+          conditionResult = nextConditionResult;
+        }
       });
     });
 
     if (conditionResult) {
-      this.renderNode({ type: "Program", body: node.consequent }, parentElement, contextPath);
+      this.renderNode({ type: "Program", body: node.consequent }, container, contextPath);
     } else if (node.alternate) {
-      this.renderNode({ type: "Program", body: node.alternate }, parentElement, contextPath);
+      this.renderNode({ type: "Program", body: node.alternate }, container, contextPath);
     }
   }
 
@@ -590,7 +602,10 @@ export class CustomUIParser {
     parentElement: UIElement<any>,
     contextPath: string[] = []
   ): void {
-    const conditionResult = this.evaluateExpression(node.condition, this.context, contextPath);
+    let conditionResult = this.evaluateExpression(node.condition, this.context, contextPath);
+    const container = new Box(new Position("left", "top", { width: "100%", height: "100%" }));
+    parentElement.addChild(container);
+    this.uiElements.set(container.id, [container, node, contextPath]);
 
     // Set up variable watchers for the condition
     const variablesInCondition = this.extractVariablesFromExpression(node.condition);
@@ -599,19 +614,25 @@ export class CustomUIParser {
       if (!this.variableDependencies.has(fullPath)) {
         this.variableDependencies.set(fullPath, new Set());
       }
-      this.variableDependencies.get(fullPath)!.add(parentElement.id);
-      if (!this.functionPointers.has(parentElement.id)) {
-        this.functionPointers.set(parentElement.id, new Map());
+      this.variableDependencies.get(fullPath)!.add(container.id);
+      if (!this.functionPointers.has(container.id)) {
+        this.functionPointers.set(container.id, new Map());
       }
-      this.functionPointers.get(parentElement.id)!.set(fullPath, () => {
-        // When condition variable changes, re-render the unless block
-        parentElement.removeAllChildren();
-        this.renderUnlessBlockNode(node, parentElement, contextPath);
+      this.functionPointers.get(container.id)!.set(fullPath, () => {
+        let nextConditionResult = this.evaluateExpression(node.condition, this.context, contextPath);
+        if (nextConditionResult !== conditionResult) {
+          container.removeAllChildren();
+          conditionResult = nextConditionResult;
+          if (!conditionResult) {
+            this.renderNode({ type: "Program", body: node.body }, container, contextPath);
+          }
+          container.update();
+        }
       });
     });
 
     if (!conditionResult) {
-      this.renderNode({ type: "Program", body: node.body }, parentElement, contextPath);
+      this.renderNode({ type: "Program", body: node.body }, container, contextPath);
     }
   }
 
@@ -715,7 +736,7 @@ export class CustomUIParser {
     const existingElement = this.uiElements.get(node.key!);
     let uiElement: UIElement<any>;
 
-    if (existingElement) {
+    if (existingElement && !existingElement[0]?.destroyed) {
       // Update existing element
       [uiElement] = existingElement;
       this.updateAttributes(uiElement, node.attributes, node.key!, this.context, contextPath);
