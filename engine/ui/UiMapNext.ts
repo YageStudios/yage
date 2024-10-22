@@ -533,29 +533,98 @@ export class CustomUIParser {
   }
 
   private parseAttributes(tagString: string): Record<string, any> {
-    const attrRegex = /(\w+)=["']([^"']*)["']/g;
+    tagString = tagString.substring(tagString.indexOf(" ") + 1, tagString.length - 1);
+
     const attrs: Record<string, any> = {};
-    let match;
-    while ((match = attrRegex.exec(tagString)) !== null) {
-      if (match[1] === "style" && match[2].includes(":")) {
-        const styleAttrs = match[2].split(";");
-        styleAttrs.forEach((styleAttr) => {
-          if (styleAttr.trim() === "") return;
-          let [key, value] = styleAttr.split(":");
-          if (key.includes("-")) {
-            key = key.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+    let i = 0;
+    const len = tagString.length;
+    let attrName = "";
+    let attrValue = "";
+    let state: "attrName" | "beforeEqual" | "beforeValue" | "attrValue" | "afterAttr" = "attrName";
+    let quoteChar = "";
+    let inExpression = false;
+
+    while (i < len) {
+      const c = tagString[i];
+
+      switch (state) {
+        case "attrName":
+          if (/\s/.test(c)) {
+            if (attrName) {
+              state = "beforeEqual";
+            }
+            i++;
+          } else if (c === "=") {
+            state = "beforeValue";
+            i++;
+          } else if (c === ">" || c === "/") {
+            // End of tag
+            if (attrName) {
+              attrs[attrName] = null;
+            }
+            i = len; // Exit loop
+          } else {
+            attrName += c;
+            i++;
           }
-          if (attrs.style === undefined) {
-            attrs.style = {};
+          break;
+
+        case "beforeEqual":
+          if (c === "=") {
+            state = "beforeValue";
           }
-          attrs.style = { ...attrs.style, [key.trim()]: value.trim() };
-        });
-      } else if (match[1] === "style" && match[2].startsWith("{")) {
-        // Handle style as an object (if needed)
-      } else {
-        attrs[match[1]] = match[2];
+          i++;
+          break;
+
+        case "beforeValue":
+          if (c === '"' || c === "'") {
+            quoteChar = c;
+            attrValue = "";
+            state = "attrValue";
+          }
+          i++;
+          break;
+
+        case "attrValue":
+          if (c === quoteChar && !inExpression) {
+            attrs[attrName] = attrValue;
+            attrName = "";
+            attrValue = "";
+            quoteChar = "";
+            state = "afterAttr";
+          } else {
+            if (c === "{" && tagString.substr(i, 2) === "{{") {
+              inExpression = true;
+              attrValue += "{{";
+              i += 2;
+              continue;
+            } else if (c === "}" && tagString.substr(i, 2) === "}}") {
+              inExpression = false;
+              attrValue += "}}";
+              i += 2;
+              continue;
+            } else {
+              attrValue += c;
+            }
+            i++;
+          }
+          break;
+
+        case "afterAttr":
+          if (/\s/.test(c)) {
+            state = "attrName";
+          } else if (c === ">" || c === "/") {
+            i = len; // Exit loop
+          }
+          i++;
+          break;
       }
     }
+
+    if (attrName && !attrs.hasOwnProperty(attrName)) {
+      attrs[attrName] = null;
+    }
+
     return attrs;
   }
 
@@ -923,41 +992,57 @@ export class CustomUIParser {
     });
   }
 
-  private generateStyleAttribute(attribute: Record<string, any>, contextPath: string[] = []): Record<string, any> {
+  private generateStyleAttribute(styleString: string, contextPath: string[] = []): Record<string, any> {
     const context = this.context;
-    const style = attribute.style || {};
-    const processedStyle: Record<string, any> = {};
+    const processedStyleString = this.processTemplateString(styleString, undefined, context, contextPath);
 
-    Object.entries(style).forEach(([key, value]) => {
-      const processedValue = this.processTemplateString(value?.toString() || "", undefined, context, contextPath);
-      processedStyle[key] = processedValue;
+    // Now, parse the processed style string into individual style properties
+    const styleAttrs = processedStyleString.split(";").filter((s) => s.trim() !== "");
+    const styleObj: Record<string, any> = {};
+
+    styleAttrs.forEach((styleAttr) => {
+      const [key, value] = styleAttr.split(":").map((s) => s.trim());
+      if (key) {
+        const camelCasedKey = key.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+        styleObj[camelCasedKey] = value;
+      }
     });
 
-    return { ...attribute, style: processedStyle };
+    return styleObj;
   }
 
   private watchStyleAttributes(attribute: Record<string, any>, element: UIElement, contextPath: string[]): void {
-    const style = attribute.style || {};
-    Object.entries(style).forEach(([key, value]) => {
-      const originalValue = value?.toString() || "";
-      this.processTemplateString(
-        originalValue,
-        (variableName, fullPath) => {
-          if (!this.variableDependencies.has(fullPath)) {
-            this.variableDependencies.set(fullPath, new Set());
-          }
-          this.variableDependencies.get(fullPath)!.add(element.id);
-          if (!this.functionPointers.has(element.id)) {
-            this.functionPointers.set(element.id, new Map());
-          }
-          this.functionPointers.get(element.id)!.set(fullPath, () => {
-            const processedValue = this.processTemplateString(originalValue, undefined, this.context, contextPath);
-            element.config.style[key] = processedValue;
-          });
-        },
-        {},
-        contextPath
-      );
+    const originalStyleValue = attribute.style || "";
+    const variablesInStyle: string[] = [];
+    this.processTemplateString(
+      originalStyleValue,
+      (variableName, fullPath) => {
+        variablesInStyle.push(variableName);
+      },
+      {},
+      contextPath
+    );
+
+    variablesInStyle.forEach((variableName) => {
+      const fullPath = this.resolveFullPath(variableName, contextPath);
+      if (!this.variableDependencies.has(fullPath)) {
+        this.variableDependencies.set(fullPath, new Set());
+      }
+      this.variableDependencies.get(fullPath)!.add(element.id);
+      if (!this.functionPointers.has(element.id)) {
+        this.functionPointers.set(element.id, new Map());
+      }
+      this.functionPointers.get(element.id)!.set(fullPath, () => {
+        // Re-process the style attribute
+        const styleObj = this.generateStyleAttribute(originalStyleValue, contextPath);
+        if (
+          Object.keys(styleObj).some((key) => {
+            return element.config.style[key] !== styleObj[key];
+          })
+        ) {
+          element.config.style = { ...element.config.style, ...styleObj };
+        }
+      });
     });
   }
 
@@ -1055,8 +1140,12 @@ export class CustomUIParser {
 
     Object.entries(attributes).forEach(([attrKey, value]) => {
       if (attrKey === "style") {
-        config.style = this.generateStyleAttribute(attributes.style, contextPath);
-        stylesGenerated = true;
+        if (typeof attributes.style === "string") {
+          config.style = { ...config.style, ...this.generateStyleAttribute(attributes.style, contextPath) };
+          stylesGenerated = true;
+        } else {
+          config.style = attributes.style;
+        }
       } else if (!eventAttributes.includes(attrKey) && attrKey !== "items" && !positionAttributes.includes(attrKey)) {
         const originalValue = value;
         let variablesInExpression: string[] = [];

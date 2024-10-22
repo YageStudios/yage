@@ -82,28 +82,28 @@ export class Position {
   get y() {
     return this._y;
   }
-  get xOffset() {
+  get xOffset(): number {
     return this._xOffset;
   }
-  get yOffset() {
+  get yOffset(): number {
     return this._yOffset;
   }
-  get width() {
+  get width(): number {
     return this._width;
   }
-  get height() {
+  get height(): number {
     return this._height;
   }
-  get minWidth() {
+  get minWidth(): number {
     return this._minWidth;
   }
-  get minHeight() {
+  get minHeight(): number {
     return this._minHeight;
   }
-  get maxWidth() {
+  get maxWidth(): number {
     return this._maxWidth;
   }
-  get maxHeight() {
+  get maxHeight(): number {
     return this._maxHeight;
   }
 
