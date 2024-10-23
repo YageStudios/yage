@@ -2,7 +2,7 @@ import { debounce } from "lodash";
 import { InputEventType, InputManager } from "yage/inputs/InputManager";
 import { KeyboardListener } from "yage/inputs/KeyboardListener";
 import { UIService } from "yage/ui/UIService";
-import { CustomUIParser } from "yage/ui/UiMapNext";
+import { UiMapNext } from "yage/ui/UiMapNext";
 
 document.body.style.backgroundColor = "#333";
 const uiService = UIService.getInstance();
@@ -70,42 +70,66 @@ const partials = {
   </Box>`,
 };
 
-const parser = new CustomUIParser(
-  `
-<Box width="1920" x="left" height="1080" y="top">
-  <Grid items="{{ children }}" width="full" x="left" height="full" y="top">
-    <Box width="100" height="100"> test? {{ this.user.name }} </Box>
-  </Grid>
-  <Box x="left" y="bottom" width="{{ test }}%" style="background-color: red" height="100">
-    {{ test }}
-  </Box>
+// const parser = new UiMapNext(
+//   `
+// <Box width="1920" x="left" height="1080" y="top">
+//   <Grid items="{{ children }}" width="full" x="left" height="full" y="top">
+//     <Box width="100" height="100"> test? {{ this.user.name }} </Box>
+//   </Grid>
+//   <Box x="left" y="bottom" width="{{ test }}%" style="background-color: red" height="100">
+//     {{ test }}
+//   </Box>
 
-  {{#if test > 50}}
-  <Box x="right" y="top" yOffset="200" xOffset="-200" width="100" height="50">
-    {{#with children.1.user}}
-    test? {{ name }}?????????
-    {{/with}}
-  </Box>
-  {{else}}
-  <Box x="right" y="top" yOffset="200" xOffset="-200" width="100" height="50">
-    woah
-  </Box>
-  {{/if}}
+//   {{#if test > 50}}
+//   <Box x="right" y="top" yOffset="200" xOffset="-200" width="100" height="50">
+//     {{#with children.1.user}}
+//     test? {{ name }}?????????
+//     {{/with}}
+//   </Box>
+//   {{else}}
+//   <Box x="right" y="top" yOffset="200" xOffset="-200" width="100" height="50">
+//     woah
+//   </Box>
+//   {{/if}}
 
-  {{#unless test > 75}}
-  <Box x="right" y="top" yOffset="300" xOffset="-200" width="200" height="200" style="background-color: {{ test > 25 ? test1 : 'purple' }};">
-    <Text x="center" y="center">unless</Text>
-  </Box>
-  {{/unless}}
+//   {{#unless test > 75}}
+//   <Box x="right" y="top" yOffset="300" xOffset="-200" width="200" height="200" style="background-color: {{ test > 25 ? test1 : 'purple' }};">
+//     <Text x="center" y="center">unless</Text>
+//   </Box>
+//   {{/unless}}
 
-  <Box x="right" y="top" yOffset="200" xOffset="-300" width="300">
-    {{> test user}}
-    {{> test }}
-  </Box>
-</Box>
-  `,
-  partials
-);
+//   <Box x="right" y="top" yOffset="200" xOffset="-300" width="300">
+//     {{> test user}}
+//     {{> test }}
+//   </Box>
+// </Box>
+//   `,
+//   partials
+// );
+
+const parser = new UiMapNext(`
+  <Box
+  style="border-radius: 3px; background-color: gray; border: 1px solid black; overflow: hidden"
+  x="left"
+  xOffset="10"
+  yOffset="10"
+  y="top"
+  width="200"
+  height="30"
+>
+    <Box
+  style="padding: 1px; background-color: red;"
+  x="left"
+  y="top"
+  width="{{health / maxHealth * 100}}%"
+  height="100%"
+/>
+  <Text x="center" y="center" fontSize="20">
+    {{health}}
+    /
+    {{maxHealth}}
+  </Text>
+</Box>`);
 
 // const parser = new CustomUIParser(
 //   `
@@ -131,6 +155,8 @@ const element = parser.build(
     user: {
       name: "Bob Doelen",
     },
+    health: 5,
+    maxHealth: 10,
     test: 100,
     test1: "red",
     test2: "blue",

@@ -4,6 +4,7 @@ import { Text } from "./Text";
 import { createByType } from "./UiConfigs";
 import { Box } from "./Box";
 import { isEqual } from "lodash";
+import { UiLoader } from "yage/loader/UiLoader";
 
 type ASTNode =
   | { type: "Element"; tag: string; attributes: Record<string, any>; children: ASTNode[]; key?: string }
@@ -15,9 +16,9 @@ type ASTNode =
   | { type: "IfBlock"; condition: string; consequent: ASTNode[]; alternate?: ASTNode[] }
   | { type: "UnlessBlock"; condition: string; body: ASTNode[] };
 
-export class CustomUIParser {
+export class UiMapNext {
   private template: string;
-  private partials: Record<string, string>;
+  private partials: Map<string, string>;
   private ast: ASTNode;
   private context: any;
   private previousContext: any;
@@ -27,9 +28,9 @@ export class CustomUIParser {
   private functionPointers: Map<string, Map<string, () => void>> = new Map();
   private eventHandler?: (playerIndex: number, eventName: string, eventType: string, context: any) => void;
 
-  constructor(template: string, partials: Record<string, string> = {}) {
+  constructor(template: string, partials?: Record<string, string> | Map<string, string>) {
     this.template = template;
-    this.partials = partials;
+    this.partials = partials instanceof Map ? partials : UiLoader.getInstance().hbsLibrary;
     this.ast = this.parseTemplate(template);
     console.log(this.ast);
     this.context = {};
@@ -793,7 +794,7 @@ export class CustomUIParser {
     }
 
     // Retrieve partial content
-    let partialTemplate = this.partials[partialName];
+    let partialTemplate = this.partials.get(partialName);
     if (!partialTemplate && node.children) {
       // Use partial block content as fallback
       partialTemplate = node.children.map((child) => this.nodeToString(child)).join("");
@@ -856,7 +857,7 @@ export class CustomUIParser {
     contextPath: string[] = []
   ): void {
     const content = node.content.map((child) => this.nodeToString(child)).join("");
-    this.partials[node.name] = content;
+    this.partials.set(node.name, content);
   }
 
   private renderElementNode(
@@ -966,6 +967,8 @@ export class CustomUIParser {
     if (node.content.trim() === "") return;
     contextPath = [...contextPath];
 
+    console.log(node.content);
+
     let variablesInExpression: string[] = [];
     const processedContent = this.processTemplateString(
       node.content,
@@ -981,7 +984,13 @@ export class CustomUIParser {
     } else if (parentElement instanceof Text) {
       parentElement.config.label = (parentElement.config.label || "") + processedContent;
     } else {
-      const textElement = new Text(new Position("center", "center"), { label: processedContent });
+      const textElement = new Text(
+        new Position("center", "center", {
+          width: "auto",
+          height: "auto",
+        }),
+        { label: processedContent }
+      );
       parentElement.addChild(textElement);
       parentElement = textElement;
     }
@@ -1130,7 +1139,10 @@ export class CustomUIParser {
       "onescape",
     ];
 
-    const position = new Position(0, 0);
+    const position = new Position(0, 0, {
+      width: "auto",
+      height: "auto",
+    });
     const positionAttributes = [
       "x",
       "y",

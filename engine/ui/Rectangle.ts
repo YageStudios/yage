@@ -13,6 +13,10 @@ const sizeToPixels = (size: Size): [number, boolean] => {
       size = inchesToPixels(size);
     } else if (size.endsWith("px")) {
       size = parseFloat(size.replace("px", ""));
+    } else if (size === "auto") {
+      size = -1;
+    } else if (size === "full") {
+      size = -2;
     } else {
       size = parseFloat(size);
     }

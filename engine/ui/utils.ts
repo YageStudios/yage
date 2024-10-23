@@ -23,23 +23,39 @@ const scale = () => {
 
 export const positionToCanvasSpace = (
   pos: Position,
+  parentElement: HTMLElement,
   element: HTMLElement,
   additionalScale: number,
   additionalScaleX: number,
   additionalScaleY: number
 ): [number, number, number, number] => {
-  const canvasWidth = element.clientWidth;
-  const canvasHeight = element.clientHeight;
+  const canvasWidth = parentElement.clientWidth;
+  const canvasHeight = parentElement.clientHeight;
 
   const _scale = scale() * additionalScale;
   const scaleX = _scale * additionalScaleX;
   const scaleY = _scale * additionalScaleY;
+
   let width = pos.width * scaleX;
+
+  if (pos.width === -1) {
+    width = element.offsetWidth;
+  } else if (pos.width === -2) {
+    width = canvasWidth;
+  }
+
   if (pos.widthPercentage) {
     width /= 100 * scaleX;
     width *= canvasWidth;
   }
   let height = pos.height * scaleY;
+
+  if (pos.height === -1) {
+    height = element.offsetHeight;
+  } else if (pos.height === -2) {
+    height = canvasHeight;
+  }
+
   if (pos.heightPercentage) {
     height /= 100 * scaleY;
     height *= canvasHeight;

@@ -5,6 +5,7 @@ import JSON5 from "json5";
 
 export class UiLoader {
   uiLibrary = new Map<string, any>();
+  hbsLibrary = new Map<string, string>();
 
   static getInstance(): UiLoader {
     return assignGlobalSingleton("UiLoader", () => new UiLoader());
@@ -24,12 +25,21 @@ export class UiLoader {
       registerTemplate(name, await map.text());
     }
     this.uiLibrary.set(name, getUiMapTemplate(name));
+    this.hbsLibrary.set(name, getUiMapTemplate(name));
   }
 
   get(name: string) {
     const resource = this.uiLibrary.get(name);
     if (!resource) {
       throw new Error(`Template resource ${name} not found`);
+    }
+    return resource;
+  }
+
+  getHbs(name: string) {
+    const resource = this.hbsLibrary.get(name);
+    if (!resource) {
+      throw new Error(`Hbs resource ${name} not found`);
     }
     return resource;
   }

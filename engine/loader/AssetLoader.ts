@@ -154,6 +154,10 @@ export default class AssetLoader {
     return UiLoader.getInstance().get(n(name));
   }
 
+  getHbs(name: string): string {
+    return UiLoader.getInstance().getHbs(n(name));
+  }
+
   getImage(name: string): ImageObj {
     return ImageLoader.getInstance().get(n(name));
   }

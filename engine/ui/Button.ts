@@ -109,7 +109,7 @@ export class Button extends UIElement<ButtonConfig> {
     }
     if (key === "label") {
       this._config.label = value;
-      this.textElement.innerText = value;
+      this.textElement.innerHTML = value;
       return;
     }
     if (key === "fontSize") {
@@ -134,7 +134,7 @@ export class Button extends UIElement<ButtonConfig> {
     }
     const scales = this.getScales();
     buttonElement.style.fontSize = `${scaleFont(this.config.fontSize || 12, scales[0] * scales[1] * scales[2])}px`;
-    this.textElement.innerText = this._config.label;
+    this.textElement.innerHTML = this._config.label;
 
     let pointerType = "mouse";
     buttonElement.onpointerdown = (e) => {

@@ -575,6 +575,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     const [x, y, width, height] = positionToCanvasSpace(
       this.bounds,
       this._parent?._element ?? document.body,
+      element,
       ...this.getScales()
     );
     if (styles.position === "absolute") {
