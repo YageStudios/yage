@@ -108,12 +108,13 @@ const partials = {
 // );
 
 const parser = new UiMapNext(`
+  <Box width="1920" x="left" height="1080" y="top">
   <Box
-  style="border-radius: 3px; background-color: gray; border: 1px solid black; overflow: hidden"
-  x="left"
-  xOffset="10"
-  yOffset="10"
-  y="top"
+  style="border-radius: 3px; background-color: #444; border: 1px solid black; overflow: hidden"
+  x="{{xPosition}}"
+  xOffset="{{10 * xSign}}"
+  yOffset="{{10 * ySign}}"
+  y="{{yPosition}}"
   width="200"
   height="30"
 >
@@ -129,6 +130,7 @@ const parser = new UiMapNext(`
     /
     {{maxHealth}}
   </Text>
+</Box>
 </Box>`);
 
 // const parser = new CustomUIParser(
@@ -151,6 +153,10 @@ const parser = new UiMapNext(`
 //   `);
 const element = parser.build(
   {
+    xPosition: "right",
+    yPosition: "top",
+    xSign: -1,
+    ySign: 1,
     name: "John Doe",
     user: {
       name: "Bob Doelen",
