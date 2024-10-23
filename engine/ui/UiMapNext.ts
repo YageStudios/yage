@@ -1383,7 +1383,9 @@ export class UiMapNext {
 
   /** Detect changes and update affected nodes */
   public update(newContext: any): void {
-    const changedVariables = this.getChangedVariables(newContext);
+    this.previousContext = { ...this.context };
+    this.context = { ...this.context, ...newContext };
+    const changedVariables = this.getChangedVariables();
     changedVariables.forEach((variableName) => {
       const affectedKeys = this.variableDependencies.get(variableName);
       if (affectedKeys) {
@@ -1392,16 +1394,14 @@ export class UiMapNext {
         });
       }
     });
-    this.previousContext = { ...this.context };
-    this.context = { ...this.context, ...newContext };
   }
 
-  private getChangedVariables(newContext: any): Set<string> {
+  private getChangedVariables(): Set<string> {
     const changedVariables = new Set<string>();
     const allVariables = new Set([...this.variableDependencies.keys()]);
     allVariables.forEach((variablePath) => {
-      const oldValue = this.getValueFromContextPath(variablePath, this.context);
-      const newValue = this.getValueFromContextPath(variablePath, newContext);
+      const oldValue = this.getValueFromContextPath(variablePath, this.previousContext);
+      const newValue = this.getValueFromContextPath(variablePath, this.context);
       if (!isEqual(oldValue, newValue)) {
         changedVariables.add(variablePath);
       }
