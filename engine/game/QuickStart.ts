@@ -48,7 +48,7 @@ export const QuickStart = async <T = null>(
   const initializeInputManager = () => {
     inputManager = new InputManager();
     const keyboardListener = new KeyboardListener(inputManager);
-    keyboardListener.init(["w", "a", "s", "d", "i", "j", "k", "l", "space"]);
+    keyboardListener.init(["w", "a", "s", "d", "i", "j", "k", "l", "q", "e", "space"]);
     unsubscribes.push(() => keyboardListener.destroy());
   };
 
@@ -87,4 +87,6 @@ export const QuickStart = async <T = null>(
   }
   const instance: GameInstance<T> = initializeGameInstance(connection);
   instance.initializeRoom(roomId, seed);
+
+  return instance;
 };
