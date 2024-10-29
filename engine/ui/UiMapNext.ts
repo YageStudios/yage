@@ -937,6 +937,12 @@ export class UiMapNext {
                 // Create new child element
                 const clonedChildNode = { ...childNode, key: childKey };
                 clonedChildNode.attributes = { ...clonedChildNode.attributes };
+                if (typeof clonedChildNode.attributes.style === "string") {
+                  clonedChildNode.attributes.style = this.generateStyleAttribute(
+                    clonedChildNode.attributes.style,
+                    itemContextPath
+                  );
+                }
                 clonedChildNode.attributes.style = {
                   position: "relative",
                   flex: "0 0 auto",
@@ -966,8 +972,6 @@ export class UiMapNext {
   ): void {
     if (node.content.trim() === "") return;
     contextPath = [...contextPath];
-
-    console.log(node.content);
 
     let variablesInExpression: string[] = [];
     const processedContent = this.processTemplateString(

@@ -107,30 +107,44 @@ const partials = {
 //   partials
 // );
 
+// const parser = new UiMapNext(`
+//   <Box width="1920" x="left" height="1080" y="top">
+//   <Box
+//   style="border-radius: 3px; background-color: #444; border: 1px solid black; overflow: hidden"
+//   x="{{xPosition}}"
+//   xOffset="{{10 * xSign}}"
+//   yOffset="{{10 * ySign}}"
+//   y="{{yPosition}}"
+//   width="200"
+//   height="30"
+// >
+//     <Box
+//   style="padding: 1px; background-color: red;"
+//   x="left"
+//   y="top"
+//   width="{{health / maxHealth * 100}}%"
+//   height="100%"
+// />
+//   <Text x="center" y="center" fontSize="20">
+//     {{health}}
+//     /
+//     {{maxHealth}}
+//   </Text>
+// </Box>
+// </Box>`);
+
 const parser = new UiMapNext(`
-  <Box width="1920" x="left" height="1080" y="top">
-  <Box
-  style="border-radius: 3px; background-color: #444; border: 1px solid black; overflow: hidden"
-  x="{{xPosition}}"
-  xOffset="{{10 * xSign}}"
-  yOffset="{{10 * ySign}}"
-  y="{{yPosition}}"
-  width="200"
-  height="30"
->
+<Box width="1920" x="left" height="1080" y="top">
+  <Grid items="{{items}}" width="full" x="left" height="full" y="top"
+      gap="5px">
     <Box
-  style="padding: 1px; background-color: red;"
-  x="left"
-  y="top"
-  width="{{health / maxHealth * 100}}%"
-  height="100%"
-/>
-  <Text x="center" y="center" fontSize="20">
-    {{health}}
-    /
-    {{maxHealth}}
-  </Text>
-</Box>
+      width="100"
+      height="100"
+      style="border-width: 1px; border-style: solid; border-color: black;"
+    >
+      test?
+    </Box>
+  </Grid>
 </Box>`);
 
 // const parser = new CustomUIParser(
@@ -151,6 +165,17 @@ const parser = new UiMapNext(`
 //   </Box>
 // </Box>
 //   `);
+
+const items: any[] = [];
+
+for (let i = 0; i < 25; ++i) {
+  items.push({
+    name: "Empty",
+    description: "This slot is empty",
+    quantity: 0,
+  });
+}
+
 const element = parser.build(
   {
     xPosition: "right",
@@ -166,6 +191,7 @@ const element = parser.build(
     test: 100,
     test1: "red",
     test2: "blue",
+    items,
     children: [
       {
         test: "blah",

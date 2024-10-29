@@ -84,6 +84,11 @@ export class KeyboardListener {
     }
     if (this.registry[`${prefix}-${key}`]) {
       const callbacks = this.registry[`${prefix}-${key}`];
+
+      if (key === "tab") {
+        e.preventDefault();
+      }
+
       for (let i = 0; i < callbacks.length; ++i) {
         callbacks[i](key, e);
       }
