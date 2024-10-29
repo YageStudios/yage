@@ -649,9 +649,16 @@ export class UiMapNext {
     context: any,
     eventHandler?: (playerIndex: number, eventName: string, eventType: string, context: any) => void
   ): UIElement<any> {
-    this.previousContext = this.context;
+    this.previousContext = {};
+    this.uiElements = new Map();
+    this.variableDependencies = new Map();
     this.context = context;
     this.eventHandler = eventHandler;
+    if (!this.rootElement.destroyed) {
+      this.rootElement.onDestroy();
+    }
+    this.rootElement = new Box(new Position(0, 0), { children: [] });
+
     this.renderNode(this.ast, this.rootElement, []);
     return this.rootElement;
   }

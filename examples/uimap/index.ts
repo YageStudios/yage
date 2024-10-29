@@ -168,60 +168,67 @@ const parser = new UiMapNext(`
 
 const items: any[] = [];
 
-for (let i = 0; i < 25; ++i) {
-  items.push({
-    name: "Empty",
-    description: "This slot is empty",
-    quantity: 0,
-  });
-}
-
-const element = parser.build(
-  {
-    xPosition: "right",
-    yPosition: "top",
-    xSign: -1,
-    ySign: 1,
-    name: "John Doe",
-    user: {
-      name: "Bob Doelen",
-    },
-    health: 5,
-    maxHealth: 10,
-    test: 100,
-    test1: "red",
-    test2: "blue",
-    items,
-    children: [
-      {
-        test: "blah",
-        user: {
-          name: "John Doe",
-        },
-      },
-      {
-        test: 99,
-        user: {
-          name: "Jill Doe",
-        },
-      },
-      {
-        test: 100,
-        user: {
-          name: "Jane Doe",
-        },
-      },
-    ],
-  },
-  (...eventParams) => {
-    console.log(eventParams);
+for (let j = 0; j < 2; ++j) {
+  for (let i = 0; i < 25; ++i) {
+    items.push({
+      name: "Empty",
+      description: "This slot is empty",
+      quantity: 0,
+    });
   }
-);
+
+  const element = parser.build(
+    {
+      xPosition: "right",
+      yPosition: "top",
+      xSign: -1,
+      ySign: 1,
+      name: "John Doe",
+      user: {
+        name: "Bob Doelen",
+      },
+      health: 5,
+      maxHealth: 10,
+      test: 100,
+      test1: "red",
+      test2: "blue",
+      items,
+      children: [
+        {
+          test: "blah",
+          user: {
+            name: "John Doe",
+          },
+        },
+        {
+          test: 99,
+          user: {
+            name: "Jill Doe",
+          },
+        },
+        {
+          test: 100,
+          user: {
+            name: "Jane Doe",
+          },
+        },
+      ],
+    },
+    (...eventParams) => {
+      console.log(eventParams);
+    }
+  );
+
+  uiService.addToUI(element);
+
+  if (j === 0) {
+    uiService.removeFromUI(element);
+    element.onDestroy();
+  }
+}
 
 const updateTest = debounce((e) => {
   const y = e.clientY / window.innerHeight;
   parser.update({ test: y * 100 });
 }, 10);
-uiService.addToUI(element);
-
 document.addEventListener("mousemove", updateTest);
