@@ -1,0 +1,29 @@
+{
+  name: "core",
+  components: [
+    "Sounds",
+    {
+      type: "FrameRate",
+      uiMap: "core/FrameRate",
+    },
+    "PixiViewport",
+    "Physics",
+  ],
+  assets: [
+    {
+      type: "sound",
+      key: "ding",
+      url: "ding.mp3",
+    },
+    {
+      type: "ui",
+      key: "core/FrameRate",
+      url: "core/FrameRate.json5",
+    },
+    {
+      type: "ui",
+      key: "core/InventoryGrid",
+      url: "InventoryGrid.hbs",
+    },
+  ],
+}

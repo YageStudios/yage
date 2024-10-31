@@ -35,6 +35,8 @@ import { Parent } from "yage/schemas/entity/Parent";
 import { World as WorldSchema } from "yage/schemas/core/World";
 import { Transform } from "yage/schemas/entity/Transform";
 import { WorldSystem } from "yage/systems/core/World";
+import { InputManager } from "yage/inputs/InputManager";
+
 // @ts-expect-error - MineCS doesn't have a type for this
 type EntityWithComponent<T extends Schema> = number & { __hasComponent: T["type"] };
 
@@ -58,6 +60,7 @@ export type EjectedEntity = {
 };
 
 export type GameModel = World & {
+  inputManager: InputManager;
   roomId: string;
   ping: number;
   timeElapsed: number;
@@ -121,10 +124,12 @@ export const GameModel = ({
   world = createWorld(1000),
   seed,
   roomId,
+  inputManager,
 }: {
   world?: World;
   seed?: string;
   roomId?: string;
+  inputManager: InputManager;
 }): GameModel => {
   const componentsByCategory = componentList.reduce((acc, component) => {
     acc[component.category] = acc[component.category] || [];
@@ -159,6 +164,7 @@ export const GameModel = ({
   }, {} as Record<string, string[]>);
 
   const gameModel = Object.assign(world, {
+    inputManager,
     roomId: roomId ?? "",
     coreEntity: addEntity(world),
     timeElapsed: 0,

@@ -1043,38 +1043,57 @@ export class UiMapNext {
   }
 
   private watchStyleAttributes(attribute: Record<string, any>, element: UIElement, contextPath: string[]): void {
-    const originalStyleValue = attribute.style || "";
-    const variablesInStyle: string[] = [];
-    this.processTemplateString(
-      originalStyleValue,
-      (variableName, fullPath) => {
-        variablesInStyle.push(variableName);
-      },
-      {},
-      contextPath
-    );
+    const styleAttributes = ["style", "focusStyle", "hoverStyle", "activeStyle", "disabledStyle"];
 
-    variablesInStyle.forEach((variableName) => {
-      const fullPath = this.resolveFullPath(variableName, contextPath);
-      if (!this.variableDependencies.has(fullPath)) {
-        this.variableDependencies.set(fullPath, new Set());
+    for (const styleAttr of styleAttributes) {
+      const originalStyleValue = attribute[styleAttr] || "";
+      const variablesInStyle: string[] = [];
+      if (typeof originalStyleValue === "string") {
+        this.processTemplateString(
+          originalStyleValue,
+          (variableName, fullPath) => {
+            variablesInStyle.push(variableName);
+          },
+          {},
+          contextPath
+        );
+      } else if (typeof originalStyleValue === "object") {
+        Object.entries(originalStyleValue).forEach(([key, value]) => {
+          if (typeof value === "string") {
+            this.processTemplateString(
+              value,
+              (variableName, fullPath) => {
+                variablesInStyle.push(variableName);
+              },
+              {},
+              contextPath
+            );
+          }
+        });
       }
-      this.variableDependencies.get(fullPath)!.add(element.id);
-      if (!this.functionPointers.has(element.id)) {
-        this.functionPointers.set(element.id, new Map());
-      }
-      this.functionPointers.get(element.id)!.set(fullPath, () => {
-        // Re-process the style attribute
-        const styleObj = this.generateStyleAttribute(originalStyleValue, contextPath);
-        if (
-          Object.keys(styleObj).some((key) => {
-            return element.config.style[key] !== styleObj[key];
-          })
-        ) {
-          element.config.style = { ...element.config.style, ...styleObj };
+
+      variablesInStyle.forEach((variableName) => {
+        const fullPath = this.resolveFullPath(variableName, contextPath);
+        if (!this.variableDependencies.has(fullPath)) {
+          this.variableDependencies.set(fullPath, new Set());
         }
+        this.variableDependencies.get(fullPath)!.add(element.id);
+        if (!this.functionPointers.has(element.id)) {
+          this.functionPointers.set(element.id, new Map());
+        }
+        this.functionPointers.get(element.id)!.set(fullPath, () => {
+          // Re-process the style attribute
+          const styleObj = this.generateStyleAttribute(originalStyleValue, contextPath);
+          if (
+            Object.keys(styleObj).some((key) => {
+              return element.config.style[key] !== styleObj[key];
+            })
+          ) {
+            element.config.style = { ...element.config.style, ...styleObj };
+          }
+        });
       });
-    });
+    }
   }
 
   private watchVariables(variables: [string[], string, string, string[]][], element: UIElement): void {
@@ -1166,6 +1185,7 @@ export class UiMapNext {
       "minHeight",
       "minWidth",
     ];
+    const styleAttributes = ["style", "focusStyle", "hoverStyle", "activeStyle", "disabledStyle"];
 
     let stylesGenerated = false;
 
@@ -1173,12 +1193,12 @@ export class UiMapNext {
     let positionVariablesToWatch: [string[], string, string, string[]][] = [];
 
     Object.entries(attributes).forEach(([attrKey, value]) => {
-      if (attrKey === "style") {
-        if (typeof attributes.style === "string") {
-          config.style = { ...config.style, ...this.generateStyleAttribute(attributes.style, contextPath) };
+      if (styleAttributes.includes(attrKey)) {
+        if (typeof attributes[attrKey] === "string") {
+          config[attrKey] = { ...config[attrKey], ...this.generateStyleAttribute(attributes[attrKey], contextPath) };
           stylesGenerated = true;
         } else {
-          config.style = attributes.style;
+          config[attrKey] = attributes[attrKey];
         }
       } else if (!eventAttributes.includes(attrKey) && attrKey !== "items" && !positionAttributes.includes(attrKey)) {
         const originalValue = value;
@@ -1352,10 +1372,11 @@ export class UiMapNext {
     let positionVariablesToWatch: [string[], string, string, string[]][] = [];
 
     const positionAttributes = ["x", "y", "width", "height", "maxHeight", "maxWidth", "minHeight", "minWidth"];
+    const styleAttributes = ["style", "focusStyle", "hoverStyle", "activeStyle", "disabledStyle"];
 
     Object.entries(attributes).forEach(([attrKey, value]) => {
-      if (attrKey === "style") {
-        uiElement.config.style = this.generateStyleAttribute(attributes.style, contextPath);
+      if (styleAttributes.includes(attrKey)) {
+        uiElement.config[attrKey] = this.generateStyleAttribute(attributes[attrKey], contextPath);
         this.watchStyleAttributes(attributes, uiElement, contextPath);
       } else if (!positionAttributes.includes(attrKey)) {
         const originalValue = value;

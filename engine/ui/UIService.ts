@@ -158,6 +158,7 @@ export class UIService {
       }
       e?.preventDefault();
       e?.stopPropagation();
+      return false;
     }
 
     // remap q to escape since the b button is mapped to q
@@ -171,6 +172,7 @@ export class UIService {
           this._focusedElementByPlayerIndex[playerEventIndex]!.onClick(playerEventIndex);
           e?.preventDefault();
           e?.stopImmediatePropagation();
+          return false;
         }
 
         break;

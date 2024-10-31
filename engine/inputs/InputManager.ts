@@ -112,7 +112,7 @@ export class InputManager {
   public addKeyListener(
     listener: (key: string, keyPressed: boolean, eventType: InputEventType, typeIndex: number, e?: Event) => void
   ): () => void {
-    this.keyListeners.push(listener);
+    this.keyListeners.unshift(listener);
     return () => {
       this.keyListeners = this.keyListeners.filter((l) => l !== listener);
     };
@@ -126,6 +126,10 @@ export class InputManager {
 
   dispatchEvent = (key: string, keyPressed: boolean, eventType: InputEventType, typeIndex = 0, e?: Event) => {
     let keyMap: KeyMap;
+
+    if (this.keyListeners.some((listener) => listener(key, keyPressed, eventType, typeIndex, e) === false)) {
+      return;
+    }
 
     if (this.combineKeyMaps) {
       keyMap = this.keyMap;
@@ -143,7 +147,6 @@ export class InputManager {
     } else {
       keyMap.delete(key);
     }
-    this.keyListeners.forEach((listener) => listener(key, keyPressed, eventType, typeIndex, e));
   };
 
   keyMapToJsonObject(keyMap: KeyMap): { [key: string]: boolean } {
