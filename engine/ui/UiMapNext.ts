@@ -26,7 +26,13 @@ export class UiMapNext {
   private rootElement: UIElement<any>;
   private variableDependencies: Map<string, Set<string>>;
   private functionPointers: Map<string, Map<string, () => void>> = new Map();
-  private eventHandler?: (playerIndex: number, eventName: string, eventType: string, context: any) => void;
+  private eventHandler?: (
+    playerIndex: number,
+    eventName: string,
+    eventType: string,
+    context: any,
+    contextPath: string[]
+  ) => void;
 
   constructor(template: string, partials?: Record<string, string> | Map<string, string>) {
     this.template = template;
@@ -205,6 +211,16 @@ export class UiMapNext {
       console.error("Error evaluating expression:", expression, e);
       return undefined;
     }
+  }
+
+  public localContext(context: any, contextPath: string[]): any {
+    const localContext = { ...context };
+    let acc = localContext;
+    for (let i = 0; i < contextPath.length; i++) {
+      acc[contextPath[i]] = acc[contextPath[i]] || {};
+      acc = acc[contextPath[i]];
+    }
+    return acc;
   }
 
   private resolveFullPath(variableName: string, contextPath: string[]): string {
@@ -647,7 +663,13 @@ export class UiMapNext {
   /** Step 2 & 3: Build and Update the UI Elements */
   public build(
     context: any,
-    eventHandler?: (playerIndex: number, eventName: string, eventType: string, context: any) => void
+    eventHandler?: (
+      playerIndex: number,
+      eventName: string,
+      eventType: string,
+      context: any,
+      contextPath: string[]
+    ) => void
   ): UIElement<any> {
     this.previousContext = {};
     this.uiElements = new Map();
@@ -1296,7 +1318,13 @@ export class UiMapNext {
 
   private generateEventListener(
     events: Record<string, string>,
-    eventListener?: (playerIndex: number, eventName: string, eventType: string, context: any) => void,
+    eventListener?: (
+      playerIndex: number,
+      eventName: string,
+      eventType: string,
+      context: any,
+      contextPath: string[]
+    ) => void,
     contextPath: string[] = []
   ) {
     const contextRef = this.context;
@@ -1305,45 +1333,45 @@ export class UiMapNext {
       ? {
           onEscape: (playerIndex: number) => {
             if (events.onescape && handler) {
-              handler(playerIndex, events.onescape, "escape", contextRef);
+              handler(playerIndex, events.onescape, "escape", contextRef, contextPath);
             }
           },
           onClick: (playerIndex: number) => {
             if (events.onclick && handler) {
-              handler(playerIndex, events.onclick, "click", contextRef);
+              handler(playerIndex, events.onclick, "click", contextRef, contextPath);
             }
             return false;
           },
           onMouseDown: (playerIndex: number) => {
             if (events.onmousedown && handler) {
-              handler(playerIndex, events.onmousedown, "mouseDown", contextRef);
+              handler(playerIndex, events.onmousedown, "mouseDown", contextRef, contextPath);
             }
             return false;
           },
           onMouseUp: (playerIndex: number) => {
             if (events.onmouseup && handler) {
-              handler(playerIndex, events.onmouseup, "mouseUp", contextRef);
+              handler(playerIndex, events.onmouseup, "mouseUp", contextRef, contextPath);
             }
             return false;
           },
           onMouseEnter: (playerIndex: number) => {
             if (events.onmouseenter && handler) {
-              handler(playerIndex, events.onmouseenter, "mouseEnter", contextRef);
+              handler(playerIndex, events.onmouseenter, "mouseEnter", contextRef, contextPath);
             }
           },
           onMouseLeave: (playerIndex: number) => {
             if (events.onmouseleave && handler) {
-              handler(playerIndex, events.onmouseleave, "mouseLeave", contextRef);
+              handler(playerIndex, events.onmouseleave, "mouseLeave", contextRef, contextPath);
             }
           },
           onBlur: (playerIndex: number) => {
             if (events.onblur && handler) {
-              handler(playerIndex, events.onblur, "blur", contextRef);
+              handler(playerIndex, events.onblur, "blur", contextRef, contextPath);
             }
           },
           onFocus: (playerIndex: number) => {
             if (events.onfocus && handler) {
-              handler(playerIndex, events.onfocus, "focus", contextRef);
+              handler(playerIndex, events.onfocus, "focus", contextRef, contextPath);
             }
           },
         }

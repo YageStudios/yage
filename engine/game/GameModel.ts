@@ -36,6 +36,7 @@ import { World as WorldSchema } from "yage/schemas/core/World";
 import { Transform } from "yage/schemas/entity/Transform";
 import { WorldSystem } from "yage/systems/core/World";
 import { InputManager } from "yage/inputs/InputManager";
+import { PlayerEventManager } from "yage/inputs/PlayerEventManager";
 
 // @ts-expect-error - MineCS doesn't have a type for this
 type EntityWithComponent<T extends Schema> = number & { __hasComponent: T["type"] };
@@ -73,6 +74,7 @@ export type GameModel = World & {
   currentWorld: number;
   frameDt: number;
   worlds: { entities: Set<number>; destroyed: boolean; id: number }[];
+  event: (netId: string, event: string, data: any) => void;
   createWorld: () => number;
   changeWorld: (world: number, entity: number) => void;
   step: (dt?: number) => void;
@@ -125,11 +127,13 @@ export const GameModel = ({
   seed,
   roomId,
   inputManager,
+  playerEventManager,
 }: {
   world?: World;
   seed?: string;
   roomId?: string;
   inputManager: InputManager;
+  playerEventManager: PlayerEventManager;
 }): GameModel => {
   const componentsByCategory = componentList.reduce((acc, component) => {
     acc[component.category] = acc[component.category] || [];
@@ -242,6 +246,9 @@ export const GameModel = ({
         return world(type, entity);
       }
       return null;
+    },
+    event: (netId: string, event: string, data: any) => {
+      playerEventManager.addEvent(netId, `${event}::${JSON.stringify(data)}`);
     },
     ejectEntity: (entity: number, removeEjectedEntity = true): any => {
       const data = {

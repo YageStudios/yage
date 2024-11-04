@@ -1,22 +1,21 @@
 const EMPTY_ARRAY: string[] = [];
 
 export class PlayerEventManager {
-  private queue: string[] = [];
+  private queue: { [netId: string]: string[] } = {};
 
-  public getLastQueue() {
-    return [this.queue[this.queue.length - 1], this.queue.length];
+  public addEvent(netId: string, event: string) {
+    if (!this.queue[netId]) {
+      this.queue[netId] = [];
+    }
+    this.queue[netId].push(event);
   }
 
-  public addEvent(event: string) {
-    this.queue.push(event);
-  }
-
-  public getEvents() {
-    if (Object.keys(this.queue).length === 0) {
+  public getEvents(netId: string) {
+    if (Object.keys(this.queue[netId] ?? []).length === 0) {
       return EMPTY_ARRAY;
     }
-    const changes = this.queue;
-    this.queue = [];
+    const changes = this.queue[netId];
+    this.queue[netId] = [];
     return changes;
   }
 }

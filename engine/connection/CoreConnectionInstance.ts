@@ -97,7 +97,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   roomSubs: { [roomId: string]: (() => void)[] } = {};
   solohost: boolean;
 
-  eventsManager: PlayerEventManager = new PlayerEventManager();
+  playerEventManager: PlayerEventManager = new PlayerEventManager();
 
   emit(event: string, ...args: any[]) {} // eslint-disable-line
   async connect(): Promise<void> {} // eslint-disable-line
@@ -518,7 +518,11 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
               });
             }
             if (!roomState.gameModel || roomState.gameModel.destroyed) {
-              roomState.gameModel = GameModel({ seed, inputManager: gameInstance.options.connection.inputManager }); // GameModel(GameCoordinator.GetInstance(), gameInstance, seed, coreOverrides);
+              roomState.gameModel = GameModel({
+                seed,
+                inputManager: gameInstance.options.connection.inputManager,
+                playerEventManager: this.playerEventManager,
+              }); // GameModel(GameCoordinator.GetInstance(), gameInstance, seed, coreOverrides);
               roomState.gameModel.roomId = roomId;
             }
             if (roomState.gameModel) {
@@ -586,8 +590,9 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
 
     roomState.gameModel = GameModel(
       {
-        inputManager: options.gameInstance.options.connection.inputManager,
         seed: options.seed,
+        inputManager: options.gameInstance.options.connection.inputManager,
+        playerEventManager: this.playerEventManager,
       }
       // GameCoordinator.GetInstance(),
       // options.gameInstance,
@@ -674,7 +679,11 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
 
     const roomState = this.roomStates[roomId];
 
-    roomState.gameModel = GameModel({ seed, inputManager: gameInstance.options.connection.inputManager }); //new GameModel(GameCoordinator.GetInstance(), gameInstance, seed, coreOverrides);
+    roomState.gameModel = GameModel({
+      seed,
+      inputManager: gameInstance.options.connection.inputManager,
+      playerEventManager: this.playerEventManager,
+    }); //new GameModel(GameCoordinator.GetInstance(), gameInstance, seed, coreOverrides);
     roomState.gameModel.roomId = roomId;
 
     const localPlayers = this.localPlayers.sort();
@@ -745,7 +754,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
         keys: this.inputManager.keyMapToJsonObject(currentKeyMap),
         frame: gameModel.frame + this.frameOffset,
         playerId: localPlayer.netId,
-        events: this.eventsManager.getEvents(),
+        events: this.playerEventManager.getEvents(localPlayer.netId),
       };
       this.emit("frame", frame);
     }

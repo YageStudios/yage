@@ -31,7 +31,7 @@ export abstract class ConnectionInstance<T> {
   abstract players: PlayerConnection<T>[];
   abstract player: PlayerConnection<T>;
   abstract localPlayers: PlayerConnection<T>[];
-  abstract eventsManager: PlayerEventManager;
+  abstract playerEventManager: PlayerEventManager;
   abstract inputManager: InputManager;
   abstract touchListener?: TouchListener;
   abstract solohost: boolean;
