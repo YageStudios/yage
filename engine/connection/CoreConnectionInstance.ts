@@ -249,14 +249,25 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     this.emit("updatePlayerConnect", player);
   }
 
-  leaveRoom() {
+  leaveRoom(roomId: string, localPlayerIndex?: number): void {
     this.listening = false;
     this.sendingState = false;
     this.touchListener?.replaceRegions([]);
+    if (localPlayerIndex !== undefined) {
+      const player = this.localPlayers[localPlayerIndex];
+      if (player.currentRoomId === roomId) {
+        this.emit("leaveRoom", player.netId, player.currentRoomId);
+        player.currentRoomId = null;
+      }
+      return;
+    }
+
     for (let i = 0; i < this.localPlayers.length; ++i) {
       const player = this.localPlayers[i];
-      this.emit("leaveRoom", player.netId, player.currentRoomId);
-      player.currentRoomId = null;
+      if (player.currentRoomId === roomId) {
+        this.emit("leaveRoom", player.netId, player.currentRoomId);
+        player.currentRoomId = null;
+      }
     }
   }
 

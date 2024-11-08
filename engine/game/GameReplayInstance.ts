@@ -5,6 +5,8 @@ import type { ReplayStack } from "yage/connection/CoreConnectionInstance";
 import { HistoryConnectionInstance } from "yage/connection/HistoryConnectionInstance";
 import Ticker from "./Ticker";
 
+// TODO HANDLE MULTILE GAME MODELS
+
 export class GameReplayInstance<T> extends GameInstance<T> {
   protected connection: HistoryConnectionInstance<T>;
 
@@ -44,7 +46,7 @@ export class GameReplayInstance<T> extends GameInstance<T> {
       onPlayerLeave: this.options.onPlayerLeave,
     });
 
-    this.gameModel = gameModel;
+    this.gameModels[roomId] = gameModel;
 
     if (this.ticker) {
       this.ticker.stop();
@@ -56,27 +58,49 @@ export class GameReplayInstance<T> extends GameInstance<T> {
   }
 
   run() {
-    if (this.options.connection.localPlayers[0].currentRoomId) {
-      this.runGameLoop();
-      if (this.gameModel.destroyed) {
-        this.options.connection.leaveRoom();
+    const activeRooms = new Set(this.options.connection.players.map((p) => p.currentRoomId));
+    if (activeRooms.size > 0) {
+      for (const roomId of activeRooms) {
+        if (roomId) {
+          if (this.gameModels[roomId]) {
+            this.runGameLoop(roomId);
+            if (this.gameModels[roomId].destroyed) {
+              this.options.connection.leaveRoom(roomId);
+            }
+          }
+        }
       }
     }
+    // run() {
+    //   if (this.options.connection.localPlayers[0].currentRoomId) {
+    //     this.runGameLoop();
+    //     if (this.gameModels[this.options.connection.localPlayers[0].currentRoomId].destroyed) {
+    //       this.options.connection.leaveRoom();
+    //     }
+    //   }
   }
 
   checkScrubs() {
     if (this.scrubRequest !== null) {
       console.log(this.scrubRequest, this.previousFrame, this.nextFrame);
       if (this.scrubRequest <= this.previousFrame) {
-        this.previousFrame = this.connection.loadClosestFrame(this.gameModel, this.scrubRequest);
+        const activeRooms = new Set(this.options.connection.players.map((p) => p.currentRoomId));
+
+        for (const roomId of activeRooms) {
+          if (roomId) {
+            if (this.gameModels[roomId]) {
+              this.previousFrame = this.connection.loadClosestFrame(this.gameModels[roomId], this.scrubRequest);
+            }
+          }
+        }
       }
       this.nextFrame = this.scrubRequest;
       this.scrubRequest = null;
     }
   }
 
-  runGameLoop() {
-    if (!this.gameModel) {
+  runGameLoop(roomId: string) {
+    if (!this.gameModels[roomId]) {
       return;
     }
     // const nextFrame = this.previousFrame + this.playSpeed;
@@ -96,22 +120,22 @@ export class GameReplayInstance<T> extends GameInstance<T> {
 
     try {
       for (let i = 0; i < framesToRun; i++) {
-        if (this.options.connection.startFrame(this.gameModel) === false) {
+        if (this.options.connection.startFrame(this.gameModels[roomId]) === false) {
           return;
         }
 
-        this.gameModel.step(this.dt);
+        this.gameModels[roomId].step(this.dt);
 
-        if (this.gameModel.destroyed) {
+        if (this.gameModels[roomId].destroyed) {
           console.log("destroyed");
           return;
         }
 
         if (i === 0) {
-          stepWorldDraw(this.gameModel);
+          stepWorldDraw(this.gameModels[roomId]);
         }
 
-        this.options.connection.endFrame(this.gameModel);
+        this.options.connection.endFrame(this.gameModels[roomId]);
       }
     } catch (e) {
       console.error(e);
@@ -127,7 +151,15 @@ export class GameReplayInstance<T> extends GameInstance<T> {
 
   resumePlayback() {
     this.playSpeed = this.currentPlaySpeed;
-    this.connection.loadClosestFrame(this.gameModel, 0);
+    const activeRooms = new Set(this.options.connection.players.map((p) => p.currentRoomId));
+
+    for (const roomId of activeRooms) {
+      if (roomId) {
+        if (this.gameModels[roomId]) {
+          this.connection.loadClosestFrame(this.gameModels[roomId], 0);
+        }
+      }
+    }
   }
 
   onScrub(frame: number) {

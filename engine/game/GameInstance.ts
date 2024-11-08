@@ -18,13 +18,17 @@ export type GameInstanceOptions<T> = {
 };
 
 export class GameInstance<T> {
-  public gameModel: GameModel;
+  // public gameModel: GameModel;
   public achievementService: AchievementService;
   protected dt = 16;
 
   protected ticker: Ticker;
   protected timestep: Readonly<SceneTimestep> = "fixed";
   protected targetFPS: number = 60;
+
+  public gameModels: {
+    [roomId: string]: GameModel;
+  } = {};
 
   render30Fps: boolean;
 
@@ -56,11 +60,12 @@ export class GameInstance<T> {
       throw new Error("Player not connected");
     }
     if (this.options.connection.localPlayers[0].currentRoomId) {
-      this.options.connection.leaveRoom();
+      // TODO: this needs to handle multiple local players
+      this.options.connection.leaveRoom(this.options.connection.localPlayers[0].currentRoomId);
     }
 
-    if (this.gameModel && !this.gameModel.destroyed) {
-      this.gameModel.destroy();
+    if (this.gameModels[roomId] && !this.gameModels[roomId].destroyed) {
+      this.gameModels[roomId].destroy();
     }
 
     if (this.options.connection.hasRoom(roomId)) {
@@ -76,7 +81,7 @@ export class GameInstance<T> {
         onPlayerLeave: this.options.onPlayerLeave,
       });
 
-      this.gameModel = gameModel;
+      this.gameModels[roomId] = gameModel;
     }
 
     if (this.ticker) {
@@ -92,12 +97,13 @@ export class GameInstance<T> {
     if (!this.options.connection.player.connected) {
       throw new Error("Player not connected");
     }
+    // TODO: this needs to handle multiple local players
     if (this.options.connection.player.currentRoomId) {
-      this.options.connection.leaveRoom();
+      this.options.connection.leaveRoom(this.options.connection.player.currentRoomId);
     }
 
-    if (this.gameModel && !this.gameModel.destroyed) {
-      this.gameModel.destroy();
+    if (this.gameModels[roomId] && !this.gameModels[roomId].destroyed) {
+      this.gameModels[roomId].destroy();
     }
 
     const gameModel = await this.options.connection.join(roomId, {
@@ -107,39 +113,52 @@ export class GameInstance<T> {
       onPlayerLeave: this.options.onPlayerLeave,
       playerConfig,
     });
-    this.gameModel = gameModel;
+    this.gameModels[roomId] = gameModel;
   }
 
   run() {
-    if (this.options.connection.localPlayers[0].currentRoomId) {
-      this.runGameLoop();
-      if (this.gameModel.destroyed) {
-        this.options.connection.leaveRoom();
+    const activeRooms = new Set(this.options.connection.players.map((p) => p.currentRoomId));
+    if (activeRooms.size > 0) {
+      for (const roomId of activeRooms) {
+        if (roomId) {
+          if (this.gameModels[roomId]) {
+            this.runGameLoop(roomId);
+            if (this.gameModels[roomId].destroyed) {
+              this.options.connection.leaveRoom(roomId);
+            }
+          }
+        }
       }
     }
+    // if (this.options.connection.localPlayers[0].currentRoomId) {
+    //   this.runGameLoop();
+    //   if (this.gameModel.destroyed) {
+    //     this.options.connection.leaveRoom();
+    //   }
+    // }
   }
 
-  runGameLoop() {
-    if (!this.gameModel) {
+  runGameLoop(roomId: string) {
+    if (!this.gameModels[roomId]) {
       return;
     }
     try {
-      if (this.options.connection.startFrame(this.gameModel) === false) {
+      if (this.options.connection.startFrame(this.gameModels[roomId]) === false) {
         return;
       }
 
-      this.gameModel.step(this.dt);
+      this.gameModels[roomId].step(this.dt);
 
-      if (this.gameModel.destroyed) {
+      if (this.gameModels[roomId].destroyed) {
         console.log("destroyed");
         return;
       }
 
-      if (!flags.FPS_30 || this.gameModel.frame % 2 === 0) {
-        stepWorldDraw(this.gameModel);
+      if (!flags.FPS_30 || this.gameModels[roomId].frame % 2 === 0) {
+        stepWorldDraw(this.gameModels[roomId]);
       }
 
-      this.options.connection.endFrame(this.gameModel);
+      this.options.connection.endFrame(this.gameModels[roomId]);
     } catch (e) {
       console.error(e);
       throw e;

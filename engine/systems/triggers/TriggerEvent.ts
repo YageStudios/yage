@@ -4,7 +4,6 @@ import { EntityFactory } from "yage/entity/EntityFactory";
 import type { GameModel } from "yage/game/GameModel";
 import { closestEntity } from "yage/utils/Collision";
 import { TriggerEvent } from "yage/schemas/triggers/TriggerEvent";
-import { PortalSystem } from "yage/systems/player/Portal";
 import { System, SystemImpl } from "minecs";
 import { Transform } from "yage/schemas/entity/Transform";
 import { MapEntityType } from "yage/schemas/entity/Types";
@@ -120,8 +119,8 @@ export class TriggerEventSystem extends SystemImpl<GameModel> {
             if (portalData.fromSave && data.name !== portalData.fromSave) {
               throw new Error("HANDLE INDIRECT PORTALING");
             }
-            const portalSystem = gameModel.getSystem(PortalSystem);
-            portalSystem.run(gameModel, entity);
+            const portalSystem = gameModel.getSystemsByType("Portal")?.[0];
+            portalSystem.run?.(gameModel, entity);
           } else {
             const [map, spawnPoint = ""] = data.name.split(".");
             gameModel.addComponent(Teleport, entity, {
