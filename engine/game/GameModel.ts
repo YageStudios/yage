@@ -28,7 +28,8 @@ import { PhysicsSystem } from "yage/systems/physics/Physics";
 import Description from "yage/schemas/core/Description";
 import { flags } from "yage/console/flags";
 import { EntityFactory } from "yage/entity/EntityFactory";
-import type { ComponentCategory, EntityTypeEnum } from "yage/constants/enums";
+import type { EntityTypeEnum } from "yage/constants/enums";
+import { ComponentCategory } from "yage/constants/enums";
 import type { ComponentData } from "yage/systems/types";
 import { EntityType } from "yage/schemas/entity/Types";
 import { Parent } from "yage/schemas/entity/Parent";
@@ -94,6 +95,7 @@ export type GameModel = World & {
     reset?: boolean
   ) => void;
   getComponentActives: (type: string | typeof Schema) => number[];
+  getCategory: (type: string | typeof Schema) => ComponentCategory;
   getComponentsByCategory: (category: number, entity?: number) => (typeof Schema)[];
   removeComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => void;
   isActive: (entity: number) => boolean;
@@ -193,6 +195,16 @@ export const GameModel = ({
         const desc = this.getTypedUnsafe(Description, entity);
         return desc.description === description;
       });
+    },
+    getCategory(type: string | typeof Schema): ComponentCategory {
+      if (typeof type === "string") {
+        const schema = getComponentByType(type);
+        if (!schema) {
+          return ComponentCategory.NONE;
+        }
+        return schema.category;
+      }
+      return type.category;
     },
     getEntityByType(type: EntityTypeEnum | EntityTypeEnum[]): number[] {
       const entities = this.getComponentActives("EntityType");
