@@ -131,6 +131,7 @@ export class MapSystem extends SystemImpl<GameModel> {
         const isoX = (trigger.x - trigger.y) * Math.cos(Math.PI / 4) * Math.SQRT2;
         const isoY = (trigger.x + trigger.y) * Math.sin(Math.PI / 4) * 0.5 * Math.SQRT2;
         triggerPosition = { x: isoX, y: isoY };
+        console.log("UPDATING TRIGGER POSITION", triggerPosition);
       } else {
         // For non-isometric layout
         triggerPosition = { x: trigger.x, y: trigger.y };
@@ -207,8 +208,10 @@ export class MapSystem extends SystemImpl<GameModel> {
               item = trigger.condition.value?.item ?? "NONE";
               consumeItem = trigger.condition.value?.consumeItem ?? false;
             }
+            const scaledPosition = scaleVector2d(triggerPosition, map.scale * 640);
+
             const atLocationTrigger: Partial<AtLocationTrigger> = {
-              location: scaleVector2d(toWorldSpace(trigger), map.scale * 640),
+              location: scaledPosition,
               triggerType: trigger.condition.subType,
               destroyOnTrigger: trigger.condition.destroyOnTrigger,
               // item,
@@ -620,7 +623,9 @@ class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
     viewport.addChild(collidersContainer);
 
     const { width, height, data, customTiles } = mapAsset.map;
-    getSystem(renderModel, PixiViewportSystem).pixiApp.renderer.background.color = hexToRgbNumber(skinData.floor.baseColor);
+    getSystem(renderModel, PixiViewportSystem).pixiApp.renderer.background.color = hexToRgbNumber(
+      skinData.floor.baseColor
+    );
 
     const walls: PIXI.Sprite[] = [];
     const worldOffset = renderModel.currentWorld * WORLD_WIDTH;

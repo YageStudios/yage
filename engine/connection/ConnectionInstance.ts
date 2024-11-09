@@ -1,6 +1,6 @@
 import type { GameModel } from "yage/game/GameModel";
 import type { RequireAtLeastOne } from "yage/utils/typehelpers";
-import type { InputEventType, InputManager } from "yage/inputs/InputManager";
+import type { InputEventType, InputManager, KeyMap } from "yage/inputs/InputManager";
 import type { TouchListener } from "yage/inputs/TouchListener";
 import type { PlayerEventManager } from "yage/inputs/PlayerEventManager";
 import type { GameInstance } from "yage/game/GameInstance";
@@ -27,6 +27,36 @@ export type PlayerConnect<T> = {
   inputIndex?: number;
   config?: T;
 };
+
+export type Frame = { keys: KeyMap | { [key: string]: boolean }; frame: number; events: string[]; playerId: string };
+
+export type FrameStack = { [playerId: string]: Frame[] };
+
+export type ReplayStack<T> = {
+  seed: string;
+  frames: FrameStack;
+  configs: { [playerId: string]: T | undefined };
+  stateHashes: {
+    [frame: number]: string;
+  };
+  snapshots: {
+    [frame: number]: any;
+  };
+};
+
+export type Room = {
+  roomId: string;
+  host: string;
+  players: string[];
+  rebalanceOnLeave: boolean;
+};
+
+export type RoomState = {
+  gameModel: GameModel;
+  frameStack: FrameStack;
+  lastFrame: { [playerId: string]: number };
+};
+
 export abstract class ConnectionInstance<T> {
   abstract players: PlayerConnection<T>[];
   abstract player: PlayerConnection<T>;
@@ -35,6 +65,8 @@ export abstract class ConnectionInstance<T> {
   abstract inputManager: InputManager;
   abstract touchListener?: TouchListener;
   abstract solohost: boolean;
+  abstract roomStates: { [roomId: string]: RoomState };
+  abstract rooms: { [roomId: string]: Room };
 
   abstract address: string;
 
@@ -46,7 +78,7 @@ export abstract class ConnectionInstance<T> {
   abstract connect(): Promise<void>;
   abstract leaveRoom(roomId: string, localPlayerIndex?: number): void;
 
-  abstract hasRoom(roomId: string): boolean;
+  abstract roomHasPlayers(roomId: string): boolean;
 
   abstract firstFrame(gameModel: GameModel, firstPlayerConfig: any): void | Promise<void>;
 

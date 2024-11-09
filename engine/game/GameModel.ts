@@ -19,6 +19,7 @@ import {
   deserializeWorld,
   SerialMode,
   deleteWorld,
+  StringToEnum,
 } from "minecs";
 import { Random } from "yage/schemas/core/Random";
 import type { Random as RandomType } from "yage/utils/rand";
@@ -28,7 +29,7 @@ import { PhysicsSystem } from "yage/systems/physics/Physics";
 import Description from "yage/schemas/core/Description";
 import { flags } from "yage/console/flags";
 import { EntityFactory } from "yage/entity/EntityFactory";
-import type { EntityTypeEnum } from "yage/constants/enums";
+import { EntityTypeEnum } from "yage/constants/enums";
 import { ComponentCategory } from "yage/constants/enums";
 import type { ComponentData } from "yage/systems/types";
 import { EntityType } from "yage/schemas/entity/Types";
@@ -38,6 +39,7 @@ import { Transform } from "yage/schemas/entity/Transform";
 import { WorldSystem } from "yage/systems/core/World";
 import { InputManager } from "yage/inputs/InputManager";
 import { PlayerEventManager } from "yage/inputs/PlayerEventManager";
+import { ShareOnEject } from "yage/schemas/share/ShareOnEject";
 
 // @ts-expect-error - MineCS doesn't have a type for this
 type EntityWithComponent<T extends Schema> = number & { __hasComponent: T["type"] };
@@ -88,6 +90,7 @@ export type GameModel = World & {
   getComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => T | any | null;
   ejectComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => ComponentData | null;
   ejectEntity: (entity: number) => EjectedEntity;
+  injectEntity: (entity: EjectedEntity) => number;
   addComponent: <T extends Schema>(
     type: Constructor<T> | string,
     entity: number,
@@ -179,7 +182,7 @@ export const GameModel = ({
     frameDt: 16,
     paused: false,
     destroyed: false,
-    players: [],
+    players: [] as number[],
     localNetIds: [],
     currentWorld: 0,
     worlds: [
@@ -262,7 +265,36 @@ export const GameModel = ({
     event: (netId: string, event: string, data: any) => {
       playerEventManager.addEvent(netId, `${event}::${JSON.stringify(data)}`);
     },
+    injectEntity: (entity: EjectedEntity) => {
+      const { entityType, description, components } = entity;
+      const newEntity = addEntity(world);
+      if (entityType) {
+        gameModel.addComponent(EntityType, newEntity, { entityType: StringToEnum(entityType, EntityTypeEnum) });
+      }
+      gameModel.addComponent(Description, newEntity, { description });
+      components.forEach((component) => {
+        gameModel.addComponent(component.type, newEntity, component.data);
+      });
+      if (entity.hasChildren) {
+        Object.keys(entity.children).forEach((child) => {
+          gameModel.injectEntity(entity.children[child as unknown as number]);
+        });
+      }
+      return newEntity;
+    },
     ejectEntity: (entity: number, removeEjectedEntity = true): any => {
+      if (removeEjectedEntity) {
+        gameModel.runMods(
+          gameModel.hasComponent(ShareOnEject, entity)
+            ? [...(gameModel.getTyped(ShareOnEject, entity)?.entities ?? [])]
+            : [entity],
+          ComponentCategory.ON_EJECT,
+          {
+            owner: entity,
+          }
+        );
+      }
+
       const data = {
         entityType: gameModel(EntityType).store.entityType[entity],
         description: gameModel.getTypedUnsafe(Description, entity)?.description ?? "",
@@ -372,16 +404,19 @@ export const GameModel = ({
       const overrideKeys = Object.keys(overrides);
       for (let i = 0; i < systemsSet.length; i++) {
         const systems = systemsSet[i] as unknown as SystemImpl<GameModel>[];
+        console.log("SYSTEMs", systems);
         for (let j = 0; j < systems.length; j++) {
           const system = systems[i];
           if ((system.constructor as typeof SystemImpl).depth >= 0) {
             break;
           }
+          console.log("Entities", entities);
           for (let k = 0; k < entities.length; k++) {
             const components: Schema[] = [];
             const entity = entities[k];
             if (overrideKeys.length > 0) {
               const systemComponents = componentsBySystem[system.constructor.name];
+              console.log("System Components", systemComponents);
               for (let m = 0; m < systemComponents.length; m++) {
                 const type = systemComponents[m];
                 const schema = getComponentByType(type);

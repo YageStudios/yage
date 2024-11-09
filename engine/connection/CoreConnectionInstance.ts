@@ -3,7 +3,15 @@ import type { PhysicsSaveState } from "yage/systems/physics/Physics";
 import { GameModel } from "yage/game/GameModel";
 import type { KeyMap } from "yage/inputs/InputManager";
 import { InputManager } from "yage/inputs/InputManager";
-import type { ConnectionInstance, PlayerConnect, PlayerConnection } from "./ConnectionInstance";
+import type {
+  ConnectionInstance,
+  Frame,
+  PlayerConnect,
+  PlayerConnection,
+  ReplayStack,
+  Room,
+  RoomState,
+} from "./ConnectionInstance";
 import { nanoid } from "nanoid";
 import type { RequireAtLeastOne } from "yage/utils/typehelpers";
 import { TouchListener } from "yage/inputs/TouchListener";
@@ -13,40 +21,12 @@ import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import type { TouchRegion } from "yage/inputs/InputRegion";
 import { md5 } from "yage/utils/md5";
 
-export type Frame = { keys: KeyMap | { [key: string]: boolean }; frame: number; events: string[]; playerId: string };
-
-export type FrameStack = { [playerId: string]: Frame[] };
-
-export type ReplayStack<T> = {
-  seed: string;
-  frames: FrameStack;
-  configs: { [playerId: string]: T | undefined };
-  stateHashes: {
-    [frame: number]: string;
-  };
-  snapshots: {
-    [frame: number]: any;
-  };
-};
-
-type Room = {
-  roomId: string;
-  host: string;
-  players: string[];
-  rebalanceOnLeave: boolean;
-};
-
-type RoomState = {
-  gameModel: GameModel;
-  frameStack: FrameStack;
-  lastFrame: { [playerId: string]: number };
-};
-
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export type CoreConnectionInstanceOptions<T> = {
   solohost?: boolean;
   touchRegions?: TouchRegion[];
   roomTimeout?: number;
+  roomPersist?: boolean | number;
 };
 
 export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
@@ -87,6 +67,8 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     snapshots: {},
   };
 
+  persistTimeouts: { [roomId: string]: ReturnType<typeof setTimeout> } = {};
+
   get player(): PlayerConnection<T> {
     if (this.localPlayers.length > 1) {
       throw new Error("Multiple local players");
@@ -108,6 +90,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     protected options: CoreConnectionInstanceOptions<T>
   ) {
     options.solohost = options.solohost ?? false;
+    options.roomPersist = options.roomPersist ?? false;
     this.solohost = options.solohost ?? false;
     if (options.touchRegions) {
       this.touchListener = new TouchListener(this.inputManager);
@@ -158,10 +141,22 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
         players: this.rooms[roomId].players.filter((player) => player !== playerId),
       };
       if (this.rooms[roomId].players.length === 0) {
-        delete this.rooms[roomId];
-        delete this.roomStates[roomId];
-        this.roomSubs[roomId]?.forEach((sub) => sub());
-        delete this.roomSubs[roomId];
+        if (!this.options.roomPersist) {
+          this.roomStates[roomId]?.gameModel.destroy();
+          delete this.rooms[roomId];
+          delete this.roomStates[roomId];
+          this.roomSubs[roomId]?.forEach((sub) => sub());
+          delete this.roomSubs[roomId];
+        } else if (typeof this.options.roomPersist === "number") {
+          this.persistTimeouts[roomId] = setTimeout(() => {
+            console.log("DESTROYING");
+            this.roomStates[roomId]?.gameModel.destroy();
+            delete this.rooms[roomId];
+            delete this.roomStates[roomId];
+            this.roomSubs[roomId]?.forEach((sub) => sub());
+            delete this.roomSubs[roomId];
+          }, this.options.roomPersist);
+        }
       }
     });
 
@@ -228,7 +223,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     });
   }
 
-  hasRoom(roomId: string): boolean {
+  roomHasPlayers(roomId: string): boolean {
     return !!this.rooms[roomId]?.players.length;
   }
 
@@ -552,6 +547,26 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     });
   }
 
+  async rejoin(roomId: string, localPlayerIndex?: number) {
+    const roomState = this.roomStates[roomId];
+
+    if (localPlayerIndex !== undefined) {
+      this.createPlayer(
+        roomState.gameModel,
+        this.localPlayers[localPlayerIndex].netId,
+        this.localPlayers[localPlayerIndex].config!,
+        roomState.gameModel.frame
+      );
+      this.localPlayers[localPlayerIndex].currentRoomId = roomId;
+    } else {
+      for (let i = 0; i < this.localPlayers.length; ++i) {
+        const player = this.localPlayers[i];
+        this.createPlayer(roomState.gameModel, player.netId, player.config!, roomState.gameModel.frame);
+        player.currentRoomId = roomId;
+      }
+    }
+  }
+
   async initialize(
     roomId: string,
     options: {
@@ -569,6 +584,14 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       await this.connect();
     }
     this.cleanup();
+
+    if (this.persistTimeouts[roomId]) {
+      clearTimeout(this.persistTimeouts[roomId]);
+      delete this.persistTimeouts[roomId];
+      this.rejoin(roomId);
+      return this.roomStates[roomId].gameModel;
+    }
+
     const players = this.players
       .filter((player) => options.players.includes(player.netId))
       .sort((a, b) => a.netId.localeCompare(b.netId));

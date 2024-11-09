@@ -18,17 +18,12 @@ export type GameInstanceOptions<T> = {
 };
 
 export class GameInstance<T> {
-  // public gameModel: GameModel;
   public achievementService: AchievementService;
   protected dt = 16;
 
   protected ticker: Ticker;
   protected timestep: Readonly<SceneTimestep> = "fixed";
   protected targetFPS: number = 60;
-
-  public gameModels: {
-    [roomId: string]: GameModel;
-  } = {};
 
   render30Fps: boolean;
 
@@ -64,14 +59,10 @@ export class GameInstance<T> {
       this.options.connection.leaveRoom(this.options.connection.localPlayers[0].currentRoomId);
     }
 
-    if (this.gameModels[roomId] && !this.gameModels[roomId].destroyed) {
-      this.gameModels[roomId].destroy();
-    }
-
-    if (this.options.connection.hasRoom(roomId)) {
+    if (this.options.connection.roomHasPlayers(roomId)) {
       this.join(roomId, seed);
     } else {
-      const gameModel = await this.options.connection.initialize(roomId, {
+      await this.options.connection.initialize(roomId, {
         gameInstance: this,
         players: players ?? this.options.connection.players.map((p) => p.netId),
         seed: seed ?? "NO_SEED",
@@ -80,8 +71,6 @@ export class GameInstance<T> {
         onPlayerJoin: this.options.onPlayerJoin,
         onPlayerLeave: this.options.onPlayerLeave,
       });
-
-      this.gameModels[roomId] = gameModel;
     }
 
     if (this.ticker) {
@@ -91,6 +80,7 @@ export class GameInstance<T> {
     ticker.add(() => this.run());
 
     ticker.start();
+    this.ticker = ticker;
   }
 
   protected async join(roomId: string, seed?: string, playerConfig?: T, coreOverrides?: { [key: string]: any }) {
@@ -102,34 +92,27 @@ export class GameInstance<T> {
       this.options.connection.leaveRoom(this.options.connection.player.currentRoomId);
     }
 
-    if (this.gameModels[roomId] && !this.gameModels[roomId].destroyed) {
-      this.gameModels[roomId].destroy();
-    }
-
-    const gameModel = await this.options.connection.join(roomId, {
+    await this.options.connection.join(roomId, {
       gameInstance: this,
       seed: seed ?? "NO_SEED",
       coreOverrides,
       onPlayerLeave: this.options.onPlayerLeave,
       playerConfig,
     });
-    this.gameModels[roomId] = gameModel;
   }
 
   run() {
+    const connection = this.options.connection;
+
     const activeRooms = new Set(this.options.connection.players.map((p) => p.currentRoomId));
     if (activeRooms.size > 0) {
       for (const roomId of activeRooms) {
         if (roomId) {
-          if (this.gameModels[roomId]) {
-            this.runGameLoop(roomId);
-            if (this.gameModels[roomId].destroyed) {
-              this.options.connection.leaveRoom(roomId);
-            }
-          }
+          this.runGameLoop(this.options.connection.roomStates[roomId].gameModel);
         }
       }
     }
+
     // if (this.options.connection.localPlayers[0].currentRoomId) {
     //   this.runGameLoop();
     //   if (this.gameModel.destroyed) {
@@ -138,27 +121,27 @@ export class GameInstance<T> {
     // }
   }
 
-  runGameLoop(roomId: string) {
-    if (!this.gameModels[roomId]) {
+  runGameLoop(gameModel: GameModel) {
+    if (!gameModel) {
       return;
     }
     try {
-      if (this.options.connection.startFrame(this.gameModels[roomId]) === false) {
+      if (this.options.connection.startFrame(gameModel) === false) {
         return;
       }
 
-      this.gameModels[roomId].step(this.dt);
+      gameModel.step(this.dt);
 
-      if (this.gameModels[roomId].destroyed) {
+      if (gameModel.destroyed) {
         console.log("destroyed");
         return;
       }
 
-      if (!flags.FPS_30 || this.gameModels[roomId].frame % 2 === 0) {
-        stepWorldDraw(this.gameModels[roomId]);
+      if (!flags.FPS_30 || gameModel.frame % 2 === 0) {
+        stepWorldDraw(gameModel);
       }
 
-      this.options.connection.endFrame(this.gameModels[roomId]);
+      this.options.connection.endFrame(gameModel);
     } catch (e) {
       console.error(e);
       throw e;

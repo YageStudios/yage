@@ -9,7 +9,6 @@ import { PixiSprite } from "yage/schemas/render/PixiSprite";
 
 export abstract class BaseTriggerSystem extends SystemImpl<GameModel> {
   static depth = -1;
-  static category: ComponentCategory = ComponentCategory.CORE;
 
   shouldTrigger(gameModel: GameModel, entity: number): false | number[] {
     const trigger = this.getTrigger(gameModel, entity);
@@ -37,6 +36,7 @@ export abstract class BaseTriggerSystem extends SystemImpl<GameModel> {
       const transform = gameModel.getTypedUnsafe(Transform, entity);
       inheritedLocation = { x: transform.x, y: transform.y };
     }
+    console.log("TriggerEventSystem", { ...triggerEvent });
     if (triggerEvent.length) {
       for (let i = 0; i < triggerEvent.length; i++) {
         const location = trigger.inheritLocation ? inheritedLocation : triggerEvent[i].location;
@@ -56,7 +56,7 @@ export abstract class BaseTriggerSystem extends SystemImpl<GameModel> {
 
   abstract getTrigger(gameModel: GameModel, entity: number): BaseTrigger;
 
-  run = (gameModel: GameModel, entity: number) => {
+  run(gameModel: GameModel, entity: number) {
     const trigger = this.getTrigger(gameModel, entity);
     const players = gameModel.players;
 
@@ -65,6 +65,7 @@ export abstract class BaseTriggerSystem extends SystemImpl<GameModel> {
     }
 
     const validPlayers = this.shouldTrigger(gameModel, entity);
+
     if (!validPlayers) {
       return;
     }
@@ -75,5 +76,5 @@ export abstract class BaseTriggerSystem extends SystemImpl<GameModel> {
         }
       }
     }
-  };
+  }
 }

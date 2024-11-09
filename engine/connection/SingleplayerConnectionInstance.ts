@@ -12,7 +12,7 @@ export class SingleplayerConnectionInstance<T> extends CoreConnectionInstance<T>
         config,
       },
       inputManager,
-      { touchRegions }
+      { touchRegions, roomPersist: 5000 }
     );
     this.player.connected = true;
   }

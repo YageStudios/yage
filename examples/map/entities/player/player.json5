@@ -6,6 +6,10 @@
     "PlayerMovement",
     "SelfCamera",
     {
+      type: "TeleportOnE",
+      roomId: "room",
+    },
+    {
       type: "PixiGraphic",
       fillColor: "#ff0000",
       zIndex: 10,

@@ -1,9 +1,10 @@
 import { stepWorldDraw } from "minecs";
 import type { GameInstanceOptions } from "./GameInstance";
 import { GameInstance } from "./GameInstance";
-import type { ReplayStack } from "yage/connection/CoreConnectionInstance";
+import type { ReplayStack } from "yage/connection/ConnectionInstance";
 import { HistoryConnectionInstance } from "yage/connection/HistoryConnectionInstance";
 import Ticker from "./Ticker";
+import { GameModel } from "./GameModel";
 
 // TODO HANDLE MULTILE GAME MODELS
 
@@ -36,7 +37,7 @@ export class GameReplayInstance<T> extends GameInstance<T> {
     seed?: string,
     { players, coreOverrides }: { players?: string[]; coreOverrides?: { [key: string]: any } } = {}
   ) {
-    const gameModel = await this.options.connection.initialize(roomId, {
+    await this.options.connection.initialize(roomId, {
       gameInstance: this,
       players: players ?? this.options.connection.players.map((p) => p.netId),
       seed: this.replayStack.seed,
@@ -45,8 +46,6 @@ export class GameReplayInstance<T> extends GameInstance<T> {
       onPlayerJoin: this.options.onPlayerJoin,
       onPlayerLeave: this.options.onPlayerLeave,
     });
-
-    this.gameModels[roomId] = gameModel;
 
     if (this.ticker) {
       this.ticker.stop();
@@ -62,12 +61,7 @@ export class GameReplayInstance<T> extends GameInstance<T> {
     if (activeRooms.size > 0) {
       for (const roomId of activeRooms) {
         if (roomId) {
-          if (this.gameModels[roomId]) {
-            this.runGameLoop(roomId);
-            if (this.gameModels[roomId].destroyed) {
-              this.options.connection.leaveRoom(roomId);
-            }
-          }
+          this.runGameLoop(this.options.connection.roomStates[roomId].gameModel);
         }
       }
     }
@@ -88,9 +82,10 @@ export class GameReplayInstance<T> extends GameInstance<T> {
 
         for (const roomId of activeRooms) {
           if (roomId) {
-            if (this.gameModels[roomId]) {
-              this.previousFrame = this.connection.loadClosestFrame(this.gameModels[roomId], this.scrubRequest);
-            }
+            this.previousFrame = this.connection.loadClosestFrame(
+              this.options.connection.roomStates[roomId].gameModel,
+              this.scrubRequest
+            );
           }
         }
       }
@@ -99,10 +94,7 @@ export class GameReplayInstance<T> extends GameInstance<T> {
     }
   }
 
-  runGameLoop(roomId: string) {
-    if (!this.gameModels[roomId]) {
-      return;
-    }
+  runGameLoop(gameModel: GameModel) {
     // const nextFrame = this.previousFrame + this.playSpeed;
 
     const framesToRun = Math.floor(this.nextFrame) - Math.floor(this.previousFrame);
@@ -120,22 +112,22 @@ export class GameReplayInstance<T> extends GameInstance<T> {
 
     try {
       for (let i = 0; i < framesToRun; i++) {
-        if (this.options.connection.startFrame(this.gameModels[roomId]) === false) {
+        if (this.options.connection.startFrame(gameModel) === false) {
           return;
         }
 
-        this.gameModels[roomId].step(this.dt);
+        gameModel.step(this.dt);
 
-        if (this.gameModels[roomId].destroyed) {
+        if (gameModel.destroyed) {
           console.log("destroyed");
           return;
         }
 
         if (i === 0) {
-          stepWorldDraw(this.gameModels[roomId]);
+          stepWorldDraw(gameModel);
         }
 
-        this.options.connection.endFrame(this.gameModels[roomId]);
+        this.options.connection.endFrame(gameModel);
       }
     } catch (e) {
       console.error(e);
@@ -155,9 +147,7 @@ export class GameReplayInstance<T> extends GameInstance<T> {
 
     for (const roomId of activeRooms) {
       if (roomId) {
-        if (this.gameModels[roomId]) {
-          this.connection.loadClosestFrame(this.gameModels[roomId], 0);
-        }
+        this.connection.loadClosestFrame(this.options.connection.roomStates[roomId].gameModel, 0);
       }
     }
   }

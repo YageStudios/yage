@@ -1,11 +1,11 @@
 import { InputManager } from "yage/inputs/InputManager";
-import type { ReplayStack } from "./CoreConnectionInstance";
 import { CoreConnectionInstance } from "./CoreConnectionInstance";
 import type { GameModel } from "yage/game/GameModel";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import { md5 } from "yage/utils/md5";
 import { detailedDiff } from "deep-object-diff";
 import { cloneDeep } from "lodash";
+import type { ReplayStack } from "./ConnectionInstance";
 
 export class HistoryConnectionInstance<T> extends CoreConnectionInstance<T> {
   replayHistory: ReplayStack<T>;

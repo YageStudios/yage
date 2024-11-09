@@ -8,29 +8,32 @@ import { QuickStart } from "yage/game/QuickStart";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import { InputManager } from "yage/inputs/InputManager";
 
-QuickStart(
-  {
-    gameName: "MapTest",
-    roomId: "QuickStart",
-    seed: "QuickStart",
-    onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: any) => {
-      const player = EntityFactory.getInstance().generateEntity(gameModel, "Player");
+(async () => {
+  // @ts-ignore
+  window.gameInstance = await QuickStart(
+    {
+      gameName: "MapTest",
+      roomId: "QuickStart",
+      seed: "QuickStart",
+      onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: any) => {
+        const player = EntityFactory.getInstance().generateEntity(gameModel, "Player");
 
-      gameModel.logEntity(player, true);
+        gameModel.logEntity(player, true);
 
-      const playerInput = gameModel.getTypedUnsafe(PlayerInput, player);
-      playerInput.keyMap = InputManager.buildKeyMap();
-      playerInput.pid = playerId;
-      playerInput.name = playerConfig.name;
-      return player;
+        const playerInput = gameModel.getTypedUnsafe(PlayerInput, player);
+        playerInput.keyMap = InputManager.buildKeyMap();
+        playerInput.pid = playerId;
+        playerInput.name = playerConfig.name;
+        return player;
+      },
+      preload: async () => {
+        await import("./systems");
+        const entityDefinitions = (await import("./entities")).default;
+        EntityFactory.configureEntityFactory(entityDefinitions);
+
+        await AssetLoader.getInstance().load();
+      },
     },
-    preload: async () => {
-      await import("./systems");
-      const entityDefinitions = (await import("./entities")).default;
-      EntityFactory.configureEntityFactory(entityDefinitions);
-
-      await AssetLoader.getInstance().load();
-    },
-  },
-  {}
-);
+    {}
+  );
+})();

@@ -15,11 +15,7 @@ import { DEPTHS } from "yage/constants/enums";
 
 @System(AtLocationTrigger)
 export class AtLocationTriggerSystem extends BaseTriggerSystem {
-  type = "AtLocationTrigger";
-  category: ComponentCategory = ComponentCategory.TRIGGER;
-  schema = AtLocationTrigger;
-  depth = DEPTHS.COLLISION + 10;
-
+  static depth = DEPTHS.COLLISION + 10;
   dependencies = ["Transform"];
 
   getTrigger(gameModel: GameModel, entity: number): BaseTrigger {
@@ -79,8 +75,6 @@ export class AtLocationTriggerSystem extends BaseTriggerSystem {
 
       if (distance < radiusSq && distance > innerRadiusSq && keyPressCheck) {
         shouldTrigger.push(player);
-      } else if (trigger.triggerType === "ALLPLAYERS") {
-        return false;
       }
     }
 
