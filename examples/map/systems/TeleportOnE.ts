@@ -23,6 +23,7 @@ export class TeleportOnESystem extends SystemImpl<GameModel> {
     if (keyDown([MappedKeys.USE], netData.keyMap)) {
       console.log("TeleportSystem", entity);
       const mapIdData = gameModel.getTypedUnsafe(MapId, entity);
+      gameModel.removeComponent(MapId, entity);
       const data = gameModel.getTypedUnsafe(TeleportOnE, entity);
       console.log("TeleportSystem", { ...mapIdData });
 
@@ -30,8 +31,8 @@ export class TeleportOnESystem extends SystemImpl<GameModel> {
 
       data.roomId += "_1";
 
-      const player = gameModel.ejectEntity(entity);
-      console.log(player);
+      const ejectedPlayer = gameModel.ejectEntity(entity);
+      console.log(ejectedPlayer);
 
       console.log([...gameModel.players]);
 
@@ -45,11 +46,17 @@ export class TeleportOnESystem extends SystemImpl<GameModel> {
 
       (async () => {
         gameInstance.options.connection.leaveRoom(currentRoomId!);
-        setTimeout(() => {
-          gameInstance.initializeRoom(currentRoomId, gameInstance.options.seed ?? "Teleport", {
-            players: [netData.pid],
-          });
-        }, 1000);
+        const player = gameInstance.options.connection.localPlayers.find((p) => p.netId === netData.pid);
+        gameInstance.options.connection.updatePlayerConnect({
+          name: player?.netId,
+          config: {
+            ejectedPlayer,
+            map: mapIdData.map === "intro" ? "intro2" : "intro",
+          },
+        });
+        gameInstance.initializeRoom(nextRoomId, gameInstance.options.seed ?? "Teleport", {
+          players: [netData.pid],
+        });
         // await gameInstance.initializeRoom(data.roomId, gameInstance.options.seed ?? "Teleport");
         // gameInstance.gameModels[data.roomId].injectEntity(player);
       })();

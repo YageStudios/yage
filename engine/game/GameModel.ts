@@ -529,6 +529,9 @@ export const GameModel = ({
       await physicsSystem.restore(state.physics);
     },
     destroy: () => {
+      for (let i = 0; i < gameModel.worlds.length; i++) {
+        deleteWorld(world);
+      }
       gameModel.destroyed = true;
     },
     logEntity: (entity: number, debugOverride?: boolean) => {
