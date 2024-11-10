@@ -898,29 +898,12 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     // const state = gameModel.linearSerializeState();
 
     if (gameModel.frame % 300 === 0) {
-      const perf = performance.now();
-      const state = gameModel.serializeState();
-      const serializedState = md5(JSON.stringify(state));
-      // gameModel.deserializeState(state);
-
-      // const reState = gameModel.serializeState();
-      // const reSerializedState = md5(JSON.stringify(reState));
-
-      // console.log(state.world.entities, reState.world.entities);
-      // console.log(serializedState, reSerializedState, performance.now() - perf);
-      // if (serializedState !== reSerializedState) {
-      //   console.log(detailedDiff(state.world.entities, reState.world.entities));
-      //   throw new Error("State mismatch");
-      // }
-      this.history.stateHashes[gameModel.frame] = serializedState;
-      this.history.snapshots[gameModel.frame] = state;
-      console.log(gameModel.frame, state, serializedState, performance.now() - perf);
-      lastTime = performance.now();
-      // if (gameModel.frame > 300) {
-      //   throw new Error("STOP");
-      // }
+      // const perf = performance.now();
+      // const state = gameModel.serializeState();
+      // const serializedState = md5(JSON.stringify(state));
+      // this.history.stateHashes[gameModel.frame] = serializedState;
+      // this.history.snapshots[gameModel.frame] = state;
+      console.log(gameModel.frame); //, state, serializedState, performance.now() - perf);
     }
   }
 }
-
-let lastTime = 0;
