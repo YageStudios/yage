@@ -65,7 +65,7 @@ function playSilentWav(wav: ArrayBuffer, audio?: HTMLAudioElement) {
 
 export const createControls = (connection: GameReplayInstance<any>) => {
   const frameLengthMs = 16;
-  const replay = connection.replayStack;
+  const replay = connection.replayStack[Object.keys(connection.replayStack)[0]];
   console.log(replay);
   const firstPlayer = Object.keys(replay.frames)[0];
   const wav = createSilentWav(replay.frames[firstPlayer].length, frameLengthMs);

@@ -61,13 +61,9 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   players: PlayerConnection<T>[] = [];
   localPlayers: PlayerConnection<T>[] = [];
 
-  history: ReplayStack<T> = {
-    seed: "",
-    frames: {},
-    configs: {},
-    stateHashes: [],
-    snapshots: {},
-  };
+  history: {
+    [roomId: string]: ReplayStack<T>;
+  } = {};
 
   persistTimeouts: { [roomId: string]: ReturnType<typeof setTimeout> } = {};
 
@@ -100,7 +96,6 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     if (!Array.isArray(player)) {
       player = [player];
     }
-    this.history.configs[player[0].netId] = player[0].config ?? ({} as any);
 
     for (let i = 0; i < player.length; ++i) {
       const playerConnection = {
@@ -260,7 +255,6 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     player.uniqueId = playerConnect.name ?? player.uniqueId;
     player.token = playerConnect.token ?? player.token;
     player.config = playerConnect.config ?? player.config;
-    this.history.configs[player.netId] = playerConnect.config ?? player.config;
 
     this.emit("updatePlayerConnect", player);
   }
@@ -658,7 +652,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     roomState.gameModel.paused = true;
     roomState.gameModel.localNetIds = this.localPlayers.map((player) => player.netId).sort();
 
-    await options.buildWorld(roomState.gameModel, players[0].config);
+    await this.buildWorld(roomState.gameModel, players[0].config, options.buildWorld);
 
     for (let i = 0; i < players.length; ++i) {
       const player = players[i];
@@ -676,11 +670,29 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     return roomState.gameModel;
   }
 
+  buildWorld(
+    gameModel: GameModel,
+    firstPlayerConfig: any,
+    buildWorld: (gameModel: GameModel, firstPlayerConfig: any) => void | Promise<void>
+  ): Promise<void> | void {
+    this.history[gameModel.roomId] = {
+      frames: {},
+      seed: gameModel.seed,
+      startTimestamp: Date.now(),
+      stateHashes: {},
+      snapshots: {},
+      configs: {},
+    };
+    this.history[gameModel.roomId].configs[this.localPlayers[0].netId] = firstPlayerConfig;
+    return buildWorld(gameModel, firstPlayerConfig);
+  }
+
   firstFrame(gameModel: GameModel, _firstPlayerConfig: any): void | Promise<void> {
     const state = gameModel.serializeState();
     const serializedState = md5(JSON.stringify(state));
-    this.history.stateHashes[gameModel.frame] = serializedState;
-    this.history.snapshots[gameModel.frame] = state;
+
+    this.history[gameModel.roomId].stateHashes[gameModel.frame] = serializedState;
+    this.history[gameModel.roomId].snapshots[gameModel.frame] = state;
 
     return;
   }
@@ -749,7 +761,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     };
     roomState.gameModel.localNetIds = localPlayers.map((player) => player.netId);
 
-    await buildWorld(roomState.gameModel, firstPlayerConfig);
+    await this.buildWorld(roomState.gameModel, firstPlayerConfig, buildWorld);
 
     for (let i = 0; i < localPlayers.length; ++i) {
       const player = localPlayers[i];
@@ -777,6 +789,10 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   }
 
   protected createPlayer(gameModel: GameModel, playerId: string, playerConfig: T, frame: number) {
+    if (this.history[gameModel.roomId]) {
+      this.history[gameModel.roomId].configs[playerId] = playerConfig ?? ({} as any);
+    }
+
     const entityId = this._onPlayerJoin(gameModel, playerId, playerConfig);
 
     this.generateFrameStack(gameModel, playerId, frame);
@@ -816,8 +832,8 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   }
 
   updateHistory(netId: string, frame: Frame, gameModel: GameModel) {
-    this.history.frames[netId] = this.history.frames[netId] ?? [];
-    this.history.frames[netId].push({
+    this.history[gameModel.roomId].frames[netId] = this.history[gameModel.roomId].frames[netId] ?? [];
+    this.history[gameModel.roomId].frames[netId].push({
       ...frame,
       keys: this.inputManager.keyMapToJsonObject(frame.keys as KeyMap),
     });

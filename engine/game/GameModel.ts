@@ -66,6 +66,7 @@ export type EjectedEntity = {
 export type GameModel = World & {
   inputManager: InputManager;
   roomId: string;
+  seed: string;
   ping: number;
   timeElapsed: number;
   rand: RandomType;
@@ -175,6 +176,7 @@ export const GameModel = ({
   const gameModel = Object.assign(world, {
     inputManager,
     roomId: roomId ?? "",
+    seed: seed ?? "",
     coreEntity: addEntity(world),
     timeElapsed: 0,
     rand: null as any,

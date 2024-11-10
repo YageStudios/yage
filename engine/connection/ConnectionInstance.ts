@@ -34,6 +34,7 @@ export type FrameStack = { [playerId: string]: Frame[] };
 
 export type ReplayStack<T> = {
   seed: string;
+  startTimestamp: number;
   frames: FrameStack;
   configs: { [playerId: string]: T | undefined };
   stateHashes: {

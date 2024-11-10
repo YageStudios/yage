@@ -19,17 +19,17 @@ export class GameReplayInstance<T> extends GameInstance<T> {
   protected scrubRequest: number | null = null;
 
   constructor(
-    public replayStack: ReplayStack<T>,
+    public replayStack: { [key: string]: ReplayStack<T> },
     options: Omit<GameInstanceOptions<T>, "connection" | "seed" | "achievementService">
   ) {
     super({
       ...options,
-      seed: replayStack.seed,
+      seed: replayStack[Object.keys(replayStack)[0]].seed,
       connection: new HistoryConnectionInstance(replayStack),
     });
     this.connection = this.options.connection as HistoryConnectionInstance<T>;
-
-    this.initializeRoom("replay", replayStack.seed);
+    const roomId = Object.keys(replayStack)[0];
+    this.initializeRoom(roomId, replayStack[roomId].seed);
   }
 
   async initializeRoom(
@@ -40,7 +40,7 @@ export class GameReplayInstance<T> extends GameInstance<T> {
     await this.options.connection.initialize(roomId, {
       gameInstance: this,
       players: players ?? this.options.connection.players.map((p) => p.netId),
-      seed: this.replayStack.seed,
+      seed: this.replayStack[roomId].seed,
       coreOverrides,
       buildWorld: this.options.buildWorld,
       onPlayerJoin: this.options.onPlayerJoin,
@@ -101,8 +101,8 @@ export class GameReplayInstance<T> extends GameInstance<T> {
     this.previousFrame = this.nextFrame;
     this.nextFrame += this.playSpeed;
 
-    if (this.nextFrame >= this.replayStack.frames[this.options.connection.players[0].netId].length) {
-      this.nextFrame = this.replayStack.frames[this.options.connection.players[0].netId].length - 1;
+    if (this.nextFrame >= this.replayStack[gameModel.roomId].frames[this.options.connection.players[0].netId].length) {
+      this.nextFrame = this.replayStack[gameModel.roomId].frames[this.options.connection.players[0].netId].length - 1;
     }
 
     if (framesToRun <= 0) {

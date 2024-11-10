@@ -9,20 +9,20 @@ import type { ReplayStack } from "./ConnectionInstance";
 
 export class HistoryConnectionInstance<T> extends CoreConnectionInstance<T> {
   replayHistory: ReplayStack<T>;
-  constructor(history: ReplayStack<T>) {
+  constructor(history: { [key: string]: ReplayStack<T> }) {
     super(
       {
-        netId: Object.keys(history.configs)[0],
-        uniqueId: Object.keys(history.configs)[0],
-        token: Object.keys(history.configs)[0],
-        config: history.configs[Object.keys(history.configs)[0]],
+        netId: Object.keys(history[Object.keys(history)[0]].configs)[0],
+        uniqueId: Object.keys(history[Object.keys(history)[0]].configs)[0],
+        token: Object.keys(history[Object.keys(history)[0]].configs)[0],
+        config: history[Object.keys(history)[0]].configs[Object.keys(history[Object.keys(history)[0]].configs)[0]],
       },
       new InputManager(),
       {}
     );
-    console.log(history.configs[Object.keys(history.configs)[0]]);
+    const gameModelHistory = history[Object.keys(history)[0]];
     this.player.connected = true;
-    this.replayHistory = history;
+    this.replayHistory = gameModelHistory;
   }
   stacked = false;
 
@@ -75,6 +75,14 @@ export class HistoryConnectionInstance<T> extends CoreConnectionInstance<T> {
 
   firstFrame(gameModel: GameModel, _firstPlayerConfig: any): void | Promise<void> {
     return;
+  }
+
+  buildWorld(
+    gameModel: GameModel,
+    firstPlayerConfig: any,
+    buildWorld: (gameModel: GameModel, firstPlayerConfig: any) => void | Promise<void>
+  ): Promise<void> | void {
+    return buildWorld(gameModel, firstPlayerConfig);
   }
 
   // firstFrame = async (gameModel: GameModel, firstPlayerConfig: any) => {
