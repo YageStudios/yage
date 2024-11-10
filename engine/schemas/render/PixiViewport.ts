@@ -1,4 +1,6 @@
+import { SchemaEnv } from "ajv/dist/compile";
 import { Component, Schema, defaultValue, type } from "minecs";
+import { ComponentCategory } from "yage/constants/enums";
 
 @Component()
 export class PixiViewport extends Schema {
@@ -18,3 +20,6 @@ export class PixiViewport extends Schema {
   @defaultValue(false)
   fillScreen: boolean;
 }
+
+@Component(ComponentCategory.ON_LEAVE)
+export class PixiViewportCleanup extends Schema {}

@@ -27,14 +27,11 @@ export class TeleportOnESystem extends SystemImpl<GameModel> {
       const data = gameModel.getTypedUnsafe(TeleportOnE, entity);
       console.log("TeleportSystem", { ...mapIdData });
 
-      const nextRoomId = data.roomId;
+      const nextRoomId = gameModel.roomId === "QuickStart" ? "room" : "QuickStart";
 
       data.roomId += "_1";
 
       const ejectedPlayer = gameModel.ejectEntity(entity);
-      console.log(ejectedPlayer);
-
-      console.log([...gameModel.players]);
 
       gameModel.paused = true;
 

@@ -7,6 +7,7 @@ import { PlayerEventManager } from "yage/inputs/PlayerEventManager";
 test("GameModel built in random", () => {
   const gameModel = GameModel({
     seed: "test",
+    roomId: "test",
     world: createWorld(),
     inputManager: new InputManager(),
     playerEventManager: new PlayerEventManager(),
@@ -22,6 +23,7 @@ test("GameModel built in random", () => {
 
   const gameModel2 = GameModel({
     seed: "next seed",
+    roomId: "test",
     world: createWorld(),
     inputManager: new InputManager(),
     playerEventManager: new PlayerEventManager(),
@@ -33,6 +35,7 @@ test("GameModel built in random", () => {
 test("GameModel random is deterministic", () => {
   const gameModel = GameModel({
     seed: "test",
+    roomId: "test",
     world: createWorld(),
     inputManager: new InputManager(),
     playerEventManager: new PlayerEventManager(),
@@ -43,6 +46,7 @@ test("GameModel random is deterministic", () => {
 
   const gameModel2 = GameModel({
     seed: "test",
+    roomId: "test",
     world: createWorld(),
     inputManager: new InputManager(),
     playerEventManager: new PlayerEventManager(),

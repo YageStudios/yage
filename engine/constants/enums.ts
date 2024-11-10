@@ -61,6 +61,7 @@ export enum ComponentCategory {
 
   ON_START,
   ON_END,
+  ON_LEAVE,
 }
 
 export enum SoundType {

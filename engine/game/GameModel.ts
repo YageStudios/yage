@@ -136,7 +136,7 @@ export const GameModel = ({
 }: {
   world?: World;
   seed?: string;
-  roomId?: string;
+  roomId: string;
   inputManager: InputManager;
   playerEventManager: PlayerEventManager;
 }): GameModel => {
@@ -530,8 +530,13 @@ export const GameModel = ({
     },
     destroy: () => {
       for (let i = 0; i < gameModel.worlds.length; i++) {
-        deleteWorld(world);
+        const world = gameModel.worlds[i];
+        const entities = Array.from(world.entities);
+        for (let j = 0; j < entities.length; j++) {
+          gameModel.removeEntity(entities[j]);
+        }
       }
+      deleteWorld(world);
       gameModel.destroyed = true;
     },
     logEntity: (entity: number, debugOverride?: boolean) => {

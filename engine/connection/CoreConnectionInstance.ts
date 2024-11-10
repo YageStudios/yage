@@ -20,6 +20,8 @@ import type { GameInstance } from "yage/game/GameInstance";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import type { TouchRegion } from "yage/inputs/InputRegion";
 import { md5 } from "yage/utils/md5";
+import { ComponentCategory } from "yage/constants/enums";
+import { SystemImpl } from "minecs";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export type CoreConnectionInstanceOptions<T> = {
@@ -141,6 +143,25 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
         players: this.rooms[roomId].players.filter((player) => player !== playerId),
       };
       if (this.rooms[roomId].players.length === 0) {
+        const gameModel = this.roomStates[roomId]?.gameModel;
+        const onLeaveComponents = this.roomStates[roomId]?.gameModel.getComponentsByCategory(
+          ComponentCategory.ON_LEAVE
+        );
+        if (onLeaveComponents.length) {
+          onLeaveComponents.forEach((renderEngine) => {
+            const systems = gameModel.getSystemsByType(renderEngine.type);
+            if (systems.length) {
+              systems.forEach((system: SystemImpl | SystemImpl[]) => {
+                if (!Array.isArray(system)) {
+                  system = [system];
+                }
+                system.forEach((s) => {
+                  s.run?.(gameModel, -1);
+                });
+              });
+            }
+          });
+        }
         if (!this.options.roomPersist) {
           this.roomStates[roomId]?.gameModel.destroy();
           delete this.rooms[roomId];
@@ -526,10 +547,10 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
             if (!roomState.gameModel || roomState.gameModel.destroyed) {
               roomState.gameModel = GameModel({
                 seed,
+                roomId,
                 inputManager: gameInstance.options.connection.inputManager,
                 playerEventManager: this.playerEventManager,
               }); // GameModel(GameCoordinator.GetInstance(), gameInstance, seed, coreOverrides);
-              roomState.gameModel.roomId = roomId;
             }
             if (roomState.gameModel) {
               // roomState.gameModel?.loadStateObject(state);
@@ -625,6 +646,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     roomState.gameModel = GameModel(
       {
         seed: options.seed,
+        roomId: roomId,
         inputManager: options.gameInstance.options.connection.inputManager,
         playerEventManager: this.playerEventManager,
       }
@@ -633,7 +655,6 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       // options.seed,
       // options.coreOverrides
     );
-    roomState.gameModel.roomId = roomId;
     roomState.gameModel.paused = true;
     roomState.gameModel.localNetIds = this.localPlayers.map((player) => player.netId).sort();
 
@@ -715,10 +736,10 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
 
     roomState.gameModel = GameModel({
       seed,
+      roomId,
       inputManager: gameInstance.options.connection.inputManager,
       playerEventManager: this.playerEventManager,
     }); //new GameModel(GameCoordinator.GetInstance(), gameInstance, seed, coreOverrides);
-    roomState.gameModel.roomId = roomId;
 
     const localPlayers = this.localPlayers.sort();
 
