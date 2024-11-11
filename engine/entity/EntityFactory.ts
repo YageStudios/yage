@@ -381,8 +381,11 @@ export class EntityFactory {
 
       const childId = this.createEntity(gameModel, child);
       if (gameModel.hasComponent("Parent", entityId)) {
-        const parentData = gameModel.getTypedUnsafe(Parent, entityId);
-        parentData.children.push(childId);
+        const children = gameModel.getTypedUnsafe(Parent, entityId)?.children ?? [];
+        if (children.indexOf(childId) === -1) {
+          children.push(childId);
+          gameModel.getTypedUnsafe(Parent, entityId).children = children;
+        }
       } else {
         gameModel.addComponent("Parent", entityId, { children: [childId] });
       }

@@ -40,6 +40,7 @@ import { WorldSystem } from "yage/systems/core/World";
 import { InputManager } from "yage/inputs/InputManager";
 import { PlayerEventManager } from "yage/inputs/PlayerEventManager";
 import { ShareOnEject } from "yage/schemas/share/ShareOnEject";
+import { DoNotEject } from "yage/schemas/entity/DoNotEject";
 
 // @ts-expect-error - MineCS doesn't have a type for this
 type EntityWithComponent<T extends Schema> = number & { __hasComponent: T["type"] };
@@ -309,6 +310,9 @@ export const GameModel = ({
       const children = gameModel.getTypedUnsafe(Parent, entity)?.children ?? [];
 
       for (let i = 0; i < children.length; i++) {
+        if (gameModel.hasComponent(DoNotEject, children[i]) || data.children[children[i]]) {
+          continue;
+        }
         const childEntity = gameModel.ejectEntity(children[i], false);
 
         data.entities.push(...childEntity.entities);
@@ -316,7 +320,6 @@ export const GameModel = ({
       }
 
       const components: ComponentData[] = [];
-
       componentList.forEach((component) => {
         if (hasComponent(world, component, entity)) {
           const componentData = gameModel.ejectComponent(component, entity);
@@ -331,7 +334,7 @@ export const GameModel = ({
       if (removeEjectedEntity) {
         gameModel.removeEntity(entity);
       }
-      data.hasChildren = !!children.length;
+      data.hasChildren = !!Object.keys(data.children).length;
       return data;
     },
     ejectComponent: <T extends Schema>(type: Constructor<T> | string, entity: number): ComponentData | null => {
@@ -534,7 +537,7 @@ export const GameModel = ({
       for (let i = 0; i < gameModel.worlds.length; i++) {
         const world = gameModel.worlds[i];
         const entities = Array.from(world.entities);
-        for (let j = 0; j < entities.length; j++) {
+        for (let j = entities.length - 1; j >= 0; j--) {
           gameModel.removeEntity(entities[j]);
         }
       }
