@@ -7,7 +7,6 @@ import RAPIER from "@dimforge/rapier2d-compat";
 import { Locomotion } from "yage/schemas/entity/Locomotion";
 import { Transform } from "yage/schemas/entity/Transform";
 import { RigidBoxResolver, RigidBox } from "yage/schemas/physics/RigidBox";
-import { World } from "yage/schemas/core/World";
 import { System, SystemImpl } from "minecs";
 
 @System(RigidBox, Transform)
@@ -64,7 +63,6 @@ export class RigidBoxSystem extends SystemImpl<GameModel> {
 
     for (let i = 0; i < entities.length; i++) {
       const entity = entities[i];
-      gameModel.currentWorld = gameModel(World).store.world[entity];
 
       const rigidBox = gameModel.getTypedUnsafe(RigidBox, entity);
 
@@ -120,7 +118,6 @@ export class RigidBoxResolverSystem extends SystemImpl<GameModel> {
 
     for (let i = 0; i < entities.length; i++) {
       const entity = entities[i];
-      gameModel.currentWorld = gameModel(World).store.world[entity];
 
       const rigidBox = gameModel.getTypedUnsafe(RigidBox, entity);
       const box = physicsSystem.getRigidBody(entity);

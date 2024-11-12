@@ -9,7 +9,6 @@ import { EnemyType } from "yage/schemas/entity/Types";
 import { ShareOnKill } from "yage/schemas/share/ShareOnKill";
 import { ShareOnDeath } from "yage/schemas/share/ShareOnDeath";
 import { Health } from "yage/schemas/core/Health";
-import { World } from "yage/schemas/core/World";
 import { System, SystemImpl } from "minecs";
 
 @System(Health)
@@ -67,12 +66,9 @@ export class HealthSystem extends SystemImpl<GameModel> {
     const entities = this.query(gameModel);
 
     const healthStore = gameModel(Health).store;
-    const worldStore = gameModel(World).store;
 
-    const initialWorld = gameModel.currentWorld;
     for (let i = 0; i < entities.length; i++) {
       const entity = entities[i];
-      gameModel.currentWorld = worldStore.world[entity];
       const health = healthStore.health[entity];
       const maxHealth = healthStore.maxHealth[entity];
 
@@ -102,6 +98,5 @@ export class HealthSystem extends SystemImpl<GameModel> {
         healthStore.health[entity] = maxHealth;
       }
     }
-    gameModel.currentWorld = initialWorld;
   };
 }

@@ -6,7 +6,6 @@ import { KillStats } from "yage/schemas/player/KillStats";
 import { TriggerEventSystem } from "./TriggerEvent";
 import { KillStatsTrigger } from "yage/schemas/triggers/KillStatsTrigger";
 import { TriggerEvent } from "yage/schemas/triggers/TriggerEvent";
-import { World } from "yage/schemas/core/World";
 import { System, SystemImpl } from "minecs";
 import { PixiSprite } from "yage/schemas/render/PixiSprite";
 
@@ -19,7 +18,6 @@ export class KillStatsTriggerSystem extends SystemImpl<GameModel> {
     const entities = this.query(gameModel);
     for (let i = 0; i < entities.length; i++) {
       const entity = entities[i];
-      gameModel.currentWorld = gameModel(World).store.world[entity];
 
       const trigger = gameModel.getTypedUnsafe(KillStatsTrigger, entity);
       const playerId = gameModel.players[0];

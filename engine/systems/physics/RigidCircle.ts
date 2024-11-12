@@ -8,7 +8,6 @@ import { Locomotion } from "yage/schemas/entity/Locomotion";
 import { Radius } from "yage/schemas/entity/Radius";
 import { Transform } from "yage/schemas/entity/Transform";
 import { RigidCircleResolver, RigidCircle } from "yage/schemas/physics/RigidCircle";
-import { World } from "yage/schemas/core/World";
 import { System, SystemImpl } from "minecs";
 import { MapIsometric } from "yage/schemas/map/Map";
 
@@ -92,7 +91,6 @@ export class RigidCircleSystem extends SystemImpl<GameModel> {
 
     for (let i = 0; i < entities.length; i++) {
       const entity = entities[i];
-      gameModel.currentWorld = gameModel(World).store.world[entity];
 
       const rigidCircle = gameModel.getTypedUnsafe(RigidCircle, entity);
 
@@ -168,7 +166,6 @@ export class RigidCircleResolverSystem extends SystemImpl<GameModel> {
 
     for (let i = 0; i < entities.length; i++) {
       const entity = entities[i];
-      gameModel.currentWorld = gameModel(World).store.world[entity];
       const rigidCircle = gameModel.getTypedUnsafe(RigidCircle, entity);
       const circle = physicsSystem.getRigidBody(entity);
       const position = circle.translation();

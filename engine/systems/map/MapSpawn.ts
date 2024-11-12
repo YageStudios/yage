@@ -5,7 +5,6 @@ import { Transform } from "yage/schemas/entity/Transform";
 import Description from "yage/schemas/core/Description";
 import { MapSession } from "yage/schemas/map/MapSession";
 import { MapId, MapSpawn } from "yage/schemas/map/MapSpawn";
-import { World } from "yage/schemas/core/World";
 import { Child } from "yage/schemas/entity/Child";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import { System, SystemImpl } from "minecs";
@@ -69,13 +68,9 @@ export class MapSpawnSystem extends SystemImpl<GameModel> {
       (mapId) => gameModel.getTypedUnsafe(Description, mapId).description.toLowerCase() === mapSpawn.map.toLowerCase()
     );
     if (mapId === undefined) {
-      gameModel.currentWorld = gameModel.createWorld();
       mapId = EntityFactory.getInstance().generateEntity(gameModel, mapSpawn.map);
+      console.log("NEW MAP", mapId);
     }
-    const worldId = gameModel(World).store.world[mapId];
-    gameModel.changeWorld(worldId, getEntityController(gameModel, entity));
-    gameModel.currentWorld = worldId;
-
     mapSpawn.mapId = mapId;
     const mapName = mapSpawn.map;
     gameModel.addComponent(MapId, entity, { mapId, map: mapName });

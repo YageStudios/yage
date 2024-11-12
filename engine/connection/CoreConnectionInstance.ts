@@ -137,6 +137,10 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
         ...this.rooms[roomId],
         players: this.rooms[roomId].players.filter((player) => player !== playerId),
       };
+      const localId = this.roomStates[roomId]?.gameModel.localNetIds.indexOf(playerId);
+      if (localId !== -1) {
+        this.roomStates[roomId]?.gameModel.localNetIds.splice(localId, 1);
+      }
       if (this.rooms[roomId].players.length === 0) {
         const gameModel = this.roomStates[roomId]?.gameModel;
         const onLeaveComponents = this.roomStates[roomId]?.gameModel.getComponentsByCategory(

@@ -6,7 +6,6 @@ import { PixiSprite } from "yage/schemas/render/PixiSprite";
 import { GlobalKillStats, type KillFrame } from "yage/schemas/player/KillStats";
 import { GlobalKillStatsTrigger } from "yage/schemas/triggers/GlobalKillStatsTrigger";
 import { TriggerEvent } from "yage/schemas/triggers/TriggerEvent";
-import { World } from "yage/schemas/core/World";
 import { System, SystemImpl } from "minecs";
 
 @System(GlobalKillStatsTrigger)
@@ -18,7 +17,6 @@ export class GlobalKillStatsTriggerSystem extends SystemImpl<GameModel> {
     const entities = this.query(gameModel);
     for (let i = 0; i < entities.length; i++) {
       const entity = entities[i];
-      gameModel.currentWorld = gameModel(World).store.world[entity];
 
       const trigger = gameModel.getTypedUnsafe(GlobalKillStatsTrigger, entity);
 

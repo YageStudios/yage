@@ -44,7 +44,6 @@ export class AtLocationTriggerSystem extends BaseTriggerSystem {
       };
     } else {
       triggerLocation = { ...triggerLocation };
-      triggerLocation.x += getSystem(gameModel, WorldSystem).toWorldSpace(gameModel, entity, triggerLocation.x);
     }
     const radiusSq = trigger.radius * trigger.radius;
     const innerRadiusSq = trigger.innerRadius * trigger.innerRadius;

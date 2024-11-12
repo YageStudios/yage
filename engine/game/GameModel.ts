@@ -34,13 +34,13 @@ import { ComponentCategory } from "yage/constants/enums";
 import type { ComponentData } from "yage/systems/types";
 import { EntityType } from "yage/schemas/entity/Types";
 import { Parent } from "yage/schemas/entity/Parent";
-import { World as WorldSchema } from "yage/schemas/core/World";
 import { Transform } from "yage/schemas/entity/Transform";
 import { WorldSystem } from "yage/systems/core/World";
 import { InputManager } from "yage/inputs/InputManager";
 import { PlayerEventManager } from "yage/inputs/PlayerEventManager";
 import { ShareOnEject } from "yage/schemas/share/ShareOnEject";
 import { DoNotEject } from "yage/schemas/entity/DoNotEject";
+import { UiCleanupOnLeave } from "yage/schemas/render/UiCleanupOnLeave";
 
 // @ts-expect-error - MineCS doesn't have a type for this
 type EntityWithComponent<T extends Schema> = number & { __hasComponent: T["type"] };
@@ -78,10 +78,7 @@ export type GameModel = World & {
   localNetIds: string[];
   currentWorld: number;
   frameDt: number;
-  worlds: { entities: Set<number>; destroyed: boolean; id: number }[];
   event: (netId: string, event: string, data: any) => void;
-  createWorld: () => number;
-  changeWorld: (world: number, entity: number) => void;
   step: (dt?: number) => void;
   getTypedUnsafe: <T extends Schema>(type: Constructor<T>, entity: number) => T;
   getTyped: {
@@ -188,13 +185,6 @@ export const GameModel = ({
     players: [] as number[],
     localNetIds: [],
     currentWorld: 0,
-    worlds: [
-      {
-        entities: new Set<number>(),
-        destroyed: false,
-        id: 0,
-      },
-    ] as { entities: Set<number>; destroyed: boolean; id: number }[],
     getEntityByDescription(description: string): number[] | undefined {
       const entities = this.getComponentActives("Description");
       return entities?.filter((entity) => {
@@ -497,12 +487,7 @@ export const GameModel = ({
       return getSystem(world, system);
     },
     addEntity: () => {
-      const entity = addEntity(world);
-      gameModel.worlds[gameModel.currentWorld].entities.add(entity);
-      gameModel.addComponent(WorldSchema, entity, {
-        world: gameModel.currentWorld,
-      });
-      return entity;
+      return addEntity(world);
     },
     removeEntity: (entity: number) => removeEntity(world, entity),
     serializeState(): GameModelState {
@@ -534,13 +519,6 @@ export const GameModel = ({
       await physicsSystem.restore(state.physics);
     },
     destroy: () => {
-      for (let i = 0; i < gameModel.worlds.length; i++) {
-        const world = gameModel.worlds[i];
-        const entities = Array.from(world.entities);
-        for (let j = entities.length - 1; j >= 0; j--) {
-          gameModel.removeEntity(entities[j]);
-        }
-      }
       deleteWorld(world);
       gameModel.destroyed = true;
     },
@@ -560,33 +538,13 @@ export const GameModel = ({
       });
       console.trace(entityData);
     },
-    createWorld: () => {
-      // gameModel.worlds.push({
-      //   entities: new Set<number>(),
-      //   destroyed: false,
-      //   id: gameModel.worlds.length,
-      // });
-      return gameModel.worlds.length - 1;
-    },
-    changeWorld: (world: number, entity: number) => {
-      console.log(world, entity);
-      const children = gameModel.getTyped(Parent, entity)?.children ?? [];
-      for (let i = 0; i < children.length; i++) {
-        gameModel.changeWorld(world, children[i]);
-      }
-
-      gameModel.worlds[gameModel.getTypedUnsafe(WorldSchema, entity).world].entities.delete(entity);
-      gameModel.worlds[world].entities.add(entity);
-      gameModel(WorldSchema).store.world[entity] = world;
-      if (gameModel.hasComponent(Transform, entity)) {
-        const transform = gameModel.getTypedUnsafe(Transform, entity);
-        transform.x = getSystem(gameModel, WorldSystem).toWorldSpace(gameModel, entity, transform.x);
-      }
-    },
   });
 
   if (world.frame === 0) {
     gameModel.coreEntity = EntityFactory.getInstance().generateEntity(gameModel, "core");
+    if (!gameModel.hasComponent(UiCleanupOnLeave, gameModel.coreEntity)) {
+      gameModel.addComponent(UiCleanupOnLeave, gameModel.coreEntity);
+    }
     addComponent(gameModel, Random, gameModel.coreEntity, { seed: seed ?? "" });
   }
 
