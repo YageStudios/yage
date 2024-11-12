@@ -17,9 +17,9 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
 
   // Instance properties
   private roomId: string;
-  private baseZoom: number;
   private fillScreen: boolean;
   private minWidth: number;
+  baseZoom: number;
 
   get viewport(): Viewport {
     return PixiViewportSystem.viewports.get(this.roomId)!;
