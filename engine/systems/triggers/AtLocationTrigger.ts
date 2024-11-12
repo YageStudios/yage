@@ -12,6 +12,7 @@ import { System, getSystem } from "minecs";
 import { WorldSystem } from "../core/World";
 import type { BaseTrigger } from "yage/schemas/triggers/BaseTrigger";
 import { DEPTHS } from "yage/constants/enums";
+import { Child } from "yage/schemas/entity/Child";
 
 @System(AtLocationTrigger)
 export class AtLocationTriggerSystem extends BaseTriggerSystem {
@@ -68,8 +69,11 @@ export class AtLocationTriggerSystem extends BaseTriggerSystem {
 
       let keyPressCheck = true;
       if (trigger.triggerOnUse) {
-        const netData = gameModel.getTypedUnsafe(PlayerInput, player);
-        keyPressCheck = keyPressed([MappedKeys.USE], netData.keyMap, netData.prevKeyMap);
+        const entityController = gameModel.hasComponent(PlayerInput, player)
+          ? player
+          : gameModel.getTyped(Child, player)?.parent ?? -1;
+        const netData = gameModel.getTypedUnsafe(PlayerInput, entityController);
+        keyPressCheck = keyPressed([MappedKeys.INTERACT], netData.keyMap, netData.prevKeyMap);
       }
 
       if (distance < radiusSq && distance > innerRadiusSq && keyPressCheck) {

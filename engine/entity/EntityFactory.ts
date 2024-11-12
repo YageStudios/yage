@@ -272,6 +272,9 @@ export class EntityFactory {
   };
 
   getEntityDefinition = (entityName: string, gameModel?: GameModel): EntityDefinition => {
+    if (!this.entityDefinitionStringMap.has(entityName.toLowerCase())) {
+      console.warn(`Could not find entity definition for ${entityName}`);
+    }
     let entityDefinition: Partial<EntityDefinition> = JSON.parse(
       this.entityDefinitionStringMap.get(entityName.toLowerCase()) || "{}"
     );

@@ -29,8 +29,8 @@ export class BallGameScene extends Scene {
 
   instance: GameInstance<PlayerState>;
 
-  constructor(pixiApp: Application, pixiViewport: Viewport) {
-    super(pixiApp, pixiViewport);
+  constructor() {
+    super();
   }
 
   public initialize = async (args: unknown[]): Promise<void> => {
@@ -53,7 +53,6 @@ export class BallGameScene extends Scene {
   public destroy = (): void => {
     super.destroy();
     this.paused = true;
-    this.instance.gameModel.destroy();
     console.log("MinMediator: destroy");
   };
 }

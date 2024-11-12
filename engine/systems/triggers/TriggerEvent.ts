@@ -112,6 +112,12 @@ export class TriggerEventSystem extends SystemImpl<GameModel> {
         }
         break;
       }
+      case "GIVE": {
+        data.triggerEntities.forEach((entity) => {
+          gameModel.addComponent(data.name, entity, data.overrideProperties);
+        });
+        break;
+      }
       case "TELEPORT": {
         data.triggerEntities.forEach((entity) => {
           if (data.name === "PlayerPortal") {
