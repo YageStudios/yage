@@ -427,19 +427,16 @@ export const GameModel = ({
       const overrideKeys = Object.keys(overrides);
       for (let i = 0; i < systemsSet.length; i++) {
         const systems = systemsSet[i] as unknown as SystemImpl<GameModel>[];
-        console.log("SYSTEMs", systems);
         for (let j = 0; j < systems.length; j++) {
           const system = systems[i];
           if ((system.constructor as typeof SystemImpl).depth >= 0) {
             break;
           }
-          console.log("Entities", entities);
           for (let k = 0; k < entities.length; k++) {
             const components: Schema[] = [];
             const entity = entities[k];
             if (overrideKeys.length > 0) {
               const systemComponents = componentsBySystem[system.constructor.name];
-              console.log("System Components", systemComponents);
               for (let m = 0; m < systemComponents.length; m++) {
                 const type = systemComponents[m];
                 const schema = getComponentByType(type);
