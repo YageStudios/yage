@@ -423,6 +423,8 @@ export const GameModel = ({
       let entities = Array.isArray(entity) ? entity : [entity];
       if (!entities.length) {
         return;
+      } else {
+        entities = entities.filter((eid) => entities.indexOf(eid) <= entities.lastIndexOf(eid));
       }
       const overrideKeys = Object.keys(overrides);
       for (let i = 0; i < systemsSet.length; i++) {
