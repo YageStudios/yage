@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/adjacent-overload-signatures */
 import { Component, Schema, defaultValue, type } from "minecs";
 // import type { Vector2d } from "yage/utils/vector";
-// import { World } from "../core/World";
 // import { WORLD_WIDTH, HALF_WORLD_WIDTH } from "yage/constants";
 
 // const xToWorldSpace = (entity: number, value: number) => {

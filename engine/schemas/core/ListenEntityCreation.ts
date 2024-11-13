@@ -2,11 +2,11 @@ import { Component, type, defaultValue, Schema } from "minecs";
 
 @Component()
 export class ListenEntityCreation extends Schema {
-  @type(["number"])
+  @type("EntityArray")
   @defaultValue([])
   entities: number[];
 
-  @type("number")
+  @type("Entity")
   @defaultValue(-1)
   entity: number;
 }

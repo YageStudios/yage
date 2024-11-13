@@ -2,7 +2,7 @@ import { Component, defaultValue, Schema, type } from "minecs";
 
 @Component()
 export class Attached extends Schema {
-  @type(["number"])
+  @type("EntityArray")
   @defaultValue([])
   children: number[];
 }

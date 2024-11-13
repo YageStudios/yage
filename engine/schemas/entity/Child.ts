@@ -3,7 +3,7 @@ import { Component, defaultValue, nullable, Schema, type } from "minecs";
 
 @Component()
 export class Child extends Schema {
-  @type("number")
+  @type("Entity")
   @nullable()
   parent: number | null;
 

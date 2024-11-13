@@ -34,8 +34,6 @@ import { ComponentCategory } from "yage/constants/enums";
 import type { ComponentData } from "yage/systems/types";
 import { EntityType } from "yage/schemas/entity/Types";
 import { Parent } from "yage/schemas/entity/Parent";
-import { Transform } from "yage/schemas/entity/Transform";
-import { WorldSystem } from "yage/systems/core/World";
 import { InputManager } from "yage/inputs/InputManager";
 import { PlayerEventManager } from "yage/inputs/PlayerEventManager";
 import { ShareOnEject } from "yage/schemas/share/ShareOnEject";
@@ -258,19 +256,49 @@ export const GameModel = ({
     event: (netId: string, event: string, data: any) => {
       playerEventManager.addEvent(netId, `${event}::${JSON.stringify(data)}`);
     },
-    injectEntity: (entity: EjectedEntity) => {
-      const { entityType, description, components } = entity;
-      const newEntity = addEntity(world);
+    injectEntity: (entity: EjectedEntity, entityIdMap: { [eid: number]: number } = {}) => {
+      const { entityType, description, components, entities } = entity;
+
+      if (Object.keys(entityIdMap).length === 0) {
+        for (let i = 0; i < entities.length; i++) {
+          entityIdMap[entities[i]] = addEntity(world);
+        }
+      }
+
+      const newEntity = entityIdMap[entity.entityId];
       if (entityType) {
         gameModel.addComponent(EntityType, newEntity, { entityType: StringToEnum(entityType, EntityTypeEnum) });
       }
       gameModel.addComponent(Description, newEntity, { description });
       components.forEach((component) => {
+        const schema = getComponentByType(component.type);
+        if (!schema) {
+          return;
+        }
+        if (schema.entityTypes?.length) {
+          for (let i = 0; i < schema.entityTypes.length; i++) {
+            const key = schema.entityTypes[i];
+            if (component.data[key] !== undefined) {
+              if (Array.isArray(component.data[key])) {
+                component.data[key] = component.data[key]
+                  .map((eid: number) => entityIdMap[eid])
+                  .filter((eid: number) => typeof eid === "number");
+              } else {
+                if (entityIdMap[component.data[key]] === undefined) {
+                  delete component.data[key];
+                } else {
+                  component.data[key] = entityIdMap[component.data[key]];
+                }
+              }
+            }
+          }
+        }
+        console.log("Adding Component", schema.type, newEntity, component.data);
         gameModel.addComponent(component.type, newEntity, component.data);
       });
       if (entity.hasChildren) {
         Object.keys(entity.children).forEach((child) => {
-          gameModel.injectEntity(entity.children[child as unknown as number]);
+          gameModel.injectEntity(entity.children[child as unknown as number], entityIdMap);
         });
       }
       return newEntity;
@@ -320,7 +348,7 @@ export const GameModel = ({
       });
       data.components = components;
       data.entities.push(entity);
-      data.entities = data.entities.filter((e: number) => gameModel.isActive(e));
+      data.entities = data.entities.filter((e: number) => gameModel.isActive(e)).sort();
       if (removeEjectedEntity) {
         gameModel.removeEntity(entity);
       }

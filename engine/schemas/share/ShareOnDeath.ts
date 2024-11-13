@@ -2,19 +2,19 @@ import { Component, Schema, defaultValue, type } from "minecs";
 
 @Component("ShareOnDeath")
 export class ShareOnDeath extends Schema {
-  @type(["number"])
+  @type("EntityArray")
   @defaultValue([])
   entities: number[];
 
-  @type("number")
+  @type("Entity")
   @defaultValue(-1)
   owner: number;
 
-  @type("number")
+  @type("Entity")
   @defaultValue(-1)
   killedEntity: number;
 
-  @type("number")
+  @type("Entity")
   @defaultValue(-1)
   killSource: number;
 }

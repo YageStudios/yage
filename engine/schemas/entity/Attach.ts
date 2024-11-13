@@ -6,7 +6,7 @@ export class AttachPost extends Schema {}
 
 @Component()
 export class Attach extends Schema {
-  @type("number")
+  @type("Entity")
   @nullable()
   parent: number | null;
 

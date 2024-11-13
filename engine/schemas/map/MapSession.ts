@@ -6,7 +6,7 @@ export class MapSession extends Schema {
   @defaultValue([])
   maps: string[];
 
-  @type(["number"])
+  @type("EntityArray")
   @defaultValue([])
   mapIds: number[];
 
