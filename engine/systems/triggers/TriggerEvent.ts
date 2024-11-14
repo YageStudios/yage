@@ -114,7 +114,9 @@ export class TriggerEventSystem extends SystemImpl<GameModel> {
       }
       case "GIVE": {
         data.triggerEntities.forEach((entity) => {
-          gameModel.addComponent(data.name, entity, data.overrideProperties);
+          if (!gameModel.hasComponent(data.name, entity)) {
+            gameModel.addComponent(data.name, entity, data.overrideProperties);
+          }
         });
         break;
       }
@@ -163,6 +165,8 @@ export class TriggerEventSystem extends SystemImpl<GameModel> {
         y: position.y,
       };
     }
-    return this.trigger(data, gameModel);
+    const triggered = this.trigger(data, gameModel);
+    gameModel.removeComponent(TriggerEvent, entity);
+    return triggered;
   };
 }

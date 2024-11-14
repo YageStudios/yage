@@ -36,7 +36,6 @@ export abstract class BaseTriggerSystem extends SystemImpl<GameModel> {
       const transform = gameModel.getTypedUnsafe(Transform, entity);
       inheritedLocation = { x: transform.x, y: transform.y };
     }
-    console.log("TriggerEventSystem", { ...triggerEvent });
     if (triggerEvent.length) {
       for (let i = 0; i < triggerEvent.length; i++) {
         const location = trigger.inheritLocation ? inheritedLocation : triggerEvent[i].location;
@@ -59,6 +58,7 @@ export abstract class BaseTriggerSystem extends SystemImpl<GameModel> {
   run(gameModel: GameModel, entity: number) {
     const trigger = this.getTrigger(gameModel, entity);
     const players = gameModel.players;
+    const destroyOnTrigger = trigger.destroyOnTrigger;
 
     if (players.length === 0) {
       return;
@@ -71,7 +71,7 @@ export abstract class BaseTriggerSystem extends SystemImpl<GameModel> {
     }
     if (validPlayers.length >= (trigger.triggerType === "ALLPLAYERS" ? players.length : 1)) {
       if (this.triggerEvent(entity, validPlayers, trigger, gameModel)) {
-        if (trigger.destroyOnTrigger) {
+        if (destroyOnTrigger) {
           gameModel.removeEntity(entity);
         }
       }

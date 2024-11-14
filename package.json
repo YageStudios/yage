@@ -69,7 +69,7 @@
   "scripts": {
     "dev": "vite",
     "lint": "eslint --ext .ts ./src ./engine",
-    "build:watch": "nodemon --watch engine --exec \"npm run build\" --ext ts",
+    "watch": "nodemon --watch engine --exec \"npm run build\" --ext ts",
     "tsc": "tsc --noEmit",
     "test": "vitest",
     "examples": "vite examples",
