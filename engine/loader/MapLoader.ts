@@ -430,7 +430,9 @@ export default class MapLoader {
     }
 
     wall.layers.forEach((layer) => {
-      if (layer.type !== "objectgroup") this.parseSprites(json, assetUrl, urlPath, layer, wall.tilesets, wall.sprites);
+      if (layer.type !== "objectgroup" && layer.name !== "walls") {
+        this.parseSprites(json, assetUrl, urlPath, layer, wall.tilesets, wall.sprites);
+      }
     });
 
     return wall;
@@ -440,16 +442,16 @@ export default class MapLoader {
     const horizontalFlag = !!(gid & rotationMasks.horizontal);
     const verticalFlag = !!(gid & rotationMasks.vertical);
     let tile = gid & ~(rotationMasks.diagonal | rotationMasks.horizontal | rotationMasks.vertical);
-    
+
     const tilesetInfo = map.tilesets.find((tileset, index) => {
       const nextFirstGid = map.tilesets[index + 1]?.firstgid ?? Infinity;
       return tile >= tileset.firstgid && tile < nextFirstGid;
     });
-    tile -= (tilesetInfo?.firstgid ?? 0);
+    tile -= tilesetInfo?.firstgid ?? 0;
     if (tilesetInfo?.firstgid !== 1) {
       tile -= 1;
     }
-  
+
     if (!tilesetInfo) {
       return {
         tileImage: null,
@@ -458,10 +460,10 @@ export default class MapLoader {
         tileset: null,
       };
     }
-  
+
     const path = url.resolve(urlPath, tilesetInfo.source!) as string;
     const tileset = this.tilesets[path];
-  
+
     if (!tileset) {
       return {
         tileImage: null,
@@ -470,10 +472,10 @@ export default class MapLoader {
         tileset: null,
       };
     }
-  
+
     // Adjust tile index based on firstgid
     const adjustedTileIndex = tile;
-  
+
     let tileImage;
     if (adjustedTileIndex === -1) {
       // Single image tileset
@@ -482,11 +484,11 @@ export default class MapLoader {
       // Multi-image tileset
       tileImage = tileset.images[adjustedTileIndex];
     }
-  
+
     if (!tileImage) {
       throw new Error("Tile not found");
     }
-  
+
     return {
       tileImage: tileImage,
       horizontal: horizontalFlag,

@@ -401,7 +401,7 @@ export class MapSystem extends SystemImpl<GameModel> {
           });
           this.collisionBodies[entity].push(body);
 
-          const wallData = wall.layers.find((layer) => layer.name === "wall") as TiledTileLayer;
+          const wallData = wall.layers.find((layer) => layer.name === "walls") as TiledTileLayer;
           if (wallData) {
             const xOffset = i * 20;
             const yOffset = j * 20;

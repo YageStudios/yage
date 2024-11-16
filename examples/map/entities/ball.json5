@@ -1,0 +1,31 @@
+{
+  type: "Entity",
+  name: "ball",
+  components: [
+    {
+      type: "PixiGraphic",
+      fillColor: "#ff0000",
+      circle: {
+        x: 5,
+        y: 5,
+        radius: 5,
+      },
+    },
+    {
+      type: "Radius",
+      radius: 5,
+    },
+    {
+      type: "RigidCircle",
+      collisionCategory: "enum:CollisionCategoryEnum.ALLY",
+      collisionMask: ["enum:CollisionCategoryEnum.ALL"],
+      mass: 200,
+      collisionEvents: true,
+    },
+    "Transform",
+    {
+      type: "Locomotion",
+      speed: 10,
+    },
+  ],
+}

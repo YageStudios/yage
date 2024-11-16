@@ -318,7 +318,7 @@ export class EntityFactory {
         }
       });
       if (overrideKeys.length) {
-        console.warn("Unused overrides: ", overrideKeys);
+        console.warn("Unused overrides: ", overrideKeys, entityName);
       }
     }
 

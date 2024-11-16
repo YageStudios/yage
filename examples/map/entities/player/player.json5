@@ -5,6 +5,7 @@
     "PlayerInput",
     "PlayerMovement",
     "SelfCamera",
+    "SpawnBallOnQ",
     {
       type: "TeleportOnE",
       roomId: "room",

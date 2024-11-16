@@ -20,7 +20,7 @@ export class TeleportOnESystem extends SystemImpl<GameModel> {
   run(gameModel: GameModel, entity: number) {
     const netData = gameModel.getTypedUnsafe(PlayerInput, entity);
 
-    if (keyDown([MappedKeys.USE], netData.keyMap)) {
+    if (keyDown([MappedKeys.INTERACT], netData.keyMap)) {
       console.log("TeleportSystem", entity);
       const mapIdData = gameModel.getTypedUnsafe(MapId, entity);
       gameModel.removeComponent(MapId, entity);
