@@ -1,13 +1,14 @@
 import { Pathfinder } from "l1-path-finder";
 import { GameModel } from "yage/game/GameModel";
 import { MapSystem } from "yage/systems/map/Map";
-import { toWorldSpace, toMapSpace } from "./map";
+import { toWorldSpace, toMapSpace, toIsoWorldSpace } from "./map";
 import { Vector2d, addVector2d } from "./vector";
 import { Map, MapIsometric } from "yage/schemas/map/Map";
 import { MapId } from "yage/schemas/map/MapSpawn";
 import { Transform } from "yage/schemas/entity/Transform";
+import AssetLoader from "yage/loader/AssetLoader";
 
-const fastPlotLine = (x0: number, y0: number, x1: number, y1: number): number[] => {
+const fastPlotLine = (x0: number, y0: number, x1: number, y1: number): number[][] => {
   const dx = Math.abs(x1 - x0);
   const dy = Math.abs(y1 - y0);
   const sx = x0 < x1 ? 1 : -1;
@@ -16,7 +17,7 @@ const fastPlotLine = (x0: number, y0: number, x1: number, y1: number): number[] 
 
   const points = [];
   while (true) {
-    points.push(x0, y0);
+    points.push([x0, y0]);
 
     if (x0 === x1 && y0 === y1) {
       break;
@@ -86,8 +87,8 @@ export const getPath = (pathFinder: Pathfinder, src: Vector2d, target: Vector2d,
   const line = fastPlotLine(mapSrc.x, mapSrc.y, mapTarget.x, mapTarget.y);
 
   let noColliders = true;
-  for (let i = 0; i < line.length; i += 2) {
-    if (pathFinder.map.get(line[i], line[i + 1]) === 1) {
+  for (let i = 0; i < line.length; i += 1) {
+    if (pathFinder.map.get(line[i][0], line[i][1]) === 1) {
       noColliders = false;
       break;
     }
@@ -165,6 +166,7 @@ export const makePickupable = (gameModel: GameModel, position: Vector2d) => {
     return position;
   }
   const map = gameModel.getTypedUnsafe(Map, targetMap);
+
   const mapSystem = gameModel.getSystem(MapSystem);
   const transform = gameModel.getTypedUnsafe(Transform, target);
 
@@ -179,25 +181,28 @@ export const _makePickupable = (
   closestPlayer: Vector2d,
   map: Map
 ): Vector2d | undefined => {
-  const mapSrc = getMapPosition(map, toMapSpace(desiredPoint), 20);
-  const mapTarget = getMapPosition(map, toMapSpace(closestPlayer), 20);
+  const skinData = AssetLoader.getInstance().getMapSkin(map.skin);
+  const isometric = !!skinData!.floor.isometric;
+
+  const mapSrc = getMapPosition(map, toMapSpace(desiredPoint, isometric), 20);
+  const mapTarget = getMapPosition(map, toMapSpace(closestPlayer, isometric), 20);
   const directionOffset = { x: 0, y: 0 }; // scaleVector2d(normalizeVector2d(subtractVector2d(desiredPoint, closestPlayer)), 0.5);
 
   let line = fastPlotLine(mapSrc.x, mapSrc.y, mapTarget.x, mapTarget.y);
 
-  console.log(mapSrc, mapTarget, line);
-
-  if (line[0] === mapSrc.x && line[1] === mapSrc.y) {
+  if (line[0][0] === mapSrc.x && line[0][1] === mapSrc.y) {
     line = line.reverse();
   }
 
+  console.log(mapSrc, mapTarget, line);
+
   let furthestPrecollisionPoint: Vector2d | undefined;
   for (let i = 0; i < line.length; i += 2) {
-    if (pathFinder.map.get(line[i + 1], line[i]) === 1) {
+    if (pathFinder.originalMap.get(line[i][0], line[i][1]) === 1) {
       if (i === 0) {
-        furthestPrecollisionPoint = { x: line[i + 1], y: line[i] };
+        furthestPrecollisionPoint = { x: line[i][0], y: line[i][1] };
       } else {
-        furthestPrecollisionPoint = { x: line[i - 1], y: line[i - 2] };
+        furthestPrecollisionPoint = { x: line[i - 1][0], y: line[i - 1][1] };
       }
       furthestPrecollisionPoint = addVector2d(furthestPrecollisionPoint, directionOffset);
       break;
@@ -207,5 +212,7 @@ export const _makePickupable = (
     return desiredPoint;
   }
 
-  return toWorldSpace(getWorldPosition(map, furthestPrecollisionPoint, 20));
+  return isometric
+    ? toIsoWorldSpace(getWorldPosition(map, furthestPrecollisionPoint, 20))
+    : toWorldSpace(getWorldPosition(map, furthestPrecollisionPoint, 20));
 };

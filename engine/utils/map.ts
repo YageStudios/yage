@@ -10,7 +10,7 @@ export const toWorldSpace = (position: Vector2d, scale = 1): Vector2d => {
 
 export const fromWorldSpace = (position: Vector2d, scale = 1): Vector2d => {
   return scaleVector2d(position, 1 / scale);
-}
+};
 
 export const toIsoWorldSpace = (position: Vector2d, scale = 1): Vector2d => {
   const transformedPosition = rotateDegVector2d(position, 45);
