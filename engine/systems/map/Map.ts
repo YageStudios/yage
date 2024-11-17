@@ -33,13 +33,15 @@ import { GlobalKillStatsTrigger } from "yage/schemas/triggers/GlobalKillStatsTri
 import { KillStatsTrigger } from "yage/schemas/triggers/KillStatsTrigger";
 import { TimeTrigger } from "yage/schemas/triggers/TimeTrigger";
 import { TriggerEvent } from "yage/schemas/triggers/TriggerEvent";
-import { toWorldSpace, fromWorldSpace } from "yage/utils/map";
+import { toWorldSpace, fromWorldSpace, toMapSpace } from "yage/utils/map";
 import { TriggerEventSystem } from "yage/systems/triggers/TriggerEvent";
 import { MapId } from "yage/schemas/map/MapSpawn";
 import { WORLD_WIDTH } from "yage/constants";
 import { DrawSystemImpl, System, SystemImpl, getSystem } from "minecs";
 import { PixiViewportSystem } from "../render/PixiViewport";
 import { hexToRgbNumber } from "yage/utils/colors";
+import { Transform } from "yage/schemas/entity/Transform";
+import { getMapPosition } from "yage/utils/pathfinding";
 
 const getTileName = (tile: number, skin: string) => {
   return overview[(tile - 1).toString() as unknown as keyof typeof overview].replace("$1", skin);
@@ -502,18 +504,20 @@ export class MapSystem extends SystemImpl<GameModel> {
     const map = gameModel.getTypedUnsafe(Map, entity);
     const skinData = AssetLoader.getInstance().getMapSkin(map.skin);
 
+    let skewedMapArray = mapArray;
     if (skinData.floor.isometric) {
-      mapArray = convertGridToIsometric(mapArray);
+      skewedMapArray = convertGridToIsometric(mapArray);
     }
 
-    this.pathfinders[entity] = pathFinder(mapArray);
-    this.pathfinders[entity].map = mapArray;
+    this.pathfinders[entity] = pathFinder(skewedMapArray);
+    this.pathfinders[entity].map = skewedMapArray;
+    this.pathfinders[entity].originalMap = mapArray;
 
     if (flags.DEBUG) {
       let mapString = "";
-      for (let j = 0; j < mapArray.shape[1]; ++j) {
-        for (let i = 0; i < mapArray.shape[0]; ++i) {
-          mapString += mapArray.get(i, j);
+      for (let j = 0; j < skewedMapArray.shape[1]; ++j) {
+        for (let i = 0; i < skewedMapArray.shape[0]; ++i) {
+          mapString += skewedMapArray.get(i, j);
         }
         mapString += "\n";
       }
@@ -542,14 +546,18 @@ export class MapSystem extends SystemImpl<GameModel> {
 }
 
 @System(Map)
-class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
+export class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
   ids: Set<number> = new Set();
   entities: {
     [key: number]: {
       minimap: PIXI.Container;
+      minimapSprite: PIXI.Sprite;
+      playerMarkers: PIXI.Container;
       map: PIXI.Container;
       colliders: PIXI.Container;
       walls: PIXI.Sprite[];
+      canvas: HTMLCanvasElement;
+      mapBounds: { minX: number; minY: number; maxX: number; maxY: number };
     };
   } = {};
 
@@ -562,6 +570,68 @@ class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
 
   schema = Map;
 
+  calculateMapBounds(mapArray: NdArray): { minX: number; minY: number; maxX: number; maxY: number } {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    for (let x = 0; x < mapArray.shape[0]; x++) {
+      for (let y = 0; y < mapArray.shape[1]; y++) {
+        if (mapArray.get(x, y) === 1) {
+          // If there's a wall/obstacle
+          minX = Math.min(minX, x);
+          minY = Math.min(minY, y);
+          maxX = Math.max(maxX, x);
+          maxY = Math.max(maxY, y);
+        }
+      }
+    }
+
+    return { minX, minY, maxX, maxY };
+  }
+
+  createMinimapCanvas(
+    renderModel: ReadOnlyGameModel,
+    entity: number
+  ): { canvas: HTMLCanvasElement; bounds: { minX: number; minY: number; maxX: number; maxY: number } } {
+    const mapData = renderModel.getTypedUnsafe(Map, entity);
+    const pathfinder = renderModel.getSystem(MapSystem).getPathfinders(renderModel, entity);
+    const mapArray = pathfinder.originalMap;
+
+    // Calculate bounds of the actual map content
+    const bounds = this.calculateMapBounds(mapArray);
+    const width = bounds.maxX - bounds.minX + 1;
+    const height = bounds.maxY - bounds.minY + 1;
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d")!;
+    const scale = 1; // Scale for minimap pixels
+
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+
+    // Fill background (walkable areas)
+    ctx.fillStyle = "#666666";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw walls/obstacles
+    ctx.fillStyle = "#333333";
+    for (let x = 0; x < width; x++) {
+      for (let y = 0; y < height; y++) {
+        const mapX = x + bounds.minX;
+        const mapY = y + bounds.minY;
+
+        if (mapArray.get(mapX, mapY) === 1) {
+          // If it's a wall/obstacle
+          ctx.fillRect(x * scale, y * scale, scale, scale);
+        }
+      }
+    }
+
+    return { canvas, bounds };
+  }
+
   init = (renderModel: ReadOnlyGameModel, entity: number) => {
     const viewport = getSystem(renderModel, PixiViewportSystem).viewport;
     console.error("INITIALIZING");
@@ -570,14 +640,50 @@ class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
     const skinData = AssetLoader.getInstance().getMapSkin(mapData.skin);
     const pathfinder = renderModel.getSystem(MapSystem).getPathfinders(renderModel, entity);
     const mapArray = pathfinder.map;
-
-    console.log(mapAsset, skinData);
-
     const scale = mapData.scale;
     const rand = generate(123);
 
+    // Create minimap container
     const miniMap = new PIXI.Container();
-    miniMap.zIndex = -10000;
+    miniMap.zIndex = 10000;
+
+    // Create canvas and convert to PIXI texture
+    const { canvas, bounds } = this.createMinimapCanvas(renderModel, entity);
+    const minimapTexture = PIXI.Texture.from(canvas);
+    const minimapSprite = new PIXI.Sprite(minimapTexture);
+
+    console.log(canvas.width, canvas.height);
+
+    // Position minimap
+    minimapSprite.width = canvas.width;
+    minimapSprite.height = canvas.height;
+    minimapSprite.alpha = 0.8;
+
+    // Add black border around minimap
+    const border = new PIXI.Graphics();
+    border.lineStyle(2, 0x000000, 1);
+    border.drawRect(0, 0, minimapSprite.width, minimapSprite.height);
+
+    // Create container for player markers with visible bounds for debugging
+    const playerMarkers = new PIXI.Container();
+    playerMarkers.zIndex = 10001;
+
+    // Add a visible border around the playerMarkers container
+    const markersBorder = new PIXI.Graphics();
+    markersBorder.lineStyle(1, 0xff0000);
+    markersBorder.drawRect(0, 0, 100, 100); // Arbitrary size for testing
+    playerMarkers.addChild(markersBorder);
+
+    miniMap.addChild(minimapSprite);
+    miniMap.addChild(border);
+    miniMap.addChild(playerMarkers);
+
+    // Position minimap in top-left corner with padding
+    const minimapPadding = -300;
+    miniMap.position.set(minimapPadding + bounds.minX * scale, minimapPadding + bounds.minY * scale);
+
+    viewport.addChild(miniMap);
+
     const map = new PIXI.Container();
     const wallsContainer = new PIXI.Container();
     map.sortableChildren = true;
@@ -607,7 +713,6 @@ class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
     collidersContainer.addChild(colliders);
     collidersContainer.zIndex = 100000;
     collidersContainer.visible = false;
-
     for (let i = 0; i < mapWidth; ++i) {
       for (let j = 0; j < mapHeight; ++j) {
         const hasTile = mapArray.get(i, j);
@@ -723,19 +828,57 @@ class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
       }
     }
 
-    this.entities[entity] = { minimap: miniMap, map, colliders, walls };
+    this.entities[entity] = {
+      minimap: miniMap,
+      minimapSprite,
+      playerMarkers,
+      map,
+      colliders,
+      walls,
+      canvas,
+      mapBounds: bounds,
+    };
 
     this.ids.add(entity);
   };
 
   run = (renderModel: ReadOnlyGameModel, entity: number) => {
     const viewport = getSystem(renderModel, PixiViewportSystem).viewport;
-    const { colliders, minimap, walls } = this.entities[entity];
+    const { colliders, minimap, walls, minimapSprite, mapBounds, playerMarkers } = this.entities[entity];
     const mapData = renderModel.getTypedUnsafe(Map, entity);
     const skinData = AssetLoader.getInstance().getMapSkin(mapData.skin);
 
+    const firstPlayerTransform = renderModel.getTypedUnsafe(Transform, renderModel.players[0]);
+
+    // Keep minimap in position relative to viewport
+    const minimapPadding = -400;
+    minimap.position.set(
+      minimapPadding + firstPlayerTransform.x + mapBounds.minX * mapData.scale,
+      minimapPadding + firstPlayerTransform.y + mapBounds.minY * mapData.scale
+    );
+
+    // Clear existing markers
+    playerMarkers.removeChildren();
+
+    renderModel.players.forEach((playerId) => {
+      if (renderModel.hasComponent(Transform, playerId)) {
+        const transform = renderModel.getTypedUnsafe(Transform, playerId);
+
+        // Create a highly visible marker
+        const marker = new PIXI.Graphics();
+        marker.beginFill(0xff0000, 1); // Bright red
+        marker.drawCircle(0, 0, 8); // Larger radius
+        marker.endFill();
+
+        const playerPosition = getMapPosition(mapData, toMapSpace(transform, true), 20);
+        // Place it in the middle of the minimap for testing
+        marker.position.set(playerPosition.x, playerPosition.y);
+
+        playerMarkers.addChild(marker);
+      }
+    });
+
     colliders.visible = flags.DEBUG;
-    minimap.visible = flags.DEBUG;
     const viewY = viewport.toWorld(0, 0).y;
 
     if (skinData.floor.isometric) {
@@ -747,7 +890,7 @@ class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
   };
 
   cleanup = (_renderModel: ReadOnlyGameModel, entity: number) => {
-    const { map, colliders, minimap, walls } = this.entities[entity];
+    const { map, colliders, minimap, walls, canvas } = this.entities[entity];
     map.destroy();
     colliders.destroy();
     minimap.destroy();
@@ -758,5 +901,9 @@ class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
         console.error("THIS NEEDS TO BE FIXED");
       }
     });
+
+    // Clean up canvas
+    canvas.remove();
+    delete this.entities[entity];
   };
 }
