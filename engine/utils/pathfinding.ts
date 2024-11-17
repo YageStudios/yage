@@ -194,10 +194,8 @@ export const _makePickupable = (
     line = line.reverse();
   }
 
-  console.log(mapSrc, mapTarget, line);
-
   let furthestPrecollisionPoint: Vector2d | undefined;
-  for (let i = 0; i < line.length; i += 2) {
+  for (let i = 0; i < line.length; i++) {
     if (pathFinder.originalMap.get(line[i][0], line[i][1]) === 1) {
       if (i === 0) {
         furthestPrecollisionPoint = { x: line[i][0], y: line[i][1] };
