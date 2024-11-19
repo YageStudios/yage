@@ -134,6 +134,7 @@ export class TriggerEventSystem extends SystemImpl<GameModel> {
             gameModel.addComponent(Teleport, entity, {
               map,
               spawnPoint,
+              seed: data.overrideProperties?.seed,
             });
             // const teleportSystem = gameModel.getSystem(TeleportSystem);
             // console.log("TELEPORTING");

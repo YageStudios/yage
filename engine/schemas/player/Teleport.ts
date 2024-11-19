@@ -6,6 +6,9 @@ export class Teleport extends Schema {
   map: string;
 
   @type("string")
+  seed: string;
+
+  @type("string")
   @defaultValue("")
   spawnPoint: string;
 
