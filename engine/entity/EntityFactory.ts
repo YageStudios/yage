@@ -14,6 +14,7 @@ import { ListenEntityCreationSystem } from "yage/systems/core/ListenEntityCreati
 import { ListenEntityCreation } from "yage/schemas/core/ListenEntityCreation";
 import { componentList } from "minecs";
 import toposort from "toposort";
+import { flags } from "yage/console/flags";
 
 export interface EntityDefinition {
   name: string;
@@ -317,7 +318,7 @@ export class EntityFactory {
           overrideKeys.splice(overrideKeys.indexOf(c.type), 1);
         }
       });
-      if (overrideKeys.length) {
+      if (flags.DEBUG && overrideKeys.length) {
         console.warn("Unused overrides: ", overrideKeys, entityName);
       }
     }
@@ -363,7 +364,6 @@ export class EntityFactory {
   createEntity(gameModel: GameModel, entity: EntityComponentDTO): number {
     const entityId = gameModel.addEntity();
     this.addComponents(gameModel, entityId, entity.components);
-    gameModel.removeComponent("Parent", entityId);
 
     entity.children?.forEach((child: EntityComponentDTO) => {
       const childComponent = child.components.find((c) => c.type === "Child");
@@ -381,17 +381,7 @@ export class EntityFactory {
           childComponent.parent = entityId;
         }
       }
-
-      const childId = this.createEntity(gameModel, child);
-      if (gameModel.hasComponent("Parent", entityId)) {
-        const children = gameModel.getTypedUnsafe(Parent, entityId)?.children ?? [];
-        if (children.indexOf(childId) === -1) {
-          children.push(childId);
-          gameModel.getTypedUnsafe(Parent, entityId).children = children;
-        }
-      } else {
-        gameModel.addComponent("Parent", entityId, { children: [childId] });
-      }
+      this.createEntity(gameModel, child);
     });
     return entityId;
   }

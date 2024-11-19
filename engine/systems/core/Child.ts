@@ -85,4 +85,17 @@ export class ChildSystem extends SystemImpl<GameModel> {
       }
     }
   };
+
+  cleanup(world: GameModel, eid: number): void {
+    const childData = world.getTypedUnsafe(Child, eid);
+    if (childData.parent) {
+      const parentData = world.getTypedUnsafe(Parent, childData.parent);
+      if (parentData) {
+        const index = parentData.children.indexOf(eid);
+        if (index !== -1) {
+          parentData.children.splice(index, 1);
+        }
+      }
+    }
+  }
 }

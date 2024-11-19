@@ -5,7 +5,7 @@ import { KillStats } from "yage/schemas/player/KillStats";
 import type { Damage } from "yage/schemas/damage/DamageStats";
 import type { Vector2d } from "yage/utils/vector";
 import { getLastDamage } from "yage/utils/getLastDamage";
-import { EnemyType } from "yage/schemas/entity/Types";
+import { EnemyType, PlayerType } from "yage/schemas/entity/Types";
 import { ShareOnKill } from "yage/schemas/share/ShareOnKill";
 import { ShareOnDeath } from "yage/schemas/share/ShareOnDeath";
 import { Health } from "yage/schemas/core/Health";
@@ -92,7 +92,14 @@ export class HealthSystem extends SystemImpl<GameModel> {
             killedEntity: entity,
           }
         );
-        gameModel.removeEntity(entity);
+        if (gameModel.hasComponent(PlayerType, entity)) {
+          gameModel.runMods([entity], ComponentCategory.ON_PLAYER_DEATH, {
+            killedEntity: entity,
+          });
+        }
+        if (gameModel.isActive(entity)) {
+          gameModel.removeEntity(entity);
+        }
       }
       if (health > maxHealth) {
         healthStore.health[entity] = maxHealth;

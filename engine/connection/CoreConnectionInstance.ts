@@ -577,12 +577,16 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
         roomState.gameModel.frame
       );
       this.localPlayers[localPlayerIndex].currentRoomId = roomId;
+      roomState.gameModel.localNetIds.push(this.localPlayers[localPlayerIndex].netId);
+      roomState.gameModel.localNetIds = roomState.gameModel.localNetIds.sort();
     } else {
       for (let i = 0; i < this.localPlayers.length; ++i) {
         const player = this.localPlayers[i];
         this.createPlayer(roomState.gameModel, player.netId, player.config!, roomState.gameModel.frame);
         player.currentRoomId = roomId;
+        roomState.gameModel.localNetIds.push(player.netId);
       }
+      roomState.gameModel.localNetIds = roomState.gameModel.localNetIds.sort();
     }
   }
 

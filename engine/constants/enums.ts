@@ -62,6 +62,7 @@ export enum ComponentCategory {
   ON_START,
   ON_END,
   ON_LEAVE,
+  ON_PLAYER_DEATH,
 }
 
 export enum SoundType {

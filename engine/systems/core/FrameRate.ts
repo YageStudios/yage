@@ -115,6 +115,9 @@ export class RenderFramerateSystem extends DrawSystemImpl<ReadOnlyGameModel> {
     if (this.ui === null) {
       return;
     }
+    if (this.ui.some((ui) => ui.destroyed && gameModel.localNetIds.length)) {
+      this.init(gameModel, entity);
+    }
     const data = gameModel.getSystem(FrameRateSystem).get(entity);
     this.uiMap.update({
       frame: gameModel(Frame, entity).frame,
