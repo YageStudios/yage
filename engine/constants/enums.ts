@@ -62,6 +62,7 @@ export enum ComponentCategory {
   ON_START,
   ON_END,
   ON_LEAVE,
+  ON_JOIN,
   ON_PLAYER_DEATH,
 }
 

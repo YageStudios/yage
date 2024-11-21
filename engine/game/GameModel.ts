@@ -109,6 +109,12 @@ export type GameModel = World & {
   getEntityByDescription: (description: string) => number[] | undefined;
   getEntityByType(type: EntityTypeEnum | EntityTypeEnum[]): number[];
   logEntity: (entity: number, debugOverride?: boolean) => void;
+  runGlobalMods: (
+    category: ComponentCategory,
+    overrides?: {
+      [key: string]: any;
+    }
+  ) => void;
   runMods: (
     entity: number | number[],
     category: ComponentCategory,
@@ -398,6 +404,57 @@ export const GameModel = ({
         return sortedSystemsByComponent[type] || [];
       }
       return sortedSystemsByComponent[type].filter((system) => system.query.has(gameModel, entity));
+    },
+    runGlobalMods: (
+      category: ComponentCategory,
+      overrides?: {
+        [key: string]: any;
+      }
+    ) => {
+      const modComponents = gameModel.getComponentsByCategory(category);
+      overrides = overrides || {};
+      const sortedSystems: [SystemImpl, typeof Schema][] = [];
+      const overrideKeys = Object.keys(overrides);
+
+      if (modComponents.length) {
+        modComponents.forEach((onEndComponent) => {
+          const systems = gameModel.getSystemsByType(onEndComponent.type);
+          if (systems.length) {
+            systems.forEach((system: SystemImpl | SystemImpl[]) => {
+              if (!Array.isArray(system)) {
+                system = [system];
+              }
+              system.forEach((s) => {
+                if (!sortedSystems.find((ss) => ss[0] === s)) {
+                  sortedSystems.push([s, onEndComponent]);
+                }
+              });
+            });
+          }
+        });
+        sortedSystems.sort((a, b) => {
+          return (a[0].constructor as typeof SystemImpl).depth - (b[0].constructor as typeof SystemImpl).depth;
+        });
+
+        sortedSystems.forEach(([system, component]) => {
+          const actives = gameModel.getComponentActives(component.type);
+          actives.forEach((entity) => {
+            if (overrideKeys.length > 0) {
+              const componentData = gameModel.getComponent(component, entity) as any;
+
+              if (componentData) {
+                for (const key of overrideKeys) {
+                  if (componentData[key] !== undefined) {
+                    componentData[key] = overrides[key];
+                  }
+                }
+              }
+            }
+
+            system.run?.(gameModel, entity);
+          });
+        });
+      }
     },
     runMods: (
       entity: number | number[],

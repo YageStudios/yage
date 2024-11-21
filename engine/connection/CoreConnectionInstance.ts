@@ -147,18 +147,12 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
           ComponentCategory.ON_LEAVE
         );
         if (onLeaveComponents.length) {
-          onLeaveComponents.forEach((renderEngine) => {
-            const systems = gameModel.getSystemsByType(renderEngine.type);
-            if (systems.length) {
-              systems.forEach((system: SystemImpl | SystemImpl[]) => {
-                if (!Array.isArray(system)) {
-                  system = [system];
-                }
-                system.forEach((s) => {
-                  s.run?.(gameModel, -1);
-                });
-              });
-            }
+          const leavingPlayer =
+            gameModel.players.find((player) => gameModel.getTypedUnsafe(PlayerInput, player).pid === playerId) ?? -1;
+
+          gameModel.runGlobalMods(ComponentCategory.ON_LEAVE, {
+            leavingPlayer,
+            playerId,
           });
         }
         if (!this.options.roomPersist) {
@@ -802,6 +796,11 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     }
 
     const entityId = this._onPlayerJoin(gameModel, playerId, playerConfig);
+
+    gameModel.runGlobalMods(ComponentCategory.ON_JOIN, {
+      joiningPlayer: entityId,
+      playerId,
+    });
 
     this.generateFrameStack(gameModel, playerId, frame);
     return entityId;
