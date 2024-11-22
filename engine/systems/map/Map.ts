@@ -236,7 +236,7 @@ export class MapSystem extends SystemImpl<GameModel> {
           }
         }
       } else {
-        triggerEventSystem.trigger(triggerEvent, gameModel);
+        triggerEventSystem.trigger(gameModel, triggerEvent);
       }
     }
   }

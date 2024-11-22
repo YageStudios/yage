@@ -48,7 +48,7 @@ export const QuickStart = async <T = null>(
   const initializeInputManager = () => {
     inputManager = new InputManager();
     const keyboardListener = new KeyboardListener(inputManager);
-    keyboardListener.init(["w", "a", "s", "d", "i", "j", "k", "l", "q", "e", "space", "tab"]);
+    keyboardListener.init(["w", "a", "s", "d", "i", "j", "k", "l", "q", "e", "escape", "space", "tab"]);
     unsubscribes.push(() => keyboardListener.destroy());
   };
 

@@ -16,7 +16,7 @@ export class TriggerEventSystem extends SystemImpl<GameModel> {
   static depth: number = -1;
   static category: ComponentCategory = ComponentCategory.MAP;
 
-  trigger(data: TriggerEvent, gameModel: GameModel) {
+  trigger(gameModel: GameModel, data: TriggerEvent) {
     switch (data.event) {
       case "MAPENTITY": {
         let entity: number;
@@ -166,7 +166,7 @@ export class TriggerEventSystem extends SystemImpl<GameModel> {
         y: position.y,
       };
     }
-    const triggered = this.trigger(data, gameModel);
+    const triggered = this.trigger(gameModel, data);
     gameModel.removeComponent(TriggerEvent, entity);
     return triggered;
   };
