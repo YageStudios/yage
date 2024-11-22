@@ -263,6 +263,21 @@ export class EntityFactory {
     return entities;
   };
 
+  findEntityDefinitionsWithComponent = (componentName: string | string[]): EntityDefinition[] => {
+    const entities: EntityDefinition[] = [];
+    if (!Array.isArray(componentName)) {
+      componentName = [componentName];
+    }
+    this.entityDefinitionMap.forEach((entityDefinition, entityName) => {
+      if (
+        (componentName as string[]).every((c) => entityDefinition.components?.some((component) => component.type === c))
+      ) {
+        entities.push(entityDefinition);
+      }
+    });
+    return entities;
+  };
+
   getComponentFromEntity = (entityName: string, componentName: string, clone = false): ComponentData | undefined => {
     const entityDefinition = this.entityDefinitionMap.get(entityName.toLowerCase());
     const component = entityDefinition?.components?.find((c) => c.type === componentName);
