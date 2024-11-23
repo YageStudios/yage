@@ -1,0 +1,46 @@
+{
+  name: "Vampirism",
+  type: "Entity",
+  components: [
+    "Child",
+    {
+      type: "LifestealEnhancer",
+      lifesteal: 2,
+    },
+    {
+      type: "ItemType",
+      imageKey: "shopitem::vampirism",
+      tags: ["Tag::Life Steal"],
+      title: "Vampirism",
+      baseValue: 20,
+      tagline: "Life Steal",
+      description: "+2% Life Steal",
+      content: {
+        tag: "div",
+        children: [
+          {
+            tag: "div",
+            children: [
+              {
+                tag: "span",
+                innerText: "+2% ",
+                style: "color: #00ff00;",
+              },
+              {
+                tag: "span",
+                innerText: "Life Steal",
+              },
+            ],
+          },
+        ],
+      },
+    },
+  ],
+  assets: [
+    {
+      type: "image",
+      key: "shopitem::vampirism",
+      url: "vampirism.png",
+    },
+  ],
+}

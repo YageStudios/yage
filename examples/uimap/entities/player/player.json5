@@ -5,6 +5,7 @@
     "PlayerInput",
     "PlayerMovement",
     "InventoryGrid",
+    "ShopOpen",
     {
       type: "PixiGraphic",
       fillColor: "#ff0000",

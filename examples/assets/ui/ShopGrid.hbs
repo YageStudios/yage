@@ -1,0 +1,17 @@
+<Box width="1024" x="left" xOffset="300" height="1024" y="top" yOffset="100">
+  <Grid items="{{ items }}" width="100%" yOffset="30" height="90%" x="left" y="top" gap="5px">
+    <Box
+      width="230"
+      height="600"
+      style="border-width: 2px; border-style: solid; border-color: magenta"
+      focusStyle="border-color: blue; border-radius: 5px;"
+      focusable="true"
+      onclick="selectItem"
+    >
+      <Image x="center" y="center" height="60%" width="60%" imageKey="{{ data.imageKey }}" />
+      <Text x="center" y="top">
+        {{ name }}
+      </Text>
+    </Box>
+  </Grid>
+</Box>

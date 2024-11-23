@@ -943,54 +943,85 @@ export class UiMapNext {
           });
         }
 
-        for (let i = 0; i < items.length; i++) {
-          const itemData = items[i];
-          const itemContextPath = [...contextPath, itemVariablePath.split(".").pop() || "", i.toString()];
-          const itemContext = { ...this.context, this: itemData, $index: i };
+        const processChildNode = (childNode: ASTNode, itemIndex: number, itemData: any, baseKey: string) => {
+          if (childNode.type === "Element") {
+            // Create a unique key by combining parent key, item index, and child's original key
+            const childKey = `${baseKey}_${itemIndex}_${childNode.key || childNode.tag}`;
 
-          for (let j = 0; j < node.children.length; j++) {
-            const childNode = node.children[j];
-            if (childNode.type === "Element") {
-              const childKey = `${node.key!}_${i}_${childNode.key || j}`;
-              const [existingChildElement] = this.uiElements.get(childKey) ?? [];
-              if (existingChildElement) {
-                // Update existing child element
-                this.updateAttributes(
-                  existingChildElement,
-                  childNode.attributes,
-                  childKey,
-                  itemContext,
-                  itemContextPath
-                );
-              } else {
-                // Create new child element
-                const clonedChildNode = { ...childNode, key: childKey };
-                clonedChildNode.attributes = { ...clonedChildNode.attributes };
-                if (typeof clonedChildNode.attributes.style === "string") {
-                  clonedChildNode.attributes.style = this.generateStyleAttribute(
-                    clonedChildNode.attributes.style,
-                    itemContextPath
-                  );
+            // Deep clone the child node to avoid modifying the original
+            const clonedNode = JSON.parse(JSON.stringify(childNode));
+            clonedNode.key = childKey;
+
+            // Recursively update keys for nested children
+            if (clonedNode.children) {
+              clonedNode.children = clonedNode.children.map((nestedChild: ASTNode, nestedIndex: number) => {
+                if (nestedChild.type === "Element") {
+                  return {
+                    ...nestedChild,
+                    key: `${childKey}_nested_${nestedIndex}_${nestedChild.key || nestedChild.tag}`,
+                  };
                 }
-                clonedChildNode.attributes.style = {
-                  position: "relative",
-                  flex: "0 0 auto",
-                  pointerEvents: "auto",
-                  ...clonedChildNode.attributes.style,
-                };
-                this.renderNode(clonedChildNode, uiElement, itemContextPath);
-              }
-            } else {
-              this.renderNode(childNode, uiElement, itemContextPath);
+                return nestedChild;
+              });
             }
+
+            const itemContextPath = [...contextPath, itemVariablePath.split(".").pop() || "", itemIndex.toString()];
+            const itemContext = { ...this.context, this: itemData, $index: itemIndex };
+
+            const [existingChildElement] = this.uiElements.get(childKey) ?? [];
+            if (existingChildElement) {
+              // Update existing child element
+              this.updateAttributes(
+                existingChildElement,
+                clonedNode.attributes,
+                childKey,
+                itemContext,
+                itemContextPath
+              );
+
+              // Recursively update nested children
+              clonedNode.children?.forEach((nestedChild: ASTNode) => {
+                this.renderNode(nestedChild, existingChildElement, itemContextPath);
+              });
+            } else {
+              // Create new child element with the cloned node
+              if (typeof clonedNode.attributes.style === "string") {
+                clonedNode.attributes.style = this.generateStyleAttribute(clonedNode.attributes.style, itemContextPath);
+              }
+              clonedNode.attributes.style = {
+                position: "relative",
+                flex: "0 0 auto",
+                pointerEvents: "auto",
+                ...clonedNode.attributes.style,
+              };
+              this.renderNode(clonedNode, uiElement, itemContextPath);
+            }
+          } else {
+            this.renderNode(childNode, uiElement, [...contextPath, itemIndex.toString()]);
           }
-        }
+        };
+
+        // Process each item and its children
+        items.forEach((itemData, itemIndex) => {
+          node.children.forEach((childNode) => {
+            processChildNode(childNode, itemIndex, itemData, node.key!);
+          });
+        });
       };
 
       updateChildren(items);
     } else {
-      // Recursively render or update children
-      node.children.forEach((childNode) => this.renderNode(childNode, uiElement, contextPath));
+      // Recursively render or update children for non-grid elements
+      node.children.forEach((childNode) => {
+        if (childNode.type === "Element") {
+          // Update child key to include parent's key
+          const childKey = `${node.key}_child_${childNode.key || childNode.tag}`;
+          const clonedNode = { ...childNode, key: childKey };
+          this.renderNode(clonedNode, uiElement, contextPath);
+        } else {
+          this.renderNode(childNode, uiElement, contextPath);
+        }
+      });
     }
   }
 
