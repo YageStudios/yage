@@ -76,7 +76,7 @@ export class UiMapNext {
     });
 
     // Original regex modified to ignore our placeholder pattern
-    const variableRegex = /\b[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*\b(?!_PLACEHOLDER_)/g;
+    const variableRegex = /\$?\b[a-zA-Z_\$][a-zA-Z0-9_\$]*(?:\.[a-zA-Z_\$][a-zA-Z0-9_\$]*)*\b(?!_PLACEHOLDER_)/g;
 
     const excludedKeywords = new Set([
       // JavaScript reserved words and built-in objects/functions
@@ -177,10 +177,10 @@ export class UiMapNext {
   private cachedExpressions: Map<string, any> = new Map();
 
   private evaluateExpression(expression: string, context: any, contextPath: string[]): any {
+    let transformedExpression = expression;
+
     try {
       const variables = this.extractVariablesFromExpression(expression);
-
-      let transformedExpression = expression;
 
       const cacheKey = expression + "|" + contextPath.join(".");
 
@@ -189,6 +189,10 @@ export class UiMapNext {
       } else {
         variables.forEach((variableName) => {
           let fullPath = this.resolveFullPath(variableName, contextPath);
+          if (variableName.startsWith("$root")) {
+            fullPath = variableName;
+          }
+
           fullPath = fullPath.replace(/\.(\d+)(\.|$)/g, "[$1]$2");
 
           const variablePath = "context" + (fullPath ? "." + fullPath : "");
@@ -204,9 +208,9 @@ export class UiMapNext {
         this.cachedExpressions.set(cacheKey, transformedExpression);
       }
 
-      const func = new Function("context", "return " + transformedExpression + ";");
+      const func = new Function("$root", "context", "return " + transformedExpression + ";");
 
-      return func(context);
+      return func(this.context, context);
     } catch (e) {
       console.error("Error evaluating expression:", expression, e);
       return undefined;
@@ -224,7 +228,9 @@ export class UiMapNext {
   }
 
   private resolveFullPath(variableName: string, contextPath: string[]): string {
-    if (variableName.startsWith("this.")) {
+    if (variableName.startsWith("$root.")) {
+      return variableName.substring(6);
+    } else if (variableName.startsWith("this.")) {
       return [...contextPath, variableName.replace(/^this\./, "")].filter(Boolean).join(".");
     } else if (variableName === "this") {
       return contextPath.join(".");
