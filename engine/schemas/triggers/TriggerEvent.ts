@@ -29,6 +29,7 @@ export class TriggerEvent extends Schema {
     | "TELEPORT"
     | "MOVE"
     | "GIVE"
+    | "UPDATECOMPONENT"
     | "SWAPONCOMPONENTS"
     | "SWAPOFFCOMPONENTS"
     | "CAMERABOUNDARY";

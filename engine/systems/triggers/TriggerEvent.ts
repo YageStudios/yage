@@ -112,6 +112,17 @@ export class TriggerEventSystem extends SystemImpl<GameModel> {
         }
         break;
       }
+      case "UPDATECOMPONENT": {
+        data.triggerEntities.forEach((entity) => {
+          if (gameModel.hasComponent(data.name, entity)) {
+            const component = gameModel.getComponent(data.name, entity);
+            for (const key in data.overrideProperties) {
+              component[key] = data.overrideProperties[key];
+            }
+          }
+        });
+        break;
+      }
       case "GIVE": {
         data.triggerEntities.forEach((entity) => {
           if (!gameModel.hasComponent(data.name, entity)) {
