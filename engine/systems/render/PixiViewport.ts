@@ -68,6 +68,9 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
 
   init = (gameModel: ReadOnlyGameModel, entity: number) => {
     const schema = gameModel.getTypedUnsafe(PixiViewport, entity);
+    if (!gameModel.hasComponent(PixiViewportCleanup, entity)) {
+      gameModel.addComponent(PixiViewportCleanup, entity);
+    }
     this.roomId = gameModel.roomId;
     this.fillScreen = schema.fillScreen;
     this.minWidth = schema.minWidth;

@@ -84,7 +84,7 @@ export class AttachSystem extends SystemImpl<GameModel> {
 @System(Attach, AttachPost)
 export class AttachPostSystem extends SystemImpl<GameModel> {
   static category: ComponentCategory = ComponentCategory.BEHAVIOR;
-  static depth = DEPTHS.PREDRAW - 10;
+  static depth = DEPTHS.ATTACH_POST;
 
   run = (gameModel: GameModel, entity: number) => {
     const AttachData = gameModel.getTypedUnsafe(Attach, entity);
@@ -94,8 +94,8 @@ export class AttachPostSystem extends SystemImpl<GameModel> {
         AttachData.parent = null;
         return;
       }
-      if (!gameModel.hasComponent("Attached", AttachData.parent)) {
-        gameModel.addComponent("Attached", AttachData.parent, {
+      if (!gameModel.hasComponent(Attached, AttachData.parent)) {
+        gameModel.addComponent(Attached, AttachData.parent, {
           children: [entity],
         });
       } else {
@@ -116,6 +116,16 @@ export class AttachPostSystem extends SystemImpl<GameModel> {
         if (AttachData.offset) {
           transform.x += AttachData.offset.x;
           transform.y += AttachData.offset.y;
+        }
+
+        if (gameModel.hasComponent(Attached, entity)) {
+          const children = gameModel.getTypedUnsafe(Attached, entity).children || [];
+          for (let i = 0; i < children.length; i++) {
+            const child = children[i];
+            if (gameModel.hasComponent(AttachPost, child)) {
+              this.run(gameModel, child);
+            }
+          }
         }
       }
     }
