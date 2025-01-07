@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import type { PhysicsSaveState } from "yage/systems/physics/Physics";
-import { GameModel } from "yage/game/GameModel";
+import { GameModel, GameModelState } from "yage/game/GameModel";
 import type { KeyMap } from "yage/inputs/InputManager";
 import { InputManager } from "yage/inputs/InputManager";
 import type {
@@ -492,18 +492,14 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
             }
             // timestamp: number
           ) => {
+            if (playerId === this.player.netId) {
+              return;
+            }
             this.subscribeFrame(roomId);
             const roomState = this.roomStates[roomId];
 
             this.player.currentRoomId = roomId;
-            const state: {
-              core: number;
-              timeElapsed: number;
-              frame: number;
-              frameDt: number;
-              entities: any;
-              physics: PhysicsSaveState;
-            } = JSON.parse(stateJson);
+            const state: GameModelState = JSON.parse(stateJson);
 
             if (!this.listening) {
               this.touchListener?.replaceRegions(this.options.touchRegions ?? []);
@@ -552,7 +548,16 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
                 inputManager: gameInstance.options.connection.inputManager,
                 playerEventManager: this.playerEventManager,
               }); // GameModel(GameCoordinator.GetInstance(), gameInstance, seed, coreOverrides);
+              roomState.gameModel.deserializeState(state);
             }
+            this.history[roomState.gameModel.roomId] = {
+              frames: {},
+              seed: roomState.gameModel.seed,
+              startTimestamp: Date.now(),
+              stateHashes: {},
+              snapshots: {},
+              configs: {},
+            };
             if (roomState.gameModel) {
               // roomState.gameModel?.loadStateObject(state);
               roomState.gameModel.localNetIds = [this.player.netId];
