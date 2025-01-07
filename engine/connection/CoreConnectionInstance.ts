@@ -25,7 +25,6 @@ import { SystemImpl } from "minecs";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export type CoreConnectionInstanceOptions<T> = {
-  solohost?: boolean;
   touchRegions?: TouchRegion[];
   roomTimeout?: number;
   roomPersist?: boolean | number;
@@ -39,6 +38,14 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   sendingState = false;
   leavingPlayers: [string, number][] = [];
 
+  roomSyncResolve: () => void = () => {};
+  roomSyncPromise: Promise<void> = new Promise((resolve) => {
+    this.roomSyncResolve = () => {
+      this.player.roomsSynced = true;
+      resolve();
+    };
+  });
+
   inRoom: string = "";
 
   nickname: string = "";
@@ -48,8 +55,8 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
 
   address: string = "";
 
-  subscriptions: { [event: string]: ((...args: any[]) => void)[] } = {};
-  onceSubscriptions: { [event: string]: ((...args: any[]) => void)[] } = {};
+  subscriptions: { [event: string]: ((playerId: string, ...args: any[]) => void)[] } = {};
+  onceSubscriptions: { [event: string]: ((playerId: string, ...args: any[]) => void)[] } = {};
 
   messageListeners: ((message: string, time: number, playerId: string) => void)[] = [];
   connectListeners: ((player: PlayerConnect<T>) => void)[] = [];
@@ -75,7 +82,6 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   }
 
   roomSubs: { [roomId: string]: (() => void)[] } = {};
-  solohost: boolean;
 
   playerEventManager: PlayerEventManager = new PlayerEventManager();
 
@@ -87,9 +93,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     public inputManager: InputManager,
     protected options: CoreConnectionInstanceOptions<T>
   ) {
-    options.solohost = options.solohost ?? false;
     options.roomPersist = options.roomPersist ?? false;
-    this.solohost = options.solohost ?? false;
     if (options.touchRegions) {
       this.touchListener = new TouchListener(this.inputManager);
     }
@@ -103,16 +107,17 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
         connected: false,
         connectionTime: 0,
         currentRoomId: null,
+        roomsSynced: false,
         hostedRooms: [],
       };
       this.localPlayers.push(playerConnection);
       this.players.push(playerConnection);
     }
 
-    this.on("message", (message: string, time: number, playerId: string) => {
+    this.on("message", (playerId: string, message: string, time: number) => {
       this.messageListeners.forEach((listener) => listener(message, time, playerId));
     });
-    this.on("updateRoom", (room: Room) => {
+    this.on("updateRoom", (playerId, room: Room) => {
       if (room.players.length === 0) {
         delete this.rooms[room.roomId];
         delete this.roomStates[room.roomId];
@@ -122,13 +127,15 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
         this.rooms[room.roomId] = room;
       }
     });
-    this.on("rooms", (rooms: { [roomId: string]: Room }) => {
-      this.rooms = rooms;
+    this.on("rooms", (playerId, rooms: { [roomId: string]: Room }) => {
+      if (playerId !== this.player.netId) {
+        this.rooms = rooms;
+        this.roomSyncResolve();
+      }
     });
-    this.on("connect", (player: PlayerConnect<T>) => {
+    this.on("connect", (playerId, player: PlayerConnect<T>) => {
       this.connectListeners.forEach((listener) => listener(player));
-
-      if (Object.keys(this.rooms).length) {
+      if (player.netId !== this.player.netId && this.player.roomsSynced) {
         this.emit("rooms", this.rooms);
       }
     });
@@ -226,18 +233,19 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
         this.leavingPlayers[leavingIndex][1] = lastFrame;
       } else if (leavingIndex === -1) {
         this.leavingPlayers.push([playerId, lastFrame]);
-        this.emit("userDisconnect", playerId, lastFrame);
+        this.emit("userDisconnect", lastFrame);
       }
     });
 
-    this.on("updatePlayerConnect", (player: PlayerConnection<T>) => {
+    this.on("updatePlayerConnect", (playerId: string, player: PlayerConnection<T>) => {
       console.log("updatePlayerConnect", "CONNECT CHANGE", this.connectListeners.length);
       this.players = this.players.map((p) => (p.netId === player.netId ? player : p));
       this.connectListeners.forEach((listener) => listener(player));
     });
   }
 
-  roomHasPlayers(roomId: string): boolean {
+  async roomHasPlayers(roomId: string): Promise<boolean> {
+    await this.roomSyncPromise;
     return !!this.rooms[roomId]?.players.length;
   }
 
@@ -292,7 +300,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
 
   sendMessage(message: string, includeSelf = true, playerIndex = 0): void {
     const playerId = this.localPlayers[playerIndex].netId;
-    this.emit("message", message, +new Date(), playerId);
+    this.emit("message", message, +new Date());
     if (includeSelf) {
       this.messageListeners.forEach((listener) => listener(message, +new Date(), playerId));
     }
@@ -374,7 +382,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     }
   }
 
-  on(event: string, callback: (...args: any[]) => void) {
+  on(event: string, callback: (playerId: string, ...args: any[]) => void) {
     if (!this.subscriptions[event]) {
       this.subscriptions[event] = [];
     }
@@ -384,7 +392,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     };
   }
 
-  once(event: string, callback: (...args: any[]) => void) {
+  once(event: string, callback: (playerId: string, ...args: any[]) => void) {
     if (!this.onceSubscriptions[event]) {
       this.onceSubscriptions[event] = [];
     }
@@ -407,7 +415,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     this.roomSubs[roomId].push(
       this.on(
         "frame",
-        (frame: { keys: { [key: string]: boolean }; events: string[]; frame: number; playerId: string }) => {
+        (playerId, frame: { keys: { [key: string]: boolean }; events: string[]; frame: number; playerId: string }) => {
           const obj = this.inputManager.toKeyMap(frame.keys);
           if (!room.frameStack[frame.playerId]) {
             room.frameStack[frame.playerId] = [];
@@ -455,7 +463,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
         console.log("Room not found, waiting for room");
         return new Promise<void>((resolve, reject) => {
           const rejected = false;
-          this.once("updateRoom", (room: Room) => {
+          this.once("updateRoom", (playerId, room: Room) => {
             if (room.roomId === roomId && !rejected) {
               resolve();
             }
@@ -477,6 +485,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
         this.on(
           "state",
           (
+            playerId,
             stateJson: string,
             frameStack: {
               [playerId: number]: { keys: any; frame: number; events: string[] }[];
@@ -555,8 +564,8 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
           }
         )
       );
-      this.emit("requestState", this.player.netId, roomId, JSON.stringify(playerConfig));
-      this.emit("joinRoom", this.player.netId, roomId);
+      this.emit("requestState", roomId, JSON.stringify(playerConfig));
+      this.emit("joinRoom", roomId);
     });
   }
 
@@ -597,7 +606,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       rebalanceOnLeave?: boolean | undefined;
     }
   ): Promise<GameModel> {
-    if (!this.localPlayers.every((player) => player.connected) && !this.options.solohost) {
+    if (!this.localPlayers.every((player) => player.connected)) {
       await this.connect();
     }
     this.cleanup();
@@ -721,7 +730,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       playerConfig?: Partial<T>;
     }
   ): Promise<GameModel> {
-    if (!this.localPlayers.every((player) => player.connected) && !this.options.solohost) {
+    if (!this.localPlayers.every((player) => player.connected)) {
       await this.connect();
     }
     this.cleanup();

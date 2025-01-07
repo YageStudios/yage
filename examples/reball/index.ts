@@ -54,12 +54,23 @@ if (flags.HISTORY_RERUN) {
     createControls(replayInstance);
   })();
 } else {
-  QuickStart({
-    gameName: "Reball",
-    roomId: "QuickStart",
-    seed: "QuickStart",
-    connection: flags.HISTORY_RERUN ? "REPLAY" : "SINGLEPLAYER",
-    onPlayerJoin: playerJoin,
-    preload: preload,
-  });
+  if (flags.HISTORY_RERUN) {
+    QuickStart({
+      gameName: "Reball",
+      roomId: "QuickStart",
+      seed: "QuickStart",
+      connection: "REPLAY",
+      onPlayerJoin: playerJoin,
+      preload: preload,
+    });
+  } else {
+    QuickStart({
+      gameName: "Reball",
+      roomId: "QuickStart",
+      seed: "QuickStart",
+      connection: "SINGLEPLAYER",
+      onPlayerJoin: playerJoin,
+      preload: preload,
+    });
+  }
 }

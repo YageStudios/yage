@@ -15,7 +15,7 @@ QuickStart({
   gameName: "Reball",
   roomId: "QuickStart",
   seed: "QuickStart",
-  connection: flags.HISTORY_RERUN ? "REPLAY" : "SINGLEPLAYER",
+  connection: "SINGLEPLAYER",
   onPlayerJoin: (gameModel: GameModel, playerId: string) => {
     const player = EntityFactory.getInstance().generateEntity(gameModel, "ball");
 

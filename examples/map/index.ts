@@ -16,6 +16,7 @@ import { MapSpawn } from "yage/schemas/map/MapSpawn";
       gameName: "MapTest",
       roomId: "QuickStart",
       seed: "QuickStart",
+      connection: "SINGLEPLAYER",
       onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: any) => {
         console.log("PLAYER JOINING", playerConfig);
         let player: number;

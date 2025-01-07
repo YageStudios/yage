@@ -110,7 +110,6 @@ export class BallLobbyScene extends Scene {
       //   },
       //   inputManager,
       //   {
-      //     solohost: true,
       //     prefix: "group-chat-",
       //     address: lobbyId,
       //     // host: "sock.yage.games",

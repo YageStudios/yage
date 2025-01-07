@@ -48,10 +48,7 @@ export class GameInstance<T> {
     seed?: string,
     { players, coreOverrides }: { players?: string[]; coreOverrides?: { [key: string]: any } } = {}
   ) {
-    if (
-      !this.options.connection.localPlayers.every(({ connected }) => connected) &&
-      !this.options.connection.solohost
-    ) {
+    if (!this.options.connection.player.connected) {
       throw new Error("Player not connected");
     }
     players = players ?? this.options.connection.players.map((p) => p.netId);
@@ -62,7 +59,7 @@ export class GameInstance<T> {
       }
     }
 
-    if (this.options.connection.roomHasPlayers(roomId)) {
+    if (await this.options.connection.roomHasPlayers(roomId)) {
       this.join(roomId, seed);
     } else {
       await this.options.connection.initialize(roomId, {

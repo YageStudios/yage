@@ -13,6 +13,7 @@ export type PlayerConnection<T> = {
   connected: boolean;
   connectionTime: number;
   currentRoomId: string | null;
+  roomsSynced: boolean;
   hostedRooms: string[];
   inputType?: InputEventType;
   inputIndex?: number;
@@ -26,6 +27,10 @@ export type PlayerConnect<T> = {
   inputType?: InputEventType;
   inputIndex?: number;
   config?: T;
+};
+
+export const isPlayerConnect = <T>(player: any): player is PlayerConnect<T> => {
+  return (player as PlayerConnect<T>)?.config !== undefined && player?.netId !== undefined;
 };
 
 export type Frame = { keys: KeyMap | { [key: string]: boolean }; frame: number; events: string[]; playerId: string };
@@ -65,7 +70,6 @@ export abstract class ConnectionInstance<T> {
   abstract playerEventManager: PlayerEventManager;
   abstract inputManager: InputManager;
   abstract touchListener?: TouchListener;
-  abstract solohost: boolean;
   abstract roomStates: { [roomId: string]: RoomState };
   abstract rooms: { [roomId: string]: Room };
 
@@ -79,7 +83,7 @@ export abstract class ConnectionInstance<T> {
   abstract connect(): Promise<void>;
   abstract leaveRoom(roomId: string, localPlayerIndex?: number): void;
 
-  abstract roomHasPlayers(roomId: string): boolean;
+  abstract roomHasPlayers(roomId: string): Promise<boolean>;
 
   abstract firstFrame(gameModel: GameModel, firstPlayerConfig: any): void | Promise<void>;
 

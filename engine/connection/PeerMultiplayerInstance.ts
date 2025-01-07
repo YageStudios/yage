@@ -8,7 +8,7 @@ import { CoreConnectionInstance } from "./CoreConnectionInstance";
 
 const nanoid = customAlphabet("234579ACDEFGHJKMNPQRTWXYZ", 10);
 
-type PeerMultiplayerInstanceOptions<T> = CoreConnectionInstanceOptions<T> & {
+export type PeerMultiplayerInstanceOptions<T> = CoreConnectionInstanceOptions<T> & {
   prefix: string;
   address?: string;
   host?: string;
@@ -25,9 +25,9 @@ export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
   constructor(
     player: PlayerConnect<T>,
     inputManager: InputManager,
-    { solohost, prefix, host, address = nanoid() }: PeerMultiplayerInstanceOptions<T>
+    { prefix, host, address = nanoid(), ...coreOptions }: PeerMultiplayerInstanceOptions<T>
   ) {
-    super(player, inputManager, { solohost });
+    super(player, inputManager, coreOptions);
     this.prefix = prefix;
     this.address = address;
 
@@ -37,13 +37,15 @@ export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
     this.handshake(address, host);
   }
 
-  async handshake(address: string, hostAddress?: string) {
+  async handshake(address: string, hostUrl?: string) {
     this.selfAddress = address;
 
-    if (hostAddress) {
-      const host = hostAddress.split(":")[0];
-      const port = parseInt((hostAddress.split(":")[1] || "443").split("/")[0]);
-      const path = hostAddress.split("/")[1] || "/";
+    console.error("handshake", address, hostUrl);
+
+    if (hostUrl) {
+      const host = hostUrl.split(":")[0];
+      const port = parseInt((hostUrl.split(":")[1] || "443").split("/")[0]);
+      const path = hostUrl.split("/")[1] || "/";
 
       this.peer = new Peer(address, {
         host,
@@ -74,7 +76,7 @@ export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
     this.peer.on("error", (err) => {
       console.log("peer error", err.message);
       this.peer.destroy();
-      this.handshake(this.prefix + nanoid(), hostAddress).then(() => {
+      this.handshake(this.prefix + nanoid(), hostUrl).then(() => {
         self_resolve();
       });
     });
@@ -87,23 +89,23 @@ export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
       // @ts-ignore
       if (window.simulatedDelay) {
         setTimeout(() => {
-          conn.send([event, ...args]);
+          conn.send([this.player.netId, event, ...args]);
           // @ts-ignore
         }, window.simulatedDelay);
       } else {
-        conn.send([event, ...args]);
+        conn.send([this.player.netId, event, ...args]);
       }
     });
     if (event !== "message") {
-      this.handleData([event, ...args]);
+      this.handleData([this.player.netId, event, ...args]);
     }
   }
 
   handleData = (data: any) => {
-    const [event, ...args] = data as [string, ...any[]];
+    const [playerId, event, ...args] = data as [string, string, ...any[]];
 
     if (event !== "frame") {
-      console.log(event, args);
+      console.info("received", event, args);
     }
 
     if (event === "peer") {
@@ -115,23 +117,23 @@ export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
       }
       if (!this.players.find((p) => p.netId === player.netId)) {
         this.players.push(player);
-        this.handleData(["connect", player]);
+        this.handleData([playerId, "connect", player]);
       } else if (player.netId !== this.player.netId) {
         this.players = this.players.map((p) => (p.netId === player.netId ? player : p));
-        this.handleData(["reconnect", player]);
+        this.handleData([playerId, "reconnect", player]);
       }
       return;
     }
 
     if (this.onceSubscriptions[event]) {
       this.onceSubscriptions[event].forEach((callback) => {
-        callback(...args);
+        callback(playerId, ...args);
       });
       this.onceSubscriptions[event] = [];
     }
     if (this.subscriptions[event]) {
       this.subscriptions[event].forEach((callback) => {
-        callback(...args);
+        callback(playerId, ...args);
       });
     }
   };
@@ -188,6 +190,8 @@ export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
     }
     await this.connectionPromise;
     if (this.selfAddress === address) {
+      this.player.connected = true;
+      this.roomSyncResolve();
       return;
     }
     const conn = this.peer.connect(address);

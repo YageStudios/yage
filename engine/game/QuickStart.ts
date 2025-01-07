@@ -1,4 +1,4 @@
-import type { ConnectionInstance } from "../connection/ConnectionInstance";
+import { isPlayerConnect, type ConnectionInstance, type PlayerConnect } from "../connection/ConnectionInstance";
 import { SingleplayerConnectionInstance } from "../connection/SingleplayerConnectionInstance";
 import { GameInstance } from "./GameInstance";
 import type { GameModel } from "./GameModel";
@@ -8,8 +8,34 @@ import AssetLoader from "../loader/AssetLoader";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import { UIService } from "../ui/UIService";
 import { HistoryConnectionInstance } from "yage/connection/HistoryConnectionInstance";
+import { PeerMultiplayerInstance, PeerMultiplayerInstanceOptions } from "yage/connection/PeerMultiplayerInstance";
 
-export const QuickStart = async <T = null>(
+type QuickStartOptions<T> = {
+  gameName: string;
+  connection?: "MULTIPLAYER" | "PEER" | "SINGLEPLAYER" | "COOP" | "REPLAY" | ConnectionInstance<T>;
+  buildWorld?: (gameModel: GameModel, firstPlayerConfig: T) => void;
+  onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: T) => number;
+  onPlayerLeave?: (gameModel: GameModel, playerId: string) => void;
+  dt?: number;
+  roomId?: string;
+  seed?: string;
+  preload: (uiService: UIService) => Promise<void>;
+};
+
+export async function QuickStart<T = null>(
+  options: QuickStartOptions<T> & { connection: "PEER" },
+  playerConfig: PlayerConnect<T>,
+  multiplayerConfig: PeerMultiplayerInstanceOptions<T>
+): Promise<GameInstance<T>>;
+export async function QuickStart<T = null>(
+  options: QuickStartOptions<T> & { connection: "SINGLEPLAYER" },
+  playerConfig?: T
+): Promise<GameInstance<T>>;
+export async function QuickStart<T = null>(
+  options: QuickStartOptions<T> & { connection: "REPLAY" },
+  playerConfig?: T
+): Promise<GameInstance<T>>;
+export async function QuickStart<T = null>(
   {
     roomId = "QuickStart",
     seed = "QuickStart",
@@ -29,19 +55,10 @@ export const QuickStart = async <T = null>(
     preload = async () => {
       await AssetLoader.getInstance().load();
     },
-  }: {
-    gameName: string;
-    connection?: "MULTIPLAYER" | "SINGLEPLAYER" | "COOP" | "REPLAY" | ConnectionInstance<T>;
-    buildWorld?: (gameModel: GameModel, firstPlayerConfig: T) => void;
-    onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: T) => number;
-    onPlayerLeave?: (gameModel: GameModel, playerId: string) => void;
-    dt?: number;
-    roomId?: string;
-    seed?: string;
-    preload: (uiService: UIService) => Promise<void>;
-  },
-  playerConfig?: T
-) => {
+  }: QuickStartOptions<T>,
+  playerConfig?: T | PlayerConnect<T>,
+  multiplayerConfig?: PeerMultiplayerInstanceOptions<T>
+) {
   let inputManager: InputManager;
   const unsubscribes: (() => void)[] = [];
 
@@ -53,8 +70,8 @@ export const QuickStart = async <T = null>(
   };
 
   const initializeConnection = (
-    connection: "MULTIPLAYER" | "SINGLEPLAYER" | "COOP" | "REPLAY" | ConnectionInstance<T>,
-    playerConfig?: T
+    connection: "MULTIPLAYER" | "PEER" | "SINGLEPLAYER" | "COOP" | "REPLAY" | ConnectionInstance<T>,
+    playerConfig?: T | PlayerConnect<T>
   ): ConnectionInstance<T> => {
     if (typeof connection !== "string") {
       return connection;
@@ -63,7 +80,19 @@ export const QuickStart = async <T = null>(
       return new HistoryConnectionInstance<T>(JSON.parse(localStorage.getItem("history") ?? "{}"));
     }
     if (connection === "SINGLEPLAYER") {
-      return new SingleplayerConnectionInstance<T>(inputManager, playerConfig);
+      return new SingleplayerConnectionInstance<T>(
+        inputManager,
+        isPlayerConnect<T>(playerConfig) ? playerConfig.config : playerConfig
+      );
+    }
+    if (connection === "PEER") {
+      if (!isPlayerConnect<T>(playerConfig)) {
+        throw new Error("Player connect is required for multiplayer");
+      }
+      if (!multiplayerConfig) {
+        throw new Error("Multiplayer config is required for multiplayer");
+      }
+      return new PeerMultiplayerInstance<T>(playerConfig, inputManager, multiplayerConfig);
     }
     throw new Error("Connection type not supported");
   };
@@ -85,8 +114,9 @@ export const QuickStart = async <T = null>(
   if (typeof connection === "string") {
     connection = initializeConnection(connection, playerConfig);
   }
+  await connection.connect();
   const instance: GameInstance<T> = initializeGameInstance(connection);
   instance.initializeRoom(roomId, seed);
 
   return instance;
-};
+}
