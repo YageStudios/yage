@@ -14,6 +14,12 @@ export type PeerMultiplayerInstanceOptions<T> = CoreConnectionInstanceOptions<T>
   host?: string;
 };
 
+export const isPeerMultiplayerInstanceOptions = <T>(
+  options?: CoreConnectionInstanceOptions<T>
+): options is PeerMultiplayerInstanceOptions<T> => {
+  return (options as PeerMultiplayerInstanceOptions<T>)?.prefix !== undefined;
+};
+
 export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
   peer: Peer;
 
@@ -152,7 +158,7 @@ export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
           this.player.connectionId = this.peer.id;
 
           this.emit("peer", this.peer.id, this.player);
-          this.handleData(["connect", this.player]);
+          this.handleData([this.player.netId, "connect", this.player]);
         } else {
           this.players.forEach((player) => {
             this.emit("peer", player.connectionId, player);
@@ -165,7 +171,7 @@ export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
       const player = this.players.find((p) => p.connectionId === conn.peer);
       if (player) {
         this.players = this.players.filter((p) => p.connectionId !== conn.peer);
-        this.handleData(["userDisconnect", player.netId]);
+        this.handleData([this.player.netId, "userDisconnect", player.netId]);
         if (this.players.length === 1) {
           this.player.connected = false;
           this.player.connectionTime = 0;

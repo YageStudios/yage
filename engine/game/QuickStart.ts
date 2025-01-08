@@ -8,11 +8,20 @@ import AssetLoader from "../loader/AssetLoader";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import { UIService } from "../ui/UIService";
 import { HistoryConnectionInstance } from "yage/connection/HistoryConnectionInstance";
-import { PeerMultiplayerInstance, PeerMultiplayerInstanceOptions } from "yage/connection/PeerMultiplayerInstance";
+import {
+  isPeerMultiplayerInstanceOptions,
+  PeerMultiplayerInstance,
+  PeerMultiplayerInstanceOptions,
+} from "yage/connection/PeerMultiplayerInstance";
+import {
+  isSocketIoMultiplayerInstanceOptions,
+  SocketIoMultiplayerInstance,
+  SocketIoMultiplayerInstanceOptions,
+} from "yage/connection/SocketIoMultiplayerInstance";
 
 type QuickStartOptions<T> = {
   gameName: string;
-  connection?: "MULTIPLAYER" | "PEER" | "SINGLEPLAYER" | "COOP" | "REPLAY" | ConnectionInstance<T>;
+  connection?: "SOCKET" | "PEER" | "SINGLEPLAYER" | "COOP" | "REPLAY" | ConnectionInstance<T>;
   buildWorld?: (gameModel: GameModel, firstPlayerConfig: T) => void;
   onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: T) => number;
   onPlayerLeave?: (gameModel: GameModel, playerId: string) => void;
@@ -26,6 +35,11 @@ export async function QuickStart<T = null>(
   options: QuickStartOptions<T> & { connection: "PEER" },
   playerConfig: PlayerConnect<T>,
   multiplayerConfig: PeerMultiplayerInstanceOptions<T>
+): Promise<GameInstance<T>>;
+export async function QuickStart<T = null>(
+  options: QuickStartOptions<T> & { connection: "SOCKET" },
+  playerConfig: PlayerConnect<T>,
+  multiplayerConfig: SocketIoMultiplayerInstanceOptions<T>
 ): Promise<GameInstance<T>>;
 export async function QuickStart<T = null>(
   options: QuickStartOptions<T> & { connection: "SINGLEPLAYER" },
@@ -57,7 +71,7 @@ export async function QuickStart<T = null>(
     },
   }: QuickStartOptions<T>,
   playerConfig?: T | PlayerConnect<T>,
-  multiplayerConfig?: PeerMultiplayerInstanceOptions<T>
+  multiplayerConfig?: PeerMultiplayerInstanceOptions<T> | SocketIoMultiplayerInstanceOptions<T>
 ) {
   let inputManager: InputManager;
   const unsubscribes: (() => void)[] = [];
@@ -70,7 +84,7 @@ export async function QuickStart<T = null>(
   };
 
   const initializeConnection = (
-    connection: "MULTIPLAYER" | "PEER" | "SINGLEPLAYER" | "COOP" | "REPLAY" | ConnectionInstance<T>,
+    connection: "SOCKET" | "PEER" | "SINGLEPLAYER" | "COOP" | "REPLAY" | ConnectionInstance<T>,
     playerConfig?: T | PlayerConnect<T>
   ): ConnectionInstance<T> => {
     if (typeof connection !== "string") {
@@ -89,10 +103,19 @@ export async function QuickStart<T = null>(
       if (!isPlayerConnect<T>(playerConfig)) {
         throw new Error("Player connect is required for multiplayer");
       }
-      if (!multiplayerConfig) {
+      if (!isPeerMultiplayerInstanceOptions(multiplayerConfig)) {
         throw new Error("Multiplayer config is required for multiplayer");
       }
       return new PeerMultiplayerInstance<T>(playerConfig, inputManager, multiplayerConfig);
+    }
+    if (connection === "SOCKET") {
+      if (!isPlayerConnect<T>(playerConfig)) {
+        throw new Error("Player connect is required for multiplayer");
+      }
+      if (!isSocketIoMultiplayerInstanceOptions(multiplayerConfig)) {
+        throw new Error("Multiplayer config is required for multiplayer");
+      }
+      return new SocketIoMultiplayerInstance<T>(playerConfig, inputManager, multiplayerConfig);
     }
     throw new Error("Connection type not supported");
   };

@@ -3,7 +3,8 @@ const games = [
   ["ball", () => import("./ball")],
   ["reba", () => import("./reball")],
   ["ui", () => import("./uimap")],
-  ["multi", () => import("./peer")],
+  ["peer", () => import("./peer")],
+  ["socket", () => import("./socket")],
 ] as const;
 
 let found = false;

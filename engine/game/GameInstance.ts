@@ -55,7 +55,11 @@ export class GameInstance<T> {
     for (let i = 0; i < players.length; ++i) {
       const playerConnection = this.options.connection.localPlayers.find((p) => p.netId === players[i]);
       if (playerConnection && playerConnection.currentRoomId && playerConnection.currentRoomId !== roomId) {
-        this.options.connection.leaveRoom(playerConnection.currentRoomId, i);
+        this.options.connection.leaveRoom(
+          playerConnection.currentRoomId,
+          this.options.connection.roomStates[roomId].gameModel.frame,
+          i
+        );
       }
     }
 
@@ -89,7 +93,10 @@ export class GameInstance<T> {
     }
     // TODO: this needs to handle multiple local players
     if (this.options.connection.player.currentRoomId) {
-      this.options.connection.leaveRoom(this.options.connection.player.currentRoomId);
+      this.options.connection.leaveRoom(
+        this.options.connection.player.currentRoomId,
+        this.options.connection.roomStates[roomId].gameModel.frame
+      );
     }
 
     await this.options.connection.join(roomId, {

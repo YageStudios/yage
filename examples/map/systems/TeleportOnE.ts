@@ -41,8 +41,8 @@ export class TeleportOnESystem extends SystemImpl<GameModel> {
       // let mapInstance:
       const currentRoomId = gameInstance.options.connection.player.currentRoomId!;
 
+      gameInstance.options.connection.leaveRoom(currentRoomId!, gameModel.frame);
       (async () => {
-        gameInstance.options.connection.leaveRoom(currentRoomId!);
         const player = gameInstance.options.connection.localPlayers.find((p) => p.netId === netData.pid);
         gameInstance.options.connection.updatePlayerConnect({
           name: player?.netId,

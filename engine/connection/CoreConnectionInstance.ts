@@ -36,7 +36,8 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   stateRequested: null | [string, any][] = null;
   frameOffset = 8;
   sendingState = false;
-  leavingPlayers: [string, number][] = [];
+  disconnectingPlayers: [string, number][] = [];
+  leavingPlayers: { [roomId: string]: [string, number][] } = {};
 
   roomSyncResolve: () => void = () => {};
   roomSyncPromise: Promise<void> = new Promise((resolve) => {
@@ -139,7 +140,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
         this.emit("rooms", this.rooms);
       }
     });
-    this.on("leaveRoom", (playerId: string, roomId: string) => {
+    this.on("leaveRoom", (playerId: string, roomId: string, lastFrame: number) => {
       this.rooms[roomId] = {
         ...this.rooms[roomId],
         players: this.rooms[roomId].players.filter((player) => player !== playerId),
@@ -148,20 +149,10 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       if (localId !== -1) {
         this.roomStates[roomId]?.gameModel.localNetIds.splice(localId, 1);
       }
-      if (this.rooms[roomId].players.length === 0) {
-        const gameModel = this.roomStates[roomId]?.gameModel;
-        const onLeaveComponents = this.roomStates[roomId]?.gameModel.getComponentsByCategory(
-          ComponentCategory.ON_LEAVE
-        );
-        if (onLeaveComponents.length) {
-          const leavingPlayer =
-            gameModel.players.find((player) => gameModel.getTypedUnsafe(PlayerInput, player).pid === playerId) ?? -1;
+      this.leavingPlayers[roomId] = this.leavingPlayers[roomId] ?? [];
+      this.leavingPlayers[roomId].push([playerId, lastFrame]);
 
-          gameModel.runGlobalMods(ComponentCategory.ON_LEAVE, {
-            leavingPlayer,
-            playerId,
-          });
-        }
+      if (this.rooms[roomId].players.length === 0) {
         if (!this.options.roomPersist) {
           this.roomStates[roomId]?.gameModel.destroy();
           delete this.rooms[roomId];
@@ -206,7 +197,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       if (!lastFrame) {
         const room = this.rooms[currentRoomId];
         if (room) {
-          this.emit("leaveRoom", playerId, currentRoomId);
+          this.emit("leaveRoom", playerId, currentRoomId, lastFrame);
         }
       }
       const frameStack = this.roomStates[currentRoomId].frameStack[playerId];
@@ -228,11 +219,11 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
         });
       }
 
-      const leavingIndex = this.leavingPlayers.findIndex(([playerId]) => playerId === playerId);
-      if (leavingIndex !== -1 && this.leavingPlayers[leavingIndex][1] < lastFrame) {
-        this.leavingPlayers[leavingIndex][1] = lastFrame;
+      const leavingIndex = this.disconnectingPlayers.findIndex(([playerId]) => playerId === playerId);
+      if (leavingIndex !== -1 && this.disconnectingPlayers[leavingIndex][1] < lastFrame) {
+        this.disconnectingPlayers[leavingIndex][1] = lastFrame;
       } else if (leavingIndex === -1) {
-        this.leavingPlayers.push([playerId, lastFrame]);
+        this.disconnectingPlayers.push([playerId, lastFrame]);
         this.emit("userDisconnect", lastFrame);
       }
     });
@@ -265,14 +256,14 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     this.emit("updatePlayerConnect", player);
   }
 
-  leaveRoom(roomId: string, localPlayerIndex?: number): void {
+  leaveRoom(roomId: string, lastFrame: number, localPlayerIndex?: number): void {
     this.listening = false;
     this.sendingState = false;
     this.touchListener?.replaceRegions([]);
     if (localPlayerIndex !== undefined) {
       const player = this.localPlayers[localPlayerIndex];
       if (player.currentRoomId === roomId) {
-        this.emit("leaveRoom", player.netId, player.currentRoomId);
+        this.emit("leaveRoom", player.netId, player.currentRoomId, lastFrame);
         player.currentRoomId = null;
       }
       return;
@@ -281,7 +272,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     for (let i = 0; i < this.localPlayers.length; ++i) {
       const player = this.localPlayers[i];
       if (player.currentRoomId === roomId) {
-        this.emit("leaveRoom", player.netId, player.currentRoomId);
+        this.emit("leaveRoom", player.netId, player.currentRoomId, lastFrame);
         player.currentRoomId = null;
       }
     }
@@ -330,13 +321,26 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     const room = this.roomStates[gameModel.roomId];
     const frameStack = room?.frameStack;
 
-    if (this.leavingPlayers.length) {
-      for (let i = 0; i < this.leavingPlayers.length; ++i) {
-        if (this.leavingPlayers[i][1] === gameModel.frame) {
-          console.log("removing player", this.leavingPlayers[i][0], gameModel.frame);
-          this._onPlayerLeave(gameModel, this.leavingPlayers[i][0]);
-          delete frameStack[this.leavingPlayers[i][0]];
-          this.leavingPlayers.splice(i, 1);
+    if (this.leavingPlayers[gameModel.roomId]?.length) {
+      for (let i = 0; i < this.leavingPlayers[gameModel.roomId].length; ++i) {
+        if (this.leavingPlayers[gameModel.roomId][i][1] === gameModel.frame) {
+          const playerId = this.leavingPlayers[gameModel.roomId][i][0];
+          console.log("removing player", this.leavingPlayers[gameModel.roomId][i][0], gameModel.frame);
+
+          const onLeaveComponents = gameModel.getComponentsByCategory(ComponentCategory.ON_LEAVE);
+          if (onLeaveComponents.length) {
+            const leavingPlayer =
+              gameModel.players.find((player) => gameModel.getTypedUnsafe(PlayerInput, player).pid === playerId) ?? -1;
+
+            gameModel.runGlobalMods(ComponentCategory.ON_LEAVE, {
+              leavingPlayer,
+              playerId,
+            });
+          }
+
+          this._onPlayerLeave(gameModel, this.leavingPlayers[gameModel.roomId][i][0]);
+          delete frameStack[this.leavingPlayers[gameModel.roomId][i][0]];
+          this.leavingPlayers[gameModel.roomId].splice(i, 1);
           i--;
         }
       }
@@ -569,6 +573,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
           }
         )
       );
+      console.log("REQUESTING STATE");
       this.emit("requestState", roomId, JSON.stringify(playerConfig));
       this.emit("joinRoom", roomId);
     });
@@ -596,6 +601,22 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       }
       roomState.gameModel.localNetIds = roomState.gameModel.localNetIds.sort();
     }
+  }
+
+  async setupStateRequest(player: { netId: string }, roomId: string) {
+    this.roomSubs[roomId] = this.roomSubs[roomId] ?? [];
+    this.roomSubs[roomId].push(
+      this.on("requestState", (playerId, _roomId, playerConfig) => {
+        console.log(this.rooms[roomId]?.players);
+        if (this.rooms[roomId]?.players.sort().filter((pid) => pid !== playerId)[0] === player.netId) {
+          if (!this.stateRequested) {
+            this.stateRequested = [[playerId, JSON.parse(playerConfig || "{}")]];
+          } else {
+            this.stateRequested.push([playerId, JSON.parse(playerConfig || "{}")]);
+          }
+        }
+      })
+    );
   }
 
   async initialize(
@@ -633,18 +654,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       const player = this.localPlayers[i];
       player.currentRoomId = roomId;
       player.hostedRooms.push(roomId);
-      this.roomSubs[roomId] = this.roomSubs[roomId] ?? [];
-      if (host === player) {
-        this.roomSubs[roomId].push(
-          this.on("requestState", (playerId, _roomId, playerConfig) => {
-            if (!this.stateRequested) {
-              this.stateRequested = [[playerId, JSON.parse(playerConfig || "{}")]];
-            } else {
-              this.stateRequested.push([playerId, JSON.parse(playerConfig || "{}")]);
-            }
-          })
-        );
-      }
+      this.setupStateRequest(player, roomId);
     }
 
     this._onPlayerJoin = options.onPlayerJoin;
@@ -683,6 +693,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       players: players.map((player) => player.netId),
       roomId,
     };
+    this.emit("joinRoom", roomId);
     return roomState.gameModel;
   }
 
@@ -744,18 +755,9 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       const player = this.localPlayers[i];
       player.currentRoomId = roomId;
       player.hostedRooms.push(roomId);
+      this.setupStateRequest(player, roomId);
     }
 
-    this.roomSubs[roomId] = this.roomSubs[roomId] ?? [];
-    this.roomSubs[roomId].push(
-      this.on("requestState", (playerId, _roomId, playerConfig) => {
-        if (!this.stateRequested) {
-          this.stateRequested = [[playerId, JSON.parse(playerConfig || "{}")]];
-        } else {
-          this.stateRequested.push([playerId, JSON.parse(playerConfig || "{}")]);
-        }
-      })
-    );
     this._onPlayerJoin = onPlayerJoin;
     this._onPlayerLeave = onPlayerLeave;
     this.subscribeFrame(roomId);
@@ -927,7 +929,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
           [playerId: string]: { keys: any; frame: number }[];
         }
       );
-
+      console.log("emitting state");
       this.emit("state", JSON.stringify(state), frameStack, +new Date());
       // gameModel.loadStateObject(state);
     }

@@ -6,77 +6,118 @@ import type { CoreConnectionInstanceOptions } from "./CoreConnectionInstance";
 import { CoreConnectionInstance } from "./CoreConnectionInstance";
 import { isEqual } from "lodash";
 
+export type SocketIoMultiplayerInstanceOptions<T> = CoreConnectionInstanceOptions<T> & {
+  address: string;
+  host: string;
+};
+
+export const isSocketIoMultiplayerInstanceOptions = <T>(
+  options?: CoreConnectionInstanceOptions<T>
+): options is SocketIoMultiplayerInstanceOptions<T> => {
+  return (
+    (options as SocketIoMultiplayerInstanceOptions<T>)?.address !== undefined && (options as any)?.prefix === undefined
+  );
+};
+
 export class SocketIoMultiplayerInstance<T> extends CoreConnectionInstance<T> {
   socket: Socket;
+  connectionPromise: Promise<void>;
+  private groupId: string;
 
   constructor(
     player: PlayerConnect<T>,
     inputManager: InputManager,
-    protected options: CoreConnectionInstanceOptions<T> & { address: string; host: string }
+    protected options: SocketIoMultiplayerInstanceOptions<T>
   ) {
     super(player, inputManager, options);
+    this.groupId = options.address;
     this.socket = io(this.options.host);
-    this.player.connectionId = this.player.netId;
-    this.player.connected = true;
-    this.socket.emit("join", this.options.address, this.player.connectionId, this.player);
+    this.connectionPromise = this.setupSocketHandlers();
+  }
+
+  private setupSocketHandlers(): Promise<void> {
+    return new Promise((resolve) => {
+      this.socket.on("connect", () => {
+        console.log("Connected to server, joining group:", this.groupId);
+        // Send both groupId and netId when joining
+        this.socket.emit("joinGroup", this.groupId, this.player.netId);
+      });
+
+      this.socket.on("groupJoined", ({ groupId, rooms }) => {
+        console.log("Joined group:", groupId, "Available rooms:", rooms);
+        this.player.connected = true;
+        this.player.connectionId = this.socket.id;
+        this.player.connectionTime = Date.now();
+        console.log(rooms.reduce((acc: any, room: any) => ({ ...acc, [room.roomId]: room }), {}));
+        this.handleData([
+          "server",
+          "rooms",
+          rooms.reduce((acc: any, room: any) => ({ ...acc, [room.roomId]: room }), {}),
+        ]);
+        this.roomSyncResolve();
+        resolve();
+      });
+
+      this.socket.on("roomJoined", ({ roomId, messages }) => {
+        console.log("Joined room:", roomId);
+        messages.forEach((msg: any) => {
+          this.handleData([msg.playerId, msg.event, ...msg.data]);
+        });
+      });
+
+      this.socket.onAny((event, ...args) => {
+        if (event !== "frame") {
+          console.log(event, args);
+        }
+        if (!["connect", "disconnect", "groupJoined", "roomJoined"].includes(event)) {
+          const playerid = args.shift();
+          this.handleData([playerid, event, ...args]);
+        }
+      });
+
+      this.socket.on("disconnect", () => {
+        console.log("Disconnected from server");
+        this.player.connected = false;
+        this.player.connectionTime = 0;
+        // if (this.player.currentRoomId) {
+        //   super.leaveRoom(this.player.currentRoomId);
+        // }
+      });
+    });
+  }
+
+  async connect(): Promise<void> {
+    await super.connect();
+    await this.connectionPromise;
   }
 
   emit(event: string, ...args: any[]) {
-    // this.socket.emit(event, ...args);
-    if (event !== "message" && event !== "peer") {
-      this.handleData([event, ...args]);
+    this.socket.emit(event, ...args);
+    if (event !== "message") {
+      this.handleData([this.player.netId, event, ...args]);
     }
   }
 
   handleData(data: any) {
-    const [event, ...args] = data;
-
-    if (event === "peer") {
-      const peerId = args[0];
-      const player = args[1];
-      if (!this.players.find((p) => p.netId === player.netId)) {
-        this.players.push(player);
-        this.handleData(["connect", player]);
-
-        if (player.netId !== this.player.netId) {
-          this.emit("peer", this.player.connectionId, this.player);
-        }
-      } else if (player.netId !== this.player.netId) {
-        const currentPlayer = this.players.find((p) => p.netId === player.netId);
-        if (!isEqual(currentPlayer, player)) {
-          this.players = this.players.map((p) => (p.netId === player.netId ? player : p));
-          this.handleData(["reconnect", player]);
-
-          if (player.netId !== this.player.netId) {
-            this.emit("peer", this.player.connectionId, this.player);
-          }
-        }
-      } else {
-        this.handleData(["connect", player]);
-      }
-      return;
-    }
+    const [playerId, event, ...args] = data;
 
     if (this.onceSubscriptions[event]) {
       this.onceSubscriptions[event].forEach((callback) => {
-        callback(...args);
+        callback(playerId, ...args);
       });
       this.onceSubscriptions[event] = [];
     }
     if (this.subscriptions[event]) {
       this.subscriptions[event].forEach((callback) => {
-        callback(...args);
+        callback(playerId, ...args);
       });
     }
   }
 
-  connect(): Promise<void> {
-    super.connect();
-
-    this.socket.onAny((event, ...args) => {
-      this.handleData([event, ...args]);
-    });
-
-    return Promise.resolve();
+  leaveRoom(roomId: string, lastFrame: number, localPlayerIndex?: number): void {
+    if (this.player.currentRoomId === roomId) {
+      this.socket.emit("leaveRoom");
+    }
+    super.leaveRoom(roomId, lastFrame, localPlayerIndex);
   }
 }

@@ -81,7 +81,7 @@ export abstract class ConnectionInstance<T> {
   ): void;
 
   abstract connect(): Promise<void>;
-  abstract leaveRoom(roomId: string, localPlayerIndex?: number): void;
+  abstract leaveRoom(roomId: string, frame: number, localPlayerIndex?: number): void;
 
   abstract roomHasPlayers(roomId: string): Promise<boolean>;
 
