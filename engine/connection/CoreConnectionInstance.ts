@@ -426,6 +426,11 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
           if (!room.frameStack[frame.playerId]) {
             room.frameStack[frame.playerId] = [];
           }
+          const lastFrame = room.lastFrame[frame.playerId] ?? -1;
+          if (lastFrame >= frame.frame) {
+            return;
+          }
+
           room.frameStack[frame.playerId].push({
             keys: obj,
             frame: frame.frame,
@@ -487,11 +492,12 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
         throw new Error("Timed out looking for room");
       }
     }
+    this.subscribeFrame(roomId);
 
     return new Promise((resolve) => {
       this.roomSubs[roomId] = this.roomSubs[roomId] ?? [];
       this.roomSubs[roomId].push(
-        this.on(
+        this.once(
           "state",
           (
             playerId,
@@ -504,7 +510,6 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
             if (playerId === this.player.netId) {
               return;
             }
-            this.subscribeFrame(roomId);
             const roomState = this.roomStates[roomId];
 
             this.player.currentRoomId = roomId;
@@ -532,22 +537,34 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
               );
             } else {
               Object.entries(frameStack).forEach(([playerId, frames]) => {
-                if (!roomState.frameStack[playerId]) {
-                  roomState.frameStack[playerId] = [];
-                }
+                const previousFrames = roomState.frameStack[playerId] ?? [];
+                roomState.frameStack[playerId] = [];
                 frames.forEach((frame) => {
-                  if (
-                    !roomState.frameStack[playerId].length ||
-                    roomState.frameStack[playerId][roomState.frameStack[playerId].length - 1].frame < frame.frame
-                  ) {
-                    roomState.frameStack[playerId].push({
-                      keys: this.inputManager.toKeyMap(frame.keys),
-                      frame: frame.frame,
-                      events: frame.events,
-                      playerId: playerId,
+                  roomState.frameStack[playerId].push({
+                    keys: this.inputManager.toKeyMap(frame.keys),
+                    frame: frame.frame,
+                    events: frame.events,
+                    playerId: playerId,
+                  });
+                });
+                if (previousFrames.length) {
+                  const lastFrame = roomState.frameStack[playerId][roomState.frameStack[playerId].length - 1].frame;
+                  const firstFrame = roomState.frameStack[playerId][0].frame;
+
+                  if (previousFrames[previousFrames.length - 1].frame < firstFrame) {
+                    previousFrames.forEach((frame, i) => {
+                      roomState.frameStack[playerId].unshift({
+                        ...frame,
+                      });
+                    });
+                  } else if (previousFrames[previousFrames.length - 1].frame > lastFrame) {
+                    previousFrames.forEach((frame, i) => {
+                      roomState.frameStack[playerId].push({
+                        ...frame,
+                      });
                     });
                   }
-                });
+                }
               });
             }
             if (!roomState.gameModel || roomState.gameModel.destroyed) {
@@ -578,7 +595,6 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
           }
         )
       );
-      console.log("REQUESTING STATE");
       this.emit("requestState", roomId, JSON.stringify(playerConfig));
       this.emit("joinRoom", roomId);
       this.setupStateRequest(this.player, roomId);
@@ -613,13 +629,10 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     this.roomSubs[roomId] = this.roomSubs[roomId] ?? [];
     this.roomSubs[roomId].push(
       this.on("requestState", (playerId, _roomId, playerConfig) => {
-        if (this.rooms[roomId]?.players.sort().filter((pid) => pid !== playerId)[0] === player.netId) {
-          if (!this.stateRequested) {
-            this.stateRequested = [[playerId, JSON.parse(playerConfig || "{}")]];
-          } else {
-            this.stateRequested.push([playerId, JSON.parse(playerConfig || "{}")]);
-          }
+        if (!this.stateRequested) {
+          this.stateRequested = [];
         }
+        this.stateRequested.push([playerId, JSON.parse(playerConfig || "{}")]);
       })
     );
   }
@@ -912,31 +925,37 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     const roomState = this.roomStates[gameModel.roomId];
 
     if (this.stateRequested?.length) {
+      const playerIds: string[] = [];
       while (this.stateRequested?.length) {
         const [playerId, playerConfig] = this.stateRequested.pop()!;
+        playerIds.push(playerId);
         this.createPlayer(gameModel, playerId, playerConfig, gameModel.frame);
       }
       this.stateRequested = null;
-      this.sendingState = true;
+      if (
+        this.rooms[gameModel.roomId]?.players.sort().filter((pid) => !playerIds.includes(pid))[0] === this.player.netId
+      ) {
+        this.sendingState = true;
 
-      const state = gameModel.serializeState();
+        const state = gameModel.serializeState();
 
-      const frameStack = Object.entries(roomState.frameStack).reduce(
-        (acc, [key, value]) => {
-          acc[key] = value.map((frame) => {
-            return {
-              keys: this.inputManager.keyMapToJsonObject(frame.keys as KeyMap),
-              frame: frame.frame,
-            };
-          });
-          return acc;
-        },
-        {} as {
-          [playerId: string]: { keys: any; frame: number }[];
-        }
-      );
-      console.log("emitting state");
-      this.emit("state", JSON.stringify(state), frameStack, +new Date());
+        const frameStack = Object.entries(roomState.frameStack).reduce(
+          (acc, [key, value]) => {
+            acc[key] = value.map((frame) => {
+              return {
+                keys: this.inputManager.keyMapToJsonObject(frame.keys as KeyMap),
+                frame: frame.frame,
+              };
+            });
+            return acc;
+          },
+          {} as {
+            [playerId: string]: { keys: any; frame: number }[];
+          }
+        );
+        console.log("emitting state");
+        this.emit("state", JSON.stringify(state), frameStack, +new Date());
+      }
       // gameModel.loadStateObject(state);
     }
 
