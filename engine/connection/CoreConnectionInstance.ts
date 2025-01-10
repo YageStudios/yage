@@ -173,10 +173,12 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     });
 
     this.on("joinRoom", (playerId: string, roomId: string) => {
-      this.rooms[roomId] = {
-        ...this.rooms[roomId],
-        players: [...this.rooms[roomId].players, playerId],
-      };
+      if (!this.rooms[roomId].players.includes(playerId)) {
+        this.rooms[roomId] = {
+          ...this.rooms[roomId],
+          players: [...this.rooms[roomId].players, playerId],
+        };
+      }
     });
 
     this.on("userDisconnect", (playerId: string, lastFrame: number) => {
@@ -439,12 +441,14 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   async join(
     roomId: string,
     {
+      onPlayerJoin,
       onPlayerLeave,
       playerConfig,
       gameInstance,
       seed,
       coreOverrides,
     }: {
+      onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: T) => number;
       onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
       playerConfig?: Partial<T>;
       gameInstance: GameInstance<T>;
@@ -457,6 +461,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     }
     this.cleanup();
     this._onPlayerLeave = onPlayerLeave;
+    this._onPlayerJoin = onPlayerJoin;
     if (!playerConfig) {
       playerConfig = {};
     }
@@ -576,6 +581,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       console.log("REQUESTING STATE");
       this.emit("requestState", roomId, JSON.stringify(playerConfig));
       this.emit("joinRoom", roomId);
+      this.setupStateRequest(this.player, roomId);
     });
   }
 
@@ -607,7 +613,6 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     this.roomSubs[roomId] = this.roomSubs[roomId] ?? [];
     this.roomSubs[roomId].push(
       this.on("requestState", (playerId, _roomId, playerConfig) => {
-        console.log(this.rooms[roomId]?.players);
         if (this.rooms[roomId]?.players.sort().filter((pid) => pid !== playerId)[0] === player.netId) {
           if (!this.stateRequested) {
             this.stateRequested = [[playerId, JSON.parse(playerConfig || "{}")]];
@@ -635,7 +640,10 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     if (!this.localPlayers.every((player) => player.connected)) {
       await this.connect();
     }
+
     this.cleanup();
+    this._onPlayerJoin = options.onPlayerJoin;
+    this._onPlayerLeave = options.onPlayerLeave;
 
     if (this.persistTimeouts[roomId]) {
       clearTimeout(this.persistTimeouts[roomId]);
@@ -657,8 +665,6 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       this.setupStateRequest(player, roomId);
     }
 
-    this._onPlayerJoin = options.onPlayerJoin;
-    this._onPlayerLeave = options.onPlayerLeave;
     this.subscribeFrame(roomId);
 
     const roomState = this.roomStates[roomId];

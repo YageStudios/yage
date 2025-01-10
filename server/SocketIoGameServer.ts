@@ -201,7 +201,7 @@ class SocketIoGameServer {
     const rooms = Array.from(group.rooms.keys()).map((roomId) => ({
       roomId,
       host: group.rooms.get(roomId)!.clients.values().next().value,
-      players: Array.from(group.rooms.get(roomId)!.clients),
+      players: Array.from(group.rooms.get(roomId)!.clients).map((clientId) => this.clientNetIds.get(clientId)),
       rebalanceOnLeave: false,
     }));
     socket.emit("groupJoined", { groupId, rooms });
@@ -246,6 +246,8 @@ class SocketIoGameServer {
 
     // Join socket.io room
     socket.join(`${groupId}:${roomId}`);
+
+    this.handleMessage(socket, "joinRoom", [roomId]);
 
     // Send message history
     socket.emit("roomJoined", {

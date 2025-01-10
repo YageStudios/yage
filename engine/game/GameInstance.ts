@@ -103,6 +103,7 @@ export class GameInstance<T> {
       gameInstance: this,
       seed: seed ?? "NO_SEED",
       coreOverrides,
+      onPlayerJoin: this.options.onPlayerJoin,
       onPlayerLeave: this.options.onPlayerLeave,
       playerConfig,
     });

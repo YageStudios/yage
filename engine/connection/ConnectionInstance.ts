@@ -122,6 +122,7 @@ export abstract class ConnectionInstance<T> {
       gameInstance: GameInstance<T>;
       seed: string;
       coreOverrides?: { [key: string]: any };
+      onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: T) => number;
       onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
       playerConfig?: Partial<T>;
     }
