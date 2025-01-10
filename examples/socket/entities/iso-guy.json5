@@ -1,0 +1,56 @@
+{
+  type: "Enemy",
+  name: "iso-guy",
+  components: [
+    // { type: "EnemyColliders", applyToCollisionFilters: true },
+    {
+      type: "CollisionFilters",
+      filters: ["enum:EntityTypeEnum.ALLY"],
+    },
+    {
+      enabled: false,
+      type: "PixiGraphic",
+      fillColor: "#0000ff",
+      circle: {
+        x: 50,
+        y: 50,
+        radius: 50,
+      },
+    },
+    {
+      type: "PixiSprite",
+      spriteKey: "chars/roll",
+      animationKey: "chars/roll",
+      currentAnimation: "chars/roll",
+      animationSpeed: 0.2,
+      frame: 0,
+      scale: 1,
+    },
+    {
+      type: "Radius",
+      radius: 50,
+    },
+    {
+      type: "RigidCircle",
+      collisionCategory: "enum:CollisionCategoryEnum.ALLY",
+      collisionMask: ["enum:CollisionCategoryEnum.ALL"],
+      mass: 200,
+      collisionEvents: true,
+    },
+    "Transform",
+    {
+      type: "Locomotion",
+      speed: 10,
+    },
+  ],
+  assets: [
+    {
+      type: "spritesheet",
+      key: "chars/roll",
+      url: "spritesheet.png",
+      width: 256,
+      height: 256,
+      spacing: 0,
+    },
+  ],
+}

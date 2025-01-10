@@ -34,8 +34,8 @@ QuickStart(
       playerInput.pid = playerId;
       // PlayerInput.name = playerConfig.name;
 
-      const blueBall = EntityFactory.getInstance().generateEntity(gameModel, "blue-ball");
-      const transform = gameModel.getTypedUnsafe(Transform, blueBall);
+      const isoGuy = EntityFactory.getInstance().generateEntity(gameModel, "iso-guy");
+      const transform = gameModel.getTypedUnsafe(Transform, isoGuy);
       transform.x = 300;
       transform.y = 300;
 
