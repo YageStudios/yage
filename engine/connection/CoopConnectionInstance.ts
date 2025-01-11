@@ -34,13 +34,13 @@ export class CoopConnectionInstance<T> extends CoreConnectionInstance<T> {
     if (event !== "message") {
       if (this.onceSubscriptions[event]) {
         this.onceSubscriptions[event].forEach((callback) => {
-          callback(...args);
+          callback(this.player.netId, ...args);
         });
         this.onceSubscriptions[event] = [];
       }
       if (this.subscriptions[event]) {
         this.subscriptions[event].forEach((callback) => {
-          callback(...args);
+          callback(this.player.netId, ...args);
         });
       }
     }

@@ -53,7 +53,7 @@ export class GameCoordinator {
     if (this.ticker) {
       this.ticker.stop();
     }
-    this.ticker = new Ticker(this.currentScene.timestep, 1000 / this.currentScene.dt ?? 60);
+    this.ticker = new Ticker(this.currentScene.timestep, 1000 / this.currentScene.dt);
     this.ticker.add(this.run.bind(this));
     this.ticker.start();
   }
