@@ -473,23 +473,29 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     playerConfig = { ...this.player.config, ...playerConfig };
     let room = this.rooms[roomId];
     if (!room) {
-      await (() => {
-        console.log("Room not found, waiting for room");
-        return new Promise<void>((resolve, reject) => {
-          const rejected = false;
-          this.once("updateRoom", (playerId, room: Room) => {
-            if (room.roomId === roomId && !rejected) {
-              resolve();
-            }
+      try {
+        await (() => {
+          console.log("Room not found, waiting for room");
+          return new Promise<void>((resolve, reject) => {
+            let rejected = false;
+            this.once("updateRoom", (playerId, room: Room) => {
+              if (room.roomId === roomId && !rejected) {
+                resolve();
+              }
+            });
+            setTimeout(() => {
+              rejected = true;
+              reject("Timed out looking for room");
+            }, this.options.roomTimeout ?? 5000);
           });
-          setTimeout(() => {
-            reject();
-          }, this.options.roomTimeout ?? 5000);
-        });
-      })();
-      room = this.rooms[roomId];
-      if (!room) {
-        throw new Error("Timed out looking for room");
+        })();
+        room = this.rooms[roomId];
+        if (!room) {
+          throw new Error("Timed out looking for room");
+        }
+      } catch (e) {
+        console.error("Failed to join room", e);
+        throw e;
       }
     }
     this.subscribeFrame(roomId);
