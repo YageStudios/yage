@@ -23,8 +23,6 @@ export class BallGameScene extends Scene {
   } = {};
 
   stateRequested = false;
-  sendingState = false;
-  listening = false;
   playerId = -1;
 
   instance: GameInstance<PlayerState>;

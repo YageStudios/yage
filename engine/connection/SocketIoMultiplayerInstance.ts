@@ -113,11 +113,4 @@ export class SocketIoMultiplayerInstance<T> extends CoreConnectionInstance<T> {
       });
     }
   }
-
-  leaveRoom(roomId: string, lastFrame: number, localPlayerIndex?: number): void {
-    if (this.player.currentRoomId === roomId) {
-      this.socket.emit("leaveRoom");
-    }
-    super.leaveRoom(roomId, lastFrame, localPlayerIndex);
-  }
 }
