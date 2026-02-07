@@ -865,6 +865,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
         playerId: playerId,
       };
     });
+    roomState.lastFrame[playerId] = frame + initalFrameOffset - 1;
   };
 
   publishState(roomState: RoomState, netId: string, gameModel: GameModel) {
