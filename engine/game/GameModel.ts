@@ -235,9 +235,9 @@ export const GameModel = ({
         if (!schema) {
           return;
         }
-        addComponent(world, schema, entity, overrides, reset);
+        addComponent(world, schema as unknown as Constructor<T>, entity, overrides, reset);
       } else {
-        addComponent(world, type as unknown as typeof Schema, entity, overrides, reset);
+        addComponent(world, type as unknown as Constructor<T>, entity, overrides, reset);
       }
     },
     getComponent: <T extends Schema>(type: Constructor<T> | string, entity: number): T | null => {
