@@ -2,6 +2,7 @@ import type { GameModel } from "yage/game/GameModel";
 import { Locomotion } from "yage/schemas/entity/Locomotion";
 import { Radius } from "yage/schemas/entity/Radius";
 import { Transform } from "yage/schemas/entity/Transform";
+import { EntityType } from "yage/schemas/entity/Types";
 import { Collisions } from "yage/schemas/physics/Collisions";
 import type { Vector2d } from "./vector";
 import { distanceSquaredVector2d, lengthVector2d } from "./vector";
@@ -16,18 +17,22 @@ export interface SpatialMap<T> {
 
 export const checkCollisionFilter = (entity: number, filter: number, gameModel: GameModel) => {
   const collisions = gameModel.getTypedUnsafe(Collisions, gameModel.coreEntity);
+  const collisionMap = collisions.collisionMap[entity];
 
-  if (
-    !collisions.collisions[entity] ||
-    !collisions.collisions[entity].filters ||
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    !collisions.collisions[entity].filters![filter]
-  ) {
+  if (!collisionMap) {
     return emptyArray;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  return collisions.collisions[entity].filters![filter];
+  const entityTypes = gameModel(EntityType).store.entityType;
+  const filtered: number[] = [];
+
+  for (const otherEntity in collisionMap) {
+    const otherEntityNum = +otherEntity;
+    if (entityTypes[otherEntityNum] === filter) {
+      filtered.push(otherEntityNum);
+    }
+  }
+  return filtered;
 };
 
 const pointsInSpatialMap = (cellSize: number, position: Vector2d, radius = 0, stretchPoint?: Vector2d): Set<string> => {

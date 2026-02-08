@@ -1,7 +1,6 @@
 import type { GameModel } from "yage/game/GameModel";
 import { ComponentCategory } from "../../systems/types";
 import { PhysicsSystem } from "yage/systems/physics/Physics";
-import { BV2 } from "yage/utils/vector";
 import { CollisionCategoryEnum, DEPTHS } from "yage/constants/enums";
 import RAPIER from "@dimforge/rapier2d-compat";
 import { Locomotion } from "yage/schemas/entity/Locomotion";
@@ -15,15 +14,20 @@ import { MapIsometric } from "yage/schemas/map/Map";
 export class RigidCircleSystem extends SystemImpl<GameModel> {
   depth = DEPTHS.COLLISION - 0.0001;
   dependencies = ["Locomotion", "Transform"];
+  private static readonly TRANSLATION_EPSILON_SQ = 0.000001;
 
   private _tempPos = { x: 0, y: 0 };
   private _tempVel = { x: 0, y: 0 };
 
   init = (gameModel: GameModel, entity: number) => {
+    const rigidCircle = gameModel.getTypedUnsafe(RigidCircle, entity);
+    if (rigidCircle.disabled) {
+      return;
+    }
+
     const transform = gameModel.getTypedUnsafe(Transform, entity);
     const position = { x: transform.x, y: transform.y };
 
-    const rigidCircle = gameModel.getTypedUnsafe(RigidCircle, entity);
     const physicsSystem = gameModel.getSystem(PhysicsSystem);
 
     if (physicsSystem.getRigidBody(entity) !== undefined) {
@@ -91,64 +95,76 @@ export class RigidCircleSystem extends SystemImpl<GameModel> {
   runAll = (gameModel: GameModel) => {
     const entities = gameModel.getComponentActives("RigidCircle");
     const physicsSystem = gameModel.getSystem(PhysicsSystem);
+    const rigidCircleStore = gameModel(RigidCircle).store;
+    const transformStore = gameModel(Transform).store;
+    const locomotionStore = gameModel(Locomotion).store;
+    const decayFactor = 0.25;
 
     for (let i = 0; i < entities.length; i++) {
       const entity = entities[i];
+      let body = physicsSystem.getRigidBody(entity);
 
-      const rigidCircle = gameModel.getTypedUnsafe(RigidCircle, entity);
-
-      if (rigidCircle.disabled) {
-        if (physicsSystem.getRigidBody(entity) !== undefined) {
+      if (rigidCircleStore.disabled[entity]) {
+        if (body !== undefined) {
           this.cleanup(gameModel, entity);
         }
         continue;
-      } else if (physicsSystem.getRigidBody(entity) === undefined) {
+      } else if (body === undefined) {
         this.init(gameModel, entity);
+        body = physicsSystem.getRigidBody(entity);
+        if (!body) {
+          continue;
+        }
       }
 
-      const transform = gameModel.getTypedUnsafe(Transform, entity);
       const position = this._tempPos;
-      position.x = transform.x;
-      position.y = transform.y;
+      position.x = transformStore.x[entity];
+      position.y = transformStore.y[entity];
 
-      const locomotion = gameModel.getTypedUnsafe(Locomotion, entity);
       const velocity = this._tempVel;
-      velocity.x = locomotion.x;
-      velocity.y = locomotion.y;
+      velocity.x = locomotionStore.x[entity];
+      velocity.y = locomotionStore.y[entity];
 
-      const body = physicsSystem.getRigidBody(entity);
-      body.setTranslation(position, true);
+      const bodyPosition = body.translation();
+      const dx = position.x - bodyPosition.x;
+      const dy = position.y - bodyPosition.y;
+      if (dx * dx + dy * dy > RigidCircleSystem.TRANSLATION_EPSILON_SQ) {
+        body.setTranslation(position, true);
+      }
 
-      let decayingVelocity: null | number[] = null;
-      if (locomotion.decayingVelocityTime > 0) {
-        const decayTime = Math.max(150, locomotion.decayingVelocityTime);
-        const decayFactor = 0.25; // random ass hardcoded value
-        if (locomotion.decayingVelocityTime < decayTime) {
-          const expDecay = Math.pow(1 - decayFactor, decayTime - locomotion.decayingVelocityTime);
-          decayingVelocity = BV2.lerpVector2d(
-            locomotion.decayingVelocityX,
-            locomotion.decayingVelocityY,
-            0,
-            0,
-            expDecay,
-          );
-          decayingVelocity[0] *= locomotion.decayingVelocityScale;
-          decayingVelocity[1] *= locomotion.decayingVelocityScale;
+      let decayX = 0;
+      let decayY = 0;
+      const decayingVelocityTime = locomotionStore.decayingVelocityTime[entity];
+      if (decayingVelocityTime > 0) {
+        const decayTime = Math.max(150, decayingVelocityTime);
+        const decayingVelocityX = locomotionStore.decayingVelocityX[entity];
+        const decayingVelocityY = locomotionStore.decayingVelocityY[entity];
+        const decayingVelocityScale = locomotionStore.decayingVelocityScale[entity];
+
+        if (decayingVelocityTime < decayTime) {
+          const expDecay = Math.pow(1 - decayFactor, decayTime - decayingVelocityTime);
+          const baseScale = (1 - expDecay) * decayingVelocityScale;
+          decayX = decayingVelocityX * baseScale;
+          decayY = decayingVelocityY * baseScale;
         } else {
-          locomotion.decayingVelocityTime = decayTime;
-          decayingVelocity = [locomotion.decayingVelocityX, locomotion.decayingVelocityY];
+          locomotionStore.decayingVelocityTime[entity] = decayTime;
+          decayX = decayingVelocityX;
+          decayY = decayingVelocityY;
         }
 
-        locomotion.decayingVelocityTime -= 16; //gameModel.dt<number>(entity);
+        locomotionStore.decayingVelocityTime[entity] -= 16; //gameModel.dt<number>(entity);
       } else {
-        locomotion.decayingVelocityX = 0;
-        locomotion.decayingVelocityY = 0;
-        locomotion.decayingVelocityTime = 0;
+        locomotionStore.decayingVelocityX[entity] = 0;
+        locomotionStore.decayingVelocityY[entity] = 0;
+        locomotionStore.decayingVelocityTime[entity] = 0;
       }
 
-      velocity.x = (velocity.x + (decayingVelocity ? decayingVelocity[0] : 0)) * 60;
-      velocity.y = (velocity.y + (decayingVelocity ? decayingVelocity[1] : 0)) * 60;
-      body.setLinvel(velocity, true);
+      velocity.x = (velocity.x + decayX) * 60;
+      velocity.y = (velocity.y + decayY) * 60;
+
+      if (!rigidCircleStore.isStatic[entity]) {
+        body.setLinvel(velocity, true);
+      }
     }
   };
 
@@ -166,32 +182,34 @@ export class RigidCircleResolverSystem extends SystemImpl<GameModel> {
   runAll = (gameModel: GameModel) => {
     const physicsSystem = gameModel.getSystem(PhysicsSystem);
     const entities = gameModel.getComponentActives("RigidCircleResolver");
+    const rigidCircleStore = gameModel(RigidCircle).store;
+    const transformStore = gameModel(Transform).store;
+    const locomotionStore = gameModel(Locomotion).store;
 
     for (let i = 0; i < entities.length; i++) {
       const entity = entities[i];
-      const rigidCircle = gameModel.getTypedUnsafe(RigidCircle, entity);
+      if (rigidCircleStore.disabled[entity]) {
+        continue;
+      }
       const circle = physicsSystem.getRigidBody(entity);
+      if (!circle) {
+        continue;
+      }
       const position = circle.translation();
 
-      const positionX = position.x;
-      const positionY = position.y;
+      transformStore.x[entity] = position.x;
+      transformStore.y[entity] = position.y;
 
-      const transform = gameModel.getTypedUnsafe(Transform, entity);
-      transform.x = positionX;
-      transform.y = positionY;
-      const locomotion = gameModel.getTypedUnsafe(Locomotion, entity);
-
-      if (rigidCircle.velocityLock) {
+      if (rigidCircleStore.velocityLock[entity] && gameModel.hasComponent(Locomotion, entity)) {
         const velocity = circle.linvel();
-        locomotion.x = velocity.x / 60;
-        locomotion.y = velocity.y / 60;
+        locomotionStore.x[entity] = velocity.x / 60;
+        locomotionStore.y[entity] = velocity.y / 60;
       }
 
-      if (rigidCircle.directionLock) {
+      if (rigidCircleStore.directionLock[entity] && gameModel.hasComponent(Locomotion, entity)) {
         const direction = circle.rotation();
-        const locomotion = gameModel.getTypedUnsafe(Locomotion, entity);
-        locomotion.directionX = Math.cos(direction);
-        locomotion.directionY = Math.sin(direction);
+        locomotionStore.directionX[entity] = Math.cos(direction);
+        locomotionStore.directionY[entity] = Math.sin(direction);
       }
     }
   };

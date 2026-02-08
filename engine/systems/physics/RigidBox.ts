@@ -13,6 +13,7 @@ import { System, SystemImpl } from "minecs";
 export class RigidBoxSystem extends SystemImpl<GameModel> {
   static depth = DEPTHS.COLLISION - 0.0001;
   dependencies = ["Locomotion", "Transform"];
+  private static readonly TRANSLATION_EPSILON_SQ = 0.000001;
 
   private _tempPos = { x: 0, y: 0 };
   private _tempVel = { x: 0, y: 0 };
@@ -87,21 +88,28 @@ export class RigidBoxSystem extends SystemImpl<GameModel> {
       position.x = transform.x;
       position.y = transform.y;
 
-      const locomotion = gameModel.getTypedUnsafe(Locomotion, entity);
+      const locomotion = gameModel.hasComponent(Locomotion, entity) ? gameModel.getTypedUnsafe(Locomotion, entity) : null;
       const velocity = this._tempVel;
-      velocity.x = locomotion.x * 60;
-      velocity.y = locomotion.y * 60;
+      velocity.x = (locomotion?.x ?? 0) * 60;
+      velocity.y = (locomotion?.y ?? 0) * 60;
 
-      body.setTranslation(position, true);
+      const bodyPosition = body.translation();
+      const dx = position.x - bodyPosition.x;
+      const dy = position.y - bodyPosition.y;
+      if (dx * dx + dy * dy > RigidBoxSystem.TRANSLATION_EPSILON_SQ) {
+        body.setTranslation(position, true);
+      }
 
       if (velocity.x !== 0 || velocity.y !== 0) {
         body.setLinvel(velocity, true);
       }
 
       const dir = this._tempDir;
-      dir.x = locomotion.directionX;
-      dir.y = locomotion.directionY;
-      rigidBox.angle = angleOfVector2d(dir);
+      if (locomotion) {
+        dir.x = locomotion.directionX;
+        dir.y = locomotion.directionY;
+        rigidBox.angle = angleOfVector2d(dir);
+      }
 
       const rads = rigidBox.angle * (Math.PI / 180);
       if (rads !== body.rotation()) {
@@ -143,7 +151,7 @@ export class RigidBoxResolverSystem extends SystemImpl<GameModel> {
         transform.y = positionY;
       }
 
-      if (rigidBox.velocityLock) {
+      if (rigidBox.velocityLock && gameModel.hasComponent(Locomotion, entity)) {
         const velocity = box.linvel();
         const locomotion = gameModel.getTypedUnsafe(Locomotion, entity);
 
@@ -151,7 +159,7 @@ export class RigidBoxResolverSystem extends SystemImpl<GameModel> {
         locomotion.y = (velocity.y / 60) * (rigidBox.restitution || 1);
       }
 
-      if (rigidBox.directionLock) {
+      if (rigidBox.directionLock && gameModel.hasComponent(Locomotion, entity)) {
         const direction = box.rotation();
         const locomotion = gameModel.getTypedUnsafe(Locomotion, entity);
         locomotion.directionX = Math.cos(direction);

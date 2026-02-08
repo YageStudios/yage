@@ -45,8 +45,8 @@ export class SpawnBallOnQSystem extends SystemImpl<GameModel> {
       // console.log(mapTarget, map.scale);
 
       const originalPosition = {
-        x: Math.random() * 10000 - 5000,
-        y: Math.random() * 10000 - 5000,
+        x: Math.random() * 3000 - 1500,
+        y: Math.random() * 3000,// - 5000,
       };
       const dropPosition = makePickupable(gameModel, { ...originalPosition });
 

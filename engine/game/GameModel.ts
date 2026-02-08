@@ -132,7 +132,7 @@ export type GameModel = World & {
 };
 
 export const GameModel = ({
-  world = createWorld(1000),
+  world = createWorld(10000),
   seed,
   roomId,
   inputManager,

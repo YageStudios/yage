@@ -1,11 +1,10 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import type { GameModel, ReadOnlyGameModel } from "yage/game/GameModel";
 import { ComponentCategory } from "yage/systems/types";
-import { EntityType } from "yage/schemas/entity/Types";
 import type { RigidBodyDesc } from "@dimforge/rapier2d-compat";
 import RAPIER, { World } from "@dimforge/rapier2d-compat";
 import { FrameRate } from "yage/schemas/core/FrameRate";
-import { CollisionFilters, Collisions } from "yage/schemas/physics/Collisions";
+import { Collisions } from "yage/schemas/physics/Collisions";
 import { Physics } from "yage/schemas/physics/Physics";
 import { FrameRateSystem } from "yage/systems/core/FrameRate";
 import { Base64 } from "js-base64";
@@ -45,6 +44,10 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
 
   colliderHandles: {
     [handle: number]: number;
+  } = {};
+
+  collisionCounts: {
+    [entity: number]: number;
   } = {};
 
   history: ["addCollider" | "addBody" | "removeCollider" | "removeBody", number][] = [];
@@ -98,6 +101,7 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
     const world = World.restoreSnapshot(Base64.toUint8Array(state.data));
     this.bodies = {};
     this.colliders = {};
+    this.collisionCounts = {};
 
     world.bodies.forEach((body) => {
       if (state.bodies[body.handle] === undefined) return;
@@ -194,23 +198,25 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
 
   removeEntity(gameModel: GameModel, entity: number) {
     const collisions = gameModel.getTypedUnsafe(Collisions, this.coreEntity);
-
-    if (collisions.collisionMap[entity]) {
-      if (collisions.collisionMap[entity]) {
-        for (const otherEntity in collisions.collisionMap[entity]) {
-          const otherEntityNum = +otherEntity;
-          delete collisions.collisionMap[otherEntityNum][entity];
-          let hasKeys = false;
-          for (const _ in collisions.collisionMap[otherEntityNum]) {
-            hasKeys = true;
-            break;
-          }
-          if (!hasKeys) {
-            delete collisions.collisionMap[otherEntityNum];
+    const collisionMap = collisions.collisionMap;
+    const row = collisionMap[entity];
+    if (row) {
+      for (const otherEntity in row) {
+        const otherEntityNum = +otherEntity;
+        const otherRow = collisionMap[otherEntityNum];
+        if (otherRow && otherRow[entity]) {
+          delete otherRow[entity];
+          const count = (this.collisionCounts[otherEntityNum] || 1) - 1;
+          if (count <= 0) {
+            delete this.collisionCounts[otherEntityNum];
+            delete collisionMap[otherEntityNum];
+          } else {
+            this.collisionCounts[otherEntityNum] = count;
           }
         }
-        delete collisions.collisionMap[entity];
       }
+      delete collisionMap[entity];
+      delete this.collisionCounts[entity];
     }
 
     this.removeEntityColliders(entity);
@@ -235,11 +241,13 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
   runAll = (gameModel: GameModel) => {
     // const dt = gameModel.dt<number>(this.coreEntity);
     const simulatedFrames = 1; //  Math.round(dt / 16);
+    const physics = gameModel.getTypedUnsafe(Physics, this.coreEntity);
 
     const collisions = gameModel.getTypedUnsafe(Collisions, this.coreEntity);
-    collisions.collisions = {};
-
     const collisionMap = collisions.collisionMap;
+    // Keep the legacy surface (`collisions`) pointing at the active pair map.
+    // Filtered lookups are derived lazily in `checkCollisionFilter`.
+    collisions.collisions = collisionMap;
 
     if (gameModel.hasComponent(FrameRate, this.coreEntity)) {
       gameModel.getSystem(FrameRateSystem).get(gameModel.coreEntity).bodies = this.world.bodies.len();
@@ -256,85 +264,39 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
         }
 
         if (started) {
-          collisionMap[eid1] = collisionMap[eid1] || {};
-          collisionMap[eid2] = collisionMap[eid2] || {};
-          collisionMap[eid1][eid2] = true;
-          collisionMap[eid2][eid1] = true;
-        } else {
-          if (collisionMap[eid1]) delete collisionMap[eid1][eid2];
-          if (collisionMap[eid2]) delete collisionMap[eid2][eid1];
-          if (collisionMap[eid1] !== undefined) {
-            let hasKeys = false;
-            for (const _ in collisionMap[eid1]) {
-              hasKeys = true;
-              break;
-            }
-            if (!hasKeys) delete collisionMap[eid1];
+          const row1 = collisionMap[eid1] || (collisionMap[eid1] = {});
+          if (!row1[eid2]) {
+            row1[eid2] = true;
+            const row2 = collisionMap[eid2] || (collisionMap[eid2] = {});
+            row2[eid1] = true;
+            this.collisionCounts[eid1] = (this.collisionCounts[eid1] || 0) + 1;
+            this.collisionCounts[eid2] = (this.collisionCounts[eid2] || 0) + 1;
           }
-          if (collisionMap[eid2] !== undefined) {
-            let hasKeys = false;
-            for (const _ in collisionMap[eid2]) {
-              hasKeys = true;
-              break;
+        } else {
+          const row1 = collisionMap[eid1];
+          if (row1 && row1[eid2]) {
+            delete row1[eid2];
+            const count1 = (this.collisionCounts[eid1] || 1) - 1;
+            if (count1 <= 0) {
+              delete this.collisionCounts[eid1];
+              delete collisionMap[eid1];
+            } else {
+              this.collisionCounts[eid1] = count1;
             }
-            if (!hasKeys) delete collisionMap[eid2];
+          }
+          const row2 = collisionMap[eid2];
+          if (row2 && row2[eid1]) {
+            delete row2[eid1];
+            const count2 = (this.collisionCounts[eid2] || 1) - 1;
+            if (count2 <= 0) {
+              delete this.collisionCounts[eid2];
+              delete collisionMap[eid2];
+            } else {
+              this.collisionCounts[eid2] = count2;
+            }
           }
         }
       });
-
-      // Process collision pairs directly without creating intermediate arrays/sets
-      for (const eid1Key in collisionMap) {
-        const eid1 = eid1Key as unknown as number;
-        const eid1Collisions = collisionMap[eid1];
-        if (eid1Collisions === undefined) {
-          delete collisionMap[eid1];
-          continue;
-        }
-
-        let hasCollisions = false;
-        for (const eid2Key in eid1Collisions) {
-          hasCollisions = true;
-          const eid2 = eid2Key as unknown as number;
-          // Only process each pair once (when eid1 < eid2)
-          if (eid1 >= eid2) continue;
-
-          if (!collisions.collisions[eid1]) collisions.collisions[eid1] = {};
-          if (!collisions.collisions[eid2]) collisions.collisions[eid2] = {};
-          collisions.collisions[eid1][eid2] = true;
-          collisions.collisions[eid2][eid1] = true;
-
-          if (gameModel.hasComponent(CollisionFilters, eid1)) {
-            const filters = gameModel.getTypedUnsafe(CollisionFilters, eid1);
-            if (filters.filters.length > 0) {
-              const entityType = gameModel(EntityType).store.entityType[eid2];
-
-              if (!collisions.collisions[eid1].filters) collisions.collisions[eid1].filters = {};
-              if (filters.filters.includes(entityType)) {
-                if (!collisions.collisions[eid1].filters![entityType])
-                  collisions.collisions[eid1].filters![entityType] = [];
-                collisions.collisions[eid1].filters![entityType].push(eid2);
-              }
-            }
-          }
-          if (gameModel.hasComponent(CollisionFilters, eid2)) {
-            const filters = gameModel.getTypedUnsafe(CollisionFilters, eid2);
-            if (filters.filters.length > 0) {
-              const entityType = gameModel(EntityType).store.entityType[eid1];
-
-              if (!collisions.collisions[eid2].filters) collisions.collisions[eid2].filters = {};
-              if (filters.filters.includes(entityType)) {
-                if (!collisions.collisions[eid2].filters![entityType])
-                  collisions.collisions[eid2].filters![entityType] = [];
-                collisions.collisions[eid2].filters![entityType].push(eid1);
-              }
-            }
-          }
-        }
-
-        if (!hasCollisions) {
-          delete collisionMap[eid1];
-        }
-      }
     }
   };
 
@@ -347,6 +309,7 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
     });
     // @ts-ignore
     this.world = null;
+    this.collisionCounts = {};
   };
 }
 
