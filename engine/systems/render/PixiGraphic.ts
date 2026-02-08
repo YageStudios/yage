@@ -26,12 +26,15 @@ export class GraphicDrawSystem extends DrawSystemImpl<ReadOnlyGameModel> {
     [id: number]: PixiGraphics;
   } = {};
 
+  private _cachedViewY = 0;
+  private _cachedViewYTime = -1;
+
   transform(
     pixiData: PixiGraphics,
     entity: number,
     data: PixiGraphic,
     renderModel: ReadOnlyGameModel,
-    viewport: Viewport
+    viewport: Viewport,
   ) {
     const { graphic, container } = pixiData;
     graphic.pivot.set(data.anchorX * graphic.width, data.anchorY * graphic.height);
@@ -78,7 +81,7 @@ export class GraphicDrawSystem extends DrawSystemImpl<ReadOnlyGameModel> {
         graphicData.ellipse.x,
         graphicData.ellipse.y,
         graphicData.ellipse.width,
-        graphicData.ellipse.height
+        graphicData.ellipse.height,
       );
     }
 
@@ -87,7 +90,7 @@ export class GraphicDrawSystem extends DrawSystemImpl<ReadOnlyGameModel> {
         graphicData.rectangle.x,
         graphicData.rectangle.y,
         graphicData.rectangle.width,
-        graphicData.rectangle.height
+        graphicData.rectangle.height,
       );
     }
 
@@ -175,7 +178,11 @@ export class GraphicDrawSystem extends DrawSystemImpl<ReadOnlyGameModel> {
     const xoffset = graphicData.xoffset ?? 0;
     const yoffset = graphicData.yoffset ?? 0;
 
-    const viewY = viewport.toWorld(0, 0).y; // viewport.position.y;
+    if (this._cachedViewYTime !== renderModel.timeElapsed) {
+      this._cachedViewY = viewport.toWorld(0, 0).y;
+      this._cachedViewYTime = renderModel.timeElapsed;
+    }
+    const viewY = this._cachedViewY;
 
     if (graphicData.inheritParentZIndex && renderModel.hasComponent(Attach, entity)) {
       const owner = renderModel.getTypedUnsafe(Attach, entity).parent;

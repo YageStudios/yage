@@ -141,7 +141,7 @@ export const normalizeOrRandomizeVector2d = (vector: Vector2d, rand: Random): Ve
 };
 
 export const lengthVector2d = (vector: Vector2d): number => {
-  return distanceVector2d(w({ x: 0, y: 0 }), vector);
+  return Math.sqrt(vector.x * vector.x + vector.y * vector.y);
 };
 
 export const rotationDegVector2d = (vector: Vector2d): number => {
@@ -160,8 +160,10 @@ export const normalizeSafeVector2d = (vector: Vector2d): Vector2d => {
 };
 
 export const normalizeVector2d = (a: Vector2d): Vector2d => {
-  const length = lengthVector2d(a);
-  return w(trunc2d(a.x / length, a.y / length));
+  const length = Math.sqrt(a.x * a.x + a.y * a.y);
+  const nx = a.x / length;
+  const ny = a.y / length;
+  return { x: Math.floor(nx * 10000) / 10000, y: Math.floor(ny * 10000) / 10000 };
 };
 
 export const subtractVector2d = (a: Vector2d, b: Vector2d): Vector2d => {
@@ -185,7 +187,11 @@ export const scaleVector2d = (a: Vector2d, scale: number): Vector2d => {
 };
 
 export const angleOfVector2d = (a: Vector2d): number => {
-  return angleBetweenVector2d(w({ x: 1, y: 0 }), a);
+  let angle = Math.atan2(a.y, a.x);
+  if (angle < 0) {
+    angle += 2 * Math.PI;
+  }
+  return (angle * 180) / Math.PI;
 };
 
 export const angleBetweenVector2d = (a: Vector2d, b: Vector2d): number => {

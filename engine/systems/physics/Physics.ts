@@ -54,12 +54,12 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
   save(): PhysicsSaveState {
     return {
       bodies: Object.keys(this.bodies).reduce((acc, key) => {
-        const entity = parseInt(key);
+        const entity = +key;
         acc[this.bodies[entity].handle] = entity;
         return acc;
       }, {} as any),
       colliders: Object.keys(this.colliders).reduce((acc, key) => {
-        const entity = parseInt(key);
+        const entity = +key;
         acc[this.colliders[entity][0].handle] = entity;
         return acc;
       }, {} as any),
@@ -198,9 +198,15 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
     if (collisions.collisionMap[entity]) {
       if (collisions.collisionMap[entity]) {
         for (const otherEntity in collisions.collisionMap[entity]) {
-          delete collisions.collisionMap[parseInt(otherEntity)][entity];
-          if (Object.keys(collisions.collisionMap[parseInt(otherEntity)]).length === 0) {
-            delete collisions.collisionMap[parseInt(otherEntity)];
+          const otherEntityNum = +otherEntity;
+          delete collisions.collisionMap[otherEntityNum][entity];
+          let hasKeys = false;
+          for (const _ in collisions.collisionMap[otherEntityNum]) {
+            hasKeys = true;
+            break;
+          }
+          if (!hasKeys) {
+            delete collisions.collisionMap[otherEntityNum];
           }
         }
         delete collisions.collisionMap[entity];
@@ -257,61 +263,76 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
         } else {
           if (collisionMap[eid1]) delete collisionMap[eid1][eid2];
           if (collisionMap[eid2]) delete collisionMap[eid2][eid1];
-          if (collisionMap[eid1] === undefined || Object.keys(collisionMap[eid1]).length === 0)
-            delete collisionMap[eid1];
-          if (collisionMap[eid2] === undefined || Object.keys(collisionMap[eid2]).length === 0)
-            delete collisionMap[eid2];
+          if (collisionMap[eid1] !== undefined) {
+            let hasKeys = false;
+            for (const _ in collisionMap[eid1]) {
+              hasKeys = true;
+              break;
+            }
+            if (!hasKeys) delete collisionMap[eid1];
+          }
+          if (collisionMap[eid2] !== undefined) {
+            let hasKeys = false;
+            for (const _ in collisionMap[eid2]) {
+              hasKeys = true;
+              break;
+            }
+            if (!hasKeys) delete collisionMap[eid2];
+          }
         }
       });
 
-      const pairs = Object.keys(collisionMap).reduce((acc, eid1Key) => {
-        const eid1 = parseInt(eid1Key);
-        if (collisionMap[eid1] === undefined || Object.keys(collisionMap[eid1]).length === 0) {
+      // Process collision pairs directly without creating intermediate arrays/sets
+      for (const eid1Key in collisionMap) {
+        const eid1 = eid1Key as unknown as number;
+        const eid1Collisions = collisionMap[eid1];
+        if (eid1Collisions === undefined) {
           delete collisionMap[eid1];
-          return acc;
+          continue;
         }
-        const eid2s = Object.keys(collisionMap[eid1]);
-        for (const eid2Key of eid2s) {
-          const eid2 = parseInt(eid2Key);
-          if (eid1 > eid2) continue;
-          acc.add((eid1 << 16) | eid2);
-        }
-        return acc;
-      }, new Set<number>());
 
-      for (const pair of pairs) {
-        const eid1 = pair >> 16;
-        const eid2 = pair & 0xffff;
-        if (isNaN(eid1) || isNaN(eid2)) continue;
-        if (!collisions.collisions[eid1]) collisions.collisions[eid1] = {};
-        if (!collisions.collisions[eid2]) collisions.collisions[eid2] = {};
-        collisions.collisions[eid1][eid2] = true;
-        collisions.collisions[eid2][eid1] = true;
-        if (gameModel.hasComponent(CollisionFilters, eid1)) {
-          const filters = gameModel.getTypedUnsafe(CollisionFilters, eid1);
-          if (filters.filters.length > 0) {
-            const entityType = gameModel(EntityType).store.entityType[eid2];
+        let hasCollisions = false;
+        for (const eid2Key in eid1Collisions) {
+          hasCollisions = true;
+          const eid2 = eid2Key as unknown as number;
+          // Only process each pair once (when eid1 < eid2)
+          if (eid1 >= eid2) continue;
 
-            if (!collisions.collisions[eid1].filters) collisions.collisions[eid1].filters = {};
-            if (filters.filters.includes(entityType)) {
-              if (!collisions.collisions[eid1].filters![entityType])
-                collisions.collisions[eid1].filters![entityType] = [];
-              collisions.collisions[eid1].filters![entityType].push(eid2);
+          if (!collisions.collisions[eid1]) collisions.collisions[eid1] = {};
+          if (!collisions.collisions[eid2]) collisions.collisions[eid2] = {};
+          collisions.collisions[eid1][eid2] = true;
+          collisions.collisions[eid2][eid1] = true;
+
+          if (gameModel.hasComponent(CollisionFilters, eid1)) {
+            const filters = gameModel.getTypedUnsafe(CollisionFilters, eid1);
+            if (filters.filters.length > 0) {
+              const entityType = gameModel(EntityType).store.entityType[eid2];
+
+              if (!collisions.collisions[eid1].filters) collisions.collisions[eid1].filters = {};
+              if (filters.filters.includes(entityType)) {
+                if (!collisions.collisions[eid1].filters![entityType])
+                  collisions.collisions[eid1].filters![entityType] = [];
+                collisions.collisions[eid1].filters![entityType].push(eid2);
+              }
+            }
+          }
+          if (gameModel.hasComponent(CollisionFilters, eid2)) {
+            const filters = gameModel.getTypedUnsafe(CollisionFilters, eid2);
+            if (filters.filters.length > 0) {
+              const entityType = gameModel(EntityType).store.entityType[eid1];
+
+              if (!collisions.collisions[eid2].filters) collisions.collisions[eid2].filters = {};
+              if (filters.filters.includes(entityType)) {
+                if (!collisions.collisions[eid2].filters![entityType])
+                  collisions.collisions[eid2].filters![entityType] = [];
+                collisions.collisions[eid2].filters![entityType].push(eid1);
+              }
             }
           }
         }
-        if (gameModel.hasComponent(CollisionFilters, eid2)) {
-          const filters = gameModel.getTypedUnsafe(CollisionFilters, eid2);
-          if (filters.filters.length > 0) {
-            const entityType = gameModel(EntityType).store.entityType[eid1];
 
-            if (!collisions.collisions[eid2].filters) collisions.collisions[eid2].filters = {};
-            if (filters.filters.includes(entityType)) {
-              if (!collisions.collisions[eid2].filters![entityType])
-                collisions.collisions[eid2].filters![entityType] = [];
-              collisions.collisions[eid2].filters![entityType].push(eid1);
-            }
-          }
+        if (!hasCollisions) {
+          delete collisionMap[eid1];
         }
       }
     }
@@ -343,33 +364,31 @@ export class PhysicsDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
       const viewport = gameModel.getSystem(PixiViewportSystem);
       const pixi = viewport.pixiApp;
 
-        if (!lines) {
-          lines = new PIXI.Graphics();
-          lines.zIndex = Number.MAX_SAFE_INTEGER;
-          viewport.viewport.addChild(lines);
-        }
-        const buffers = gameModel.getSystem(PhysicsSystem).world.debugRender();
-        const vtx = buffers.vertices;
-        const cls = buffers.colors;
-
-        lines.clear();
-
-        for (let i = 0; i < vtx.length / 4; i += 1) {
-          const color = PIXI.Color.shared.setValue([cls[i * 8], cls[i * 8 + 1], cls[i * 8 + 2]]).toHex();
-          lines.lineStyle(1.0, color, cls[i * 8 + 3], 0.5, true);
-          lines.moveTo(vtx[i * 4], vtx[i * 4 + 1]);
-          lines.lineTo(vtx[i * 4 + 2], vtx[i * 4 + 3]);
-        }
-      } else if (lines) {
-        lines.clear();
-        lines.destroy();
-        lines = undefined;
+      if (!lines) {
+        lines = new PIXI.Graphics();
+        lines.zIndex = Number.MAX_SAFE_INTEGER;
+        viewport.viewport.addChild(lines);
       }
-      this.lines = lines;
+      const buffers = gameModel.getSystem(PhysicsSystem).world.debugRender();
+      const vtx = buffers.vertices;
+      const cls = buffers.colors;
+
+      lines.clear();
+
+      for (let i = 0; i < vtx.length / 4; i += 1) {
+        const color = PIXI.Color.shared.setValue([cls[i * 8], cls[i * 8 + 1], cls[i * 8 + 2]]).toHex();
+        lines.lineStyle(1.0, color, cls[i * 8 + 3], 0.5, true);
+        lines.moveTo(vtx[i * 4], vtx[i * 4 + 1]);
+        lines.lineTo(vtx[i * 4 + 2], vtx[i * 4 + 3]);
+      }
+    } else if (lines) {
+      lines.clear();
+      lines.destroy();
+      lines = undefined;
     }
-
+    this.lines = lines;
+  };
 }
-
 
 // let lines: PIXI.Graphics | undefined;
 

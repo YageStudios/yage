@@ -8,6 +8,7 @@ import {
   getComponentByType,
   hasComponent,
   stepWorld,
+  stepWorldTiming,
   componentList,
   type World,
   getSystemsByType,
@@ -219,7 +220,19 @@ export const GameModel = ({
     step: (dt?: number) => {
       gameModel.timeElapsed += dt || 16;
       gameModel.frameDt = dt || 16;
-      stepWorld(gameModel);
+      if (flags.PERFORMANCE_LOGS) {
+        stepWorldTiming(gameModel);
+        if (gameModel.timing && typeof window !== "undefined" && (window as any).performanceUpdate) {
+          (window as any).performanceUpdate(
+            gameModel.timing.systems.map((s) => ({ type: s.name, time: s.totalTime }))
+          );
+          if (gameModel.frame % 60 === 0) {
+            console.log(gameModel.timing)
+          }
+        }
+      } else {
+        stepWorld(gameModel);
+      }
     },
     stepDraw: () => {
       stepWorldDraw(gameModel);

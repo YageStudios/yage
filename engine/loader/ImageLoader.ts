@@ -89,7 +89,6 @@ export default class ImageLoader {
     this.promises.push(loadPromise);
     loadPromise.then(() => {
       this.promises = this.promises.filter((p) => p !== loadPromise);
-      console.log("done");
     });
     return loadPromise;
   }

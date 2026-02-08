@@ -34,12 +34,15 @@ export class SpriteComponentPixi extends DrawSystemImpl<ReadOnlyGameModel> {
   animationCache: { [id: string]: (PIXI.Sprite | PIXI.AnimatedSprite)[] } = {};
   imageCache: { [id: string]: PIXI.Sprite[] } = {};
 
+  private _cachedViewY = 0;
+  private _cachedViewYTime = -1;
+
   transform(
     pixiData: PixiSpriteContainer,
     entity: number,
     data: PixiSprite,
     renderModel: ReadOnlyGameModel,
-    viewport: Viewport
+    viewport: Viewport,
   ) {
     const { sprite, container } = pixiData;
     const locomotion = renderModel.getTypedUnsafe(Locomotion, entity);
@@ -245,7 +248,11 @@ export class SpriteComponentPixi extends DrawSystemImpl<ReadOnlyGameModel> {
         }
       }
     }
-    const viewY = viewport.toWorld(0, 0).y; // viewport.position.y;
+    if (this._cachedViewYTime !== renderModel.timeElapsed) {
+      this._cachedViewY = viewport.toWorld(0, 0).y;
+      this._cachedViewYTime = renderModel.timeElapsed;
+    }
+    const viewY = this._cachedViewY;
 
     if (spriteData.inheritParentZIndex && renderModel.hasComponent(Attach, entity)) {
       const owner = renderModel.getTypedUnsafe(Attach, entity).parent!;

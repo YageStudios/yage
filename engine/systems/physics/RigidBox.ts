@@ -1,7 +1,7 @@
 import type { GameModel } from "yage/game/GameModel";
 import { ComponentCategory } from "yage/systems/types";
 import { PhysicsSystem } from "yage/systems/physics/Physics";
-import { angleOfVector2d, scaleVector2d } from "yage/utils/vector";
+import { angleOfVector2d } from "yage/utils/vector";
 import { CollisionCategoryEnum, DEPTHS } from "yage/constants/enums";
 import RAPIER from "@dimforge/rapier2d-compat";
 import { Locomotion } from "yage/schemas/entity/Locomotion";
@@ -13,6 +13,10 @@ import { System, SystemImpl } from "minecs";
 export class RigidBoxSystem extends SystemImpl<GameModel> {
   static depth = DEPTHS.COLLISION - 0.0001;
   dependencies = ["Locomotion", "Transform"];
+
+  private _tempPos = { x: 0, y: 0 };
+  private _tempVel = { x: 0, y: 0 };
+  private _tempDir = { x: 0, y: 0 };
 
   init = (gameModel: GameModel, entity: number) => {
     const rigidBox = gameModel.getTypedUnsafe(RigidBox, entity);
@@ -79,20 +83,25 @@ export class RigidBoxSystem extends SystemImpl<GameModel> {
       }
 
       const transform = gameModel.getTypedUnsafe(Transform, entity);
-      const position = { x: transform.x, y: transform.y };
+      const position = this._tempPos;
+      position.x = transform.x;
+      position.y = transform.y;
 
       const locomotion = gameModel.getTypedUnsafe(Locomotion, entity);
-      const velocity = { x: locomotion.x, y: locomotion.y };
+      const velocity = this._tempVel;
+      velocity.x = locomotion.x * 60;
+      velocity.y = locomotion.y * 60;
 
       body.setTranslation(position, true);
 
-      if (velocity) {
-        body.setLinvel(scaleVector2d(velocity, 60), true);
+      if (velocity.x !== 0 || velocity.y !== 0) {
+        body.setLinvel(velocity, true);
       }
 
-      if (gameModel.hasComponent(RigidBox, entity) && gameModel.hasComponent(Locomotion, entity)) {
-        rigidBox.angle = angleOfVector2d({ x: locomotion.directionX, y: locomotion.directionY });
-      }
+      const dir = this._tempDir;
+      dir.x = locomotion.directionX;
+      dir.y = locomotion.directionY;
+      rigidBox.angle = angleOfVector2d(dir);
 
       const rads = rigidBox.angle * (Math.PI / 180);
       if (rads !== body.rotation()) {

@@ -16,6 +16,9 @@ export class RigidCircleSystem extends SystemImpl<GameModel> {
   depth = DEPTHS.COLLISION - 0.0001;
   dependencies = ["Locomotion", "Transform"];
 
+  private _tempPos = { x: 0, y: 0 };
+  private _tempVel = { x: 0, y: 0 };
+
   init = (gameModel: GameModel, entity: number) => {
     const transform = gameModel.getTypedUnsafe(Transform, entity);
     const position = { x: transform.x, y: transform.y };
@@ -104,10 +107,14 @@ export class RigidCircleSystem extends SystemImpl<GameModel> {
       }
 
       const transform = gameModel.getTypedUnsafe(Transform, entity);
-      const position = { x: transform.x, y: transform.y };
+      const position = this._tempPos;
+      position.x = transform.x;
+      position.y = transform.y;
 
       const locomotion = gameModel.getTypedUnsafe(Locomotion, entity);
-      const velocity = { x: locomotion.x, y: locomotion.y };
+      const velocity = this._tempVel;
+      velocity.x = locomotion.x;
+      velocity.y = locomotion.y;
 
       const body = physicsSystem.getRigidBody(entity);
       body.setTranslation(position, true);
@@ -123,7 +130,7 @@ export class RigidCircleSystem extends SystemImpl<GameModel> {
             locomotion.decayingVelocityY,
             0,
             0,
-            expDecay
+            expDecay,
           );
           decayingVelocity[0] *= locomotion.decayingVelocityScale;
           decayingVelocity[1] *= locomotion.decayingVelocityScale;
@@ -139,13 +146,9 @@ export class RigidCircleSystem extends SystemImpl<GameModel> {
         locomotion.decayingVelocityTime = 0;
       }
 
-      body.setLinvel(
-        {
-          x: (velocity.x + (decayingVelocity ? decayingVelocity[0] : 0)) * 60,
-          y: (velocity.y + (decayingVelocity ? decayingVelocity[1] : 0)) * 60,
-        },
-        true
-      );
+      velocity.x = (velocity.x + (decayingVelocity ? decayingVelocity[0] : 0)) * 60;
+      velocity.y = (velocity.y + (decayingVelocity ? decayingVelocity[1] : 0)) * 60;
+      body.setLinvel(velocity, true);
     }
   };
 

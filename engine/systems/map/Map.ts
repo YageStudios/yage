@@ -133,7 +133,6 @@ export class MapSystem extends SystemImpl<GameModel> {
         const isoX = (trigger.x - trigger.y) * Math.cos(Math.PI / 4) * Math.SQRT2;
         const isoY = (trigger.x + trigger.y) * Math.sin(Math.PI / 4) * 0.5 * Math.SQRT2;
         triggerPosition = { x: isoX, y: isoY };
-        console.log("UPDATING TRIGGER POSITION", triggerPosition);
       } else {
         // For non-isometric layout
         triggerPosition = { x: trigger.x, y: trigger.y };
@@ -303,7 +302,6 @@ export class MapSystem extends SystemImpl<GameModel> {
           const body = engine.createRigidBody(bodyDesc);
 
           collisionData.objects.forEach((object) => {
-            console.log(object);
             let colliderDesc: RAPIER.ColliderDesc | null = null;
 
             if (object.polygon) {
@@ -498,7 +496,7 @@ export class MapSystem extends SystemImpl<GameModel> {
   updatePathFinder(
     gameModel: GameModel,
     entity: number,
-    mapArray?: NdArray<number[] | TypedArray | GenericArray<number>>
+    mapArray?: NdArray<number[] | TypedArray | GenericArray<number>>,
   ) {
     mapArray = mapArray ?? this.pathfinders[entity].map ?? [];
     const map = gameModel.getTypedUnsafe(Map, entity);
@@ -538,7 +536,6 @@ export class MapSystem extends SystemImpl<GameModel> {
       const mapId = gameModel.getTypedUnsafe(MapId, activeEntity).mapId;
       return mapId === entity;
     });
-    console.log("CLEANING UP MAP", entitiesInMap);
     for (let i = 0; i < entitiesInMap.length; ++i) {
       gameModel.removeEntity(entitiesInMap[i]);
     }
@@ -553,6 +550,7 @@ export class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
       minimap: PIXI.Container;
       minimapSprite: PIXI.Sprite;
       playerMarkers: PIXI.Container;
+      markerPool: PIXI.Graphics[];
       map: PIXI.Container;
       colliders: PIXI.Container;
       walls: PIXI.Sprite[];
@@ -593,7 +591,7 @@ export class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
 
   createMinimapCanvas(
     renderModel: ReadOnlyGameModel,
-    entity: number
+    entity: number,
   ): { canvas: HTMLCanvasElement; bounds: { minX: number; minY: number; maxX: number; maxY: number } } {
     const mapData = renderModel.getTypedUnsafe(Map, entity);
     const pathfinder = renderModel.getSystem(MapSystem).getPathfinders(renderModel, entity);
@@ -634,7 +632,6 @@ export class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
 
   init = (renderModel: ReadOnlyGameModel, entity: number) => {
     const viewport = getSystem(renderModel, PixiViewportSystem).viewport;
-    console.error("INITIALIZING");
     const mapData = renderModel.getTypedUnsafe(Map, entity);
     const mapAsset = AssetLoader.getInstance().getMap(mapData.map);
     const skinData = AssetLoader.getInstance().getMapSkin(mapData.skin);
@@ -651,8 +648,6 @@ export class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
     const { canvas, bounds } = this.createMinimapCanvas(renderModel, entity);
     const minimapTexture = PIXI.Texture.from(canvas);
     const minimapSprite = new PIXI.Sprite(minimapTexture);
-
-    console.log(canvas.width, canvas.height);
 
     // Position minimap
     minimapSprite.width = canvas.width;
@@ -729,7 +724,7 @@ export class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
 
     const { width, height, data, customTiles } = mapAsset.map;
     getSystem(renderModel, PixiViewportSystem).pixiApp.renderer.background.color = hexToRgbNumber(
-      skinData.floor.baseColor
+      skinData.floor.baseColor,
     );
 
     const walls: PIXI.Sprite[] = [];
@@ -794,7 +789,7 @@ export class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
                   const texture = ImageLoader.getInstance().getPixiTexture(sprite.name).baseTexture;
                   const texturePart = new PIXI.Texture(
                     texture,
-                    new PIXI.Rectangle(zindexCollider.x, 0, zindexCollider.width, sprite.height)
+                    new PIXI.Rectangle(zindexCollider.x, 0, zindexCollider.width, sprite.height),
                   );
                   const wall = new PIXI.Sprite(texturePart);
                   wall.anchor.set(0.5);
@@ -822,7 +817,7 @@ export class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
                 wall.zIndex = 1;
                 viewport.addChild(wall);
               }
-            }
+            },
           );
         }
       }
@@ -832,6 +827,7 @@ export class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
       minimap: miniMap,
       minimapSprite,
       playerMarkers,
+      markerPool: [],
       map,
       colliders,
       walls,
@@ -844,7 +840,7 @@ export class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
 
   run = (renderModel: ReadOnlyGameModel, entity: number) => {
     const viewport = getSystem(renderModel, PixiViewportSystem).viewport;
-    const { colliders, minimap, walls, minimapSprite, mapBounds, playerMarkers } = this.entities[entity];
+    const { colliders, minimap, walls, minimapSprite, mapBounds, playerMarkers, markerPool } = this.entities[entity];
     const mapData = renderModel.getTypedUnsafe(Map, entity);
     const skinData = AssetLoader.getInstance().getMapSkin(mapData.skin);
 
@@ -854,29 +850,39 @@ export class MapDrawPixiSystem extends DrawSystemImpl<ReadOnlyGameModel> {
     const minimapPadding = -400;
     minimap.position.set(
       minimapPadding + firstPlayerTransform.x + mapBounds.minX * mapData.scale,
-      minimapPadding + firstPlayerTransform.y + mapBounds.minY * mapData.scale
+      minimapPadding + firstPlayerTransform.y + mapBounds.minY * mapData.scale,
     );
 
-    // Clear existing markers
-    playerMarkers.removeChildren();
-
+    // Reuse pooled markers instead of creating new PIXI.Graphics every frame
+    let markerIndex = 0;
     renderModel.players.forEach((playerId) => {
       if (renderModel.hasComponent(Transform, playerId)) {
         const transform = renderModel.getTypedUnsafe(Transform, playerId);
 
-        // Create a highly visible marker
-        const marker = new PIXI.Graphics();
-        marker.beginFill(0xff0000, 1); // Bright red
-        marker.drawCircle(0, 0, 8); // Larger radius
-        marker.endFill();
+        // Get or create a marker from the pool
+        let marker: PIXI.Graphics;
+        if (markerIndex < markerPool.length) {
+          marker = markerPool[markerIndex];
+          marker.visible = true;
+        } else {
+          marker = new PIXI.Graphics();
+          marker.beginFill(0xff0000, 1);
+          marker.drawCircle(0, 0, 8);
+          marker.endFill();
+          markerPool.push(marker);
+          playerMarkers.addChild(marker);
+        }
 
         const playerPosition = getMapPosition(mapData, toMapSpace(transform, true), 20);
-        // Place it in the middle of the minimap for testing
         marker.position.set(playerPosition.x, playerPosition.y);
-
-        playerMarkers.addChild(marker);
+        markerIndex++;
       }
     });
+
+    // Hide unused markers from the pool
+    for (let i = markerIndex; i < markerPool.length; i++) {
+      markerPool[i].visible = false;
+    }
 
     colliders.visible = flags.DEBUG;
     const viewY = viewport.toWorld(0, 0).y;
