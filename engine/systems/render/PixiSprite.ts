@@ -15,6 +15,7 @@ import type { Viewport } from "pixi-viewport";
 import { DrawSystemImpl, System, getSystem } from "minecs";
 import type { ReadOnlyGameModel } from "yage/game/GameModel";
 import { PixiViewportSystem } from "./PixiViewport";
+import { SpatialHash2d } from "yage/utils/SpatialHash2d";
 
 export type PixiSpriteContainer = {
   sprite: PIXI.Sprite;
@@ -36,6 +37,25 @@ export class SpriteComponentPixi extends DrawSystemImpl<ReadOnlyGameModel> {
 
   private _cachedViewY = 0;
   private _cachedViewYTime = -1;
+  private static readonly CULL_X = 2200;
+  private static readonly CULL_Y = 1300;
+  private static readonly HASH_CELL_SIZE = 256;
+  private static readonly CULL_PADDING = 256;
+  private _tmpDirection = { x: 0, y: 0 };
+  private _spatialHash = new SpatialHash2d(SpriteComponentPixi.HASH_CELL_SIZE);
+  private _indexed = new Set<number>();
+  private _lastVisible = new Set<number>();
+
+  private getViewBounds(viewport: Viewport) {
+    const topLeft = viewport.toWorld(0, 0);
+    const bottomRight = viewport.toWorld(viewport.screenWidth, viewport.screenHeight);
+    return {
+      minX: Math.min(topLeft.x, bottomRight.x) - SpriteComponentPixi.CULL_PADDING,
+      minY: Math.min(topLeft.y, bottomRight.y) - SpriteComponentPixi.CULL_PADDING,
+      maxX: Math.max(topLeft.x, bottomRight.x) + SpriteComponentPixi.CULL_PADDING,
+      maxY: Math.max(topLeft.y, bottomRight.y) + SpriteComponentPixi.CULL_PADDING,
+    };
+  }
 
   transform(
     pixiData: PixiSpriteContainer,
@@ -45,9 +65,21 @@ export class SpriteComponentPixi extends DrawSystemImpl<ReadOnlyGameModel> {
     viewport: Viewport,
   ) {
     const { sprite, container } = pixiData;
+    const horizontalDistanceFromCenter = Math.abs(container.x - viewport.center.x);
+    const verticalDistanceFromCenter = Math.abs(container.y - viewport.center.y);
+    if (horizontalDistanceFromCenter > SpriteComponentPixi.CULL_X || verticalDistanceFromCenter > SpriteComponentPixi.CULL_Y) {
+      container.visible = false;
+      return;
+    }
+    container.visible = true;
+
     const locomotion = renderModel.getTypedUnsafe(Locomotion, entity);
-    const direction = { x: locomotion.directionX, y: locomotion.directionY };
-    sprite.anchor.set(data.anchorX, data.anchorY);
+    const direction = this._tmpDirection;
+    direction.x = locomotion.directionX;
+    direction.y = locomotion.directionY;
+    if (sprite.anchor.x !== data.anchorX || sprite.anchor.y !== data.anchorY) {
+      sprite.anchor.set(data.anchorX, data.anchorY);
+    }
     if (data.faceDirection === FaceDirectionEnum.ROTATE) {
       const angle = data.rotation
         ? rotationVector2d(rotateDegVector2d(direction, data.rotation))
@@ -102,17 +134,6 @@ export class SpriteComponentPixi extends DrawSystemImpl<ReadOnlyGameModel> {
     }
     if (container.scale.x !== data.scale) {
       container.scale.set(data.scale);
-    }
-
-    const verticalDistanceFromCenter = Math.abs(pixiData.container.y - viewport.center.y);
-    const horizontalDistanceFromCenter = Math.abs(pixiData.container.x - viewport.center.x);
-    if (
-      horizontalDistanceFromCenter - pixiData.container.width / 2 > 1920 ||
-      verticalDistanceFromCenter - pixiData.container.height / 2 > 1080
-    ) {
-      container.visible = false;
-    } else {
-      container.visible = true;
     }
   }
 
@@ -200,9 +221,62 @@ export class SpriteComponentPixi extends DrawSystemImpl<ReadOnlyGameModel> {
     this.ids.add(entity);
   };
 
+  runAll = (renderModel: ReadOnlyGameModel) => {
+    const viewport = getSystem(renderModel, PixiViewportSystem).viewport;
+    const entities = this.query(renderModel);
+    const activeSet = new Set<number>(entities);
+
+    for (const indexedEntity of this._indexed) {
+      if (!activeSet.has(indexedEntity)) {
+        this._spatialHash.remove(indexedEntity);
+        this._indexed.delete(indexedEntity);
+        this._lastVisible.delete(indexedEntity);
+      }
+    }
+
+    for (let i = 0; i < entities.length; i++) {
+      const entity = entities[i];
+      const transform = renderModel(Transform, entity);
+      const x = transform.x;
+      const y = transform.y - transform.z;
+      if (this._indexed.has(entity)) {
+        this._spatialHash.update(entity, x, y);
+      } else {
+        this._spatialHash.insert(entity, x, y);
+        this._indexed.add(entity);
+      }
+    }
+
+    const bounds = this.getViewBounds(viewport);
+    const candidates = this._spatialHash.query(bounds.minX, bounds.minY, bounds.maxX, bounds.maxY);
+    const visibleNow = new Set<number>();
+
+    for (let i = 0; i < candidates.length; i++) {
+      const entity = candidates[i];
+      if (!activeSet.has(entity)) {
+        continue;
+      }
+      visibleNow.add(entity);
+      this.runEntity(renderModel, entity, viewport);
+    }
+
+    for (const entity of this._lastVisible) {
+      if (!visibleNow.has(entity)) {
+        const instanceData = this.instances[entity];
+        if (instanceData) {
+          instanceData.container.visible = false;
+        }
+      }
+    }
+    this._lastVisible = visibleNow;
+  };
+
   run = (renderModel: ReadOnlyGameModel, entity: number) => {
     const viewport = getSystem(renderModel, PixiViewportSystem).viewport;
+    this.runEntity(renderModel, entity, viewport);
+  };
 
+  private runEntity = (renderModel: ReadOnlyGameModel, entity: number, viewport: Viewport) => {
     const spriteData = renderModel.getTypedUnsafe(PixiSprite, entity);
 
     if (
@@ -226,8 +300,8 @@ export class SpriteComponentPixi extends DrawSystemImpl<ReadOnlyGameModel> {
     }
 
     const transform = renderModel(Transform, entity);
-    const position = { x: transform.x, y: transform.y };
-    position.y -= transform.z;
+    const positionX = transform.x;
+    const positionY = transform.y - transform.z;
 
     let xoffset = 0;
     let yoffset = 0;
@@ -267,15 +341,19 @@ export class SpriteComponentPixi extends DrawSystemImpl<ReadOnlyGameModel> {
       container.zIndex = spriteData.zIndex;
     }
 
-    container.x = position.x + xoffset;
-    container.y = position.y + yoffset;
+    container.x = positionX + xoffset;
+    container.y = positionY + yoffset;
 
-    debug?.position.set(position.x, position.y);
+    debug?.position.set(positionX, positionY);
 
     this.transform(pixiData, entity, spriteData, renderModel, viewport);
   };
 
   cleanup = (renderModel: ReadOnlyGameModel, entity: number) => {
+    this._spatialHash.remove(entity);
+    this._indexed.delete(entity);
+    this._lastVisible.delete(entity);
+
     const instanceData = this.instances[entity];
     if (!instanceData) {
       return;
