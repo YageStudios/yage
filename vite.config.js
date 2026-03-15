@@ -7,7 +7,7 @@ import { defineConfig } from "vite";
 import glob from "fast-glob";
 const files = glob
   .sync([
-    "./engine/{achievements,systems,connection,console,constants,decorators,entity,game,inputs,loader,persist,schemas,types,ui,utils,vendor}/**/*.{ts,js}",
+    "./engine/{achievements,systems,connection,console,constants,decorators,entity,game,inputs,loader,persist,schemas,testing,types,ui,utils,vendor}/**/*.{ts,js}",
   ])
   .map((file) => {
     const key = file.match(/(?<=\.\/engine\/).*(?=\.ts|\.js)/);
@@ -48,10 +48,13 @@ export default defineConfig({
         "nanoid",
         "ndarray",
         "peerjs",
+        "playwright-core",
         "seedrandom",
         "socket.io-client",
         "toposort",
         "url",
+        "fs",
+        "path",
       ],
     },
   },

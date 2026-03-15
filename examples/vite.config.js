@@ -10,7 +10,7 @@ export default defineConfig({
     outDir: "../testdist",
   },
   server: {
-    port: 3000,
+    port: 5173,
   },
   resolve: {
     alias: {

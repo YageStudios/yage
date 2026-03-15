@@ -1,0 +1,29 @@
+{
+  name: "core",
+  components: [
+    "Sounds",
+    {
+      type: "FrameRate",
+      uiMap: "core/FrameRate",
+    },
+    {
+      type: "TicTacToeState",
+      cells: ["", "", "", "", "", "", "", "", ""],
+      turn: "X",
+      status: "PLAYING",
+      uiMap: "core/TicTacToeUI",
+    },
+  ],
+  assets: [
+    {
+      type: "ui",
+      key: "core/FrameRate",
+      url: "core/FrameRate.json5",
+    },
+    {
+      type: "ui",
+      key: "core/TicTacToeUI",
+      url: "TicTacToeUI.json5",
+    },
+  ],
+}

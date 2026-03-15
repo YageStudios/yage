@@ -5,6 +5,7 @@ const games = [
   ["ui", () => import("./uimap")],
   ["peer", () => import("./peer")],
   ["socket", () => import("./socket")],
+  ["tictactoe", () => import("./tictactoe")],
 ] as const;
 
 let found = false;

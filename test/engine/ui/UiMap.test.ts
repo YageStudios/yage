@@ -859,6 +859,49 @@ describe("UiMap — New Features", () => {
       const texts = flatCollect(elements.root).filter((e) => e._config?.label === "OnlyIfTrue");
       expect(texts.length).toBe(0);
     });
+
+    it("rebases anchored branches into wrapper-local coordinates", () => {
+      const json = {
+        root: {
+          type: "box",
+          rect: { x: 0, y: 0, width: 1920, height: 1080 },
+          config: {},
+          children: {
+            resetButton: {
+              $if: "showReset",
+              then: {
+                type: "button",
+                rect: {
+                  x: "center",
+                  y: "bottom",
+                  yOffset: -100,
+                  width: 200,
+                  height: 60,
+                },
+                config: {
+                  label: "Restart Game",
+                },
+              },
+            },
+          },
+        },
+      };
+
+      const map = buildUiMap(json);
+      const elements = map.build({ showReset: true }, vi.fn());
+      const wrapper = elements.root._config.children?.[0];
+      const button = wrapper?._config.children?.[0];
+
+      expect(wrapper).toBeDefined();
+      expect(button).toBeDefined();
+      expect(wrapper?.bounds.x).toBe("center");
+      expect(wrapper?.bounds.y).toBe("bottom");
+      expect(wrapper?._config.style.position).toBe("absolute");
+      expect(button?.bounds.x).toBe("left");
+      expect(button?.bounds.y).toBe("top");
+      expect(button?.bounds.xOffset).toBe(0);
+      expect(button?.bounds.yOffset).toBe(0);
+    });
   });
 
   // --------------------------------------------------------------------------

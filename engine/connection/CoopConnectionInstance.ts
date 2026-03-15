@@ -31,22 +31,28 @@ export class CoopConnectionInstance<T> extends CoreConnectionInstance<T> {
   }
 
   emit(event: string, ...args: any[]) {
+    const sourcePlayerId = this.localPlayers[0]?.netId;
+    if (!sourcePlayerId) {
+      return;
+    }
+
     if (event !== "message") {
       if (this.onceSubscriptions[event]) {
         this.onceSubscriptions[event].forEach((callback) => {
-          callback(this.player.netId, ...args);
+          callback(sourcePlayerId, ...args);
         });
         this.onceSubscriptions[event] = [];
       }
       if (this.subscriptions[event]) {
         this.subscriptions[event].forEach((callback) => {
-          callback(this.player.netId, ...args);
+          callback(sourcePlayerId, ...args);
         });
       }
     }
   }
 
   connect(): Promise<void> {
+    this.roomSyncResolve();
     for (let i = 0; i < this.localPlayers.length; i++) {
       this.emit("connect", this.localPlayers[i]);
     }

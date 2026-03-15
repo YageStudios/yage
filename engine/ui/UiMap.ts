@@ -278,6 +278,14 @@ export const registerTemplate = (templateName: string, template: any) => {
   registeredTemplates.set(templateName, template);
 };
 
+const rebaseRectToWrapper = (rect: any = {}) => ({
+  ...rect,
+  x: "left",
+  y: "top",
+  xOffset: 0,
+  yOffset: 0,
+});
+
 const testQuery = (key: string, value: string, json: string, parent: string): Query | undefined => {
   if (value.includes("$$")) {
     const test = /(\$\$[a-zA-Z0-9_.]+)/g;
@@ -784,7 +792,6 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
 
         const wrapper = new Box(wrapperPosition, {
           style: {
-            position: "relative",
             border: "none",
             backgroundColor: "transparent",
             padding: "0",
@@ -826,6 +833,9 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
           const branch = conditionResult ? thenBranch : elseBranch;
           if (branch) {
             const branchJson = cloneDeep(branch);
+            if (branchJson.rect) {
+              branchJson.rect = rebaseRectToWrapper(branchJson.rect);
+            }
             recursiveBuild({ node: branchJson }, wrapper, contextRef, currentBranchQueries);
           }
 

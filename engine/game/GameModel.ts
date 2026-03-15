@@ -50,7 +50,7 @@ export type GameModelState = {
   frame: number;
   world: SerializedWorld | string;
   jsonWorld?: SerializedWorld;
-  physics: PhysicsSaveState;
+  physics?: PhysicsSaveState;
 };
 
 export type EjectedEntity = {
@@ -588,7 +588,8 @@ export const GameModel = ({
     },
     removeEntity: (entity: number) => removeEntity(world, entity),
     serializeState(): GameModelState {
-      const physicsSystem = this.getSystem(PhysicsSystem);
+      const hasPhysics = gameModel.hasComponent("Physics", gameModel.coreEntity);
+      const physicsSystem = hasPhysics ? this.getSystem(PhysicsSystem) : null;
 
       return {
         core: gameModel.coreEntity,
@@ -598,7 +599,7 @@ export const GameModel = ({
           ? serializeWorld(SerialMode.BASE64, world)
           : serializeWorld(SerialMode.JSON, world),
         jsonWorld: flags.SERIALIZE_TO_BUFFER ? serializeWorld(SerialMode.JSON, world) : undefined,
-        physics: physicsSystem.save(),
+        physics: physicsSystem?.save(),
       };
     },
     deserializeState: async (state: GameModelState) => {
@@ -610,10 +611,12 @@ export const GameModel = ({
 
       deserializeWorld(state.world, world);
 
-      const physicsSystem = getSystem(gameModel, PhysicsSystem);
-      physicsSystem.init(gameModel, state.core);
-      physicsSystem.getEngine?.(gameModel);
-      await physicsSystem.restore(state.physics);
+      if (state.physics && gameModel.hasComponent("Physics", state.core)) {
+        const physicsSystem = getSystem(gameModel, PhysicsSystem);
+        physicsSystem.init(gameModel, state.core);
+        physicsSystem.getEngine?.(gameModel);
+        await physicsSystem.restore(state.physics);
+      }
     },
     destroy: () => {
       deleteWorld(world);

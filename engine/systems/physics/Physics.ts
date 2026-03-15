@@ -55,6 +55,15 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
   coreEntity: number;
 
   save(): PhysicsSaveState {
+    if (!this.world) {
+      return {
+        bodies: {},
+        colliders: {},
+        data: "",
+        history: cloneDeep(this.history),
+      };
+    }
+
     return {
       bodies: Object.keys(this.bodies).reduce((acc, key) => {
         const entity = +key;
@@ -72,6 +81,21 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
   }
 
   restore(state: PhysicsSaveState) {
+    if (!state.data) {
+      this.bodies = {};
+      this.colliders = {};
+      this.colliderHandles = {};
+      this.collisionCounts = {};
+      this.history = cloneDeep(state.history);
+      if (!this.world) {
+        this.world = new RAPIER.World({ x: 0, y: 0 });
+      }
+      if (!this.eventQueue) {
+        this.eventQueue = new RAPIER.EventQueue(false);
+      }
+      return;
+    }
+
     if (!this.world) {
       this.world = new RAPIER.World({ x: 0, y: 0 });
     }

@@ -94,6 +94,13 @@ Each top-level key in the JSON represents a named UI element:
 - `children` — Nested object of child element definitions
 - `events` — Event handler mappings (see [Events](#events))
 
+### Layout Notes
+
+- Use `x: "full", y: "full"` for a true full-screen root container. This is the safest way to create a parent that children can anchor against with `"center"`, `"top"`, `"bottom"`, etc.
+- Avoid using `x: 0, y: 0, width: "100%", height: "100%"` as a fake full-screen root. Numeric `x`/`y` still participate in the normal position math and can produce unexpected offsets.
+- For centered text near the top or bottom of the screen, give the `text` element a full-width rect and rely on `textAlign: "center"`. Example: `rect: { x: "center", y: "top", width: "100%", yOffset: 100 }`.
+- For modal or conditional controls near the screen edges, prefer anchoring the element itself with `x: "center"` / `y: "bottom"` instead of manually tuning percentage offsets.
+
 ### Data Binding: Legacy `$$` Syntax
 
 Prefix a context variable path with `$$` to bind it:
@@ -164,6 +171,37 @@ Structural nodes control conditional rendering and context scoping. They are pla
 `$unless` works identically but with inverted logic (renders `then` when the expression is falsy).
 
 On `update()`, the condition is re-evaluated. If the result changes, the old branch is destroyed and the new branch is built.
+
+Positioning note:
+
+- `$if` / `$unless` preserve the branch rect as the wrapper's outer anchor.
+- The rendered branch is then rebased into wrapper-local coordinates.
+- In practice, this means an anchored branch like `x: "center", y: "bottom"` will stay centered/bottom-aligned when wrapped conditionally; you do not need a separate non-structural workaround.
+
+Example:
+
+```json5
+{
+  children: {
+    resetButton: {
+      $if: "showReset",
+      then: {
+        type: "button",
+        rect: {
+          x: "center",
+          y: "bottom",
+          yOffset: -100,
+          width: 200,
+          height: 60,
+        },
+        config: {
+          label: "Restart Game",
+        },
+      },
+    },
+  },
+}
+```
 
 #### `$with`
 

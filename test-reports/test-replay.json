@@ -1,0 +1,2059 @@
+{
+  "QuickStart": {
+    "frames": {
+      "e2e_host": [
+        {
+          "frame": 0,
+          "keys": {},
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "frame": 1,
+          "keys": {},
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "frame": 2,
+          "keys": {},
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "frame": 3,
+          "keys": {},
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "frame": 4,
+          "keys": {},
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "frame": 5,
+          "keys": {},
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "frame": 6,
+          "keys": {},
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "frame": 7,
+          "keys": {},
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "keys": {},
+          "frame": 8,
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "keys": {},
+          "frame": 9,
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "keys": {},
+          "frame": 10,
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "keys": {},
+          "frame": 11,
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "keys": {},
+          "frame": 12,
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "keys": {},
+          "frame": 13,
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "keys": {},
+          "frame": 14,
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "keys": {},
+          "frame": 15,
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "keys": {},
+          "frame": 16,
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "keys": {},
+          "frame": 17,
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "keys": {},
+          "frame": 18,
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "keys": {},
+          "frame": 19,
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "keys": {},
+          "frame": 20,
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "keys": {},
+          "frame": 21,
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "keys": {},
+          "frame": 22,
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "keys": {},
+          "frame": 23,
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "keys": {},
+          "frame": 24,
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "keys": {},
+          "frame": 25,
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "keys": {},
+          "frame": 26,
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "keys": {},
+          "frame": 27,
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "keys": {},
+          "frame": 28,
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "keys": {},
+          "frame": 29,
+          "events": [],
+          "playerId": "e2e_host"
+        },
+        {
+          "keys": {},
+          "frame": 30,
+          "events": [],
+          "playerId": "e2e_host"
+        }
+      ],
+      "replay_player": [
+        {
+          "frame": 0,
+          "keys": {},
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "frame": 1,
+          "keys": {},
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "frame": 2,
+          "keys": {},
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "frame": 3,
+          "keys": {},
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "frame": 4,
+          "keys": {},
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "frame": 5,
+          "keys": {},
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "frame": 6,
+          "keys": {},
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "frame": 7,
+          "keys": {},
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "keys": {},
+          "frame": 8,
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "keys": {},
+          "frame": 9,
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "keys": {},
+          "frame": 10,
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "keys": {},
+          "frame": 11,
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "keys": {},
+          "frame": 12,
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "keys": {},
+          "frame": 13,
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "keys": {},
+          "frame": 14,
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "keys": {},
+          "frame": 15,
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "keys": {},
+          "frame": 16,
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "keys": {},
+          "frame": 17,
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "keys": {},
+          "frame": 18,
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "keys": {},
+          "frame": 19,
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "keys": {},
+          "frame": 20,
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "keys": {},
+          "frame": 21,
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "keys": {},
+          "frame": 22,
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "keys": {},
+          "frame": 23,
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "keys": {},
+          "frame": 24,
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "keys": {},
+          "frame": 25,
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "keys": {},
+          "frame": 26,
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "keys": {},
+          "frame": 27,
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "keys": {},
+          "frame": 28,
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "keys": {},
+          "frame": 29,
+          "events": [],
+          "playerId": "replay_player"
+        },
+        {
+          "keys": {},
+          "frame": 30,
+          "events": [],
+          "playerId": "replay_player"
+        }
+      ]
+    },
+    "seed": "QuickStart",
+    "startTimestamp": 1773586363082,
+    "stateHashes": {
+      "0": "27130e9e6f143a17f6da2a3d06d3c4c9"
+    },
+    "snapshots": {
+      "0": {
+        "core": 1,
+        "timeElapsed": 0,
+        "frame": 0,
+        "world": {
+          "frame": 0,
+          "entitySparseSet": {
+            "dense": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "sparse": [
+              0,
+              1,
+              2,
+              3
+            ]
+          },
+          "removed": [],
+          "entities": [
+            {
+              "entityId": 0,
+              "components": {}
+            },
+            {
+              "entityId": 1,
+              "components": {
+                "Collisions": {
+                  "collisionMap": {}
+                },
+                "Description": {
+                  "description": "core"
+                },
+                "EntityType": {
+                  "entityType": 0
+                },
+                "Frame": {
+                  "frame": 0
+                },
+                "FrameEnd": {},
+                "FrameRate": {
+                  "uiMap": "core/FrameRate"
+                },
+                "FrameStart": {},
+                "Physics": {
+                  "gravityX": 0,
+                  "gravityY": 0
+                },
+                "PixiViewport": {
+                  "minWidth": 1089,
+                  "minHeight": 1080,
+                  "fillScreen": false
+                },
+                "PixiViewportCleanup": {},
+                "Random": {
+                  "random": -632932715,
+                  "seedNumber": -632932715,
+                  "seed": "QuickStart"
+                },
+                "UiCleanupOnLeave": {}
+              }
+            },
+            {
+              "entityId": 2,
+              "components": {
+                "AllyType": {},
+                "Description": {
+                  "description": "ball"
+                },
+                "EntityType": {
+                  "entityType": 5
+                },
+                "Locomotion": {
+                  "x": 0,
+                  "y": 0,
+                  "speed": 10,
+                  "directionX": 0,
+                  "directionY": 1,
+                  "decayingVelocityX": 0,
+                  "decayingVelocityY": 0,
+                  "decayingVelocityTime": 0,
+                  "decayingVelocityScale": 1,
+                  "fixedDirection": 0
+                },
+                "PixiGraphic": {
+                  "scale": 1,
+                  "initialScale": 1,
+                  "rotation": 0,
+                  "xoffset": 0,
+                  "yoffset": 0,
+                  "zIndex": 0,
+                  "inheritParentZIndex": true,
+                  "relativeZIndex": true,
+                  "opacity": 1,
+                  "anchorX": 0.5,
+                  "anchorY": 0.5,
+                  "lineWidth": 0,
+                  "fillColor": "#ff0000",
+                  "circle": {
+                    "x": 5,
+                    "y": 5,
+                    "radius": 5
+                  }
+                },
+                "PlayerInput": {
+                  "buttons": 0,
+                  "keyMap": {},
+                  "pid": "e2e_host"
+                },
+                "PlayerMovement": {},
+                "PlayerType": {},
+                "Radius": {
+                  "radius": 5
+                },
+                "RigidCircle": {
+                  "radius": 0,
+                  "isStatic": false,
+                  "isSensor": false,
+                  "mass": 200,
+                  "disabled": false,
+                  "directionLock": false,
+                  "velocityLock": false,
+                  "collisionEvents": true,
+                  "isometric": false,
+                  "collisionCategory": 2,
+                  "collisionMask": [
+                    65535
+                  ]
+                },
+                "RigidCircleResolver": {},
+                "Transform": {
+                  "x": 0,
+                  "y": 0,
+                  "z": 0,
+                  "previousX": 0,
+                  "previousY": 0,
+                  "previousZ": 0
+                }
+              }
+            },
+            {
+              "entityId": 3,
+              "components": {
+                "Description": {
+                  "description": "blue-ball"
+                },
+                "EntityType": {
+                  "entityType": 0
+                }
+              }
+            }
+          ],
+          "entityCursor": 4,
+          "size": 10000,
+          "bitflag": 16777216,
+          "componentMap": [
+            [
+              "AllyType",
+              {
+                "generationId": 0,
+                "bitflag": 1
+              }
+            ],
+            [
+              "AltarType",
+              {
+                "generationId": 0,
+                "bitflag": 2
+              }
+            ],
+            [
+              "Animate",
+              {
+                "generationId": 0,
+                "bitflag": 4
+              }
+            ],
+            [
+              "Animation",
+              {
+                "generationId": 0,
+                "bitflag": 8
+              }
+            ],
+            [
+              "AnimationTween",
+              {
+                "generationId": 0,
+                "bitflag": 16
+              }
+            ],
+            [
+              "AtLocationTrigger",
+              {
+                "generationId": 0,
+                "bitflag": 32
+              }
+            ],
+            [
+              "Attach",
+              {
+                "generationId": 0,
+                "bitflag": 64
+              }
+            ],
+            [
+              "Attached",
+              {
+                "generationId": 0,
+                "bitflag": 128
+              }
+            ],
+            [
+              "AttachPost",
+              {
+                "generationId": 0,
+                "bitflag": 256
+              }
+            ],
+            [
+              "AuraType",
+              {
+                "generationId": 0,
+                "bitflag": 512
+              }
+            ],
+            [
+              "BaseTrigger",
+              {
+                "generationId": 0,
+                "bitflag": 1024
+              }
+            ],
+            [
+              "CameraFollowOnSpawn",
+              {
+                "generationId": 0,
+                "bitflag": 2048
+              }
+            ],
+            [
+              "Child",
+              {
+                "generationId": 0,
+                "bitflag": 4096
+              }
+            ],
+            [
+              "CollisionFilters",
+              {
+                "generationId": 0,
+                "bitflag": 8192
+              }
+            ],
+            [
+              "Collisions",
+              {
+                "generationId": 0,
+                "bitflag": 16384
+              }
+            ],
+            [
+              "Damage",
+              {
+                "generationId": 0,
+                "bitflag": 32768
+              }
+            ],
+            [
+              "Damageable",
+              {
+                "generationId": 0,
+                "bitflag": 65536
+              }
+            ],
+            [
+              "DamageStats",
+              {
+                "generationId": 0,
+                "bitflag": 131072
+              }
+            ],
+            [
+              "DeathTrigger",
+              {
+                "generationId": 0,
+                "bitflag": 262144
+              }
+            ],
+            [
+              "Description",
+              {
+                "generationId": 0,
+                "bitflag": 524288
+              }
+            ],
+            [
+              "DoNotEject",
+              {
+                "generationId": 0,
+                "bitflag": 1048576
+              }
+            ],
+            [
+              "DoorType",
+              {
+                "generationId": 0,
+                "bitflag": 2097152
+              }
+            ],
+            [
+              "EnemyType",
+              {
+                "generationId": 0,
+                "bitflag": 4194304
+              }
+            ],
+            [
+              "EntityCamera",
+              {
+                "generationId": 0,
+                "bitflag": 8388608
+              }
+            ],
+            [
+              "EntityType",
+              {
+                "generationId": 0,
+                "bitflag": 16777216
+              }
+            ],
+            [
+              "Events",
+              {
+                "generationId": 0,
+                "bitflag": 33554432
+              }
+            ],
+            [
+              "Frame",
+              {
+                "generationId": 0,
+                "bitflag": 67108864
+              }
+            ],
+            [
+              "FrameEnd",
+              {
+                "generationId": 0,
+                "bitflag": 134217728
+              }
+            ],
+            [
+              "FrameRate",
+              {
+                "generationId": 0,
+                "bitflag": 268435456
+              }
+            ],
+            [
+              "FrameStart",
+              {
+                "generationId": 0,
+                "bitflag": 536870912
+              }
+            ],
+            [
+              "GlobalKillStats",
+              {
+                "generationId": 0,
+                "bitflag": 1073741824
+              }
+            ],
+            [
+              "GlobalKillStatsTrigger",
+              {
+                "generationId": 1,
+                "bitflag": 1
+              }
+            ],
+            [
+              "Health",
+              {
+                "generationId": 1,
+                "bitflag": 2
+              }
+            ],
+            [
+              "InteractableType",
+              {
+                "generationId": 1,
+                "bitflag": 4
+              }
+            ],
+            [
+              "IsMovingTrigger",
+              {
+                "generationId": 1,
+                "bitflag": 8
+              }
+            ],
+            [
+              "IsStandingTrigger",
+              {
+                "generationId": 1,
+                "bitflag": 16
+              }
+            ],
+            [
+              "KillFrame",
+              {
+                "generationId": 1,
+                "bitflag": 32
+              }
+            ],
+            [
+              "KillStats",
+              {
+                "generationId": 1,
+                "bitflag": 64
+              }
+            ],
+            [
+              "KillStatsTrigger",
+              {
+                "generationId": 1,
+                "bitflag": 128
+              }
+            ],
+            [
+              "ListenEntityCreation",
+              {
+                "generationId": 1,
+                "bitflag": 256
+              }
+            ],
+            [
+              "Locomotion",
+              {
+                "generationId": 1,
+                "bitflag": 512
+              }
+            ],
+            [
+              "Map",
+              {
+                "generationId": 1,
+                "bitflag": 1024
+              }
+            ],
+            [
+              "MapEntityType",
+              {
+                "generationId": 1,
+                "bitflag": 2048
+              }
+            ],
+            [
+              "MapId",
+              {
+                "generationId": 1,
+                "bitflag": 4096
+              }
+            ],
+            [
+              "MapIsometric",
+              {
+                "generationId": 1,
+                "bitflag": 8192
+              }
+            ],
+            [
+              "MapSession",
+              {
+                "generationId": 1,
+                "bitflag": 16384
+              }
+            ],
+            [
+              "MapSpawn",
+              {
+                "generationId": 1,
+                "bitflag": 32768
+              }
+            ],
+            [
+              "NoLocomotion",
+              {
+                "generationId": 1,
+                "bitflag": 65536
+              }
+            ],
+            [
+              "Owned",
+              {
+                "generationId": 1,
+                "bitflag": 131072
+              }
+            ],
+            [
+              "Owner",
+              {
+                "generationId": 1,
+                "bitflag": 262144
+              }
+            ],
+            [
+              "Parent",
+              {
+                "generationId": 1,
+                "bitflag": 524288
+              }
+            ],
+            [
+              "Physics",
+              {
+                "generationId": 1,
+                "bitflag": 1048576
+              }
+            ],
+            [
+              "PickupType",
+              {
+                "generationId": 1,
+                "bitflag": 2097152
+              }
+            ],
+            [
+              "PixiGraphic",
+              {
+                "generationId": 1,
+                "bitflag": 4194304
+              }
+            ],
+            [
+              "PixiSprite",
+              {
+                "generationId": 1,
+                "bitflag": 8388608
+              }
+            ],
+            [
+              "PixiViewport",
+              {
+                "generationId": 1,
+                "bitflag": 16777216
+              }
+            ],
+            [
+              "PixiViewportCleanup",
+              {
+                "generationId": 1,
+                "bitflag": 33554432
+              }
+            ],
+            [
+              "PlayerInput",
+              {
+                "generationId": 1,
+                "bitflag": 67108864
+              }
+            ],
+            [
+              "PlayerMovement",
+              {
+                "generationId": 1,
+                "bitflag": 134217728
+              }
+            ],
+            [
+              "PlayerType",
+              {
+                "generationId": 1,
+                "bitflag": 268435456
+              }
+            ],
+            [
+              "Portal",
+              {
+                "generationId": 1,
+                "bitflag": 536870912
+              }
+            ],
+            [
+              "PreviousKills",
+              {
+                "generationId": 1,
+                "bitflag": 1073741824
+              }
+            ],
+            [
+              "ProjectileType",
+              {
+                "generationId": 2,
+                "bitflag": 1
+              }
+            ],
+            [
+              "Radius",
+              {
+                "generationId": 2,
+                "bitflag": 2
+              }
+            ],
+            [
+              "Random",
+              {
+                "generationId": 2,
+                "bitflag": 4
+              }
+            ],
+            [
+              "RigidBox",
+              {
+                "generationId": 2,
+                "bitflag": 8
+              }
+            ],
+            [
+              "RigidBoxResolver",
+              {
+                "generationId": 2,
+                "bitflag": 16
+              }
+            ],
+            [
+              "RigidCircle",
+              {
+                "generationId": 2,
+                "bitflag": 32
+              }
+            ],
+            [
+              "RigidCircleResolver",
+              {
+                "generationId": 2,
+                "bitflag": 64
+              }
+            ],
+            [
+              "RigidPoly",
+              {
+                "generationId": 2,
+                "bitflag": 128
+              }
+            ],
+            [
+              "RigidPolyResolver",
+              {
+                "generationId": 2,
+                "bitflag": 256
+              }
+            ],
+            [
+              "SelfCamera",
+              {
+                "generationId": 2,
+                "bitflag": 512
+              }
+            ],
+            [
+              "ShareOnDeath",
+              {
+                "generationId": 2,
+                "bitflag": 1024
+              }
+            ],
+            [
+              "ShareOnEject",
+              {
+                "generationId": 2,
+                "bitflag": 2048
+              }
+            ],
+            [
+              "ShareOnHeal",
+              {
+                "generationId": 2,
+                "bitflag": 4096
+              }
+            ],
+            [
+              "ShareOnKill",
+              {
+                "generationId": 2,
+                "bitflag": 8192
+              }
+            ],
+            [
+              "Spawn",
+              {
+                "generationId": 2,
+                "bitflag": 16384
+              }
+            ],
+            [
+              "SpawnTrigger",
+              {
+                "generationId": 2,
+                "bitflag": 32768
+              }
+            ],
+            [
+              "SwapComponents",
+              {
+                "generationId": 2,
+                "bitflag": 65536
+              }
+            ],
+            [
+              "Teleport",
+              {
+                "generationId": 2,
+                "bitflag": 131072
+              }
+            ],
+            [
+              "TimeTrigger",
+              {
+                "generationId": 2,
+                "bitflag": 262144
+              }
+            ],
+            [
+              "Transform",
+              {
+                "generationId": 2,
+                "bitflag": 524288
+              }
+            ],
+            [
+              "TriggerEvent",
+              {
+                "generationId": 2,
+                "bitflag": 1048576
+              }
+            ],
+            [
+              "UiCleanupOnLeave",
+              {
+                "generationId": 2,
+                "bitflag": 2097152
+              }
+            ],
+            [
+              "WallType",
+              {
+                "generationId": 2,
+                "bitflag": 4194304
+              }
+            ],
+            [
+              "WeaponType",
+              {
+                "generationId": 2,
+                "bitflag": 8388608
+              }
+            ]
+          ],
+          "queryMap": {
+            "MapId": {
+              "queryKey": "MapId",
+              "generations": [
+                1
+              ],
+              "masks": {
+                "1": 4096
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "MapSpawn|Transform": {
+              "queryKey": "MapSpawn|Transform",
+              "generations": [
+                1,
+                2
+              ],
+              "masks": {
+                "1": 32768,
+                "2": 524288
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "Owner": {
+              "queryKey": "Owner",
+              "generations": [
+                1
+              ],
+              "masks": {
+                "1": 262144
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "PixiViewportCleanup": {
+              "queryKey": "PixiViewportCleanup",
+              "generations": [
+                1
+              ],
+              "masks": {
+                "1": 33554432
+              },
+              "dense": [
+                1
+              ],
+              "sparse": [
+                -1,
+                0
+              ],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [
+                  1
+                ],
+                "sparse": [
+                  -1,
+                  0
+                ]
+              }
+            },
+            "SwapComponents": {
+              "queryKey": "SwapComponents",
+              "generations": [
+                2
+              ],
+              "masks": {
+                "2": 65536
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "TriggerEvent": {
+              "queryKey": "TriggerEvent",
+              "generations": [
+                2
+              ],
+              "masks": {
+                "2": 1048576
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "UiCleanupOnLeave": {
+              "queryKey": "UiCleanupOnLeave",
+              "generations": [
+                2
+              ],
+              "masks": {
+                "2": 2097152
+              },
+              "dense": [
+                1
+              ],
+              "sparse": [
+                -1,
+                0
+              ],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [
+                  1
+                ],
+                "sparse": [
+                  -1,
+                  0
+                ]
+              }
+            },
+            "CameraFollowOnSpawn": {
+              "queryKey": "CameraFollowOnSpawn",
+              "generations": [
+                0
+              ],
+              "masks": {
+                "0": 2048
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "Child|ListenEntityCreation": {
+              "queryKey": "Child|ListenEntityCreation",
+              "generations": [
+                1,
+                0
+              ],
+              "masks": {
+                "0": 4096,
+                "1": 256
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "Frame|FrameRate": {
+              "queryKey": "Frame|FrameRate",
+              "generations": [
+                0
+              ],
+              "masks": {
+                "0": 335544320
+              },
+              "dense": [
+                1
+              ],
+              "sparse": [
+                -1,
+                0
+              ],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [
+                  1
+                ],
+                "sparse": [
+                  -1,
+                  0
+                ]
+              }
+            },
+            "FrameRate": {
+              "queryKey": "FrameRate",
+              "generations": [
+                0
+              ],
+              "masks": {
+                "0": 268435456
+              },
+              "dense": [
+                1
+              ],
+              "sparse": [
+                -1,
+                0
+              ],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [
+                  1
+                ],
+                "sparse": [
+                  -1,
+                  0
+                ]
+              }
+            },
+            "Owned": {
+              "queryKey": "Owned",
+              "generations": [
+                1
+              ],
+              "masks": {
+                "1": 131072
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "Random": {
+              "queryKey": "Random",
+              "generations": [
+                2
+              ],
+              "masks": {
+                "2": 4
+              },
+              "dense": [
+                1
+              ],
+              "sparse": [
+                -1,
+                0
+              ],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [
+                  1
+                ],
+                "sparse": [
+                  -1,
+                  0
+                ]
+              }
+            },
+            "RigidCircle|Transform": {
+              "queryKey": "RigidCircle|Transform",
+              "generations": [
+                2
+              ],
+              "masks": {
+                "2": 524320
+              },
+              "dense": [
+                2
+              ],
+              "sparse": [
+                -1,
+                -1,
+                0
+              ],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [
+                  2
+                ],
+                "sparse": [
+                  -1,
+                  -1,
+                  0
+                ]
+              }
+            },
+            "Map": {
+              "queryKey": "Map",
+              "generations": [
+                1
+              ],
+              "masks": {
+                "1": 1024
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "Health": {
+              "queryKey": "Health",
+              "generations": [
+                1
+              ],
+              "masks": {
+                "1": 2
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "GlobalKillStatsTrigger": {
+              "queryKey": "GlobalKillStatsTrigger",
+              "generations": [
+                1
+              ],
+              "masks": {
+                "1": 1
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "KillStatsTrigger": {
+              "queryKey": "KillStatsTrigger",
+              "generations": [
+                1
+              ],
+              "masks": {
+                "1": 128
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "PlayerMovement": {
+              "queryKey": "PlayerMovement",
+              "generations": [
+                1
+              ],
+              "masks": {
+                "1": 134217728
+              },
+              "dense": [
+                2
+              ],
+              "sparse": [
+                -1,
+                -1,
+                0
+              ],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [
+                  2
+                ],
+                "sparse": [
+                  -1,
+                  -1,
+                  0
+                ]
+              }
+            },
+            "Attach|Transform": {
+              "queryKey": "Attach|Transform",
+              "generations": [
+                0,
+                2
+              ],
+              "masks": {
+                "0": 64,
+                "2": 524288
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "Child|Transform": {
+              "queryKey": "Child|Transform",
+              "generations": [
+                0,
+                2
+              ],
+              "masks": {
+                "0": 4096,
+                "2": 524288
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "RigidBox|Transform": {
+              "queryKey": "RigidBox|Transform",
+              "generations": [
+                2
+              ],
+              "masks": {
+                "2": 524296
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "Physics": {
+              "queryKey": "Physics",
+              "generations": [
+                1
+              ],
+              "masks": {
+                "1": 1048576
+              },
+              "dense": [
+                1
+              ],
+              "sparse": [
+                -1,
+                0
+              ],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [
+                  1
+                ],
+                "sparse": [
+                  -1,
+                  0
+                ]
+              }
+            },
+            "RigidBoxResolver": {
+              "queryKey": "RigidBoxResolver",
+              "generations": [
+                2
+              ],
+              "masks": {
+                "2": 16
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "RigidCircleResolver": {
+              "queryKey": "RigidCircleResolver",
+              "generations": [
+                2
+              ],
+              "masks": {
+                "2": 64
+              },
+              "dense": [
+                2
+              ],
+              "sparse": [
+                -1,
+                -1,
+                0
+              ],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [
+                  2
+                ],
+                "sparse": [
+                  -1,
+                  -1,
+                  0
+                ]
+              }
+            },
+            "AtLocationTrigger": {
+              "queryKey": "AtLocationTrigger",
+              "generations": [
+                0
+              ],
+              "masks": {
+                "0": 32
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "DeathTrigger|Transform": {
+              "queryKey": "DeathTrigger|Transform",
+              "generations": [
+                0,
+                2
+              ],
+              "masks": {
+                "0": 262144,
+                "2": 524288
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "SpawnTrigger|Transform": {
+              "queryKey": "SpawnTrigger|Transform",
+              "generations": [
+                2
+              ],
+              "masks": {
+                "2": 557056
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "Attach|AttachPost": {
+              "queryKey": "Attach|AttachPost",
+              "generations": [
+                0
+              ],
+              "masks": {
+                "0": 320
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "IsMovingTrigger": {
+              "queryKey": "IsMovingTrigger",
+              "generations": [
+                1
+              ],
+              "masks": {
+                "1": 8
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "IsStandingTrigger": {
+              "queryKey": "IsStandingTrigger",
+              "generations": [
+                1
+              ],
+              "masks": {
+                "1": 16
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "TimeTrigger": {
+              "queryKey": "TimeTrigger",
+              "generations": [
+                2
+              ],
+              "masks": {
+                "2": 262144
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "Animate": {
+              "queryKey": "Animate",
+              "generations": [
+                0
+              ],
+              "masks": {
+                "0": 4
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "Frame|FrameEnd": {
+              "queryKey": "Frame|FrameEnd",
+              "generations": [
+                0
+              ],
+              "masks": {
+                "0": 201326592
+              },
+              "dense": [
+                1
+              ],
+              "sparse": [
+                -1,
+                0
+              ],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [
+                  1
+                ],
+                "sparse": [
+                  -1,
+                  0
+                ]
+              }
+            },
+            "PixiSprite|Transform": {
+              "queryKey": "PixiSprite|Transform",
+              "generations": [
+                2,
+                1
+              ],
+              "masks": {
+                "1": 8388608,
+                "2": 524288
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "PixiGraphic": {
+              "queryKey": "PixiGraphic",
+              "generations": [
+                1
+              ],
+              "masks": {
+                "1": 4194304
+              },
+              "dense": [
+                2
+              ],
+              "sparse": [
+                -1,
+                -1,
+                0
+              ],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [
+                  2
+                ],
+                "sparse": [
+                  -1,
+                  -1,
+                  0
+                ]
+              }
+            },
+            "EntityCamera": {
+              "queryKey": "EntityCamera",
+              "generations": [
+                0
+              ],
+              "masks": {
+                "0": 8388608
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "SelfCamera": {
+              "queryKey": "SelfCamera",
+              "generations": [
+                2
+              ],
+              "masks": {
+                "2": 512
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "PixiViewport": {
+              "queryKey": "PixiViewport",
+              "generations": [
+                1
+              ],
+              "masks": {
+                "1": 16777216
+              },
+              "dense": [
+                1
+              ],
+              "sparse": [
+                -1,
+                0
+              ],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [
+                  1
+                ],
+                "sparse": [
+                  -1,
+                  0
+                ]
+              }
+            }
+          },
+          "dirtyQueries": []
+        },
+        "physics": {
+          "bodies": {
+            "0": 2
+          },
+          "colliders": {
+            "0": 2
+          },
+          "data": "AAAAAAAAAABvEoM8P8MuOQAAoEAAAPBBACR0SQAAgD8AAIA/AACAP28SgzoAACBBbxIDOwQAAAAAAAAAAQAAAAAAAAABAAAAAAAAAIAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAQAAAAAAAAD/////AAAAAP////8AAAAA/////wAAAAAAAIA/AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAAAAAAAAACtejOwrXozsXt9E5AAAAAAAAAAAK16M7F7fROQAAAAAAAAAAAAAAAAAAAACgQAAAoEAAAAAAAAABAAAAAAAAAAAAAAAAAAAAzczMPgAAAD8AAABAAAAAAAD/AAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAECAAAAAAAAAAEDAAAAAAAAAAAAAAAAAQEAAAABAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAKBAAQAAAAAASEP/AQAAAQAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAAAAAAAA/AAAAAAAAAAAAAAAADwACAAAA//8AAP//AAD//wAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAECAAAAAAAAAAEDAAAAAAAAAAAAAAAAAQEAAAABAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAQEAAAAAAAAAAQIAAAAAAAAAAQMAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAQEAAAAAAAAAAQIAAAAAAAAAAQMAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+          "history": [
+            [
+              "addBody",
+              0
+            ],
+            [
+              "addCollider",
+              0
+            ]
+          ]
+        }
+      }
+    },
+    "configs": {
+      "e2e_host": {},
+      "replay_player": {}
+    }
+  }
+}

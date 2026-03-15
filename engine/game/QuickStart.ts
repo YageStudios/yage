@@ -18,6 +18,8 @@ import {
   SocketIoMultiplayerInstance,
   SocketIoMultiplayerInstanceOptions,
 } from "yage/connection/SocketIoMultiplayerInstance";
+import { E2EConnectionInstance } from "yage/connection/E2EConnectionInstance";
+import { E2EBridge } from "yage/testing/E2EBridge";
 
 type QuickStartOptions<T> = {
   gameName: string;
@@ -34,20 +36,20 @@ type QuickStartOptions<T> = {
 export async function QuickStart<T = null>(
   options: QuickStartOptions<T> & { connection: "PEER" },
   playerConfig: PlayerConnect<T>,
-  multiplayerConfig: PeerMultiplayerInstanceOptions<T>
+  multiplayerConfig: PeerMultiplayerInstanceOptions<T>,
 ): Promise<GameInstance<T>>;
 export async function QuickStart<T = null>(
   options: QuickStartOptions<T> & { connection: "SOCKET" },
   playerConfig: PlayerConnect<T>,
-  multiplayerConfig: SocketIoMultiplayerInstanceOptions<T>
+  multiplayerConfig: SocketIoMultiplayerInstanceOptions<T>,
 ): Promise<GameInstance<T>>;
 export async function QuickStart<T = null>(
   options: QuickStartOptions<T> & { connection: "SINGLEPLAYER" },
-  playerConfig?: T
+  playerConfig?: T,
 ): Promise<GameInstance<T>>;
 export async function QuickStart<T = null>(
   options: QuickStartOptions<T> & { connection: "REPLAY" },
-  playerConfig?: T
+  playerConfig?: T,
 ): Promise<GameInstance<T>>;
 export async function QuickStart<T = null>(
   {
@@ -71,7 +73,7 @@ export async function QuickStart<T = null>(
     },
   }: QuickStartOptions<T>,
   playerConfig?: T | PlayerConnect<T>,
-  multiplayerConfig?: PeerMultiplayerInstanceOptions<T> | SocketIoMultiplayerInstanceOptions<T>
+  multiplayerConfig?: PeerMultiplayerInstanceOptions<T> | SocketIoMultiplayerInstanceOptions<T>,
 ) {
   let inputManager: InputManager;
   const unsubscribes: (() => void)[] = [];
@@ -85,7 +87,7 @@ export async function QuickStart<T = null>(
 
   const initializeConnection = (
     connection: "SOCKET" | "PEER" | "SINGLEPLAYER" | "COOP" | "REPLAY" | ConnectionInstance<T>,
-    playerConfig?: T | PlayerConnect<T>
+    playerConfig?: T | PlayerConnect<T>,
   ): ConnectionInstance<T> => {
     if (typeof connection !== "string") {
       return connection;
@@ -96,7 +98,7 @@ export async function QuickStart<T = null>(
     if (connection === "SINGLEPLAYER") {
       return new SingleplayerConnectionInstance<T>(
         inputManager,
-        isPlayerConnect<T>(playerConfig) ? playerConfig.config : playerConfig
+        isPlayerConnect<T>(playerConfig) ? playerConfig.config : playerConfig,
       );
     }
     if (connection === "PEER") {
@@ -133,6 +135,32 @@ export async function QuickStart<T = null>(
   await preload(UIService.getInstance());
 
   initializeInputManager();
+
+  // Detect E2E mode via URL parameter
+  const isE2E = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("e2e") === "true";
+
+  if (isE2E) {
+    // Override connection with E2EConnectionInstance for deterministic headless testing
+    const e2eConnection = new E2EConnectionInstance<T>(inputManager!);
+    await e2eConnection.connect();
+    const instance: GameInstance<T> = initializeGameInstance(e2eConnection);
+    instance.initializeRoom(roomId, seed);
+
+    // Stop the ticker to allow manual frame stepping
+    // @ts-ignore - accessing protected ticker
+    if (instance.ticker) {
+      // @ts-ignore
+      instance.ticker.stop();
+    }
+
+    // Inject the E2EBridge as a global for Playwright RPC access
+    const bridge = new E2EBridge(instance, inputManager!);
+    bridge.ready = true;
+    // @ts-ignore
+    window.__YAGE_E2E__ = bridge;
+
+    return instance;
+  }
 
   if (typeof connection === "string") {
     connection = initializeConnection(connection, playerConfig);

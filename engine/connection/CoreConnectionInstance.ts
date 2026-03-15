@@ -41,7 +41,9 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   roomSyncResolve: () => void = () => {};
   roomSyncPromise: Promise<void> = new Promise((resolve) => {
     this.roomSyncResolve = () => {
-      this.player.roomsSynced = true;
+      if (this.primaryLocalPlayer) {
+        this.primaryLocalPlayer.roomsSynced = true;
+      }
       resolve();
     };
   });
@@ -72,6 +74,10 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   } = {};
 
   persistTimeouts: { [roomId: string]: ReturnType<typeof setTimeout> } = {};
+
+  protected get primaryLocalPlayer(): PlayerConnection<T> {
+    return this.localPlayers[0];
+  }
 
   get player(): PlayerConnection<T> {
     if (this.localPlayers.length > 1) {
@@ -127,14 +133,14 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       }
     });
     this.on("rooms", (playerId, rooms: { [roomId: string]: Room }) => {
-      if (playerId !== this.player.netId) {
+      if (playerId !== this.primaryLocalPlayer?.netId) {
         this.rooms = rooms;
         this.roomSyncResolve();
       }
     });
     this.on("connect", (playerId, player: PlayerConnect<T>) => {
       this.connectListeners.forEach((listener) => listener(player));
-      if (player.netId !== this.player.netId && this.player.roomsSynced) {
+      if (player.netId !== this.primaryLocalPlayer?.netId && this.primaryLocalPlayer?.roomsSynced) {
         this.emit("rooms", this.rooms);
       }
     });

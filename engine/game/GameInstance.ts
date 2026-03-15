@@ -48,7 +48,7 @@ export class GameInstance<T> {
     seed?: string,
     { players, coreOverrides }: { players?: string[]; coreOverrides?: { [key: string]: any } } = {}
   ) {
-    if (!this.options.connection.player.connected) {
+    if (!this.options.connection.localPlayers.every((player) => player.connected)) {
       throw new Error("Player not connected");
     }
     players = players ?? this.options.connection.players.map((p) => p.netId);
@@ -88,15 +88,16 @@ export class GameInstance<T> {
   }
 
   protected async join(roomId: string, seed?: string, playerConfig?: T, coreOverrides?: { [key: string]: any }) {
-    if (!this.options.connection.player.connected) {
+    if (!this.options.connection.localPlayers.every((player) => player.connected)) {
       throw new Error("Player not connected");
     }
-    // TODO: this needs to handle multiple local players
-    if (this.options.connection.player.currentRoomId) {
-      this.options.connection.leaveRoom(
-        this.options.connection.player.currentRoomId,
-        this.options.connection.roomStates[roomId].gameModel.frame
-      );
+    for (const player of this.options.connection.localPlayers) {
+      if (player.currentRoomId) {
+        this.options.connection.leaveRoom(
+          player.currentRoomId,
+          this.options.connection.roomStates[roomId].gameModel.frame
+        );
+      }
     }
 
     await this.options.connection.join(roomId, {

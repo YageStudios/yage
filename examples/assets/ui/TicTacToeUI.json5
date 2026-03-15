@@ -1,0 +1,112 @@
+{
+  root: {
+    type: "box",
+    rect: {
+      x: "full",
+      y: "full"
+    },
+    config: {
+      style: {
+        background: "linear-gradient(180deg, #172033 0%, #0f141f 100%)",
+        border: "none"
+      }
+    },
+    children: {
+      statusText: {
+        type: "text",
+        rect: {
+          x: "center",
+          y: "top",
+          width: "100%",
+          yOffset: 100
+        },
+        config: {
+          label: "$$statusMessage",
+          fontSize: 48,
+          style: {
+            color: "#ffffff",
+            textShadow: "2px 2px 4px #000000"
+          }
+        }
+      },
+
+      boardGrid: {
+        type: "grid",
+        rect: {
+          x: "center",
+          y: "center",
+          width: 300,
+          height: 300
+        },
+        config: {
+          gap: "5px",
+          style: {
+            backgroundColor: "#222222",
+            padding: "5px",
+            borderRadius: "8px"
+          }
+        },
+        items: "$$cells",
+        element: {
+          type: "button",
+          rect: {
+            width: 93,
+            height: 93
+          },
+          config: {
+            label: "$$mark",
+            fontSize: 64,
+            focusable: true,
+            autoFocus: true,
+            style: {
+              backgroundColor: "#444444",
+              color: "#ffffff",
+              borderRadius: "4px",
+              cursor: "pointer"
+            },
+            focusStyle: {
+              backgroundColor: "#666666",
+              outline: "3px solid #2FA6FF"
+            }
+          },
+          events: {
+            click: "onCellClick"
+          }
+        }
+      },
+
+      resetButton: {
+        $if: "showReset",
+        then: {
+          type: "button",
+          rect: {
+            x: "center",
+            y: "bottom",
+            yOffset: -100,
+            width: 200,
+            height: 60
+          },
+          config: {
+            label: "Restart Game",
+            fontSize: 28,
+            focusable: true,
+            autoFocus: true,
+            style: {
+              backgroundColor: "#4CAF50",
+              color: "#ffffff",
+              borderRadius: "8px",
+              cursor: "pointer"
+            },
+            focusStyle: {
+              backgroundColor: "#45a049",
+              outline: "3px solid #2FA6FF"
+            }
+          },
+          events: {
+            click: "onRestartClick"
+          }
+        }
+      }
+    }
+  }
+}
