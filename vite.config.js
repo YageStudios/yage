@@ -16,6 +16,10 @@ const files = glob
 const entries = Object.fromEntries(files);
 
 export default defineConfig({
+  test: {
+    environment: "node",
+    setupFiles: ["./test/setup.ts"],
+  },
   build: {
     minify: false,
 

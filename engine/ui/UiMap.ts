@@ -26,11 +26,185 @@ type Query = {
     end: number;
   };
   pointer: string | ((nextValue: any) => boolean);
+  /** Expression info for {{ }} syntax */
+  expression?: {
+    source: string;
+    deps: string[];
+    evaluate: (ctx: any) => any;
+  };
 };
 
 type BuildQuery = [UIElement<any> | null, Query[]];
 
 type BuiltContext = BuildQuery[];
+
+// ─── Feature flag (kill switch for granular reactivity) ───────────────────────
+export let USE_UIMAP_GRANULAR_REACTIVITY = false;
+export const setUiMapGranularReactivity = (enabled: boolean) => {
+  USE_UIMAP_GRANULAR_REACTIVITY = enabled;
+};
+
+// ─── Expression evaluation engine ────────────────────────────────────────────
+
+const EXPRESSION_RE = /\{\{(.*?)\}\}/g;
+
+/** Blocked globals for expression sandboxing */
+const BLOCKED_GLOBALS = ["window", "document", "eval", "Function", "globalThis", "self", "top", "parent", "frames"];
+
+/** Cache compiled expression functions for performance */
+const expressionCache = new Map<string, (ctx: any) => any>();
+
+/**
+ * Extract variable dependency names from an expression string.
+ * Returns top-level identifier names (e.g. "player.hp" → "player").
+ */
+const extractDeps = (expr: string): string[] => {
+  // Match identifiers that are NOT preceded by . (i.e., not property accesses)
+  const identRe = /(?<![.\w$])([a-zA-Z_$][a-zA-Z0-9_$]*)/g;
+  const deps = new Set<string>();
+  let m: RegExpExecArray | null;
+  while ((m = identRe.exec(expr)) !== null) {
+    const name = m[1];
+    // Skip JS keywords, literals, and blocked globals
+    if (
+      ![
+        "true",
+        "false",
+        "null",
+        "undefined",
+        "NaN",
+        "Infinity",
+        "typeof",
+        "instanceof",
+        "void",
+        "in",
+        "of",
+        "new",
+        "delete",
+        "this",
+      ].includes(name) &&
+      !BLOCKED_GLOBALS.includes(name)
+    ) {
+      deps.add(name);
+    }
+  }
+  return [...deps];
+};
+
+/**
+ * Compile a single expression body into a sandboxed evaluator function.
+ * Uses `new Function` with blocked globals set to undefined.
+ */
+const compileExpression = (exprBody: string): ((ctx: any) => any) => {
+  if (expressionCache.has(exprBody)) {
+    return expressionCache.get(exprBody)!;
+  }
+  try {
+    // Build a function that uses `with(ctx)` to resolve variables from the context.
+    // NOTE: `with` is forbidden in strict mode, so we must NOT use "use strict" here.
+    // Blocked globals are shadowed as function parameters set to undefined.
+    const fn = new Function(
+      "ctx",
+      ...BLOCKED_GLOBALS,
+      `try {
+        with (ctx) { return (${exprBody}); }
+      } catch(e) {
+        return undefined;
+      }`
+    ) as (ctx: any, ...args: any[]) => any;
+
+    // Wrap so callers don't need to pass the blocker args
+    const wrapped = (ctx: any) => fn(ctx);
+    expressionCache.set(exprBody, wrapped);
+    return wrapped;
+  } catch {
+    // If the expression can't compile, return a no-op
+    const noop = () => undefined;
+    expressionCache.set(exprBody, noop);
+    return noop;
+  }
+};
+
+/**
+ * Evaluate a string that may contain {{ expr }} interpolations against a context.
+ * Returns the resolved value. If the entire string is a single {{ expr }}, returns
+ * the raw evaluated value (preserving type). Otherwise returns a string.
+ */
+const evaluateTemplate = (template: string, ctx: any): any => {
+  // Fast path: no expressions
+  if (!template.includes("{{")) {
+    return template;
+  }
+  const matches = [...template.matchAll(/\{\{(.*?)\}\}/g)];
+  // Preserve type only when the template is exactly one interpolation.
+  if (matches.length === 1 && matches[0][0] === template) {
+    const fn = compileExpression(matches[0][1].trim());
+    const result = fn(ctx);
+    return result === undefined ? "" : result;
+  }
+  // Multiple interpolations: replace each and concatenate as string
+  // Use a fresh local regex to avoid global lastIndex issues
+  const localRe = /\{\{(.*?)\}\}/g;
+  return template.replace(localRe, (_, expr) => {
+    const fn = compileExpression(expr.trim());
+    const result = fn(ctx);
+    return result === undefined ? "" : String(result);
+  });
+};
+
+/**
+ * Check if a string contains {{ }} expression syntax.
+ */
+const hasExpression = (value: string): boolean => {
+  EXPRESSION_RE.lastIndex = 0;
+  const result = EXPRESSION_RE.test(value);
+  EXPRESSION_RE.lastIndex = 0;
+  return result;
+};
+
+// ─── Inline CSS string parsing ───────────────────────────────────────────────
+
+/**
+ * Convert a kebab-case CSS property name to camelCase.
+ * e.g. "background-color" → "backgroundColor"
+ */
+const kebabToCamel = (str: string): string => {
+  return str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+};
+
+/**
+ * Parse a CSS style string into a camelCase style object.
+ * Supports {{ expr }} inside values.
+ */
+const parseCssString = (cssString: string, ctx: any): Partial<CSSStyleDeclaration> => {
+  const style: any = {};
+  // First evaluate any expressions in the string
+  const resolved =
+    typeof cssString === "string" && cssString.includes("{{") ? evaluateTemplate(cssString, ctx) : cssString;
+
+  if (typeof resolved !== "string") {
+    return style;
+  }
+
+  const declarations = resolved.split(";").filter((s) => s.trim());
+  for (const decl of declarations) {
+    const colonIdx = decl.indexOf(":");
+    if (colonIdx === -1) continue;
+    const prop = decl.slice(0, colonIdx).trim();
+    const val = decl.slice(colonIdx + 1).trim();
+    if (prop && val) {
+      style[kebabToCamel(prop)] = val;
+    }
+  }
+  return style;
+};
+
+// ─── Structural node detection ───────────────────────────────────────────────
+
+const isStructuralNode = (value: any): boolean => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  return "$if" in value || "$unless" in value || "$with" in value || "$partial" in value;
+};
 
 const generateEventListener = (
   events: any,
@@ -135,6 +309,43 @@ const testQuery = (key: string, value: string, json: string, parent: string): Qu
   }
 };
 
+/**
+ * Test if a string value contains {{ expr }} syntax and return a Query for it.
+ * The query uses the expression engine instead of simple variable lookup.
+ */
+const testExpressionQuery = (key: string, value: string, json: any, parent: string): Query | undefined => {
+  EXPRESSION_RE.lastIndex = 0;
+  if (!hasExpression(value)) {
+    EXPRESSION_RE.lastIndex = 0;
+    return;
+  }
+  EXPRESSION_RE.lastIndex = 0;
+
+  // Collect all deps from all {{ }} blocks in this string
+  const allDeps: string[] = [];
+  let m: RegExpExecArray | null;
+  const re = /\{\{(.*?)\}\}/g;
+  while ((m = re.exec(value)) !== null) {
+    allDeps.push(...extractDeps(m[1].trim()));
+  }
+
+  // Use the first dep as the "query" key for compatibility, but the expression
+  // system doesn't actually use lodash get — it evaluates the full expression.
+  const primaryDep = allDeps[0] || "";
+
+  return {
+    query: primaryDep,
+    key,
+    parent,
+    pointer: json,
+    expression: {
+      source: value,
+      deps: [...new Set(allDeps)],
+      evaluate: (ctx: any) => evaluateTemplate(value, ctx),
+    },
+  };
+};
+
 const remapTemplateQueries = (json: any, contextMap: any, parent = "") => {
   Object.entries(json).forEach(([key, value]: [string, any]) => {
     if (typeof value === "string") {
@@ -182,16 +393,25 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
 
   const lastContext: BuiltContext = [];
   let buildContext: any = null;
+  let rootContext: any = null;
 
   const build = (
     context: any,
     eventHandler: (playerIndex: number, eventName: string, eventType: string, context: any) => void
   ) => {
     buildContext = cloneDeep(context);
+    rootContext = buildContext;
+
     const getQueriables = (json: any, parent = ""): Query[] => {
       return Object.entries(json)
         .map(([key, value]: [string, any]) => {
           if (typeof value === "string") {
+            // Check for {{ }} expressions first
+            EXPRESSION_RE.lastIndex = 0;
+            if (value.includes("{{") && hasExpression(value)) {
+              EXPRESSION_RE.lastIndex = 0;
+              return testExpressionQuery(key, value, json, parent) || [];
+            }
             if (value.includes("$$")) {
               return testQuery(key, value, json, parent) || [];
             }
@@ -210,6 +430,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
         })
         .flat();
     };
+
     const recursiveBuild = (
       json: any,
       parent: {
@@ -219,6 +440,16 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
       buildQueries: BuildQuery[]
     ) => {
       Object.entries(json).forEach(([key, value]: [string, any]) => {
+        if (typeof value !== "object" || value === null) {
+          return;
+        }
+
+        // ─── Handle structural nodes ($if, $unless, $with, $partial) ───
+        if (isStructuralNode(value)) {
+          handleStructuralNode(key, value, parent, contextRef, buildQueries, eventHandler);
+          return;
+        }
+
         if (!value.type) {
           return recursiveBuild(value, parent, contextRef, buildQueries);
         }
@@ -249,16 +480,23 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
         if (value.type === "grid") {
           const gridQueriables = getQueriables(value);
           if (gridQueriables.length) {
-            gridQueriables.forEach(({ query, key, pointer }: { query: string; key: string; pointer: any }) => {
-              const contextValue = get(contextRef.context, query);
-              if (key === "items") {
-                pointer[key] = contextValue;
-                return;
+            gridQueriables.forEach(
+              ({ query, key, pointer, expression }: { query: string; key: string; pointer: any; expression?: any }) => {
+                if (expression) {
+                  const contextValue = expression.evaluate(contextRef.context);
+                  pointer[key] = contextValue;
+                  return;
+                }
+                const contextValue = get(contextRef.context, query);
+                if (key === "items") {
+                  pointer[key] = contextValue;
+                  return;
+                }
+                if (contextValue !== undefined) {
+                  pointer[key] = contextValue;
+                }
               }
-              if (contextValue !== undefined) {
-                pointer[key] = contextValue;
-              }
-            });
+            );
           }
 
           const gridPosition = new Position(value.rect.x, value.rect.y, {
@@ -285,7 +523,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
           gridQueriables.forEach((query) => {
             if (query.key === "items") {
               query.pointer = (_context) => {
-                const items = get(_context, query.query);
+                const items = query.expression ? query.expression.evaluate(_context) : get(_context, query.query);
                 buildChildren(items);
                 return false;
               };
@@ -293,7 +531,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
             }
 
             query.pointer = (_context) => {
-              let contextValue = get(_context, query.query);
+              let contextValue = query.expression ? query.expression.evaluate(_context) : get(_context, query.query);
               if (contextValue !== undefined) {
                 if (query.partial) {
                   contextValue =
@@ -340,6 +578,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
               const itemContext = { ...contextRef.context, ...cloneDeep(items[i]) };
               itemContext.$context = contextRef.context;
               itemContext.$index = i;
+              itemContext.$root = rootContext;
 
               if (!childQueries[i]) {
                 childQueries[i] = [];
@@ -390,17 +629,27 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
 
         value.config = value.config || {};
 
+        // ─── Inline CSS string parsing ─────────────────────────────────
+        if (typeof value.config.style === "string") {
+          value.config.style = parseCssString(value.config.style, contextRef.context);
+        }
+
         const queriables = getQueriables(value);
         if (queriables.length) {
           queriables.forEach((query) => {
             // eslint-disable-next-line @typescript-eslint/ban-types
             const pointer: Object = query.pointer as Object;
-            let contextValue = get(contextRef.context, query.query);
-            if (query.partial) {
-              contextValue =
-                query.partial.source.slice(0, query.partial.start) +
-                contextValue +
-                query.partial.source.slice(query.partial.end);
+            let contextValue: any;
+            if (query.expression) {
+              contextValue = query.expression.evaluate(contextRef.context);
+            } else {
+              contextValue = get(contextRef.context, query.query);
+              if (query.partial) {
+                contextValue =
+                  query.partial.source.slice(0, query.partial.start) +
+                  contextValue +
+                  query.partial.source.slice(query.partial.end);
+              }
             }
             // @ts-ignore
             pointer[query.key] = contextValue;
@@ -436,6 +685,26 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
 
         queriables.forEach((query) => {
           query.pointer = (_context) => {
+            if (query.expression) {
+              const contextValue = query.expression.evaluate(_context);
+
+              if (query.parent === "config" || !query.parent) {
+                // @ts-ignore
+                if (element.config[query.key] !== contextValue) {
+                  // @ts-ignore
+                  element.config[query.key] = contextValue;
+                  return true;
+                }
+              } else {
+                const parent = get(element, query.parent);
+                if (parent && parent[query.key] !== contextValue) {
+                  parent[query.key] = contextValue;
+                  return true;
+                }
+              }
+              return false;
+            }
+
             let contextValue = get(_context, query.query);
 
             if (query.key === "events") {
@@ -488,6 +757,146 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
         return element;
       });
     };
+
+    // ─── Structural node handler ─────────────────────────────────────────
+    const handleStructuralNode = (
+      key: string,
+      value: any,
+      parent: { addChild: (element: UIElement<any>) => void },
+      contextRef: { context: any },
+      buildQueries: BuildQuery[],
+      eventHandler: (playerIndex: number, eventName: string, eventType: string, context: any) => void
+    ) => {
+      if ("$if" in value || "$unless" in value) {
+        const conditionExpr = value.$if || value.$unless;
+        const isUnless = "$unless" in value;
+        const thenBranch = value.then;
+        const elseBranch = value.else;
+
+        // Create a wrapper box to hold the conditional content
+        const wrapperPosition = thenBranch?.rect
+          ? new Position(thenBranch.rect.x ?? 0, thenBranch.rect.y ?? 0, {
+              width: thenBranch.rect.width ?? 0,
+              height: thenBranch.rect.height ?? 0,
+              ...thenBranch.rect,
+            })
+          : new Position(0, 0, { width: 0, height: 0 });
+
+        const wrapper = new Box(wrapperPosition, {
+          style: {
+            position: "relative",
+            border: "none",
+            backgroundColor: "transparent",
+            padding: "0",
+            margin: "0",
+            overflow: "visible",
+          },
+        });
+
+        let currentBranchQueries: BuildQuery[] = [];
+        let currentConditionResult: boolean | null = null;
+
+        const evaluateAndBuild = (ctx: any) => {
+          const fn = compileExpression(conditionExpr);
+          let rawResult = fn(ctx);
+          let conditionResult = isUnless ? !rawResult : !!rawResult;
+
+          if (conditionResult === currentConditionResult) {
+            // Condition hasn't changed, just update existing queries
+            currentBranchQueries.forEach(([el, queries]) => {
+              queries.forEach(({ pointer }) => {
+                if (typeof pointer === "function") pointer(ctx);
+              });
+            });
+            return false;
+          }
+
+          currentConditionResult = conditionResult;
+
+          // Destroy old children
+          if (wrapper.config.children) {
+            const oldChildren = [...wrapper.config.children];
+            oldChildren.forEach((child: UIElement<any>) => {
+              child.onDestroy(true);
+            });
+          }
+          currentBranchQueries = [];
+
+          // Build the appropriate branch
+          const branch = conditionResult ? thenBranch : elseBranch;
+          if (branch) {
+            const branchJson = cloneDeep(branch);
+            recursiveBuild({ node: branchJson }, wrapper, contextRef, currentBranchQueries);
+          }
+
+          return true;
+        };
+
+        // Initial build
+        evaluateAndBuild(contextRef.context);
+
+        // Register a query so update() can re-evaluate the condition
+        const conditionQuery: Query = {
+          query: conditionExpr,
+          key: "__$if__",
+          parent: "",
+          pointer: (_context: any) => {
+            return evaluateAndBuild(_context);
+          },
+          expression: {
+            source: conditionExpr,
+            deps: extractDeps(conditionExpr),
+            evaluate: (ctx: any) => compileExpression(conditionExpr)(ctx),
+          },
+        };
+
+        buildQueries.push([wrapper, [conditionQuery]]);
+        parent.addChild(wrapper);
+        return;
+      }
+
+      if ("$with" in value) {
+        const scopePath = value.$with;
+        const content = value.content;
+
+        if (!content) return;
+
+        // Resolve the scoped context
+        const scopedCtx = get(contextRef.context, scopePath);
+        if (scopedCtx && typeof scopedCtx === "object") {
+          const scopedContextRef = { context: { ...scopedCtx, $root: rootContext } };
+          const contentJson = cloneDeep(content);
+          recursiveBuild({ node: contentJson }, parent, scopedContextRef, buildQueries);
+        }
+        return;
+      }
+
+      if ("$partial" in value) {
+        const partialName = value.$partial;
+        const partialContextPath = value.context;
+
+        if (!registeredTemplates.has(partialName)) {
+          console.warn(`UiMap: $partial "${partialName}" not found in registered templates.`);
+          return;
+        }
+
+        const templateJson = cloneDeep(registeredTemplates.get(partialName));
+
+        // Determine the context for the partial
+        let partialContextRef = contextRef;
+        if (partialContextPath) {
+          const scopedCtx = get(contextRef.context, partialContextPath);
+          if (scopedCtx && typeof scopedCtx === "object") {
+            partialContextRef = { context: { ...scopedCtx, $root: rootContext } };
+          }
+        }
+
+        // Build all elements in the template
+        recursiveBuild(templateJson, parent, partialContextRef, buildQueries);
+        return;
+      }
+    };
+
     json = cloneDeep(json);
     const res: { [key: string]: UIElement<any> } = {};
     Object.entries(json).forEach(([key, value]: any) => {

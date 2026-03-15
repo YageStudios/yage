@@ -97,7 +97,9 @@
     "prettier": "^2.8.0",
     "typescript": "^5.7.2",
     "vite": "^7.3.1",
-    "vite-plugin-dts": "^4.2.2"
+    "vite-plugin-dts": "^4.2.2",
+    "jsdom": "^29.0.0",
+    "vitest": "^4.0.18"
   },
   "dependencies": {
     "@dimforge/rapier2d-compat": "^0.19.3",
@@ -124,7 +126,6 @@
     "toastify-js": "^1.12.0",
     "toposort": "^2.0.2",
     "url": "^0.11.0",
-    "vitest": "^4.0.18",
     "ws": "^8.16.0",
     "yargs": "^17.7.2"
   }
