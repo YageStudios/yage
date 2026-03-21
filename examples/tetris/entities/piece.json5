@@ -1,0 +1,13 @@
+{
+  name: "TetrisPiece",
+  components: [
+    {
+      type: "TetrisPiece",
+      pieceType: 0,
+      rotation: 0,
+      x: 0,
+      y: 0,
+      isGhost: false,
+    },
+  ],
+}

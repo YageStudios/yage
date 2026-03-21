@@ -10,7 +10,7 @@ export const toCanvasSpace = (mouseX: number, mouseY: number, element: HTMLEleme
   return { x: Math.floor(xPercentage * 1920), y: Math.floor(yPercentage * 1080) };
 };
 
-const scale = () => {
+export const getViewportScale = () => {
   let width = window.innerWidth;
   let height = (window.innerWidth * 9) / 16;
   if (height > window.innerHeight) {
@@ -20,6 +20,9 @@ const scale = () => {
 
   return Math.max(0.3, Math.min(width / 1920, height / 1080));
 };
+
+export const scalePxStyleValue = (value: string, scale: number) =>
+  value.replace(/(-?\d*\.?\d+)px/g, (_, px) => `${parseFloat(px) * scale}px`);
 
 export const positionToCanvasSpace = (
   pos: Position,
@@ -32,7 +35,7 @@ export const positionToCanvasSpace = (
   const canvasWidth = parentElement.clientWidth;
   const canvasHeight = parentElement.clientHeight;
 
-  const _scale = scale() * additionalScale;
+  const _scale = getViewportScale() * additionalScale;
   const scaleX = _scale * additionalScaleX;
   const scaleY = _scale * additionalScaleY;
 

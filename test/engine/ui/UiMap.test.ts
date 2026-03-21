@@ -57,6 +57,7 @@ import { buildUiMap, registerUiClass, registerTemplate, getUiMapTemplate } from 
 import { Box } from "yage/ui/Box";
 import { Text } from "yage/ui/Text";
 import { Position } from "yage/ui/Rectangle";
+import { scalePxStyleValue } from "yage/ui/utils";
 
 // ─── helpers ───────────────────────────────────────────────────────────────────
 
@@ -314,6 +315,42 @@ describe("UiMap — Legacy Baseline", () => {
       map.build({ list: [{ name: "A" }, { name: "B" }] }, vi.fn());
       // $context and $index are injected into child contexts — this is
       // internal behavior; we verify via no crashes and correct rendering.
+    });
+
+    it("scales pixel-based style strings consistently", () => {
+      expect(scalePxStyleValue("10px", 0.5)).toBe("5px");
+      expect(scalePxStyleValue("10px 20px", 0.5)).toBe("5px 10px");
+      expect(scalePxStyleValue("2px solid #2FA6FF", 0.5)).toBe("1px solid #2FA6FF");
+    });
+
+    it("keeps overflow scrolling enabled when a grid has too many items", async () => {
+      const json = {
+        grid: {
+          type: "grid",
+          rect: { x: 0, y: 0, width: 300, height: 120 },
+          config: {
+            gap: "5px",
+          },
+          items: "$$items",
+          element: {
+            type: "text",
+            rect: { x: 0, y: 0, width: 80, height: 40 },
+            config: { label: "$$name" },
+          },
+        },
+      };
+
+      const map = buildUiMap(json);
+      const elements = map.build(
+        {
+          items: Array.from({ length: 12 }, (_, index) => ({ name: `Item ${index}` })),
+        },
+        vi.fn(),
+      );
+
+      expect(elements.grid._config.style.overflow).toBe("auto");
+      expect(elements.grid._config.pointerEventsOnOverflow).toBe(true);
+      expect(elements.grid._config.children.length).toBe(12);
     });
   });
 

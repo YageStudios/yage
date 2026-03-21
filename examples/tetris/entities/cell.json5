@@ -1,0 +1,12 @@
+{
+  name: "TetrisCell",
+  components: [
+    {
+      type: "TetrisCell",
+      x: 0,
+      y: 0,
+      occupied: false,
+      color: 0,
+    },
+  ],
+}

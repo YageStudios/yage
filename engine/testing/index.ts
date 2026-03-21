@@ -422,6 +422,10 @@ export class YageTestEnv {
     });
   }
 
+  async setViewportSize(width: number, height: number): Promise<void> {
+    await this.page.setViewportSize({ width, height });
+  }
+
   /**
    * Extract and save the replay stack to a JSON file.
    */

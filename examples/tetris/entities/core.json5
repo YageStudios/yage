@@ -1,0 +1,35 @@
+{
+  name: "core",
+  components: [
+    "Random",
+    "Sounds",
+    {
+      type: "FrameRate",
+      uiMap: "core/FrameRate",
+    },
+    {
+      type: "TetrisBoard",
+      nextPieceType: 1,
+      score: 0,
+      level: 1,
+      lines: 0,
+      status: "PLAYING",
+      tickTimer: 48,
+      dasTimer: 0,
+      dasDirection: 0,
+      uiMap: "core/TetrisUI",
+    },
+  ],
+  assets: [
+    {
+      type: "ui",
+      key: "core/FrameRate",
+      url: "core/FrameRate.json5",
+    },
+    {
+      type: "ui",
+      key: "core/TetrisUI",
+      url: "TetrisUI.json5",
+    },
+  ],
+}

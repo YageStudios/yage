@@ -19,6 +19,20 @@ const createEnv = () =>
 describe("TicTacToe E2E", () => {
   let env: YageTestEnv | null = null;
 
+  const getBoardCells = async (currentEnv: YageTestEnv) =>
+    (await currentEnv.queryUI({ type: "button" })).filter((element) => element.text !== "Restart Game");
+
+  const countUniquePositions = (values: number[], tolerance = 5) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    const groups: number[] = [];
+    for (const value of sorted) {
+      if (groups.length === 0 || Math.abs(value - groups[groups.length - 1]) > tolerance) {
+        groups.push(value);
+      }
+    }
+    return groups.length;
+  };
+
   afterEach(async () => {
     if (env) {
       await env.close();
@@ -35,7 +49,7 @@ describe("TicTacToe E2E", () => {
     await env.tick(5);
     await env.waitForUI({ type: "text", textIncludes: "Turn: X" });
 
-    const cells = (await env.queryUI({ type: "button" })).filter((element) => element.text !== "Restart Game");
+    const cells = await getBoardCells(env);
     expect(cells).toHaveLength(9);
 
     await xPlayer.clickUI(cells[0].id);
@@ -72,5 +86,25 @@ describe("TicTacToe E2E", () => {
     expect(gameState[0].components["TicTacToeState"].turn).toBe("X");
 
     expect(await env.getErrors()).toEqual([]);
+  });
+
+  it("keeps the board in a 3x3 layout at a smaller viewport", async () => {
+    env = await createEnv();
+    await env.setViewportSize(640, 360);
+
+    await env.joinPlayer("ttt_small_x");
+    await env.joinPlayer("ttt_small_o");
+    await env.tick(5);
+    await env.waitForUI({ type: "text", textIncludes: "Turn: X" });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const cells = await getBoardCells(env);
+    expect(cells).toHaveLength(9);
+
+    const xCenters = cells.map((cell) => cell.bounds[0] + cell.bounds[2] / 2);
+    const yCenters = cells.map((cell) => cell.bounds[1] + cell.bounds[3] / 2);
+
+    expect(countUniquePositions(xCenters)).toBe(3);
+    expect(countUniquePositions(yCenters)).toBe(3);
   });
 });

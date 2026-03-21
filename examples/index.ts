@@ -6,6 +6,7 @@ const games = [
   ["peer", () => import("./peer")],
   ["socket", () => import("./socket")],
   ["tictactoe", () => import("./tictactoe")],
+  ["tetris", () => import("./tetris")],
 ] as const;
 
 let found = false;

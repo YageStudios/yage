@@ -1,0 +1,298 @@
+{
+  root: {
+    type: "box",
+    rect: {
+      x: "full",
+      y: "full"
+    },
+    config: {
+      style: {
+        background: "linear-gradient(180deg, #0d1117 0%, #0a0a0a 100%)",
+        border: "none"
+      }
+    },
+    children: {
+
+      // ── Board ───────────────────────────────────────────────────────────────
+      boardGrid: {
+        type: "grid",
+        rect: {
+          x: "center",
+          y: "center",
+          xOffset: -100,
+          width: 271,
+          height: 541
+        },
+        config: {
+          gap: "1px",
+          style: {
+            backgroundColor: "#222222",
+            padding: "1px",
+            borderRadius: "4px",
+            boxSizing: "border-box"
+          }
+        },
+        items: "$$cells",
+        element: {
+          type: "box",
+          rect: {
+            width: 26,
+            height: 26
+          },
+          config: {
+            style: {
+              backgroundColor: "$$color",
+              borderRadius: "2px"
+            }
+          }
+        }
+      },
+
+      // ── Side panel: Score ───────────────────────────────────────────────────
+      scoreLabel: {
+        type: "text",
+        rect: {
+          x: "center",
+          y: "center",
+          xOffset: 150,
+          yOffset: -160,
+          width: 160
+        },
+        config: {
+          label: "SCORE",
+          fontSize: 18,
+          style: {
+            color: "#aaaaaa",
+            textAlign: "center"
+          }
+        }
+      },
+      scoreValue: {
+        type: "text",
+        rect: {
+          x: "center",
+          y: "center",
+          xOffset: 150,
+          yOffset: -128,
+          width: 160
+        },
+        config: {
+          label: "$$score",
+          fontSize: 26,
+          style: {
+            color: "#ffffff",
+            textAlign: "center",
+            fontWeight: "bold"
+          }
+        }
+      },
+
+      // ── Side panel: Level ───────────────────────────────────────────────────
+      levelLabel: {
+        type: "text",
+        rect: {
+          x: "center",
+          y: "center",
+          xOffset: 150,
+          yOffset: -60,
+          width: 160
+        },
+        config: {
+          label: "LEVEL",
+          fontSize: 18,
+          style: {
+            color: "#aaaaaa",
+            textAlign: "center"
+          }
+        }
+      },
+      levelValue: {
+        type: "text",
+        rect: {
+          x: "center",
+          y: "center",
+          xOffset: 150,
+          yOffset: -28,
+          width: 160
+        },
+        config: {
+          label: "$$level",
+          fontSize: 26,
+          style: {
+            color: "#ffffff",
+            textAlign: "center",
+            fontWeight: "bold"
+          }
+        }
+      },
+
+      // ── Side panel: Lines ───────────────────────────────────────────────────
+      linesLabel: {
+        type: "text",
+        rect: {
+          x: "center",
+          y: "center",
+          xOffset: 150,
+          yOffset: 40,
+          width: 160
+        },
+        config: {
+          label: "LINES",
+          fontSize: 18,
+          style: {
+            color: "#aaaaaa",
+            textAlign: "center"
+          }
+        }
+      },
+      linesValue: {
+        type: "text",
+        rect: {
+          x: "center",
+          y: "center",
+          xOffset: 150,
+          yOffset: 72,
+          width: 160
+        },
+        config: {
+          label: "$$lines",
+          fontSize: 26,
+          style: {
+            color: "#ffffff",
+            textAlign: "center",
+            fontWeight: "bold"
+          }
+        }
+      },
+
+      // ── Side panel: Next piece ──────────────────────────────────────────────
+      nextLabel: {
+        type: "text",
+        rect: {
+          x: "center",
+          y: "center",
+          xOffset: 150,
+          yOffset: 140,
+          width: 160
+        },
+        config: {
+          label: "NEXT",
+          fontSize: 18,
+          style: {
+            color: "#aaaaaa",
+            textAlign: "center"
+          }
+        }
+      },
+      nextGrid: {
+        type: "grid",
+        rect: {
+          x: "center",
+          y: "center",
+          xOffset: 150,
+          yOffset: 200,
+          width: 109,
+          height: 109
+        },
+        config: {
+          gap: "1px",
+          style: {
+            backgroundColor: "#1a1a1a",
+            padding: "1px",
+            borderRadius: "4px",
+            boxSizing: "border-box"
+          }
+        },
+        items: "$$nextCells",
+        element: {
+          type: "box",
+          rect: {
+            width: 26,
+            height: 26
+          },
+          config: {
+            style: {
+              backgroundColor: "$$color",
+              borderRadius: "2px"
+            }
+          }
+        }
+      },
+
+      // ── Controls hint ───────────────────────────────────────────────────────
+      controlsHint: {
+        type: "text",
+        rect: {
+          x: "center",
+          y: "bottom",
+          yOffset: -30,
+          width: 400
+        },
+        config: {
+          label: "← → move  ↑ rotate  ↓ soft drop  space hard drop",
+          fontSize: 14,
+          style: {
+            color: "#555555",
+            textAlign: "center"
+          }
+        }
+      },
+
+      // ── Game Over overlay ───────────────────────────────────────────────────
+      gameOverText: {
+        $if: "showGameOver",
+        then: {
+          type: "text",
+          rect: {
+            x: "center",
+            y: "center",
+            yOffset: -60,
+            width: 500
+          },
+          config: {
+            label: "GAME OVER",
+            fontSize: 64,
+            style: {
+              color: "#ff4444",
+              textAlign: "center",
+              textShadow: "0 0 20px #ff0000"
+            }
+          }
+        }
+      },
+
+      restartButton: {
+        $if: "showGameOver",
+        then: {
+          type: "button",
+          rect: {
+            x: "center",
+            y: "center",
+            yOffset: 40,
+            width: 220,
+            height: 64
+          },
+          config: {
+            label: "Play Again",
+            fontSize: 28,
+            focusable: true,
+            autoFocus: true,
+            style: {
+              backgroundColor: "#4CAF50",
+              color: "#ffffff",
+              borderRadius: "8px",
+              cursor: "pointer"
+            },
+            focusStyle: {
+              backgroundColor: "#45a049",
+              outline: "3px solid #2FA6FF"
+            }
+          },
+          events: {
+            click: "onRestartClick"
+          }
+        }
+      }
+    }
+  }
+}

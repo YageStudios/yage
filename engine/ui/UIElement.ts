@@ -1,7 +1,7 @@
 import type { Position, Rectangle } from "./Rectangle";
 import { isRectangle } from "./Rectangle";
 import { nanoid } from "nanoid";
-import { positionToCanvasSpace } from "../ui/utils";
+import { getViewportScale, positionToCanvasSpace, scalePxStyleValue } from "../ui/utils";
 import lodash from "lodash";
 import { UIService } from "./UIService";
 import { InputEventType } from "yage/inputs/InputManager";
@@ -571,6 +571,8 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     const styles = {
       ...this._config.style,
     };
+    const [elementScale] = this.getScales();
+    const styleScale = getViewportScale() * elementScale;
 
     const [x, y, width, height] = positionToCanvasSpace(
       this.bounds,
@@ -587,7 +589,8 @@ export abstract class UIElement<T extends UIElementConfig = any> {
 
     for (const [key, value] of Object.entries(styles)) {
       // @ts-ignore
-      element.style[key] = value;
+      element.style[key] =
+        typeof value === "string" && value.includes("px") ? scalePxStyleValue(value, styleScale) : value;
     }
     if (this._zIndex > 0) {
       element.style.zIndex = `${this._zIndex}`;
