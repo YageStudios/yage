@@ -1,0 +1,12 @@
+{
+  name: "PongBall",
+  components: [
+    "Transform",
+    {
+      type: "PixiGraphic",
+      fillColor: "#ffff00",
+      rectangle: { x: 0, y: 0, width: 12, height: 12 },
+      relativeZIndex: false,
+    },
+  ],
+}

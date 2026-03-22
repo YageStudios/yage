@@ -7,8 +7,9 @@
     },
     config: {
       style: {
-        background: "#000000",
-        border: "none"
+        background: "none",
+        border: "none",
+        pointerEvents: "none"
       }
     },
     children: {
@@ -28,39 +29,8 @@
           style: {
             color: "#ffffff",
             textAlign: "center",
-            fontFamily: "monospace"
-          }
-        }
-      },
-
-      // ── Game field ──────────────────────────────────────────────────────────
-      fieldGrid: {
-        type: "grid",
-        rect: {
-          x: "center",
-          y: "center",
-          width: 800,
-          height: 600
-        },
-        config: {
-          gap: "0px",
-          style: {
-            backgroundColor: "#111111",
-            boxSizing: "border-box",
-            border: "2px solid #333333"
-          }
-        },
-        items: "$$cells",
-        element: {
-          type: "box",
-          rect: {
-            width: 20,
-            height: 20
-          },
-          config: {
-            style: {
-              backgroundColor: "$$color"
-            }
+            fontFamily: "monospace",
+            textShadow: "0 0 4px #000000"
           }
         }
       },
@@ -78,7 +48,7 @@
           label: "P1: W/S  |  P2: ↑/↓  (single player: AI opponent)",
           fontSize: 14,
           style: {
-            color: "#555555",
+            color: "#aaaaaa",
             textAlign: "center"
           }
         }
@@ -139,6 +109,6 @@
           }
         }
       }
-    }
+}
   }
 }

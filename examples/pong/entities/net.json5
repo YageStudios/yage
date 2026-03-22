@@ -1,0 +1,12 @@
+{
+  name: "PongNet",
+  components: [
+    "Transform",
+    {
+      type: "PixiGraphic",
+      fillColor: "#333333",
+      rectangle: { x: 0, y: 0, width: 2, height: 10 },
+      relativeZIndex: false,
+    },
+  ],
+}

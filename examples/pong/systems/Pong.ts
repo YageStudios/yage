@@ -7,22 +7,21 @@ import { buildUiMap } from "yage/ui/UiMap";
 import type { UIElement } from "yage/ui/UIElement";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import { keyDown } from "yage/utils/keys";
+import { EntityFactory } from "yage/entity/EntityFactory";
+import { Transform } from "yage/schemas/entity/Transform";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const FIELD_W = 800;
 const FIELD_H = 600;
+const FIELD_OFFSET_X = (1920 - FIELD_W) / 2;
+const FIELD_OFFSET_Y = (1080 - FIELD_H) / 2;
 const PADDLE_W = 12;
 const PADDLE_H = 80;
 const BALL_SIZE = 12;
 const PADDLE_SPEED = 6;
 const WINNING_SCORE = 7;
 const PADDLE_OFFSET = 30;
-
-const COLS = 40;
-const ROWS = 30;
-const CELL_W = FIELD_W / COLS;
-const CELL_H = FIELD_H / ROWS;
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -64,6 +63,22 @@ export class PongBoard extends Schema {
   @defaultValue(250)
   rightPaddleY: number;
 
+  @type("number")
+  @defaultValue(-1)
+  leftPaddleEntity: number;
+
+  @type("number")
+  @defaultValue(-1)
+  rightPaddleEntity: number;
+
+  @type("number")
+  @defaultValue(-1)
+  ballEntity: number;
+
+  @type(["number"])
+  @defaultValue([])
+  netEntities: number[];
+
   @type("string")
   @defaultValue("PongUI")
   uiMap: string;
@@ -85,7 +100,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-// ── Game Logic System ─────────────────────────────────────────────────────────
+// ── Init System ───────────────────────────────────────────────────────────────
 
 @System(PongBoard)
 export class PongInitSystem extends SystemImpl<GameModel> {
@@ -100,8 +115,43 @@ export class PongInitSystem extends SystemImpl<GameModel> {
     board.leftScore = 0;
     board.rightScore = 0;
     board.status = "PLAYING";
+
+    // Spawn left paddle entity
+    const leftPaddle = EntityFactory.getInstance().generateEntity(gameModel, "PongPaddle");
+    const leftT = gameModel.getTypedUnsafe(Transform, leftPaddle);
+    leftT.x = FIELD_OFFSET_X + PADDLE_OFFSET + PADDLE_W / 2;
+    leftT.y = FIELD_OFFSET_Y + board.leftPaddleY + PADDLE_H / 2;
+    board.leftPaddleEntity = leftPaddle;
+
+    // Spawn right paddle entity
+    const rightPaddle = EntityFactory.getInstance().generateEntity(gameModel, "PongPaddle");
+    const rightT = gameModel.getTypedUnsafe(Transform, rightPaddle);
+    rightT.x = FIELD_OFFSET_X + FIELD_W - PADDLE_OFFSET - PADDLE_W / 2;
+    rightT.y = FIELD_OFFSET_Y + board.rightPaddleY + PADDLE_H / 2;
+    board.rightPaddleEntity = rightPaddle;
+
+    // Spawn ball entity
+    const ball = EntityFactory.getInstance().generateEntity(gameModel, "PongBall");
+    const ballT = gameModel.getTypedUnsafe(Transform, ball);
+    ballT.x = FIELD_OFFSET_X + board.ballX + BALL_SIZE / 2;
+    ballT.y = FIELD_OFFSET_Y + board.ballY + BALL_SIZE / 2;
+    board.ballEntity = ball;
+
+    // Spawn center net dashes
+    const netEntities: number[] = [];
+    for (let y = 0; y < FIELD_H; y += 20) {
+      if (Math.floor(y / 20) % 2 !== 0) continue;
+      const net = EntityFactory.getInstance().generateEntity(gameModel, "PongNet");
+      const netT = gameModel.getTypedUnsafe(Transform, net);
+      netT.x = FIELD_OFFSET_X + FIELD_W / 2;
+      netT.y = FIELD_OFFSET_Y + y + 5;
+      netEntities.push(net);
+    }
+    board.netEntities = netEntities;
   };
 }
+
+// ── Game Logic System ─────────────────────────────────────────────────────────
 
 @System(PongBoard)
 export class PongSystem extends SystemImpl<GameModel> {
@@ -120,7 +170,6 @@ export class PongSystem extends SystemImpl<GameModel> {
       if (!pi.keyMap) continue;
 
       if (i === 0) {
-        // Player 0: W/S or Up/Down for left paddle
         if (keyDown(["w", "up"], pi.keyMap)) {
           board.leftPaddleY -= PADDLE_SPEED;
         }
@@ -128,7 +177,6 @@ export class PongSystem extends SystemImpl<GameModel> {
           board.leftPaddleY += PADDLE_SPEED;
         }
       } else if (i === 1) {
-        // Player 1: W/S or Up/Down for right paddle
         if (keyDown(["w", "up"], pi.keyMap)) {
           board.rightPaddleY -= PADDLE_SPEED;
         }
@@ -210,59 +258,32 @@ export class PongSystem extends SystemImpl<GameModel> {
         resetBall(board, gameModel);
       }
     }
+
+    // Sync entity positions
+    if (board.leftPaddleEntity !== -1) {
+      const t = gameModel.getTypedUnsafe(Transform, board.leftPaddleEntity);
+      t.y = FIELD_OFFSET_Y + board.leftPaddleY + PADDLE_H / 2;
+    }
+    if (board.rightPaddleEntity !== -1) {
+      const t = gameModel.getTypedUnsafe(Transform, board.rightPaddleEntity);
+      t.y = FIELD_OFFSET_Y + board.rightPaddleY + PADDLE_H / 2;
+    }
+    if (board.ballEntity !== -1) {
+      const t = gameModel.getTypedUnsafe(Transform, board.ballEntity);
+      t.x = FIELD_OFFSET_X + board.ballX + BALL_SIZE / 2;
+      t.y = FIELD_OFFSET_Y + board.ballY + BALL_SIZE / 2;
+    }
   };
 }
 
-// ── Render helpers ────────────────────────────────────────────────────────────
+// ── Format context ───────────────────────────────────────────────────────────
 
 function formatContext(board: PongBoard) {
-  const BG = "#111111";
-  const PADDLE_COLOR = "#ffffff";
-  const BALL_COLOR = "#ffff00";
-  const NET_COLOR = "#333333";
-
-  const cells = Array.from({ length: COLS * ROWS }, () => ({ color: BG }));
-
-  const setCell = (cx: number, cy: number, color: string) => {
-    if (cx >= 0 && cx < COLS && cy >= 0 && cy < ROWS) {
-      cells[cy * COLS + cx] = { color };
-    }
-  };
-
-  // Draw center line
-  for (let r = 0; r < ROWS; r++) {
-    if (r % 2 === 0) setCell(Math.floor(COLS / 2), r, NET_COLOR);
-  }
-
-  // Draw left paddle
-  const lpStartRow = Math.floor(board.leftPaddleY / CELL_H);
-  const lpEndRow = Math.floor((board.leftPaddleY + PADDLE_H) / CELL_H);
-  const lpCol = Math.floor(PADDLE_OFFSET / CELL_W);
-  for (let r = lpStartRow; r <= lpEndRow && r < ROWS; r++) {
-    setCell(lpCol, r, PADDLE_COLOR);
-    if (lpCol + 1 < COLS) setCell(lpCol + 1, r, PADDLE_COLOR);
-  }
-
-  // Draw right paddle
-  const rpStartRow = Math.floor(board.rightPaddleY / CELL_H);
-  const rpEndRow = Math.floor((board.rightPaddleY + PADDLE_H) / CELL_H);
-  const rpCol = Math.floor((FIELD_W - PADDLE_OFFSET - PADDLE_W) / CELL_W);
-  for (let r = rpStartRow; r <= rpEndRow && r < ROWS; r++) {
-    setCell(rpCol, r, PADDLE_COLOR);
-    if (rpCol - 1 >= 0) setCell(rpCol - 1, r, PADDLE_COLOR);
-  }
-
-  // Draw ball
-  const bCol = Math.floor(board.ballX / CELL_W);
-  const bRow = Math.floor(board.ballY / CELL_H);
-  setCell(bCol, bRow, BALL_COLOR);
-
   let statusMessage = `${board.leftScore}  -  ${board.rightScore}`;
   if (board.status === "LEFT_WINS") statusMessage = "Left Player Wins!";
   if (board.status === "RIGHT_WINS") statusMessage = "Right Player Wins!";
 
   return {
-    cells,
     statusMessage,
     showGameOver: board.status !== "PLAYING",
   };

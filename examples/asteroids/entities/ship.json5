@@ -17,7 +17,8 @@
     {
       type: "PixiGraphic",
       fillColor: "#00ff00",
-      circle: { x: 12, y: 12, radius: 12 },
+      polygon: [12, 0, -8, -8, -4, 0, -8, 8],
+      relativeZIndex: false,
     },
     {
       type: "Health",

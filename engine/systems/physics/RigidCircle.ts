@@ -12,7 +12,7 @@ import { MapIsometric } from "yage/schemas/map/Map";
 
 @System(RigidCircle, Transform)
 export class RigidCircleSystem extends SystemImpl<GameModel> {
-  depth = DEPTHS.COLLISION - 0.0001;
+  static depth = DEPTHS.COLLISION - 0.0001;
   dependencies = ["Locomotion", "Transform"];
   private static readonly TRANSLATION_EPSILON_SQ = 0.000001;
 

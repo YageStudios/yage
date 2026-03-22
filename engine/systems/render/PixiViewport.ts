@@ -47,7 +47,7 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
     canvas.className = "pixi-canvas";
     canvas.style.position = "fixed";
     canvas.style.display = "block";
-    canvas.style.zIndex = "-1";
+    canvas.style.zIndex = "0";
     canvas.style.left = "0px";
     canvas.style.top = "0px";
 

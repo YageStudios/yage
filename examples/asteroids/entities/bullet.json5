@@ -18,6 +18,7 @@
       type: "PixiGraphic",
       fillColor: "#ffff00",
       circle: { x: 3, y: 3, radius: 3 },
+      relativeZIndex: false,
     },
     {
       type: "Health",

@@ -24,8 +24,6 @@ const FIELD_W = 800;
 const FIELD_H = 600;
 const FIELD_OFFSET_X = (1920 - FIELD_W) / 2;
 const FIELD_OFFSET_Y = (1080 - FIELD_H) / 2;
-const GRID_COLS = 40;
-const GRID_ROWS = 30;
 const ROTATION_SPEED = 0.07;
 const THRUST = 0.15;
 const MAX_SPEED = 5;
@@ -331,6 +329,15 @@ export class AsteroidsShipSystem extends SystemImpl<GameModel> {
       state.invincibility--;
     }
 
+    // Sync rotation and invincibility blink to PixiGraphic
+    const graphic = gameModel.getTypedUnsafe(PixiGraphic, entity);
+    graphic.rotation = (state.angle * 180) / Math.PI;
+    if (state.invincibility > 0) {
+      graphic.opacity = Math.floor(state.invincibility / 4) % 2 === 0 ? 1 : 0.2;
+    } else {
+      graphic.opacity = 1;
+    }
+
     // Fire
     state.fireCooldown = Math.max(0, state.fireCooldown - 1);
     if (firing && state.fireCooldown === 0) {
@@ -551,87 +558,23 @@ export class AsteroidsLevelSystem extends SystemImpl<GameModel> {
   };
 }
 
-// ── Format context (reads entity state, produces render data) ─────────────────
-// Pure read-only function. The board and all entity state is read, never written.
+// ── Format context ────────────────────────────────────────────────────────────
 
 function formatContext(board: AsteroidsBoard, gameModel: ReadOnlyGameModel) {
-  const BG = "#000000";
-  const SHIP_COLOR = "#00ff00";
-  const BULLET_COLOR = "#ffff00";
-  const ASTEROID_COLOR = "#888888";
-  const SHIP_BLINK = "#004400";
-
-  const cells = Array.from({ length: GRID_COLS * GRID_ROWS }, () => ({ color: BG }));
-
-  const setCell = (cx: number, cy: number, color: string) => {
-    if (cx >= 0 && cx < GRID_COLS && cy >= 0 && cy < GRID_ROWS) {
-      cells[cy * GRID_COLS + cx] = { color };
-    }
-  };
-
-  const wg = (v: number, max: number) => ((v % max) + max) % max;
-  const xScale = GRID_COLS / FIELD_W;
-  const yScale = GRID_ROWS / FIELD_H;
-
-  // Asteroids
-  for (const e of gameModel.getComponentActives("AsteroidsAsteroidState")) {
-    const at = gameModel.getTypedUnsafe(Transform, e);
-    const size = gameModel.getTypedUnsafe(AsteroidsAsteroidState, e).size;
-    const ax = Math.floor((at.x - FIELD_OFFSET_X) * xScale);
-    const ay = Math.floor((at.y - FIELD_OFFSET_Y) * yScale);
-    const r = size === 3 ? 2 : size === 2 ? 1 : 0;
-    for (let dy = -r; dy <= r; dy++) {
-      for (let dx = -r; dx <= r; dx++) {
-        if (dx * dx + dy * dy <= r * r + r) {
-          setCell(wg(ax + dx, GRID_COLS), wg(ay + dy, GRID_ROWS), ASTEROID_COLOR);
-        }
-      }
-    }
-  }
-
-  // Bullets
-  for (const e of gameModel.getComponentActives("AsteroidsBulletState")) {
-    const bt = gameModel.getTypedUnsafe(Transform, e);
-    setCell(Math.floor((bt.x - FIELD_OFFSET_X) * xScale), Math.floor((bt.y - FIELD_OFFSET_Y) * yScale), BULLET_COLOR);
-  }
-
-  // Ship — read score and lives from the entity itself
   let score = 0;
   let lives = 0;
 
   if (board.shipEntity !== -1 && gameModel.isActive(board.shipEntity)) {
-    const st = gameModel.getTypedUnsafe(Transform, board.shipEntity);
     const shipState = gameModel.getTypedUnsafe(AsteroidsShipState, board.shipEntity);
     const shipHealth = gameModel.getTypedUnsafe(Health, board.shipEntity);
     score = shipState.score;
     lives = shipHealth.health;
-
-    if (board.status === "PLAYING") {
-      const sx = Math.floor((st.x - FIELD_OFFSET_X) * xScale);
-      const sy = Math.floor((st.y - FIELD_OFFSET_Y) * yScale);
-      const visible = shipState.invincibility === 0 || Math.floor(shipState.invincibility / 4) % 2 === 0;
-      const color = visible ? SHIP_COLOR : SHIP_BLINK;
-
-      const nx = Math.floor((st.x + Math.cos(shipState.angle) * 12 - FIELD_OFFSET_X) * xScale);
-      const ny = Math.floor((st.y + Math.sin(shipState.angle) * 12 - FIELD_OFFSET_Y) * yScale);
-      setCell(wg(nx, GRID_COLS), wg(ny, GRID_ROWS), color);
-      setCell(wg(sx, GRID_COLS), wg(sy, GRID_ROWS), color);
-
-      const r1x = Math.floor((st.x + Math.cos(shipState.angle + 2.5) * 8 - FIELD_OFFSET_X) * xScale);
-      const r1y = Math.floor((st.y + Math.sin(shipState.angle + 2.5) * 8 - FIELD_OFFSET_Y) * yScale);
-      setCell(wg(r1x, GRID_COLS), wg(r1y, GRID_ROWS), color);
-
-      const r2x = Math.floor((st.x + Math.cos(shipState.angle - 2.5) * 8 - FIELD_OFFSET_X) * xScale);
-      const r2y = Math.floor((st.y + Math.sin(shipState.angle - 2.5) * 8 - FIELD_OFFSET_Y) * yScale);
-      setCell(wg(r2x, GRID_COLS), wg(r2y, GRID_ROWS), color);
-    }
   }
 
   let statusMessage = `Score: ${score}  Lives: ${lives}  Level: ${board.level}`;
   if (board.status === "GAME_OVER") statusMessage = "Game Over!";
 
   return {
-    cells,
     statusMessage,
     showGameOver: board.status !== "PLAYING",
   };

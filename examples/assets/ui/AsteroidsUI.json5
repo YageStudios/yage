@@ -7,8 +7,9 @@
     },
     config: {
       style: {
-        background: "#000000",
-        border: "none"
+        background: "none",
+        border: "none",
+        pointerEvents: "none"
       }
     },
     children: {
@@ -28,40 +29,8 @@
           style: {
             color: "#00ff00",
             textAlign: "center",
-            fontFamily: "monospace"
-          }
-        }
-      },
-
-      // ── Game field ──────────────────────────────────────────────────────────
-      fieldGrid: {
-        type: "grid",
-        rect: {
-          x: "center",
-          y: "center",
-          width: 802,
-          height: 602
-        },
-        config: {
-          gap: "0px",
-          style: {
-            backgroundColor: "#000000",
-            padding: "1px",
-            boxSizing: "border-box",
-            border: "1px solid #003300"
-          }
-        },
-        items: "$$cells",
-        element: {
-          type: "box",
-          rect: {
-            width: 20,
-            height: 20
-          },
-          config: {
-            style: {
-              backgroundColor: "$$color"
-            }
+            fontFamily: "monospace",
+            textShadow: "0 0 4px #000000"
           }
         }
       },
@@ -79,7 +48,7 @@
           label: "← → rotate  |  ↑ thrust  |  Space fire",
           fontSize: 14,
           style: {
-            color: "#334433",
+            color: "#aaaaaa",
             textAlign: "center"
           }
         }
@@ -140,6 +109,6 @@
           }
         }
       }
-    }
+}
   }
 }
