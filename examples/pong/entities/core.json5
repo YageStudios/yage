@@ -1,0 +1,36 @@
+{
+  name: "core",
+  components: [
+    "Random",
+    "Sounds",
+    {
+      type: "FrameRate",
+      uiMap: "core/FrameRate",
+    },
+    {
+      type: "PongBoard",
+      leftScore: 0,
+      rightScore: 0,
+      status: "PLAYING",
+      ballVx: 4,
+      ballVy: 2,
+      ballX: 400,
+      ballY: 300,
+      leftPaddleY: 250,
+      rightPaddleY: 250,
+      uiMap: "PongUI",
+    },
+  ],
+  assets: [
+    {
+      type: "ui",
+      key: "core/FrameRate",
+      url: "core/FrameRate.json5",
+    },
+    {
+      type: "ui",
+      key: "PongUI",
+      url: "PongUI.json5",
+    },
+  ],
+}

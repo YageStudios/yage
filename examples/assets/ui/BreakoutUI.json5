@@ -1,0 +1,114 @@
+{
+  root: {
+    type: "box",
+    rect: {
+      x: "full",
+      y: "full"
+    },
+    config: {
+      style: {
+        background: "none",
+        border: "none",
+        pointerEvents: "none"
+      }
+    },
+    children: {
+
+      // ── Score / Lives ───────────────────────────────────────────────────────
+      statusText: {
+        type: "text",
+        rect: {
+          x: "center",
+          y: "top",
+          yOffset: 15,
+          width: 500
+        },
+        config: {
+          label: "$$statusMessage",
+          fontSize: 28,
+          style: {
+            color: "#ffffff",
+            textAlign: "center",
+            fontFamily: "monospace",
+            textShadow: "0 0 4px #000000"
+          }
+        }
+      },
+
+      // ── Controls hint ───────────────────────────────────────────────────────
+      controlsHint: {
+        type: "text",
+        rect: {
+          x: "center",
+          y: "bottom",
+          yOffset: -15,
+          width: 500
+        },
+        config: {
+          label: "← → move paddle  |  Space launch ball",
+          fontSize: 14,
+          style: {
+            color: "#aaaaaa",
+            textAlign: "center"
+          }
+        }
+      },
+
+      // ── Game Over overlay ───────────────────────────────────────────────────
+      gameOverText: {
+        $if: "showGameOver",
+        then: {
+          type: "text",
+          rect: {
+            x: "center",
+            y: "center",
+            yOffset: -60,
+            width: 500
+          },
+          config: {
+            label: "$$statusMessage",
+            fontSize: 56,
+            style: {
+              color: "#ff4444",
+              textAlign: "center",
+              textShadow: "0 0 20px #ff0000"
+            }
+          }
+        }
+      },
+
+      restartButton: {
+        $if: "showGameOver",
+        then: {
+          type: "button",
+          rect: {
+            x: "center",
+            y: "center",
+            yOffset: 40,
+            width: 220,
+            height: 64
+          },
+          config: {
+            label: "Play Again",
+            fontSize: 28,
+            focusable: true,
+            autoFocus: true,
+            style: {
+              backgroundColor: "#4444CC",
+              color: "#ffffff",
+              borderRadius: "8px",
+              cursor: "pointer"
+            },
+            focusStyle: {
+              backgroundColor: "#3333BB",
+              outline: "3px solid #2FA6FF"
+            }
+          },
+          events: {
+            click: "onRestartClick"
+          }
+        }
+      }
+}
+  }
+}

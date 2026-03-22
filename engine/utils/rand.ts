@@ -20,6 +20,7 @@ class Mulberry32 {
 export interface Random {
   number: () => number;
   int: (min: number, max?: number) => number;
+  float: (min: number, max?: number) => number;
   seedNumber: number;
 }
 
@@ -38,6 +39,13 @@ export const generate = (seedNumber: number): Random => {
       }
       return Math.floor(rand.call() * (max - min + 1)) + min;
     },
+    float: (min: number, max?: number): number => {
+      if (max === undefined) {
+        max = min;
+        min = 0;
+      }
+      return rand.call() * (max - min + 1) + min;      
+    }
   };
 };
 

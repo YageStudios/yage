@@ -1,0 +1,43 @@
+{
+  name: "AsteroidsAsteroid",
+  components: [
+    "Transform",
+    {
+      type: "Locomotion",
+    },
+    {
+      type: "RigidCircle",
+      radius: 30,
+      mass: 1,
+      collisionEvents: true,
+      restitution: 0,
+      collisionCategory: "enum:CollisionCategoryEnum.ENEMY",
+      collisionMask: [
+        "enum:CollisionCategoryEnum.PLAYER",
+        "enum:CollisionCategoryEnum.PROJECTILE",
+      ],
+    },
+    {
+      type: "PixiGraphic",
+      fillColor: "#888888",
+      circle: { x: 30, y: 30, radius: 30 },
+    },
+    {
+      type: "Health",
+      health: 1,
+      maxHealth: 1,
+    },
+    "Damageable",
+    "EnemyType",
+    {
+      type: "DamageStats",
+      minDamage: 1,
+      maxDamage: 1,
+    },
+    {
+      type: "AsteroidsAsteroidState",
+      size: 3,
+    },
+    "AsteroidsAsteroidSplitOnDeath",
+  ],
+}

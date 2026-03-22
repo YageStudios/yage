@@ -1,0 +1,33 @@
+{
+  name: "AsteroidsShip",
+  components: [
+    "Transform",
+    {
+      type: "Locomotion",
+    },
+    {
+      type: "RigidCircle",
+      radius: 12,
+      mass: 1,
+      collisionEvents: true,
+      restitution: 0,
+      collisionCategory: "enum:CollisionCategoryEnum.PLAYER",
+      collisionMask: ["enum:CollisionCategoryEnum.ENEMY"],
+    },
+    {
+      type: "PixiGraphic",
+      fillColor: "#00ff00",
+      circle: { x: 12, y: 12, radius: 12 },
+    },
+    {
+      type: "Health",
+      health: 3,
+      maxHealth: 3,
+    },
+    "Damageable",
+    "PlayerType",
+    {
+      type: "AsteroidsShipState",
+    },
+  ],
+}

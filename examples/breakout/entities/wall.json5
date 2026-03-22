@@ -1,0 +1,15 @@
+{
+  name: "BreakoutWall",
+  components: [
+    "Transform",
+    {
+      type: "RigidBox",
+      width: 40,
+      height: 40,
+      isStatic: true,
+      restitution: 1,
+      collisionCategory: "enum:CollisionCategoryEnum.WALL",
+      collisionMask: ["enum:CollisionCategoryEnum.ALL"],
+    },
+  ],
+}

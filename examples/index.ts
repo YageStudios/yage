@@ -7,6 +7,12 @@ const games = [
   ["socket", () => import("./socket")],
   ["tictactoe", () => import("./tictactoe")],
   ["tetris", () => import("./tetris")],
+  ["pong", () => import("./pong")],
+  ["snake", () => import("./snake")],
+  ["breakout", () => import("./breakout")],
+  ["asteroids", () => import("./asteroids")],
+  ["platformer", () => import("./platformer")],
+  ["sokoban", () => import("./sokoban")],
 ] as const;
 
 let found = false;

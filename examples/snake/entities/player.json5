@@ -1,0 +1,6 @@
+{
+  name: "Player",
+  components: [
+    "PlayerInput",
+  ],
+}

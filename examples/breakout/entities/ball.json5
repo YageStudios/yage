@@ -1,0 +1,24 @@
+{
+  name: "BreakoutBall",
+  components: [
+    "Transform",
+    {
+      type: "Locomotion",
+    },
+    {
+      type: "RigidCircle",
+      radius: 8,
+      mass: 1,
+      velocityLock: true,
+      collisionEvents: true,
+      restitution: 1,
+      collisionCategory: "enum:CollisionCategoryEnum.PROJECTILE",
+      collisionMask: ["enum:CollisionCategoryEnum.ALL"],
+    },
+    {
+      type: "PixiGraphic",
+      fillColor: "#ffff00",
+      circle: { x: 8, y: 8, radius: 8 },
+    },
+  ],
+}

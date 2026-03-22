@@ -1,0 +1,29 @@
+{
+  name: "core",
+  components: [
+    "Random",
+    "Sounds",
+    {
+      type: "FrameRate",
+      uiMap: "core/FrameRate",
+    },
+    {
+      type: "PlatformerBoard",
+      status: "PLAYING",
+      score: 0,
+      uiMap: "PlatformerUI",
+    },
+  ],
+  assets: [
+    {
+      type: "ui",
+      key: "core/FrameRate",
+      url: "core/FrameRate.json5",
+    },
+    {
+      type: "ui",
+      key: "PlatformerUI",
+      url: "PlatformerUI.json5",
+    },
+  ],
+}

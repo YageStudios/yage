@@ -1,0 +1,21 @@
+{
+  name: "BreakoutBrick",
+  components: [
+    "Transform",
+    {
+      type: "RigidBox",
+      width: 56,
+      height: 18,
+      isStatic: true,
+      restitution: 1,
+      collisionEvents: true,
+      collisionCategory: "enum:CollisionCategoryEnum.ENEMY",
+      collisionMask: ["enum:CollisionCategoryEnum.ALL"],
+    },
+    {
+      type: "PixiGraphic",
+      fillColor: "#ff4444",
+      rectangle: { x: 0, y: 0, width: 56, height: 18 },
+    },
+  ],
+}

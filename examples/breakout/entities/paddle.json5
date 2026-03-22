@@ -1,0 +1,20 @@
+{
+  name: "BreakoutPaddle",
+  components: [
+    "Transform",
+    {
+      type: "RigidBox",
+      width: 80,
+      height: 12,
+      isStatic: true,
+      restitution: 1,
+      collisionCategory: "enum:CollisionCategoryEnum.WALL",
+      collisionMask: ["enum:CollisionCategoryEnum.ALL"],
+    },
+    {
+      type: "PixiGraphic",
+      fillColor: "#ffffff",
+      rectangle: { x: 0, y: 0, width: 80, height: 12 },
+    },
+  ],
+}

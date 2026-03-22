@@ -1,0 +1,144 @@
+{
+  root: {
+    type: "box",
+    rect: {
+      x: "full",
+      y: "full"
+    },
+    config: {
+      style: {
+        background: "#000000",
+        border: "none"
+      }
+    },
+    children: {
+
+      // ── Score display ───────────────────────────────────────────────────────
+      scoreText: {
+        type: "text",
+        rect: {
+          x: "center",
+          y: "top",
+          yOffset: 20,
+          width: 400
+        },
+        config: {
+          label: "$$statusMessage",
+          fontSize: 48,
+          style: {
+            color: "#ffffff",
+            textAlign: "center",
+            fontFamily: "monospace"
+          }
+        }
+      },
+
+      // ── Game field ──────────────────────────────────────────────────────────
+      fieldGrid: {
+        type: "grid",
+        rect: {
+          x: "center",
+          y: "center",
+          width: 800,
+          height: 600
+        },
+        config: {
+          gap: "0px",
+          style: {
+            backgroundColor: "#111111",
+            boxSizing: "border-box",
+            border: "2px solid #333333"
+          }
+        },
+        items: "$$cells",
+        element: {
+          type: "box",
+          rect: {
+            width: 20,
+            height: 20
+          },
+          config: {
+            style: {
+              backgroundColor: "$$color"
+            }
+          }
+        }
+      },
+
+      // ── Controls hint ───────────────────────────────────────────────────────
+      controlsHint: {
+        type: "text",
+        rect: {
+          x: "center",
+          y: "bottom",
+          yOffset: -20,
+          width: 600
+        },
+        config: {
+          label: "P1: W/S  |  P2: ↑/↓  (single player: AI opponent)",
+          fontSize: 14,
+          style: {
+            color: "#555555",
+            textAlign: "center"
+          }
+        }
+      },
+
+      // ── Game Over overlay ───────────────────────────────────────────────────
+      gameOverText: {
+        $if: "showGameOver",
+        then: {
+          type: "text",
+          rect: {
+            x: "center",
+            y: "center",
+            yOffset: -60,
+            width: 500
+          },
+          config: {
+            label: "$$statusMessage",
+            fontSize: 48,
+            style: {
+              color: "#44ff44",
+              textAlign: "center",
+              textShadow: "0 0 20px #00ff00"
+            }
+          }
+        }
+      },
+
+      restartButton: {
+        $if: "showGameOver",
+        then: {
+          type: "button",
+          rect: {
+            x: "center",
+            y: "center",
+            yOffset: 40,
+            width: 220,
+            height: 64
+          },
+          config: {
+            label: "Play Again",
+            fontSize: 28,
+            focusable: true,
+            autoFocus: true,
+            style: {
+              backgroundColor: "#4CAF50",
+              color: "#ffffff",
+              borderRadius: "8px",
+              cursor: "pointer"
+            },
+            focusStyle: {
+              backgroundColor: "#45a049",
+              outline: "3px solid #2FA6FF"
+            }
+          },
+          events: {
+            click: "onRestartClick"
+          }
+        }
+      }
+    }
+  }
+}

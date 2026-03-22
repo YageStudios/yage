@@ -1,0 +1,37 @@
+{
+  name: "core",
+  components: [
+    "Random",
+    "Sounds",
+    {
+      type: "FrameRate",
+      uiMap: "core/FrameRate",
+    },
+    "PixiViewport",
+    "Collisions",
+    {
+      type: "Physics",
+      gravityX: 0,
+      gravityY: 0,
+    },
+    {
+      type: "BreakoutBoard",
+      status: "PLAYING",
+      score: 0,
+      lives: 3,
+      uiMap: "BreakoutUI",
+    },
+  ],
+  assets: [
+    {
+      type: "ui",
+      key: "core/FrameRate",
+      url: "core/FrameRate.json5",
+    },
+    {
+      type: "ui",
+      key: "BreakoutUI",
+      url: "BreakoutUI.json5",
+    },
+  ],
+}

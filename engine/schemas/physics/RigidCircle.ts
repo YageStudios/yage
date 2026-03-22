@@ -45,6 +45,10 @@ export class RigidCircle extends Schema {
   @type("boolean")
   @defaultValue(false)
   isometric: boolean;
+
+  @type("number")
+  @defaultValue(0)
+  restitution: number;
 }
 
 @Component()

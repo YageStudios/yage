@@ -1,0 +1,36 @@
+{
+  name: "core",
+  components: [
+    "Random",
+    "Sounds",
+    {
+      type: "FrameRate",
+      uiMap: "core/FrameRate",
+    },
+    "PixiViewport",
+    "Collisions",
+    {
+      type: "Physics",
+      gravityX: 0,
+      gravityY: 0,
+    },
+    {
+      type: "AsteroidsBoard",
+      status: "PLAYING",
+      level: 1,
+      uiMap: "AsteroidsUI",
+    },
+  ],
+  assets: [
+    {
+      type: "ui",
+      key: "core/FrameRate",
+      url: "core/FrameRate.json5",
+    },
+    {
+      type: "ui",
+      key: "AsteroidsUI",
+      url: "AsteroidsUI.json5",
+    },
+  ],
+}

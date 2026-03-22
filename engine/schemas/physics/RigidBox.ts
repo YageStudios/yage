@@ -56,6 +56,10 @@ export class RigidBox extends Schema {
   @type("boolean")
   @defaultValue(false)
   collisionEvents: boolean;
+
+  @type("number")
+  @defaultValue(0)
+  restitution: number;
 }
 
 @Component()

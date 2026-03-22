@@ -1,0 +1,30 @@
+{
+  name: "core",
+  components: [
+    "Random",
+    "Sounds",
+    {
+      type: "FrameRate",
+      uiMap: "core/FrameRate",
+    },
+    {
+      type: "SokobanBoard",
+      status: "PLAYING",
+      moves: 0,
+      currentLevel: 0,
+      uiMap: "SokobanUI",
+    },
+  ],
+  assets: [
+    {
+      type: "ui",
+      key: "core/FrameRate",
+      url: "core/FrameRate.json5",
+    },
+    {
+      type: "ui",
+      key: "SokobanUI",
+      url: "SokobanUI.json5",
+    },
+  ],
+}

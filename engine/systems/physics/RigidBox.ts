@@ -37,6 +37,9 @@ export class RigidBoxSystem extends SystemImpl<GameModel> {
 
     // Create a cuboid collider attached to the dynamic rigidBody.
     let colliderDesc = RAPIER.ColliderDesc.cuboid(rigidBox.width / 2, rigidBox.height / 2).setMass(rigidBox.mass);
+    if (rigidBox.restitution) {
+      colliderDesc.setRestitution(rigidBox.restitution);
+    }
 
     let filterMask = CollisionCategoryEnum.ALL as number;
     if (rigidBox.collisionMask) {

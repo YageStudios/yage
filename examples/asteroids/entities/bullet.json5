@@ -1,0 +1,42 @@
+{
+  name: "AsteroidsBullet",
+  components: [
+    "Transform",
+    {
+      type: "Locomotion",
+    },
+    {
+      type: "RigidCircle",
+      radius: 3,
+      mass: 1,
+      collisionEvents: true,
+      restitution: 0,
+      collisionCategory: "enum:CollisionCategoryEnum.PROJECTILE",
+      collisionMask: ["enum:CollisionCategoryEnum.ENEMY"],
+    },
+    {
+      type: "PixiGraphic",
+      fillColor: "#ffff00",
+      circle: { x: 3, y: 3, radius: 3 },
+    },
+    {
+      type: "Health",
+      health: 1,
+      maxHealth: 1,
+    },
+    "Damageable",
+    {
+      type: "Owner",
+    },
+    {
+      type: "DamageStats",
+      minDamage: 1,
+      maxDamage: 1,
+    },
+    "ProjectileType",
+    {
+      type: "AsteroidsBulletState",
+      lifetime: 50,
+    },
+  ],
+}
