@@ -1,0 +1,20 @@
+{
+  name: "Tetromino_T",
+  components: [
+    {
+      type: "Tetromino",
+      shape: "T",
+      colorIndex: 3,
+      spawnX: 3,
+      grid: "0100111000000000",
+    },
+    {
+      type: "TetrisPiece",
+      rotation: 0,
+      x: 0,
+      y: 0,
+      isGhost: false,
+      boardId: 0,
+    },
+  ],
+}

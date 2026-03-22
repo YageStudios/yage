@@ -16,224 +16,48 @@ const BOARD_ROWS = 20;
 const DAS_INITIAL = 16;
 const DAS_REPEAT = 6;
 
-// ── Piece definitions (row, col offsets per rotation) ─────────────────────────
+const SHAPE_NAMES = ["I", "O", "T", "S", "Z", "J", "L"] as const;
+type ShapeName = (typeof SHAPE_NAMES)[number];
 
-// Each piece: 4 rotations × 4 cells × [row, col]
-const PIECES: number[][][][] = [
-  // 0: I (cyan)
-  [
-    [
-      [0, 0],
-      [0, 1],
-      [0, 2],
-      [0, 3],
-    ],
-    [
-      [0, 0],
-      [1, 0],
-      [2, 0],
-      [3, 0],
-    ],
-    [
-      [0, 0],
-      [0, 1],
-      [0, 2],
-      [0, 3],
-    ],
-    [
-      [0, 0],
-      [1, 0],
-      [2, 0],
-      [3, 0],
-    ],
-  ],
-  // 1: O (yellow)
-  [
-    [
-      [0, 0],
-      [0, 1],
-      [1, 0],
-      [1, 1],
-    ],
-    [
-      [0, 0],
-      [0, 1],
-      [1, 0],
-      [1, 1],
-    ],
-    [
-      [0, 0],
-      [0, 1],
-      [1, 0],
-      [1, 1],
-    ],
-    [
-      [0, 0],
-      [0, 1],
-      [1, 0],
-      [1, 1],
-    ],
-  ],
-  // 2: T (purple)
-  [
-    [
-      [0, 1],
-      [1, 0],
-      [1, 1],
-      [1, 2],
-    ],
-    [
-      [0, 0],
-      [1, 0],
-      [1, 1],
-      [2, 0],
-    ],
-    [
-      [0, 0],
-      [0, 1],
-      [0, 2],
-      [1, 1],
-    ],
-    [
-      [0, 1],
-      [1, 0],
-      [1, 1],
-      [2, 1],
-    ],
-  ],
-  // 3: S (green)
-  [
-    [
-      [0, 1],
-      [0, 2],
-      [1, 0],
-      [1, 1],
-    ],
-    [
-      [0, 0],
-      [1, 0],
-      [1, 1],
-      [2, 1],
-    ],
-    [
-      [0, 1],
-      [0, 2],
-      [1, 0],
-      [1, 1],
-    ],
-    [
-      [0, 0],
-      [1, 0],
-      [1, 1],
-      [2, 1],
-    ],
-  ],
-  // 4: Z (red)
-  [
-    [
-      [0, 0],
-      [0, 1],
-      [1, 1],
-      [1, 2],
-    ],
-    [
-      [0, 1],
-      [1, 0],
-      [1, 1],
-      [2, 0],
-    ],
-    [
-      [0, 0],
-      [0, 1],
-      [1, 1],
-      [1, 2],
-    ],
-    [
-      [0, 1],
-      [1, 0],
-      [1, 1],
-      [2, 0],
-    ],
-  ],
-  // 5: J (blue)
-  [
-    [
-      [0, 0],
-      [1, 0],
-      [1, 1],
-      [1, 2],
-    ],
-    [
-      [0, 0],
-      [0, 1],
-      [1, 0],
-      [2, 0],
-    ],
-    [
-      [0, 0],
-      [0, 1],
-      [0, 2],
-      [1, 2],
-    ],
-    [
-      [0, 1],
-      [1, 1],
-      [2, 0],
-      [2, 1],
-    ],
-  ],
-  // 6: L (orange)
-  [
-    [
-      [0, 2],
-      [1, 0],
-      [1, 1],
-      [1, 2],
-    ],
-    [
-      [0, 0],
-      [1, 0],
-      [2, 0],
-      [2, 1],
-    ],
-    [
-      [0, 0],
-      [0, 1],
-      [0, 2],
-      [1, 0],
-    ],
-    [
-      [0, 0],
-      [0, 1],
-      [1, 1],
-      [2, 1],
-    ],
-  ],
-];
-
-// Spawn X offset per piece type (centers piece on 10-wide board)
-const SPAWN_X = [3, 4, 3, 3, 3, 3, 3];
-
-// Cell colors: 0=empty, 1=I, 2=O, 3=T, 4=S, 5=Z, 6=J, 7=L, 8=ghost
+// Cell colors: 0=empty, 1-7=tetromino colors, 8=ghost
 const COLORS = [
-  "#111111", // empty
-  "#00cfcf", // I cyan
-  "#cfcf00", // O yellow
-  "#9f00cf", // T purple
-  "#00cf00", // S green
-  "#cf0000", // Z red
-  "#0000cf", // J blue
-  "#cf6f00", // L orange
-  "#2a2a2a", // ghost
+  "#111111", // 0 empty
+  "#00cfcf", // 1 I cyan
+  "#cfcf00", // 2 O yellow
+  "#9f00cf", // 3 T purple
+  "#00cf00", // 4 S green
+  "#cf0000", // 5 Z red
+  "#0000cf", // 6 J blue
+  "#cf6f00", // 7 L orange
+  "#2a2a2a", // 8 ghost
 ];
 
-// Auto-drop speed (frames per drop) by level
 function getDropFrames(level: number): number {
   const frames = [48, 43, 38, 33, 28, 23, 18, 13, 8, 6, 5, 5, 5, 4, 4, 3, 3, 2, 2, 1];
   return frames[Math.min(level - 1, frames.length - 1)];
 }
 
 // ── Components ─────────────────────────────────────────────────────────────────
+
+@Component()
+export class Tetromino extends Schema {
+  @type("string")
+  @defaultValue("I")
+  shape: string;
+
+  @type("number")
+  @defaultValue(1)
+  colorIndex: number;
+
+  @type("number")
+  @defaultValue(3)
+  spawnX: number;
+
+  // 4x4 binary grid (16-char string of 0/1, row-major) — rotations are computed
+  @type("string")
+  @defaultValue("0000000000000000")
+  grid: string;
+}
 
 @Component()
 export class TetrisCell extends Schema {
@@ -258,10 +82,6 @@ export class TetrisCell extends Schema {
 export class TetrisPiece extends Schema {
   @type("number")
   @defaultValue(0)
-  pieceType: number;
-
-  @type("number")
-  @defaultValue(0)
   rotation: number;
 
   @type("number")
@@ -283,9 +103,9 @@ export class TetrisPiece extends Schema {
 
 @Component()
 export class TetrisBoard extends Schema {
-  @type("number")
-  @defaultValue(1)
-  nextPieceType: number;
+  @type("string")
+  @defaultValue("I")
+  nextShape: string;
 
   @type("number")
   @defaultValue(0)
@@ -320,28 +140,74 @@ export class TetrisBoard extends Schema {
   uiMap: string;
 }
 
-// ── Board helpers ─────────────────────────────────────────────────────────────
+// ── Grid helpers ──────────────────────────────────────────────────────────────
 
-function getPieceCells(pieceType: number, rotation: number, x: number, y: number): [number, number][] {
-  return PIECES[pieceType][rotation].map(([dr, dc]) => [y + dr, x + dc] as [number, number]);
+function parseCellsFromGrid(grid: string, x: number, y: number): [number, number][] {
+  const cells: [number, number][] = [];
+  for (let i = 0; i < 16; i++) {
+    if (grid[i] === "1") {
+      const row = Math.floor(i / 4);
+      const col = i % 4;
+      cells.push([y + row, x + col]);
+    }
+  }
+  return cells;
 }
 
-function isValidPosition(
+function rotateGrid90(grid: string): string {
+  const out = new Array(16);
+  for (let r = 0; r < 4; r++) {
+    for (let c = 0; c < 4; c++) {
+      out[c * 4 + (3 - r)] = grid[r * 4 + c];
+    }
+  }
+  return out.join("");
+}
+
+function getRotatedGrid(baseGrid: string, rotation: number): string {
+  let grid = baseGrid;
+  for (let i = 0; i < (rotation % 4); i++) {
+    grid = rotateGrid90(grid);
+  }
+  return grid;
+}
+
+function getGridFromTetromino(tetromino: Tetromino, rotation: number): string {
+  return getRotatedGrid(tetromino.grid, rotation);
+}
+
+function entityNameForShape(shape: string): string {
+  return `Tetromino_${shape}`;
+}
+
+function getGridFromDefinition(shape: string, rotation: number): string {
+  const entityName = entityNameForShape(shape);
+  const def = EntityFactory.getInstance().getComponentFromEntity(entityName, "Tetromino");
+  const baseGrid = def?.grid ?? "0000000000000000";
+  return getRotatedGrid(baseGrid, rotation);
+}
+
+function getDefinitionField(shape: string, field: string): any {
+  const entityName = entityNameForShape(shape);
+  const def = EntityFactory.getInstance().getComponentFromEntity(entityName, "Tetromino");
+  return def?.[field];
+}
+
+// ── Board helpers ─────────────────────────────────────────────────────────────
+
+function isValidPositionByGrid(
   gameModel: GameModel,
-  boardId: number,
-  pieceType: number,
-  rotation: number,
+  grid: string,
   x: number,
   y: number,
 ): boolean {
-  const cells = getPieceCells(pieceType, rotation, x, y);
+  const cells = parseCellsFromGrid(grid, x, y);
   const cellEntities = gameModel.getComponentActives("TetrisCell");
 
   for (const [row, col] of cells) {
-    if (row < 0) continue; // above board is ok during spawn
+    if (row < 0) continue;
     if (row >= BOARD_ROWS || col < 0 || col >= BOARD_COLS) return false;
 
-    // Check if cell is occupied
     for (const cellId of cellEntities) {
       const cell = gameModel.getTypedUnsafe(TetrisCell, cellId);
       if (cell.x === col && cell.y === row && cell.occupied) {
@@ -352,8 +218,9 @@ function isValidPosition(
   return true;
 }
 
-function tryMovePiece(gameModel: GameModel, piece: TetrisPiece, dx: number, dy: number): boolean {
-  if (isValidPosition(gameModel, piece.boardId, piece.pieceType, piece.rotation, piece.x + dx, piece.y + dy)) {
+function tryMovePiece(gameModel: GameModel, piece: TetrisPiece, tetromino: Tetromino, dx: number, dy: number): boolean {
+  const grid = getGridFromTetromino(tetromino, piece.rotation);
+  if (isValidPositionByGrid(gameModel, grid, piece.x + dx, piece.y + dy)) {
     piece.x += dx;
     piece.y += dy;
     return true;
@@ -361,21 +228,14 @@ function tryMovePiece(gameModel: GameModel, piece: TetrisPiece, dx: number, dy: 
   return false;
 }
 
-function tryRotatePiece(gameModel: GameModel, piece: TetrisPiece, dir: number): void {
+function tryRotatePiece(gameModel: GameModel, piece: TetrisPiece, tetromino: Tetromino, dir: number): void {
   const newRot = (piece.rotation + dir + 4) % 4;
-  // Try base position first, then wall kicks
+  const grid = getGridFromTetromino(tetromino, newRot);
   const kicks: [number, number][] = [
-    [0, 0],
-    [1, 0],
-    [-1, 0],
-    [2, 0],
-    [-2, 0],
-    [0, -1],
-    [1, -1],
-    [-1, -1],
+    [0, 0], [1, 0], [-1, 0], [2, 0], [-2, 0], [0, -1], [1, -1], [-1, -1],
   ];
   for (const [dx, dy] of kicks) {
-    if (isValidPosition(gameModel, piece.boardId, piece.pieceType, newRot, piece.x + dx, piece.y + dy)) {
+    if (isValidPositionByGrid(gameModel, grid, piece.x + dx, piece.y + dy)) {
       piece.x += dx;
       piece.y += dy;
       piece.rotation = newRot;
@@ -384,26 +244,27 @@ function tryRotatePiece(gameModel: GameModel, piece: TetrisPiece, dir: number): 
   }
 }
 
-function getGhostY(gameModel: GameModel, piece: TetrisPiece): number {
+function getGhostY(gameModel: GameModel, piece: TetrisPiece, tetromino: Tetromino): number {
+  const grid = getGridFromTetromino(tetromino, piece.rotation);
   let ghostY = piece.y;
-  while (isValidPosition(gameModel, piece.boardId, piece.pieceType, piece.rotation, piece.x, ghostY + 1)) {
+  while (isValidPositionByGrid(gameModel, grid, piece.x, ghostY + 1)) {
     ghostY++;
   }
   return ghostY;
 }
 
-function lockPiece(gameModel: GameModel, piece: TetrisPiece, board: TetrisBoard): void {
-  const cells = getPieceCells(piece.pieceType, piece.rotation, piece.x, piece.y);
+function lockPiece(gameModel: GameModel, piece: TetrisPiece, tetromino: Tetromino, board: TetrisBoard): void {
+  const grid = getGridFromTetromino(tetromino, piece.rotation);
+  const cells = parseCellsFromGrid(grid, piece.x, piece.y);
   const cellEntities = gameModel.getComponentActives("TetrisCell");
 
   for (const [row, col] of cells) {
     if (row >= 0 && row < BOARD_ROWS && col >= 0 && col < BOARD_COLS) {
-      // Find the cell entity at this position and mark it occupied
       for (const cellId of cellEntities) {
         const cell = gameModel.getTypedUnsafe(TetrisCell, cellId);
         if (cell.x === col && cell.y === row) {
           cell.occupied = true;
-          cell.color = piece.pieceType + 1;
+          cell.color = tetromino.colorIndex;
           break;
         }
       }
@@ -417,7 +278,6 @@ function clearLines(gameModel: GameModel, board: TetrisBoard): void {
   let linesCleared = 0;
 
   for (let row = BOARD_ROWS - 1; row >= 0; row--) {
-    // Check if row is full
     let cellsInRow = 0;
     const rowCells: number[] = [];
 
@@ -431,29 +291,22 @@ function clearLines(gameModel: GameModel, board: TetrisBoard): void {
 
     if (cellsInRow === BOARD_COLS) {
       linesCleared++;
-      // Clear this row
       for (const cellId of rowCells) {
         const cell = gameModel.getTypedUnsafe(TetrisCell, cellId);
         cell.occupied = false;
         cell.color = 0;
       }
 
-      // Shift all rows above down
       for (let r = row; r > 0; r--) {
         const targetRowCells: number[] = [];
         const sourceRowCells: number[] = [];
 
         for (const cellId of cellEntities) {
           const cell = gameModel.getTypedUnsafe(TetrisCell, cellId);
-          if (cell.y === r) {
-            targetRowCells.push(cellId);
-          }
-          if (cell.y === r - 1) {
-            sourceRowCells.push(cellId);
-          }
+          if (cell.y === r) targetRowCells.push(cellId);
+          if (cell.y === r - 1) sourceRowCells.push(cellId);
         }
 
-        // Copy colors and occupied status from row above
         for (const targetId of targetRowCells) {
           const targetCell = gameModel.getTypedUnsafe(TetrisCell, targetId);
           const sourceId = sourceRowCells.find((id) => {
@@ -468,7 +321,6 @@ function clearLines(gameModel: GameModel, board: TetrisBoard): void {
         }
       }
 
-      // Clear top row
       for (const cellId of cellEntities) {
         const cell = gameModel.getTypedUnsafe(TetrisCell, cellId);
         if (cell.y === 0) {
@@ -477,7 +329,7 @@ function clearLines(gameModel: GameModel, board: TetrisBoard): void {
         }
       }
 
-      row++; // Re-check same row position
+      row++;
     }
   }
 
@@ -489,30 +341,41 @@ function clearLines(gameModel: GameModel, board: TetrisBoard): void {
   }
 }
 
-function spawnNextPiece(gameModel: GameModel, board: TetrisBoard, boardId: number): boolean {
-  const spawnX = SPAWN_X[board.nextPieceType];
-  const spawnY = 0;
+function randomShape(gameModel: GameModel): ShapeName {
+  return SHAPE_NAMES[gameModel.rand.int(0, SHAPE_NAMES.length - 1)];
+}
 
-  if (!isValidPosition(gameModel, boardId, board.nextPieceType, 0, spawnX, spawnY)) {
+function spawnNextPiece(gameModel: GameModel, board: TetrisBoard, boardId: number): boolean {
+  const shapeName = board.nextShape;
+  const spawnX = getDefinitionField(shapeName, "spawnX") ?? 3;
+  const grid = getGridFromDefinition(shapeName, 0);
+
+  if (!isValidPositionByGrid(gameModel, grid, spawnX, 0)) {
     return false;
   }
 
-  // Create the active piece entity
-  const piece = EntityFactory.getInstance().generateEntity(gameModel, "TetrisPiece");
-  const pieceData = gameModel.getTypedUnsafe(TetrisPiece, piece);
-  pieceData.pieceType = board.nextPieceType;
-  pieceData.x = spawnX;
-  pieceData.y = spawnY;
-  pieceData.rotation = 0;
-  pieceData.boardId = boardId;
-  pieceData.isGhost = false;
+  const entityName = entityNameForShape(shapeName);
+  const pieceId = EntityFactory.getInstance().generateEntity(gameModel, entityName);
+  const piece = gameModel.getTypedUnsafe(TetrisPiece, pieceId);
+  piece.x = spawnX;
+  piece.y = 0;
+  piece.rotation = 0;
+  piece.boardId = boardId;
+  piece.isGhost = false;
 
-  board.nextPieceType = gameModel.rand.int(0, 6);
+  board.nextShape = randomShape(gameModel);
   return true;
 }
 
+function findActivePiece(gameModel: GameModel, boardId: number): number | undefined {
+  const pieceEntities = gameModel.getComponentActives("TetrisPiece");
+  return pieceEntities.find((id) => {
+    const piece = gameModel.getTypedUnsafe(TetrisPiece, id);
+    return !piece.isGhost && piece.boardId === boardId;
+  });
+}
+
 function resetGame(gameModel: GameModel, board: TetrisBoard, boardId: number): void {
-  // Clear all cells
   const cellEntities = gameModel.getComponentActives("TetrisCell");
   for (const cellId of cellEntities) {
     const cell = gameModel.getTypedUnsafe(TetrisCell, cellId);
@@ -520,17 +383,15 @@ function resetGame(gameModel: GameModel, board: TetrisBoard, boardId: number): v
     cell.color = 0;
   }
 
-  // Remove any existing pieces
   const pieceEntities = gameModel.getComponentActives("TetrisPiece");
   for (const pieceId of pieceEntities) {
     gameModel.removeEntity(pieceId);
   }
 
-  // Reset board state
-  const first = gameModel.rand.int(0, 6);
-  const next = gameModel.rand.int(0, 6);
+  const firstShape = randomShape(gameModel);
+  const nextShape = randomShape(gameModel);
 
-  board.nextPieceType = next;
+  board.nextShape = nextShape;
   board.score = 0;
   board.level = 1;
   board.lines = 0;
@@ -539,15 +400,16 @@ function resetGame(gameModel: GameModel, board: TetrisBoard, boardId: number): v
   board.dasTimer = 0;
   board.dasDirection = 0;
 
-  // Spawn first piece
-  const piece = EntityFactory.getInstance().generateEntity(gameModel, "TetrisPiece");
-  const pieceData = gameModel.getTypedUnsafe(TetrisPiece, piece);
-  pieceData.pieceType = first;
-  pieceData.x = SPAWN_X[first];
-  pieceData.y = 0;
-  pieceData.rotation = 0;
-  pieceData.boardId = boardId;
-  pieceData.isGhost = false;
+  const entityName = entityNameForShape(firstShape);
+  const spawnX = getDefinitionField(firstShape, "spawnX") ?? 3;
+
+  const pieceId = EntityFactory.getInstance().generateEntity(gameModel, entityName);
+  const piece = gameModel.getTypedUnsafe(TetrisPiece, pieceId);
+  piece.x = spawnX;
+  piece.y = 0;
+  piece.rotation = 0;
+  piece.boardId = boardId;
+  piece.isGhost = false;
 }
 
 function processInput(
@@ -559,37 +421,30 @@ function processInput(
 ): void {
   const prev = prevKeyMap ?? new Map<string, boolean>();
 
-  // Get the active piece (non-ghost piece)
-  const pieceEntities = gameModel.getComponentActives("TetrisPiece");
-  const activePiece = pieceEntities.find((id) => {
-    const piece = gameModel.getTypedUnsafe(TetrisPiece, id);
-    return !piece.isGhost && piece.boardId === boardId;
-  });
+  const activePieceId = findActivePiece(gameModel, boardId);
+  if (activePieceId === undefined) return;
 
-  if (activePiece === undefined) return;
-  const piece = gameModel.getTypedUnsafe(TetrisPiece, activePiece);
+  const piece = gameModel.getTypedUnsafe(TetrisPiece, activePieceId);
+  const tetromino = gameModel.getTypedUnsafe(Tetromino, activePieceId);
 
-  // Rotate CW (up or e)
   if (keyPressed(["up", "e"], keyMap, prev)) {
-    tryRotatePiece(gameModel, piece, 1);
+    tryRotatePiece(gameModel, piece, tetromino, 1);
   }
-  // Rotate CCW (q)
   if (keyPressed(["q"], keyMap, prev)) {
-    tryRotatePiece(gameModel, piece, -1);
+    tryRotatePiece(gameModel, piece, tetromino, -1);
   }
 
-  // Horizontal DAS movement
   const movingLeft = keyDown(["left"], keyMap);
   const movingRight = keyDown(["right"], keyMap);
   const justLeft = keyPressed(["left"], keyMap, prev);
   const justRight = keyPressed(["right"], keyMap, prev);
 
   if (justLeft) {
-    tryMovePiece(gameModel, piece, -1, 0);
+    tryMovePiece(gameModel, piece, tetromino, -1, 0);
     board.dasTimer = 0;
     board.dasDirection = -1;
   } else if (justRight) {
-    tryMovePiece(gameModel, piece, 1, 0);
+    tryMovePiece(gameModel, piece, tetromino, 1, 0);
     board.dasTimer = 0;
     board.dasDirection = 1;
   }
@@ -597,16 +452,15 @@ function processInput(
   if ((movingLeft && board.dasDirection === -1) || (movingRight && board.dasDirection === 1)) {
     board.dasTimer++;
     if (board.dasTimer >= DAS_INITIAL && (board.dasTimer - DAS_INITIAL) % DAS_REPEAT === 0) {
-      tryMovePiece(gameModel, piece, board.dasDirection, 0);
+      tryMovePiece(gameModel, piece, tetromino, board.dasDirection, 0);
     }
   } else if (!movingLeft && !movingRight) {
     board.dasTimer = 0;
     board.dasDirection = 0;
   }
 
-  // Soft drop
   if (keyDown(["down"], keyMap)) {
-    if (tryMovePiece(gameModel, piece, 0, 1)) {
+    if (tryMovePiece(gameModel, piece, tetromino, 0, 1)) {
       board.tickTimer = getDropFrames(board.level);
     }
   }
@@ -614,13 +468,12 @@ function processInput(
 
 // ── Format helpers ────────────────────────────────────────────────────────────
 
-function formatContext(gameModel: GameModel, board: TetrisBoard, boardId: number) {
+function formatContext(gameModel: ReadOnlyGameModel, board: TetrisBoard, boardId: number) {
   const cellEntities = gameModel.getComponentActives("TetrisCell");
   const cells = Array.from({ length: BOARD_COLS * BOARD_ROWS }, (_, i) => {
     const x = i % BOARD_COLS;
     const y = Math.floor(i / BOARD_COLS);
 
-    // Find cell entity at this position
     for (const cellId of cellEntities) {
       const cell = gameModel.getTypedUnsafe(TetrisCell, cellId);
       if (cell.x === x && cell.y === y) {
@@ -630,20 +483,17 @@ function formatContext(gameModel: GameModel, board: TetrisBoard, boardId: number
     return { color: COLORS[0] };
   });
 
-  // Get active piece
-  const pieceEntities = gameModel.getComponentActives("TetrisPiece");
-  const activePiece = pieceEntities.find((id) => {
-    const piece = gameModel.getTypedUnsafe(TetrisPiece, id);
-    return !piece.isGhost && piece.boardId === boardId;
-  });
+  const activePieceId = findActivePiece(gameModel as GameModel, boardId);
 
-  if (activePiece !== undefined) {
-    const piece = gameModel.getTypedUnsafe(TetrisPiece, activePiece);
+  if (activePieceId !== undefined) {
+    const piece = gameModel.getTypedUnsafe(TetrisPiece, activePieceId);
+    const tetromino = gameModel.getTypedUnsafe(Tetromino, activePieceId);
 
     // Draw ghost piece
-    const ghostY = getGhostY(gameModel, piece);
+    const ghostY = getGhostY(gameModel as GameModel, piece, tetromino);
     if (ghostY !== piece.y) {
-      for (const [row, col] of getPieceCells(piece.pieceType, piece.rotation, piece.x, ghostY)) {
+      const ghostGrid = getGridFromTetromino(tetromino, piece.rotation);
+      for (const [row, col] of parseCellsFromGrid(ghostGrid, piece.x, ghostY)) {
         if (row >= 0 && row < BOARD_ROWS && col >= 0 && col < BOARD_COLS) {
           const index = row * BOARD_COLS + col;
           if (cells[index].color === COLORS[0]) {
@@ -654,18 +504,22 @@ function formatContext(gameModel: GameModel, board: TetrisBoard, boardId: number
     }
 
     // Draw current piece
-    for (const [row, col] of getPieceCells(piece.pieceType, piece.rotation, piece.x, piece.y)) {
+    const pieceGrid = getGridFromTetromino(tetromino, piece.rotation);
+    for (const [row, col] of parseCellsFromGrid(pieceGrid, piece.x, piece.y)) {
       if (row >= 0 && row < BOARD_ROWS && col >= 0 && col < BOARD_COLS) {
-        cells[row * BOARD_COLS + col] = { color: COLORS[piece.pieceType + 1] };
+        cells[row * BOARD_COLS + col] = { color: COLORS[tetromino.colorIndex] };
       }
     }
   }
 
-  // Next piece preview (4x4 grid)
+  // Next piece preview (4x4 grid) — read shape data from entity definition
+  const nextShape = board.nextShape;
+  const nextColorIndex = getDefinitionField(nextShape, "colorIndex") ?? 1;
+  const nextGrid = getGridFromDefinition(nextShape, 0);
   const nextCells: { color: string }[] = Array.from({ length: 16 }, () => ({ color: COLORS[0] }));
-  for (const [row, col] of getPieceCells(board.nextPieceType, 0, 0, 0)) {
+  for (const [row, col] of parseCellsFromGrid(nextGrid, 0, 0)) {
     if (row >= 0 && row < 4 && col >= 0 && col < 4) {
-      nextCells[row * 4 + col] = { color: COLORS[board.nextPieceType + 1] };
+      nextCells[row * 4 + col] = { color: COLORS[nextColorIndex] };
     }
   }
 
@@ -684,12 +538,11 @@ function formatContext(gameModel: GameModel, board: TetrisBoard, boardId: number
 @System(TetrisBoard)
 export class TetrisInitSystem extends SystemImpl<GameModel> {
   static category = 0;
-  static depth = -100; // Run early
+  static depth = -100;
 
   init = (gameModel: GameModel, entity: number) => {
     const board = gameModel.getTypedUnsafe(TetrisBoard, entity);
 
-    // Create cell entities for the entire board
     for (let y = 0; y < BOARD_ROWS; y++) {
       for (let x = 0; x < BOARD_COLS; x++) {
         const cell = EntityFactory.getInstance().generateEntity(gameModel, "TetrisCell");
@@ -701,11 +554,10 @@ export class TetrisInitSystem extends SystemImpl<GameModel> {
       }
     }
 
-    // Initialize the game
-    const first = gameModel.rand.int(0, 6);
-    const next = gameModel.rand.int(0, 6);
+    const firstShape = randomShape(gameModel);
+    const nextShape = randomShape(gameModel);
 
-    board.nextPieceType = next;
+    board.nextShape = nextShape;
     board.score = 0;
     board.level = 1;
     board.lines = 0;
@@ -714,11 +566,12 @@ export class TetrisInitSystem extends SystemImpl<GameModel> {
     board.dasTimer = 0;
     board.dasDirection = 0;
 
-    // Spawn first piece
-    const piece = EntityFactory.getInstance().generateEntity(gameModel, "TetrisPiece");
-    const pieceData = gameModel.getTypedUnsafe(TetrisPiece, piece);
-    pieceData.pieceType = first;
-    pieceData.x = SPAWN_X[first];
+    const entityName = entityNameForShape(firstShape);
+    const spawnX = getDefinitionField(firstShape, "spawnX") ?? 3;
+
+    const pieceId = EntityFactory.getInstance().generateEntity(gameModel, entityName);
+    const pieceData = gameModel.getTypedUnsafe(TetrisPiece, pieceId);
+    pieceData.x = spawnX;
     pieceData.y = 0;
     pieceData.rotation = 0;
     pieceData.boardId = entity;
@@ -737,7 +590,6 @@ export class TetrisSystem extends SystemImpl<GameModel> {
     const board = gameModel.getTypedUnsafe(TetrisBoard, entity);
     if (board.status !== "PLAYING") return;
 
-    // Process player input
     const playerEntities = gameModel.getComponentActives("PlayerInput");
     let playerInput: PlayerInput | null = null;
     if (playerEntities.length > 0) {
@@ -749,24 +601,20 @@ export class TetrisSystem extends SystemImpl<GameModel> {
 
     if (board.status !== "PLAYING") return;
 
-    // Get the active piece
-    const pieceEntities = gameModel.getComponentActives("TetrisPiece");
-    const activePiece = pieceEntities.find((id) => {
-      const piece = gameModel.getTypedUnsafe(TetrisPiece, id);
-      return !piece.isGhost && piece.boardId === entity;
-    });
+    const activePieceId = findActivePiece(gameModel, entity);
+    if (activePieceId === undefined) return;
 
-    if (activePiece === undefined) return;
-    const piece = gameModel.getTypedUnsafe(TetrisPiece, activePiece);
+    const piece = gameModel.getTypedUnsafe(TetrisPiece, activePieceId);
+    const tetromino = gameModel.getTypedUnsafe(Tetromino, activePieceId);
 
     // Hard drop
     if (playerInput?.keyMap && keyPressed(["space"], playerInput.keyMap, playerInput.prevKeyMap ?? new Map())) {
-      const ghostY = getGhostY(gameModel, piece);
+      const ghostY = getGhostY(gameModel, piece, tetromino);
       const dropDistance = ghostY - piece.y;
       board.score += dropDistance * 2;
       piece.y = ghostY;
-      lockPiece(gameModel, piece, board);
-      gameModel.removeEntity(activePiece);
+      lockPiece(gameModel, piece, tetromino, board);
+      gameModel.removeEntity(activePieceId);
       if (!spawnNextPiece(gameModel, board, entity)) {
         board.status = "GAME_OVER";
       }
@@ -777,9 +625,9 @@ export class TetrisSystem extends SystemImpl<GameModel> {
     // Auto-drop tick
     board.tickTimer--;
     if (board.tickTimer <= 0) {
-      if (!tryMovePiece(gameModel, piece, 0, 1)) {
-        lockPiece(gameModel, piece, board);
-        gameModel.removeEntity(activePiece);
+      if (!tryMovePiece(gameModel, piece, tetromino, 0, 1)) {
+        lockPiece(gameModel, piece, tetromino, board);
+        gameModel.removeEntity(activePieceId);
         if (!spawnNextPiece(gameModel, board, entity)) {
           board.status = "GAME_OVER";
         }
