@@ -45,9 +45,11 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
     PixiViewportSystem.pixiApp = new PIXI.Application();
     const canvas = PixiViewportSystem.pixiApp.renderer.view as HTMLCanvasElement;
     canvas.className = "pixi-canvas";
-    canvas.style.position = "absolute";
+    canvas.style.position = "fixed";
     canvas.style.display = "block";
     canvas.style.zIndex = "-1";
+    canvas.style.left = "0px";
+    canvas.style.top = "0px";
 
     PixiViewportSystem.pixiApp.renderer.resize(window.innerWidth, (window.innerWidth * 9) / 16);
 
