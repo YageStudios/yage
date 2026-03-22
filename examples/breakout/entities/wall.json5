@@ -11,5 +11,10 @@
       collisionCategory: "enum:CollisionCategoryEnum.WALL",
       collisionMask: ["enum:CollisionCategoryEnum.ALL"],
     },
+    {
+      type: "PixiGraphic",
+      fillColor: "#888888",
+      rectangle: { x: 0, y: 0, width: 40, height: 40 },
+    },
   ],
 }

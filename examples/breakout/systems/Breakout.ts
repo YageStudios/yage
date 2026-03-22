@@ -86,13 +86,31 @@ function clamp(v: number, min: number, max: number): number {
 }
 
 function createWall(gameModel: GameModel, x: number, y: number, w: number, h: number): void {
-  const wall = EntityFactory.getInstance().generateEntity(gameModel, "BreakoutWall");
+  const wall = EntityFactory.getInstance().generateEntity(gameModel, "BreakoutWall", {
+    RigidBox: {
+      width: w,
+      height: h,
+    }
+  });
   const t = gameModel.getTypedUnsafe(Transform, wall);
   t.x = x;
   t.y = y;
-  const rb = gameModel.getTypedUnsafe(RigidBox, wall);
-  rb.width = w;
-  rb.height = h;
+  // const rb = gameModel.getTypedUnsafe(RigidBox, wall);
+  // rb.width = w;
+  // rb.height = h;
+  // Ensure the wall has a visible PixiGraphic matching its physics box
+  try {
+    const graphic = gameModel.getTypedUnsafe(PixiGraphic, wall);
+    graphic.fillColor = graphic.fillColor ?? "#888888";
+    graphic.rectangle = {
+      x: 0,
+      y: 0,
+      width: w,
+      height: h,
+    } as any;
+  } catch (e) {
+    // If PixiGraphic is not present, ignore — prefab should include it.
+  }
 }
 
 function spawnBricks(gameModel: GameModel, board: BreakoutBoard): void {
