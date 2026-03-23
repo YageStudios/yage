@@ -203,7 +203,7 @@ const parseCssString = (cssString: string, ctx: any): Partial<CSSStyleDeclaratio
 
 const isStructuralNode = (value: any): boolean => {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  return "$if" in value || "$unless" in value || "$with" in value || "$partial" in value;
+  return "$if" in value || "$unless" in value || "$with" in value || "$partial" in value || "$each" in value;
 };
 
 const generateEventListener = (
@@ -903,6 +903,164 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
 
         // Build all elements in the template
         recursiveBuild(templateJson, parent, partialContextRef, buildQueries);
+        return;
+      }
+
+      if ("$each" in value) {
+        const arrayPath = value.$each;
+        const contentTemplate = value.content;
+        const elseTemplate = value.else;
+
+        if (!contentTemplate) {
+          console.warn(`UiMap: Missing 'content' definition for $each block`);
+          return;
+        }
+
+        // Create a wrapper box to hold the each content
+        const wrapperPosition = new Position(0, 0, { width: 0, height: 0 });
+        const wrapper = new Box(wrapperPosition, {
+          style: {
+            display: "contents",
+            border: "none",
+            backgroundColor: "transparent",
+            padding: "0",
+            margin: "0",
+            overflow: "visible",
+          },
+        });
+
+        let childContexts: any[] = [];
+        let childQueries: BuildQuery[][] = [];
+        let currentState: "items" | "empty" | "initial" = "initial";
+        let alternateQueries: BuildQuery[] = [];
+
+        const buildEachChildren = (items: any[]) => {
+          if (!items || !Array.isArray(items)) {
+            items = [];
+          }
+
+          if (items.length === 0) {
+            // Transition to empty state
+            if (currentState !== "empty") {
+              // Destroy existing item children
+              if (wrapper.config.children) {
+                const oldChildren = [...wrapper.config.children];
+                oldChildren.forEach((child: UIElement<any>) => {
+                  child.onDestroy(true);
+                });
+              }
+              childContexts = [];
+              childQueries = [];
+              alternateQueries = [];
+
+              // Build else content if provided
+              if (elseTemplate) {
+                const elseJson = cloneDeep(elseTemplate);
+                recursiveBuild({ elseNode: elseJson }, wrapper, contextRef, alternateQueries);
+              }
+              currentState = "empty";
+            }
+            return;
+          }
+
+          // Transition from empty — destroy alternate content
+          if (currentState === "empty") {
+            if (wrapper.config.children) {
+              const oldChildren = [...wrapper.config.children];
+              oldChildren.forEach((child: UIElement<any>) => {
+                child.onDestroy(true);
+              });
+            }
+            alternateQueries = [];
+            childContexts = [];
+            childQueries = [];
+          }
+
+          // Truncate excess children
+          if (childContexts.length > items.length) {
+            const excessCount = childContexts.length - items.length;
+            // Count total children elements to remove from the end
+            const allChildren = wrapper.config.children || [];
+            // Each item may produce multiple children, so we track by childQueries
+            for (let i = items.length; i < childContexts.length; i++) {
+              childQueries[i]?.forEach(([element]) => {
+                if (element && !element.destroyed) {
+                  element.onDestroy(true);
+                }
+              });
+            }
+            childContexts = childContexts.slice(0, items.length);
+            childQueries = childQueries.slice(0, items.length);
+          }
+
+          // Build or update each item
+          for (let i = 0; i < items.length; i++) {
+            const itemContext = { ...contextRef.context, ...cloneDeep(items[i]) };
+            itemContext.$context = contextRef.context;
+            itemContext.$index = i;
+            itemContext.$root = rootContext;
+
+            if (i < childQueries.length && childQueries[i]) {
+              // Update existing item
+              if (isEqual(childContexts[i].context, itemContext)) {
+                continue;
+              }
+              childQueries[i].forEach(([element, queries]) => {
+                queries.forEach(({ pointer }) => typeof pointer === "function" && pointer(itemContext));
+              });
+              childContexts[i].context = itemContext;
+            } else {
+              // Build new item
+              childQueries[i] = [];
+              childContexts[i] = { context: itemContext };
+
+              const itemJson = cloneDeep(contentTemplate);
+              recursiveBuild({ child: itemJson }, wrapper, childContexts[i], childQueries[i]);
+            }
+          }
+
+          currentState = "items";
+        };
+
+        // Collect queriables from the $each expression to find the array path dependency
+        const eachQueriables: Query[] = [];
+
+        // Check if arrayPath uses $$ syntax or {{ }} expressions
+        if (arrayPath.includes("{{") && hasExpression(arrayPath)) {
+          const exprQuery = testExpressionQuery("$each", arrayPath, value, "");
+          if (exprQuery) eachQueriables.push(exprQuery);
+        } else if (arrayPath.includes("$$")) {
+          const dollarQuery = testQuery("$each", "$$" + arrayPath, value, "");
+          if (dollarQuery) eachQueriables.push(dollarQuery);
+        } else {
+          // Treat as a plain context path
+          eachQueriables.push({
+            query: arrayPath,
+            key: "$each",
+            parent: "",
+            pointer: value,
+          });
+        }
+
+        // Set up the pointer to rebuild children on array changes
+        eachQueriables.forEach((query) => {
+          query.pointer = (_context: any) => {
+            const items = query.expression
+              ? query.expression.evaluate(_context)
+              : get(_context, query.query);
+            buildEachChildren(items || []);
+            return false;
+          };
+        });
+
+        const wrapperBuildQuery: BuildQuery = [wrapper, eachQueriables];
+        buildQueries.push(wrapperBuildQuery);
+
+        // Initial build
+        const initialItems = get(contextRef.context, arrayPath) || [];
+        buildEachChildren(initialItems);
+
+        parent.addChild(wrapper);
         return;
       }
     };

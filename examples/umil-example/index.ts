@@ -3,15 +3,12 @@ import "yage/console/preload";
 
 import { EntityFactory } from "yage/entity/EntityFactory";
 import AssetLoader from "yage/loader/AssetLoader";
-import { InputManager } from "yage/inputs/InputManager";
 import type { GameModel } from "yage/game/GameModel";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
+import { InputManager } from "yage/inputs/InputManager";
 import { UmilQuickStart } from "yage/umil/UmilQuickStart";
 
 const preload = async () => {
-  await import("./systems");
-  const entityDefinitions = (await import("./entities")).default;
-  EntityFactory.configureEntityFactory(entityDefinitions);
   await AssetLoader.getInstance().load();
 };
 
@@ -28,23 +25,36 @@ const onPlayerJoin = (gameModel: GameModel, playerId: string) => {
 };
 
 (async () => {
-  // Use UmilQuickStart for automatic input detection and lobby flow
-  // Supports: Local Singleplayer, Local Co-op (WASD vs Arrows), Online Host/Join
-  await UmilQuickStart<null>({
-    gameName: "Tic Tac Toe",
+  // Use UmilQuickStart instead of QuickStart
+  // This will show the UMIL flow: Input Detection -> Main Menu -> Game
+  const instance = await UmilQuickStart<null>({
+    gameName: "UMIL Example Game",
 
+    // UMIL configuration
     umilConfig: {
-      appName: "Tic Tac Toe",
-      maxLocalPlayers: 2, // Support up to 2 local players (WASD vs Arrows)
-      maxOnlinePlayers: 2, // Support up to 2 players online
-      allowLocalOnly: true, // Allow local games
-      allowOnline: true, // Allow online multiplayer
-      // signalingServerUrl: "wss://your-server.com", // Optional: for online play
+      // App name shown on title screen
+      appName: "UMIL Example Game",
+
+      // Max local players for couch co-op
+      maxLocalPlayers: 4,
+
+      // Max online players
+      maxOnlinePlayers: 4,
+
+      // Allow local singleplayer/coop games
+      allowLocalOnly: true,
+
+      // Allow online multiplayer
+      allowOnline: true,
+
+      // Optional: Signaling server URL for online play
+      // signalingServerUrl: "wss://your-signaling-server.com",
     },
 
+    // Standard game configuration
     buildWorld: () => {
-      // Tic Tac Toe grid is already rendered via systems
-      console.log("Tic Tac Toe world ready");
+      // Build your game world here
+      console.log("Building world...");
     },
 
     onPlayerJoin,
@@ -61,5 +71,18 @@ const onPlayerJoin = (gameModel: GameModel, playerId: string) => {
     },
 
     preload,
+
+    // Optional: PeerJS configuration for online play
+    // peerOptions: {
+    //   prefix: "yage-",
+    // },
+
+    // Optional: Socket.IO configuration for online play
+    // socketOptions: {
+    //   host: "wss://your-server.com",
+    //   address: "lobby",
+    // },
   });
+
+  console.log("Game instance created:", instance);
 })();

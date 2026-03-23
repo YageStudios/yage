@@ -14,7 +14,8 @@ type ASTNode =
   | { type: "InlinePartial"; name: string; content: ASTNode[] }
   | { type: "ScopedBlock"; contextVariable: string; body: ASTNode[] }
   | { type: "IfBlock"; condition: string; consequent: ASTNode[]; alternate?: ASTNode[] }
-  | { type: "UnlessBlock"; condition: string; body: ASTNode[] };
+  | { type: "UnlessBlock"; condition: string; body: ASTNode[] }
+  | { type: "EachBlock"; arrayPath: string; body: ASTNode[]; alternate?: ASTNode[] };
 
 export class UiMapNext {
   private template: string;
@@ -384,12 +385,51 @@ export class UiMapNext {
     const isCommand = tokens[0].trim().startsWith("{{#");
     if (!isCommand) return null;
 
+    // Try parsing each blocks
+    let eachBlock = this.parseEachBlock(tokens);
+    if (eachBlock) return eachBlock;
+
     // Try parsing if and unless blocks
     let blockNode = this.parseIfUnlessBlock(tokens);
     if (blockNode) return blockNode;
 
     let scopedBlock = this.parseScopedBlock(tokens);
     if (scopedBlock) return scopedBlock;
+    return null;
+  }
+
+  /** Parsing {{#each arrayPath}} ... {{else}} ... {{/each}} blocks */
+  private parseEachBlock(tokens: string[]): ASTNode | null {
+    const token = tokens.shift()!;
+    const eachOpenMatch = token.match(/^{{#each\s+(.+?)}}$/);
+
+    if (eachOpenMatch) {
+      const arrayPath = eachOpenMatch[1].trim();
+      // Parse body until {{else}} or {{/each}}
+      const body = this.parseNodes(tokens, (tokens) => {
+        const nextToken = tokens[0]?.trim();
+        return nextToken === "{{else}}" || nextToken === "{{/each}}";
+      });
+      let alternate: ASTNode[] | undefined = undefined;
+      if (tokens[0]?.trim() === "{{else}}") {
+        tokens.shift(); // Consume {{else}}
+        alternate = this.parseNodes(tokens, (tokens) => tokens[0]?.trim() === "{{/each}}");
+      }
+      if (tokens[0]?.trim() === "{{/each}}") {
+        tokens.shift(); // Consume {{/each}}
+      } else {
+        throw new Error("UiMapNext: Missing closing tag for {{#each}}");
+      }
+      return {
+        type: "EachBlock",
+        arrayPath,
+        body: this.joinTextNodes(body),
+        alternate: alternate ? this.joinTextNodes(alternate) : undefined,
+      };
+    }
+
+    // Not an each block, put the token back
+    tokens.unshift(token);
     return null;
   }
 
@@ -567,7 +607,12 @@ export class UiMapNext {
   }
 
   private parseAttributes(tagString: string): Record<string, any> {
-    tagString = tagString.substring(tagString.indexOf(" ") + 1, tagString.length - 1);
+    const spaceIndex = tagString.indexOf(" ");
+    if (spaceIndex === -1) {
+      // No attributes (e.g., "<Text>" or "<Text/>")
+      return {};
+    }
+    tagString = tagString.substring(spaceIndex + 1, tagString.length - 1);
 
     const attrs: Record<string, any> = {};
     let i = 0;
@@ -717,6 +762,9 @@ export class UiMapNext {
       case "UnlessBlock":
         this.renderUnlessBlockNode(node as ASTNode & { type: "UnlessBlock" }, parentElement, contextPath);
         break;
+      case "EachBlock":
+        this.renderEachBlockNode(node as ASTNode & { type: "EachBlock" }, parentElement, contextPath);
+        break;
     }
   }
 
@@ -803,6 +851,141 @@ export class UiMapNext {
     }
   }
 
+  private renderEachBlockNode(
+    node: ASTNode & { type: "EachBlock" },
+    parentElement: UIElement<any>,
+    contextPath: string[] = []
+  ): void {
+    const container = new Box(new Position("left", "top", { width: "100%", height: "100%" }), {
+      style: {
+        display: "contents",
+        border: "none",
+        backgroundColor: "transparent",
+        padding: "0",
+        margin: "0",
+        overflow: "visible",
+      },
+    });
+    this.uiElements.set(container.id, [container, node, contextPath]);
+    parentElement.addChild(container);
+
+    // Track per-item child elements and their queries for efficient updates
+    let childElements: UIElement<any>[][] = [];
+    let alternateElements: UIElement<any>[] = [];
+    let currentState: "items" | "empty" | "initial" = "initial";
+
+    const resolvedArrayPath = this.resolveFullPath(node.arrayPath, contextPath);
+
+    const buildItems = () => {
+      const array = this.getValueFromContextPath(resolvedArrayPath, this.context);
+      const items: any[] = Array.isArray(array) ? array : [];
+
+      if (items.length === 0) {
+        // Transition to empty state
+        if (currentState !== "empty") {
+          // Destroy all item children
+          childElements.forEach((group) => {
+            group.forEach((el) => {
+              if (!el.destroyed) el.onDestroy(true);
+            });
+          });
+          childElements = [];
+
+          // Build alternate content if present
+          if (node.alternate) {
+            alternateElements = [];
+            node.alternate.forEach((altNode) => {
+              const beforeCount = container.getChildren()?.length ?? 0;
+              this.renderNode(altNode, container, contextPath);
+              const afterCount = container.getChildren()?.length ?? 0;
+              const newChildren = container.getChildren()?.slice(beforeCount, afterCount) ?? [];
+              alternateElements.push(...newChildren);
+            });
+          }
+          currentState = "empty";
+        }
+        return;
+      }
+
+      // Transition to items state — destroy alternate if needed
+      if (currentState === "empty" || currentState === "initial") {
+        alternateElements.forEach((el) => {
+          if (!el.destroyed) el.onDestroy(true);
+        });
+        alternateElements = [];
+      }
+
+      // Truncate excess items
+      if (childElements.length > items.length) {
+        const excess = childElements.splice(items.length);
+        excess.forEach((group) => {
+          group.forEach((el) => {
+            if (!el.destroyed) {
+              this.uiElements.delete(el.id);
+              this.functionPointers.delete(el.id);
+              el.onDestroy(true);
+            }
+          });
+        });
+      }
+
+      // Build or update each item
+      for (let i = 0; i < items.length; i++) {
+        const itemContextPath = [...resolvedArrayPath.split("."), i.toString()];
+
+        // Set the item data into the context at the resolved path so expressions can find it
+        const arrayInContext = this.getValueFromContextPath(resolvedArrayPath, this.context);
+        if (Array.isArray(arrayInContext)) {
+          // Ensure $index is available at the item level
+          if (typeof arrayInContext[i] === "object" && arrayInContext[i] !== null) {
+            arrayInContext[i].$index = i;
+          }
+        }
+
+        if (i < childElements.length) {
+          // Update existing item — re-run function pointers for these elements
+          childElements[i].forEach((el) => {
+            const pointers = this.functionPointers.get(el.id);
+            if (pointers) {
+              pointers.forEach((fn) => fn());
+            }
+          });
+        } else {
+          // Build new item
+          const beforeCount = container.getChildren()?.length ?? 0;
+          node.body.forEach((bodyNode) => {
+            this.renderNode(bodyNode, container, itemContextPath);
+          });
+          const afterCount = container.getChildren()?.length ?? 0;
+          const newChildren = container.getChildren()?.slice(beforeCount, afterCount) ?? [];
+          childElements.push([...newChildren]);
+        }
+      }
+
+      currentState = "items";
+    };
+
+    // Set up variable watcher for the array path
+    const variablesInPath = this.extractVariablesFromExpression(node.arrayPath);
+    variablesInPath.forEach((variableName) => {
+      const fullPath = this.resolveFullPath(variableName, contextPath);
+      if (!this.variableDependencies.has(fullPath)) {
+        this.variableDependencies.set(fullPath, new Set());
+      }
+      this.variableDependencies.get(fullPath)!.add(container.id);
+      if (!this.functionPointers.has(container.id)) {
+        this.functionPointers.set(container.id, new Map());
+      }
+      this.functionPointers.get(container.id)!.set(fullPath, () => {
+        buildItems();
+        container.update();
+      });
+    });
+
+    // Initial build
+    buildItems();
+  }
+
   private renderScopedBlockNode(
     node: ASTNode & { type: "ScopedBlock" },
     parentElement: UIElement<any>,
@@ -881,6 +1064,12 @@ export class UiMapNext {
       case "UnlessBlock":
         const body = node.body.map((child) => this.nodeToString(child)).join("");
         return `{{#unless ${node.condition}}}${body}{{/unless}}`;
+      case "EachBlock":
+        const eachBody = node.body.map((child) => this.nodeToString(child)).join("");
+        const eachAlternate = node.alternate
+          ? node.alternate.map((child) => this.nodeToString(child)).join("")
+          : "";
+        return `{{#each ${node.arrayPath}}}${eachBody}${node.alternate ? `{{else}}${eachAlternate}` : ""}{{/each}}`;
       default:
         return "";
     }
@@ -1207,8 +1396,13 @@ export class UiMapNext {
       config.label = "";
     }
 
-    // Extract event handlers from attributes
+    // Extract event handlers from attributes and resolve any expressions in their values
     const eventHandlers = this.extractEventHandlers(attributes);
+    Object.keys(eventHandlers).forEach((key) => {
+      if (typeof eventHandlers[key] === "string" && eventHandlers[key].includes("{{")) {
+        eventHandlers[key] = this.processTemplateString(eventHandlers[key], undefined, this.context, contextPath);
+      }
+    });
 
     // Generate event listener methods
     const events = this.generateEventListener(eventHandlers, this.eventHandler, contextPath);
@@ -1226,6 +1420,8 @@ export class UiMapNext {
       "onfocus",
       "onblur",
       "onescape",
+      "onchange",
+      "onsubmit",
     ];
 
     const position = new Position(0, 0, {
@@ -1252,6 +1448,7 @@ export class UiMapNext {
     let positionVariablesToWatch: [string[], string, string, string[]][] = [];
 
     Object.entries(attributes).forEach(([attrKey, value]) => {
+      if (value === null || value === undefined) return;
       if (styleAttributes.includes(attrKey)) {
         if (typeof attributes[attrKey] === "string") {
           config[attrKey] = { ...config[attrKey], ...this.generateStyleAttribute(attributes[attrKey], contextPath) };
@@ -1344,6 +1541,8 @@ export class UiMapNext {
       "onfocus",
       "onblur",
       "onescape",
+      "onchange",
+      "onsubmit",
     ];
     eventAttributes.forEach((attr) => {
       if (attributes[attr]) {
@@ -1411,6 +1610,24 @@ export class UiMapNext {
               handler(playerIndex, events.onfocus, "focus", contextRef, contextPath);
             }
           },
+          ...(events.onchange
+            ? {
+                onChange: (value: string) => {
+                  if (handler) {
+                    handler(0, events.onchange, "change", contextRef, contextPath);
+                  }
+                },
+              }
+            : {}),
+          ...(events.onsubmit
+            ? {
+                onSubmit: (value: string) => {
+                  if (handler) {
+                    handler(0, events.onsubmit, "submit", contextRef, contextPath);
+                  }
+                },
+              }
+            : {}),
         }
       : {};
   }
@@ -1440,6 +1657,7 @@ export class UiMapNext {
     const styleAttributes = ["style", "focusStyle", "hoverStyle", "activeStyle", "disabledStyle"];
 
     Object.entries(attributes).forEach(([attrKey, value]) => {
+      if (value === null || value === undefined) return;
       if (styleAttributes.includes(attrKey)) {
         uiElement.config[attrKey] = this.generateStyleAttribute(attributes[attrKey], contextPath);
         this.watchStyleAttributes(attributes, uiElement, contextPath);

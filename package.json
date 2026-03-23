@@ -64,6 +64,9 @@
     "./testing/*": {
       "import": "./dist/testing/*.js"
     },
+    "./umil/*": {
+      "import": "./dist/umil/*.js"
+    },
     "./vendor/*": {
       "import": "./dist/vendor/*.js"
     },

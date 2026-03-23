@@ -1,0 +1,192 @@
+import type { GameModel } from "yage/game/GameModel";
+import { GameInstance } from "yage/game/GameInstance";
+import { UIService } from "yage/ui/UIService";
+import AssetLoader from "yage/loader/AssetLoader";
+import { InputManager } from "yage/inputs/InputManager";
+import { KeyboardListener } from "yage/inputs/KeyboardListener";
+import type { PlayerConnect } from "yage/connection/ConnectionInstance";
+import { SingleplayerConnectionInstance } from "yage/connection/SingleplayerConnectionInstance";
+import { CoopConnectionInstance } from "yage/connection/CoopConnectionInstance";
+import { PeerMultiplayerInstance, type PeerMultiplayerInstanceOptions } from "yage/connection/PeerMultiplayerInstance";
+import {
+  SocketIoMultiplayerInstance,
+  type SocketIoMultiplayerInstanceOptions,
+} from "yage/connection/SocketIoMultiplayerInstance";
+import { UmilFlow } from "./UmilFlow";
+import type { UmilConfig, UmilResult } from "./types";
+import { UmilInputType } from "./types";
+import type { InputEventType } from "yage/inputs/InputManager";
+import { InputEventType as InputEventTypeEnum } from "yage/inputs/InputManager";
+
+type UmilQuickStartOptions<T> = {
+  gameName: string;
+  umilConfig?: Partial<UmilConfig>;
+  buildWorld?: (gameModel: GameModel, firstPlayerConfig: T) => void;
+  onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: T) => number;
+  onPlayerLeave?: (gameModel: GameModel, playerId: string) => void;
+  roomId?: string;
+  seed?: string;
+  preload?: (uiService: UIService) => Promise<void>;
+  playerConfig?: T;
+  peerOptions?: PeerMultiplayerInstanceOptions<T>;
+  socketOptions?: SocketIoMultiplayerInstanceOptions<T>;
+};
+
+export async function UmilQuickStart<T = null>({
+  gameName,
+  umilConfig = {},
+  buildWorld = () => {},
+  onPlayerJoin,
+  onPlayerLeave = () => {},
+  roomId = "QuickStart",
+  seed = "QuickStart",
+  preload = async () => {
+    await AssetLoader.getInstance().load();
+  },
+  playerConfig,
+  peerOptions,
+  socketOptions,
+}: UmilQuickStartOptions<T>) {
+  // Detect E2E mode - skip UMIL in E2E mode
+  const isE2E = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("e2e") === "true";
+
+  if (isE2E) {
+    // Run standard flow in E2E mode
+    const inputManager = new InputManager();
+    const keyboardListener = new KeyboardListener(inputManager);
+    keyboardListener.init();
+
+    const connection = new SingleplayerConnectionInstance<T>(inputManager, playerConfig);
+    await connection.connect();
+
+    const instance = new GameInstance<T>({
+      connection,
+      uiService: true,
+      buildWorld,
+      onPlayerJoin,
+      onPlayerLeave,
+    });
+
+    instance.initializeRoom(roomId, seed);
+    return instance;
+  }
+
+  // Run UMIL flow first
+  const config: UmilConfig = {
+    appName: gameName,
+    maxLocalPlayers: 4,
+    maxOnlinePlayers: 4,
+    allowLocalOnly: true,
+    allowOnline: true,
+    ...umilConfig,
+  };
+
+  const umilFlow = new UmilFlow<T>(config, playerConfig as T, peerOptions || socketOptions);
+  const result: UmilResult = await umilFlow.start();
+
+  // Configure player inputs for UI service
+  const uiService = UIService.getInstance();
+  uiService.playerInputs = result.localPlayers.map((player) => {
+    let eventType: InputEventType;
+    switch (player.inputType) {
+      case UmilInputType.KEYBOARD:
+        eventType = InputEventTypeEnum.KEYBOARD;
+        break;
+      case UmilInputType.GAMEPAD:
+        eventType = InputEventTypeEnum.GAMEPAD;
+        break;
+      case UmilInputType.MOUSE:
+      default:
+        eventType = InputEventTypeEnum.MOUSE;
+        break;
+    }
+    return [eventType, player.inputIndex] as [InputEventType, number];
+  });
+
+  // Create input manager with proper configuration
+  const inputManager = new InputManager(false);
+  const keyboardListener = new KeyboardListener(inputManager);
+  keyboardListener.init();
+
+  // Build player connect for multiplayer
+  let playerConnect: PlayerConnect<T> | undefined;
+  if (result.connection === "PEER" || result.connection === "SOCKET") {
+    playerConnect = {
+      netId: result.nickname,
+      uniqueId: result.nickname,
+      token: "",
+      config: playerConfig as T,
+    };
+  }
+
+  // Create appropriate connection based on UMIL result
+  let connection;
+
+  switch (result.connection) {
+    case "COOP":
+      // Build player inputs array for CoopConnectionInstance
+      const players: [InputEventType, number, T | undefined][] = result.localPlayers.map((player) => {
+        let eventType: InputEventType;
+        switch (player.inputType) {
+          case UmilInputType.KEYBOARD:
+            eventType = InputEventTypeEnum.KEYBOARD;
+            break;
+          case UmilInputType.GAMEPAD:
+            eventType = InputEventTypeEnum.GAMEPAD;
+            break;
+          case UmilInputType.MOUSE:
+          default:
+            eventType = InputEventTypeEnum.MOUSE;
+            break;
+        }
+        return [eventType, player.inputIndex, playerConfig];
+      });
+      connection = new CoopConnectionInstance<T>(inputManager, players);
+      break;
+
+    case "PEER":
+      if (!playerConnect) {
+        throw new Error("Player connect is required for multiplayer");
+      }
+      if (!peerOptions) {
+        throw new Error("Peer options are required for PEER connection");
+      }
+      connection = new PeerMultiplayerInstance<T>(playerConnect, inputManager, {
+        ...peerOptions,
+        address: result.roomId || peerOptions.address,
+      });
+      break;
+
+    case "SOCKET":
+      if (!playerConnect) {
+        throw new Error("Player connect is required for multiplayer");
+      }
+      if (!socketOptions) {
+        throw new Error("Socket options are required for SOCKET connection");
+      }
+      connection = new SocketIoMultiplayerInstance<T>(playerConnect, inputManager, {
+        ...socketOptions,
+        address: result.roomId || socketOptions.address,
+      });
+      break;
+
+    case "SINGLEPLAYER":
+    default:
+      connection = new SingleplayerConnectionInstance<T>(inputManager, playerConfig);
+      break;
+  }
+
+  await connection.connect();
+
+  const instance = new GameInstance<T>({
+    connection,
+    uiService: true,
+    buildWorld,
+    onPlayerJoin,
+    onPlayerLeave,
+  });
+
+  instance.initializeRoom(result.roomId || roomId, seed);
+
+  return instance;
+}

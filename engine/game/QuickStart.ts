@@ -20,6 +20,8 @@ import {
 } from "yage/connection/SocketIoMultiplayerInstance";
 import { E2EConnectionInstance } from "yage/connection/E2EConnectionInstance";
 import { E2EBridge } from "yage/testing/E2EBridge";
+import { CoopConnectionInstance } from "yage/connection/CoopConnectionInstance";
+import { InputEventType } from "yage/inputs/InputManager";
 
 type QuickStartOptions<T> = {
   gameName: string;

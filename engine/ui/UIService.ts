@@ -215,6 +215,7 @@ export class UIService {
         if (!this.elements.includes(child)) {
           this.elements.push(child);
         }
+        child._parent = this.root;
         child._update();
       },
       removeChild: (child: UIElement) => {
