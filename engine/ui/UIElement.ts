@@ -97,16 +97,16 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     }
     if (key === "captureFocus") {
       const previousCaptureFocus = this._config.captureFocus;
+
       this._config.captureFocus = value;
       if (this._element) {
+        if (previousCaptureFocus !== undefined && previousCaptureFocus > -1) {
+          this._element.classList.remove("captureFocus" + previousCaptureFocus);
+        }
         if (value !== undefined && value > -1) {
           this._element.classList.add("captureFocus" + value);
           this.uiService.clearFocusedElementByPlayerIndex(value);
           this.update();
-        } else {
-          if (previousCaptureFocus !== undefined && previousCaptureFocus > -1) {
-            this._element.classList.remove("captureFocus" + previousCaptureFocus);
-          }
         }
       }
       return;
@@ -286,7 +286,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   }
 
   onMouseEnter(e: MouseEvent, forced = false) {
-    const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
+    const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0, this);
     if (playerIndex === -1) {
       return;
     }
@@ -322,7 +322,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   }
 
   onMouseLeave() {
-    const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
+    const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0, this);
     if (playerIndex === -1) {
       return;
     }
@@ -388,7 +388,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
 
   addEvents(element: HTMLElement) {
     element.onclick = (e) => {
-      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
+      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0, this);
       if (playerIndex === -1) {
         e.stopPropagation();
         return;
@@ -400,7 +400,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       }
     };
     element.onmousedown = (e) => {
-      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
+      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0, this);
       if (playerIndex === -1) {
         e.stopPropagation();
         return;
@@ -411,7 +411,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       }
     };
     element.onmouseup = (e) => {
-      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
+      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0, this);
       if (playerIndex === -1) {
         e.stopPropagation();
         return;
@@ -425,7 +425,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       this.onMouseEnter(e);
     };
     element.onmouseleave = () => {
-      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
+      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0, this);
       if (playerIndex === -1) {
         return;
       }

@@ -66,6 +66,16 @@ export class UIService {
       }
     }
 
+    if (element && eventType === InputEventType.MOUSE) {
+      const mouseUsers = this.playerInputs.filter(([type]) => type === InputEventType.MOUSE);
+      for (let i = 0; i < mouseUsers.length; i++) {
+        const focusables = this.getFocusables(i);
+        if (focusables.includes(element._element!)) {
+          return i;
+        }
+      }
+    }
+
     for (let i = 0; i < this.playerInputs.length; i++) {
       if (eventType === InputEventType.MOUSE && this.playerInputs[i][0] === InputEventType.KEYBOARD) {
         return i;
@@ -272,7 +282,7 @@ export class UIService {
   }
 
   attemptMouseFocus(element: UIElement) {
-    const playerEventIndex = this.getPlayerEventIndex(InputEventType.MOUSE, 0);
+    const playerEventIndex = this.getPlayerEventIndex(InputEventType.MOUSE, 0, element);
     if (playerEventIndex === -1) {
       return;
     }

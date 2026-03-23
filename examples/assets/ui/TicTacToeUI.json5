@@ -29,7 +29,23 @@
           }
         }
       },
-
+      playerText: {
+        type: "text",
+        rect: {
+          x: "center",
+          y: "top",
+          width: "100%",
+          yOffset: 140
+        },
+        config: {
+          label: "current player $$currentPlayer",
+          fontSize: 48,
+          style: {
+            color: "#ffffff",
+            textShadow: "2px 2px 4px #000000"
+          }
+        }
+      },
       boardGrid: {
         type: "grid",
         rect: {
@@ -39,6 +55,7 @@
           height: 300
         },
         config: {
+          captureFocus: "$$currentPlayer",
           gap: "5px",
           style: {
             backgroundColor: "#222222",

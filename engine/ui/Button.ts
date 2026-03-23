@@ -158,7 +158,7 @@ export class Button extends UIElement<ButtonConfig> {
       }
     };
     buttonElement.onmousedown = (e) => {
-      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
+      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0, this);
       if (playerIndex === -1) {
         e.stopPropagation();
         return;
@@ -168,7 +168,7 @@ export class Button extends UIElement<ButtonConfig> {
       }
     };
     buttonElement.onmouseup = (e) => {
-      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0);
+      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0, this);
       if (playerIndex === -1) {
         e.stopPropagation();
         return;

@@ -29,6 +29,10 @@ export class TicTacToeState extends Schema {
   @type("number")
   @defaultValue(-1)
   cursorIndex: number;
+
+  @type("number")
+  @defaultValue(0)
+  currentPlayer: number;
 }
 
 // ── Win check helper ─────────────────────────────────────────────────────────
@@ -77,6 +81,7 @@ function formatContext(state: TicTacToeState) {
     showReset: state.status !== "PLAYING",
     cells: state.cells.map((mark, i) => ({ mark, cellIndex: i })),
     cursorIndex: state.cursorIndex,
+    currentPlayer: state.currentPlayer,
   };
 }
 
@@ -133,6 +138,7 @@ export class TicTacToeUISystem extends DrawSystemImpl<ReadOnlyGameModel> {
           checkWinOrDraw(mutableState);
           if (mutableState.status === "PLAYING") {
             mutableState.turn = mutableState.turn === "X" ? "O" : "X";
+            mutableState.currentPlayer = mutableState.currentPlayer === 0 ? 1 : 0;
           }
         }
       }
@@ -142,6 +148,7 @@ export class TicTacToeUISystem extends DrawSystemImpl<ReadOnlyGameModel> {
         mutableState.turn = "X";
         mutableState.status = "PLAYING";
         mutableState.cursorIndex = -1;
+        mutableState.currentPlayer = 0;
       }
     };
 
