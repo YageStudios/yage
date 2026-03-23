@@ -47,6 +47,10 @@ const onPlayerJoin = (gameModel: GameModel, playerId: string) => {
       // Allow online multiplayer
       allowOnline: true,
 
+      // Shared surface multiplayer: allow 2 players to share a mouse or touch screen
+      maxSharedMousePlayers: 2,
+      maxSharedTouchPlayers: 2,
+
       // Optional: Signaling server URL for online play
       // signalingServerUrl: "wss://your-signaling-server.com",
     },

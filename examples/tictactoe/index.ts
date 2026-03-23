@@ -35,11 +35,12 @@ const onPlayerJoin = (gameModel: GameModel, playerId: string) => {
 
     umilConfig: {
       appName: "Tic Tac Toe",
-      maxLocalPlayers: 2, // Support up to 2 local players (WASD vs Arrows)
-      maxOnlinePlayers: 2, // Support up to 2 players online
-      allowLocalOnly: true, // Allow local games
-      allowOnline: true, // Allow online multiplayer
-      // signalingServerUrl: "wss://your-server.com", // Optional: for online play
+      maxLocalPlayers: 2,
+      maxOnlinePlayers: 2,
+      allowLocalOnly: true,
+      allowOnline: true,
+      maxSharedMousePlayers: 2,
+      maxSharedTouchPlayers: 2,
     },
 
     buildWorld: () => {

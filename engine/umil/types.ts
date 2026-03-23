@@ -6,6 +6,7 @@ export enum UmilInputType {
   KEYBOARD = "KEYBOARD",
   GAMEPAD = "GAMEPAD",
   MOUSE = "MOUSE",
+  TOUCH = "TOUCH",
 }
 
 export type UmilKeyboardCluster = "WASD" | "ARROWS" | "IJKL" | null;
@@ -52,6 +53,8 @@ export interface UmilConfig {
   allowLocalOnly?: boolean;
   allowOnline?: boolean;
   signalingServerUrl?: string;
+  maxSharedMousePlayers?: number;
+  maxSharedTouchPlayers?: number;
 }
 
 export interface UmilResult {

@@ -71,6 +71,9 @@ export async function UmilQuickStart<T = null>({
     return instance;
   }
 
+  // Run preload before UMIL flow
+  await preload(UIService.getInstance());
+
   // Run UMIL flow first
   const config: UmilConfig = {
     appName: gameName,
@@ -94,6 +97,9 @@ export async function UmilQuickStart<T = null>({
         break;
       case UmilInputType.GAMEPAD:
         eventType = InputEventTypeEnum.GAMEPAD;
+        break;
+      case UmilInputType.TOUCH:
+        eventType = InputEventTypeEnum.TOUCH;
         break;
       case UmilInputType.MOUSE:
       default:
@@ -133,6 +139,9 @@ export async function UmilQuickStart<T = null>({
             break;
           case UmilInputType.GAMEPAD:
             eventType = InputEventTypeEnum.GAMEPAD;
+            break;
+          case UmilInputType.TOUCH:
+            eventType = InputEventTypeEnum.TOUCH;
             break;
           case UmilInputType.MOUSE:
           default:

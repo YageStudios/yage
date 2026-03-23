@@ -9,14 +9,23 @@ export class InputClusterer {
   private unsubscribe: (() => void) | null = null;
   private onInputDetected: (config: UMIL_LocalPlayerConfig) => void;
 
+  private mousePlayerCount = 0;
+  private touchPlayerCount = 0;
+  private maxSharedMousePlayers: number;
+  private maxSharedTouchPlayers: number;
+
   constructor(
     inputManager: InputManager,
     maxLocalPlayers: number,
     onInputDetected: (config: UMIL_LocalPlayerConfig) => void,
+    maxSharedMousePlayers: number = 1,
+    maxSharedTouchPlayers: number = 1,
   ) {
     this.inputManager = inputManager;
     this.maxLocalPlayers = maxLocalPlayers;
     this.onInputDetected = onInputDetected;
+    this.maxSharedMousePlayers = Math.max(1, maxSharedMousePlayers);
+    this.maxSharedTouchPlayers = Math.max(1, maxSharedTouchPlayers);
   }
 
   start(): void {
@@ -83,6 +92,17 @@ export class InputClusterer {
           inputIndex: typeIndex,
           keyboardCluster: null,
         };
+        this.mousePlayerCount++;
+        break;
+
+      case InputEventType.TOUCH:
+        playerConfig = {
+          localIndex: this.nextLocalIndex,
+          inputType: UmilInputType.TOUCH,
+          inputIndex: typeIndex,
+          keyboardCluster: null,
+        };
+        this.touchPlayerCount++;
         break;
 
       default:
@@ -94,9 +114,51 @@ export class InputClusterer {
     this.onInputDetected(playerConfig);
   }
 
+  addSharedPlayer(inputType: UmilInputType, inputIndex: number): boolean {
+    if (this.nextLocalIndex >= this.maxLocalPlayers) return false;
+
+    if (inputType === UmilInputType.MOUSE) {
+      if (this.mousePlayerCount >= this.maxSharedMousePlayers) return false;
+      this.mousePlayerCount++;
+    } else if (inputType === UmilInputType.TOUCH) {
+      if (this.touchPlayerCount >= this.maxSharedTouchPlayers) return false;
+      this.touchPlayerCount++;
+    } else {
+      return false;
+    }
+
+    const sharedKey = `shared_${inputType}_${this.nextLocalIndex}`;
+    const playerConfig: UMIL_LocalPlayerConfig = {
+      localIndex: this.nextLocalIndex,
+      inputType,
+      inputIndex,
+      keyboardCluster: null,
+    };
+
+    this.assignedInputs.set(sharedKey, this.nextLocalIndex);
+    this.nextLocalIndex++;
+    this.onInputDetected(playerConfig);
+    return true;
+  }
+
+  getAssignedTypeCount(inputType: UmilInputType): number {
+    if (inputType === UmilInputType.MOUSE) return this.mousePlayerCount;
+    if (inputType === UmilInputType.TOUCH) return this.touchPlayerCount;
+
+    let count = 0;
+    for (const [key] of this.assignedInputs.entries()) {
+      if (key.startsWith(`${inputType === UmilInputType.KEYBOARD ? InputEventType.KEYBOARD : InputEventType.GAMEPAD}_`)) {
+        count++;
+      }
+    }
+    return count;
+  }
+
   reset(): void {
     this.assignedInputs.clear();
     this.nextLocalIndex = 0;
+    this.mousePlayerCount = 0;
+    this.touchPlayerCount = 0;
   }
 
   getAssignedPlayerCount(): number {
@@ -109,6 +171,19 @@ export class InputClusterer {
       const inputKey = Array.from(this.assignedInputs.entries()).find(([, index]) => index === i)?.[0];
 
       if (!inputKey) continue;
+
+      // Handle shared player entries
+      if (inputKey.startsWith("shared_")) {
+        const parts = inputKey.split("_");
+        const type = parts[1] as UmilInputType;
+        configs.push({
+          localIndex: i,
+          inputType: type,
+          inputIndex: 0,
+          keyboardCluster: null,
+        });
+        continue;
+      }
 
       const [eventTypeStr, indexStr] = inputKey.split("_");
       const eventType = parseInt(eventTypeStr, 10) as InputEventType;
@@ -132,6 +207,13 @@ export class InputClusterer {
         configs.push({
           localIndex: i,
           inputType: UmilInputType.GAMEPAD,
+          inputIndex: typeIndex,
+          keyboardCluster: null,
+        });
+      } else if (eventType === InputEventType.TOUCH) {
+        configs.push({
+          localIndex: i,
+          inputType: UmilInputType.TOUCH,
           inputIndex: typeIndex,
           keyboardCluster: null,
         });
