@@ -1,0 +1,386 @@
+{
+  overlay: {
+    type: "box",
+    rect: { x: "center", y: "center", width: "full", height: "full" },
+    config: {
+      style: {
+        backgroundColor: "rgba(0,0,0,0.9)",
+      },
+    },
+    children: {
+      inputDetection: {
+        $if: "step === 'INPUT_DETECTION'",
+        then: {
+          type: "box",
+          rect: { x: "center", y: "center", width: "full", height: "full" },
+          config: {
+            style: {
+              backgroundColor: "transparent",
+            },
+          },
+          children: {
+            title: {
+              type: "text",
+              rect: { x: "center", y: "center", width: "auto", height: "auto", yOffset: -200 },
+              config: { label: "{{appName}}", fontSize: 48 },
+            },
+            subtitle: {
+              type: "text",
+              rect: { x: "center", y: "center", width: "auto", height: "auto", yOffset: -120 },
+              config: { label: "Press Any Button to Join", fontSize: 24 },
+            },
+            playerCards: {
+              $each: "inputPlayers",
+              content: {
+                card: {
+                  type: "box",
+                  rect: { x: "center", y: "center", width: 180, height: 60, xOffset: "{{xOffset}}", yOffset: 0 },
+                  config: {
+                    style: {
+                      border: "2px solid {{color}}",
+                      borderRadius: "8px",
+                      backgroundColor: "rgba(255,255,255,0.1)",
+                    },
+                  },
+                  children: {
+                    label: {
+                      type: "text",
+                      rect: { x: "center", y: "center", width: "auto", height: "auto" },
+                      config: { label: "{{label}}", fontSize: 16 },
+                    },
+                  },
+                },
+              },
+            },
+            sharedSurfaceActions: {
+              $each: "sharedSurfaceActions",
+              content: {
+                action: {
+                  type: "button",
+                  rect: { x: "center", y: "center", width: 300, height: 40, yOffset: "{{yOffset}}" },
+                  config: {
+                    label: "{{label}}",
+                    fontSize: 16,
+                    style: {
+                      border: "1px solid rgba(255,255,255,0.5)",
+                      backgroundColor: "transparent",
+                      color: "white",
+                      cursor: "pointer",
+                    },
+                  },
+                  events: { click: "{{action}}" },
+                },
+              },
+            },
+            startButton: {
+              $if: "showInputStartButton",
+              then: {
+                type: "button",
+                rect: { x: "center", y: "center", width: 300, height: 50, yOffset: "{{inputStartButtonY}}" },
+                config: {
+                  label: "Start",
+                  fontSize: 20,
+                  style: { cursor: "pointer" },
+                },
+                events: { click: "confirmInputDetection" },
+              },
+            },
+            continuePrompt: {
+              $if: "showInputContinuePrompt",
+              then: {
+                type: "text",
+                rect: { x: "center", y: "center", width: "auto", height: "auto", yOffset: "{{inputContinuePromptY}}" },
+                config: {
+                  label: "Press ENTER or START to continue",
+                  fontSize: 16,
+                  style: { opacity: "0.7" },
+                },
+              },
+            },
+          },
+        },
+      },
+      mainMenu: {
+        $if: "step === 'MAIN_MENU'",
+        then: {
+          type: "box",
+          rect: { x: "center", y: "center", width: "full", height: "full" },
+          config: {},
+          children: {
+            title: {
+              type: "text",
+              rect: { x: "center", y: "center", width: "auto", height: "auto", yOffset: -160 },
+              config: { label: "{{appName}}", fontSize: 36 },
+            },
+            nickname: {
+              type: "input",
+              rect: { x: "center", y: "center", width: 300, height: 40, yOffset: -80 },
+              config: {
+                label: "Enter nickname...",
+                value: "{{nickname}}",
+                focusable: true,
+                style: {
+                  padding: "10px",
+                  fontSize: "18px",
+                  borderColor: "white",
+                  backgroundColor: "rgba(255,255,255,0.1)",
+                  color: "white",
+                },
+              },
+              events: {
+                change: "nicknameChange",
+                submit: "nicknameChange",
+              },
+            },
+            actions: {
+              $each: "mainMenuActions",
+              content: {
+                action: {
+                  type: "button",
+                  rect: { x: "center", y: "center", width: 300, height: 50, yOffset: "{{yOffset}}" },
+                  config: {
+                    label: "{{label}}",
+                    fontSize: 18,
+                    style: { cursor: "pointer" },
+                  },
+                  events: { click: "{{action}}" },
+                },
+              },
+            },
+          },
+        },
+      },
+      browsing: {
+        $if: "step === 'BROWSING'",
+        then: {
+          type: "box",
+          rect: { x: "center", y: "center", width: "full", height: "full" },
+          config: {},
+          children: {
+            title: {
+              type: "text",
+              rect: { x: "center", y: "center", width: "auto", height: "auto", yOffset: -250 },
+              config: { label: "Join Online Game", fontSize: 36 },
+            },
+            emptyState: {
+              $if: "roomList.length === 0",
+              then: {
+                type: "text",
+                rect: { x: "center", y: "center", width: 600, height: "auto", yOffset: -150 },
+                config: {
+                  label: "No active rooms found. Be the first to host!",
+                  fontSize: 16,
+                  style: { opacity: "0.5" },
+                },
+              },
+            },
+            rooms: {
+              $each: "roomList",
+              content: {
+                room: {
+                  type: "box",
+                  rect: { x: "center", y: "center", width: 600, height: 60, yOffset: "{{yOffset}}" },
+                  config: {
+                    style: {
+                      borderBottom: "1px solid rgba(255,255,255,0.2)",
+                    },
+                  },
+                  children: {
+                    roomName: {
+                      type: "text",
+                      rect: { x: "left", y: "center", width: "auto", height: "auto", xOffset: 20 },
+                      config: { label: "{{roomName}}", fontSize: 18 },
+                    },
+                    roomMeta: {
+                      type: "text",
+                      rect: { x: "left", y: "center", width: "auto", height: "auto", xOffset: 20, yOffset: 20 },
+                      config: {
+                        label: "Host: {{hostName}} | {{currentPlayers}}/{{maxPlayers}} players",
+                        fontSize: 14,
+                        style: { opacity: "0.7" },
+                      },
+                    },
+                    join: {
+                      type: "button",
+                      rect: { x: "right", y: "center", width: 80, height: 35, xOffset: -20 },
+                      config: { label: "Join", fontSize: 14 },
+                      events: { click: "joinRoom" },
+                    },
+                  },
+                },
+              },
+            },
+            refresh: {
+              type: "button",
+              rect: { x: "center", y: "center", width: 140, height: 40, yOffset: 200, xOffset: -80 },
+              config: { label: "Refresh", fontSize: 16 },
+              events: { click: "refreshRooms" },
+            },
+            back: {
+              type: "button",
+              rect: { x: "center", y: "center", width: 140, height: 40, yOffset: 200, xOffset: 80 },
+              config: { label: "Back", fontSize: 16 },
+              events: { click: "showMainMenu" },
+            },
+          },
+        },
+      },
+      lobby: {
+        $if: "step === 'LOBBY' && lobbyState",
+        then: {
+          type: "box",
+          rect: { x: "center", y: "center", width: "full", height: "full" },
+          config: {},
+          children: {
+            roomName: {
+              type: "text",
+              rect: { x: "left", y: "top", width: "auto", height: "auto", xOffset: 40, yOffset: 40 },
+              config: { label: "Room: {{lobbyState.roomName}}", fontSize: 28 },
+            },
+            roomId: {
+              type: "text",
+              rect: { x: "left", y: "top", width: "auto", height: "auto", xOffset: 40, yOffset: 90 },
+              config: {
+                label: "Room ID: {{roomId}}",
+                fontSize: 14,
+                style: { opacity: "0.7" },
+              },
+            },
+            playersLabel: {
+              type: "text",
+              rect: { x: "left", y: "top", width: "auto", height: "auto", xOffset: 40, yOffset: 130 },
+              config: { label: "Players:", fontSize: 20 },
+            },
+            playersBox: {
+              type: "box",
+              rect: { x: "left", y: "top", width: 400, height: 200, xOffset: 40, yOffset: 170 },
+              config: {
+                style: { border: "1px solid white", padding: "10px" },
+              },
+              children: {
+                players: {
+                  $each: "lobbyPlayers",
+                  content: {
+                    row: {
+                      type: "box",
+                      rect: { x: "left", y: "top", width: 380, height: 30, yOffset: "{{yOffset}}" },
+                      config: {},
+                      children: {
+                        dot: {
+                          type: "box",
+                          rect: { x: "left", y: "center", width: 10, height: 10, xOffset: 10 },
+                          config: {
+                            style: {
+                              borderRadius: "50%",
+                              backgroundColor: "{{readyColor}}",
+                            },
+                          },
+                        },
+                        name: {
+                          type: "text",
+                          rect: { x: "left", y: "center", width: "auto", height: "auto", xOffset: 30 },
+                          config: { label: "{{nameLabel}}", fontSize: 16 },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            ready: {
+              type: "button",
+              rect: { x: "left", y: "top", width: 200, height: 50, xOffset: 40, yOffset: 390 },
+              config: {
+                label: "{{readyButtonLabel}}",
+                fontSize: 16,
+                style: { backgroundColor: "{{readyButtonColor}}" },
+              },
+              events: { click: "toggleReady" },
+            },
+            start: {
+              $if: "isHost",
+              then: {
+                type: "button",
+                rect: { x: "left", y: "top", width: 200, height: 50, xOffset: 40, yOffset: 450 },
+                config: {
+                  label: "Start Game",
+                  fontSize: 16,
+                  style: { opacity: "{{startButtonOpacity}}" },
+                },
+                events: { click: "startOnlineGame" },
+              },
+            },
+            leave: {
+              type: "button",
+              rect: { x: "left", y: "bottom", width: 200, height: 50, xOffset: 40, yOffset: -40 },
+              config: { label: "Leave Room", fontSize: 16 },
+              events: { click: "leaveRoom" },
+            },
+            chatBox: {
+              type: "box",
+              rect: { x: "right", y: "top", width: 400, height: 440, xOffset: -40, yOffset: 40 },
+              config: {
+                style: { border: "1px solid white" },
+              },
+              children: {
+                messages: {
+                  type: "box",
+                  rect: { x: "left", y: "top", width: 400, height: 400, xOffset: 0, yOffset: 0 },
+                  config: {
+                    style: { overflow: "auto", padding: "10px" },
+                  },
+                  children: {
+                    messageItems: {
+                      $each: "chatMessages",
+                      content: {
+                        message: {
+                          type: "text",
+                          rect: { x: "left", y: "top", width: 380, height: "auto", yOffset: "{{yOffset}}" },
+                          config: {
+                            label: "{{senderName}}: {{text}}",
+                            fontSize: 14,
+                            style: { textAlign: "left" },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+                input: {
+                  type: "input",
+                  rect: { x: "left", y: "top", width: 310, height: 40, yOffset: 400 },
+                  config: {
+                    label: "Type a message...",
+                    value: "{{chatDraft}}",
+                    focusable: true,
+                    style: {
+                      padding: "10px",
+                      borderColor: "white",
+                      backgroundColor: "rgba(255,255,255,0.1)",
+                      color: "white",
+                      borderTop: "1px solid white",
+                    },
+                  },
+                  events: {
+                    change: "chatChange",
+                    submit: "chatSubmit",
+                  },
+                },
+                send: {
+                  type: "button",
+                  rect: { x: "right", y: "top", width: 90, height: 40, yOffset: 400 },
+                  config: {
+                    label: "Send",
+                    fontSize: 14,
+                    style: { borderTop: "1px solid white" },
+                  },
+                  events: { click: "chatSend" },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+}

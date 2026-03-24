@@ -48,6 +48,7 @@ export interface UMIL_LobbyState {
 
 export interface UmilConfig {
   appName: string;
+  uiAssetUrl?: string;
   maxLocalPlayers?: number;
   maxOnlinePlayers?: number;
   allowLocalOnly?: boolean;

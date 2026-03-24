@@ -10,7 +10,7 @@ export type UiMap = {
   build: (
     context: any,
 
-    eventHandler: (playerIndex: number, eventName: string, eventType: string, context: any) => void
+    eventHandler: (playerIndex: number, eventName: string, eventType: string, context: any, payload?: any) => void
   ) => { [key: string]: UIElement<any> };
   update: (context: any) => void;
   context: () => any;
@@ -209,7 +209,7 @@ const isStructuralNode = (value: any): boolean => {
 const generateEventListener = (
   events: any,
   contextRef: any,
-  eventListener: (playerIndex: number, eventName: any, eventType: any, eventData: any) => void
+  eventListener: (playerIndex: number, eventName: any, eventType: any, eventData: any, payload?: any) => void
 ) => {
   return events
     ? {
@@ -263,6 +263,16 @@ const generateEventListener = (
         onFocus: (playerIndex: number) => {
           if (events.focus) {
             eventListener(playerIndex, events.focus, "focus", contextRef.context);
+          }
+        },
+        onChange: (value: string) => {
+          if (events.change) {
+            eventListener(0, events.change, "change", contextRef.context, value);
+          }
+        },
+        onSubmit: (value: string) => {
+          if (events.submit) {
+            eventListener(0, events.submit, "submit", contextRef.context, value);
           }
         },
       }
@@ -405,7 +415,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
 
   const build = (
     context: any,
-    eventHandler: (playerIndex: number, eventName: string, eventType: string, context: any) => void
+    eventHandler: (playerIndex: number, eventName: string, eventType: string, context: any, payload?: any) => void
   ) => {
     buildContext = cloneDeep(context);
     rootContext = buildContext;
@@ -773,7 +783,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
       parent: { addChild: (element: UIElement<any>) => void },
       contextRef: { context: any },
       buildQueries: BuildQuery[],
-      eventHandler: (playerIndex: number, eventName: string, eventType: string, context: any) => void
+      eventHandler: (playerIndex: number, eventName: string, eventType: string, context: any, payload?: any) => void
     ) => {
       if ("$if" in value || "$unless" in value) {
         const conditionExpr = value.$if || value.$unless;
@@ -790,7 +800,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
             })
           : new Position(0, 0, { width: 0, height: 0 });
 
-        const wrapper = new Box(wrapperPosition, {
+        const wrapper: Box = new Box(wrapperPosition, {
           style: {
             border: "none",
             backgroundColor: "transparent",
@@ -917,17 +927,8 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
         }
 
         // Create a wrapper box to hold the each content
-        const wrapperPosition = new Position(0, 0, { width: 0, height: 0 });
-        const wrapper = new Box(wrapperPosition, {
-          style: {
-            display: "contents",
-            border: "none",
-            backgroundColor: "transparent",
-            padding: "0",
-            margin: "0",
-            overflow: "visible",
-          },
-        });
+        const wrapperPosition = new Position('center', 'center', { width: 'full', height: 'full' });
+        const wrapper: Box = new Box(wrapperPosition);
 
         let childContexts: any[] = [];
         let childQueries: BuildQuery[][] = [];
@@ -978,9 +979,6 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
 
           // Truncate excess children
           if (childContexts.length > items.length) {
-            const excessCount = childContexts.length - items.length;
-            // Count total children elements to remove from the end
-            const allChildren = wrapper.config.children || [];
             // Each item may produce multiple children, so we track by childQueries
             for (let i = items.length; i < childContexts.length; i++) {
               childQueries[i]?.forEach(([element]) => {

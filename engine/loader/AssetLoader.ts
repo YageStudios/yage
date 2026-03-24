@@ -21,6 +21,7 @@ import { PixiSoundLoader } from "./SoundLoader";
 import type { Sound } from "@pixi/sound";
 import { Persist } from "yage/persist/persist";
 import { UiLoader } from "./UiLoader";
+import type { BundledUiAsset } from "./BundledUiAssets";
 
 const n = (name: string) => name?.toLowerCase().replace(/ /g, "_");
 
@@ -148,6 +149,14 @@ export default class AssetLoader {
         .then(() => n(name)),
     };
     return this.assetCache[n(name)].promise;
+  }
+
+  registerUiOverride(url: string, asset: BundledUiAsset): void {
+    UiLoader.getInstance().registerOverride(url, asset);
+  }
+
+  clearUiOverride(url: string): void {
+    UiLoader.getInstance().clearOverride(url);
   }
 
   getUi(name: string): UIConfig[] {

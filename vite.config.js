@@ -8,6 +8,7 @@ import glob from "fast-glob";
 const files = glob
   .sync([
     "./engine/{achievements,systems,connection,console,constants,decorators,entity,game,inputs,loader,persist,schemas,testing,types,ui,utils,vendor}/**/*.{ts,js}",
+    "./engine/umil/**/*.{ts,js}",
   ])
   .map((file) => {
     const key = file.match(/(?<=\.\/engine\/).*(?=\.ts|\.js)/);

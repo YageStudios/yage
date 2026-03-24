@@ -135,6 +135,28 @@ describe("UiMap — Legacy Baseline", () => {
       });
       expect(() => map.build({}, vi.fn())).toThrow("No nesting");
     });
+
+    it("wires input change and submit events with payloads", () => {
+      const handler = vi.fn();
+      const map = buildUiMap({
+        field: {
+          type: "input",
+          rect: { x: 0, y: 0, width: 100, height: 20 },
+          config: { label: "Name", value: "" },
+          events: {
+            change: "nameChanged",
+            submit: "nameSubmitted",
+          },
+        },
+      });
+
+      const elements = map.build({}, handler);
+      elements.field._config.onChange?.("alpha");
+      elements.field._config.onSubmit?.("beta");
+
+      expect(handler).toHaveBeenNthCalledWith(1, 0, "nameChanged", "change", {}, "alpha");
+      expect(handler).toHaveBeenNthCalledWith(2, 0, "nameSubmitted", "submit", {}, "beta");
+    });
   });
 
   // --------------------------------------------------------------------------
