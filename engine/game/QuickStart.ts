@@ -22,6 +22,7 @@ import { E2EConnectionInstance } from "yage/connection/E2EConnectionInstance";
 import { E2EBridge } from "yage/testing/E2EBridge";
 import { CoopConnectionInstance } from "yage/connection/CoopConnectionInstance";
 import { InputEventType } from "yage/inputs/InputManager";
+import { ensureMobileFullscreenButton } from "./mobileFullscreen";
 
 type QuickStartOptions<T> = {
   gameName: string;
@@ -170,6 +171,7 @@ export async function QuickStart<T = null>(
   await connection.connect();
   const instance: GameInstance<T> = initializeGameInstance(connection);
   instance.initializeRoom(roomId, seed);
+  ensureMobileFullscreenButton();
 
   return instance;
 }

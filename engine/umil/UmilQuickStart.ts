@@ -17,6 +17,7 @@ import type { UmilConfig, UmilResult } from "./types";
 import { UmilInputType } from "./types";
 import type { InputEventType } from "yage/inputs/InputManager";
 import { InputEventType as InputEventTypeEnum } from "yage/inputs/InputManager";
+import { ensureMobileFullscreenButton } from "yage/game/mobileFullscreen";
 
 type UmilQuickStartOptions<T> = {
   gameName: string;
@@ -68,6 +69,7 @@ export async function UmilQuickStart<T = null>({
     });
 
     instance.initializeRoom(roomId, seed);
+    ensureMobileFullscreenButton();
     return instance;
   }
 
@@ -196,6 +198,7 @@ export async function UmilQuickStart<T = null>({
   });
 
   instance.initializeRoom(result.roomId || roomId, seed);
+  ensureMobileFullscreenButton();
 
   return instance;
 }

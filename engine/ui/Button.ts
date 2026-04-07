@@ -151,6 +151,7 @@ export class Button extends UIElement<ButtonConfig> {
       if (inputType === InputEventType.MOUSE) {
         this.onMouseEnter(e, true);
       }
+      this.syncFocusForInputType(inputType, playerIndex);
 
       if (this.onClick(playerIndex) === false) {
         e.stopPropagation();

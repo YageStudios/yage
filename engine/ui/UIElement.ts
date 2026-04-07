@@ -385,6 +385,16 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     return InputEventType.MOUSE;
   }
 
+  protected syncFocusForInputType(inputType: InputEventType, playerIndex: number): void {
+    if (!this._config.focusable) {
+      return;
+    }
+    if (inputType === InputEventType.MOUSE) {
+      return;
+    }
+    this.uiService.setFocusedElementByPlayerIndex(playerIndex, this);
+  }
+
   protected abstract onClickInternal(playerIndex: number): void | boolean;
   protected abstract onMouseDownInternal(playerIndex: number): void | boolean;
   protected abstract onMouseUpInternal(playerIndex: number): void | boolean;
@@ -457,6 +467,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       if (inputType === InputEventType.MOUSE) {
         this.onMouseEnter(e, true);
       }
+      this.syncFocusForInputType(inputType, playerIndex);
       const res = this.onClickInternal(playerIndex);
       if (res === false) {
         e.stopPropagation();
@@ -643,13 +654,24 @@ export abstract class UIElement<T extends UIElementConfig = any> {
 
     if (layoutRect) {
       const viewportScale = getViewportScale();
+      let viewportWidth = window.innerWidth;
+      let viewportHeight = (window.innerWidth * 9) / 16;
+      if (viewportHeight > window.innerHeight) {
+        viewportHeight = window.innerHeight;
+        viewportWidth = (window.innerHeight * 16) / 9;
+      }
+
+      const parentHasLayoutRect = !!(this.parent && (this.parent.config as any)?.layoutRect);
+      const viewportOffsetX = parentHasLayoutRect ? 0 : Math.floor((window.innerWidth - viewportWidth) / 2);
+      const viewportOffsetY = parentHasLayoutRect ? 0 : Math.floor((window.innerHeight - viewportHeight) / 2);
+
       const x = Math.floor(layoutRect.x * viewportScale);
       const y = Math.floor(layoutRect.y * viewportScale);
       const width = Math.floor(layoutRect.width * viewportScale);
       const height = Math.floor(layoutRect.height * viewportScale);
 
-      element.style.left = `${x}px`;
-      element.style.top = `${y}px`;
+      element.style.left = `${x + viewportOffsetX}px`;
+      element.style.top = `${y + viewportOffsetY}px`;
       element.style.width = width > 1 ? `${width}px` : "auto";
       element.style.height = height > 1 ? `${height}px` : "auto";
 

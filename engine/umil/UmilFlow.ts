@@ -6,6 +6,7 @@ import { buildUiMap, type UiMap } from "yage/ui/UiMap";
 import type { UIElement } from "yage/ui/UIElement";
 import { isSyntheticMouseEvent, markTouchInteraction } from "yage/inputs/TouchMouseGuard";
 import { InputClusterer } from "./InputClusterer";
+import { ensureMobileFullscreenButton } from "yage/game/mobileFullscreen";
 import type {
   UmilStep,
   UmilConfig,
@@ -68,6 +69,7 @@ export class UmilFlow<T = null> {
   async start(): Promise<UmilResult> {
     await AssetLoader.getInstance().loadUi(UmilFlow.UI_ASSET_KEY, this.config.uiAssetUrl ?? "umil/flow.json5");
     this.uiService.playerInputs = [[InputEventType.ANY, 0]];
+    ensureMobileFullscreenButton();
     return new Promise((resolve) => {
       this.resolvePromise = resolve;
       this.showInputDetection();

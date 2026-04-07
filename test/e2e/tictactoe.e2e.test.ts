@@ -107,4 +107,46 @@ describe("TicTacToe E2E", () => {
     expect(countUniquePositions(xCenters)).toBe(3);
     expect(countUniquePositions(yCenters)).toBe(3);
   });
+
+  it("removes a player's oldest mark when they place a fourth move", async () => {
+    env = await createEnv();
+
+    const xPlayer = await env.joinPlayer("ttt_limit_x");
+    const oPlayer = await env.joinPlayer("ttt_limit_o");
+
+    await env.tick(5);
+    await env.waitForUI({ type: "text", textIncludes: "Turn: X" });
+
+    const cells = await getBoardCells(env);
+    expect(cells).toHaveLength(9);
+
+    await xPlayer.clickUI(cells[0].id);
+    await env.tick(1);
+    await oPlayer.clickUI(cells[1].id);
+    await env.tick(1);
+    await xPlayer.clickUI(cells[3].id);
+    await env.tick(1);
+    await oPlayer.clickUI(cells[2].id);
+    await env.tick(1);
+    await xPlayer.clickUI(cells[4].id);
+    await env.tick(1);
+    await oPlayer.clickUI(cells[5].id);
+    await env.tick(1);
+    await xPlayer.clickUI(cells[8].id);
+    await env.tick(1);
+
+    await env.waitForUI({ type: "text", textIncludes: "Turn: O" });
+
+    const gameState = await env.queryECS({
+      components: ["TicTacToeState"],
+    });
+    expect(gameState).toHaveLength(1);
+    expect(gameState[0].components["TicTacToeState"].cells).toEqual(["", "O", "O", "X", "X", "O", "", "", "X"]);
+    expect(gameState[0].components["TicTacToeState"].xMoves).toEqual([3, 4, 8]);
+    expect(gameState[0].components["TicTacToeState"].oMoves).toEqual([1, 2, 5]);
+    expect(gameState[0].components["TicTacToeState"].status).toBe("PLAYING");
+    expect(gameState[0].components["TicTacToeState"].turn).toBe("O");
+
+    expect(await env.getErrors()).toEqual([]);
+  });
 });

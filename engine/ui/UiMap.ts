@@ -834,6 +834,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
     let buildContext: any = null;
     let rootContext: any = null;
     let builtRoots: { [key: string]: UIElement<any> } = {};
+    let fontRelayoutRegistered = false;
     let activeEventHandler:
       | ((
           playerIndex: number,
@@ -892,6 +893,35 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
       return roots;
     };
 
+    const ensurePosspecFontRelayout = () => {
+      if (fontRelayoutRegistered || typeof document === "undefined") {
+        return;
+      }
+
+      const fonts = (document as Document & {
+        fonts?: {
+          ready?: Promise<unknown>;
+          addEventListener?: (type: string, listener: () => void, options?: AddEventListenerOptions) => void;
+        };
+      }).fonts;
+
+      if (!fonts) {
+        fontRelayoutRegistered = true;
+        return;
+      }
+
+      const rerunLayout = () => {
+        if (!activeEventHandler || !buildContext) {
+          return;
+        }
+        rebuildPosspecUi();
+      };
+
+      fonts.ready?.then(rerunLayout);
+      fonts.addEventListener?.("loadingdone", rerunLayout, { once: true });
+      fontRelayoutRegistered = true;
+    };
+
     const build = (
       context: any,
       eventHandler: (playerIndex: number, eventName: string, eventType: string, context: any, payload?: any) => void
@@ -899,7 +929,9 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
       buildContext = cloneDeep(context);
       rootContext = buildContext;
       activeEventHandler = eventHandler;
-      return rebuildPosspecUi();
+      const roots = rebuildPosspecUi();
+      ensurePosspecFontRelayout();
+      return roots;
     };
 
     const update = (partialContext: any) => {

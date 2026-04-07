@@ -152,7 +152,7 @@ export const scaleFont = (fontSize: number, additionalScale: number): number => 
     width = (window.innerHeight * 16) / 9;
   }
 
-  const scale = Math.min(width / 1920, height / 1080);
+  const scale = Math.max(0.3, Math.min(width / 1920, height / 1080));
 
-  return Math.floor(fontSize * Math.max(0.65, scale) * additionalScale);
+  return Math.floor(fontSize * scale * additionalScale);
 };

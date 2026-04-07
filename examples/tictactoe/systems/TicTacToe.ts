@@ -14,6 +14,14 @@ export class TicTacToeState extends Schema {
   @defaultValue(["", "", "", "", "", "", "", "", ""])
   cells: string[];
 
+  @type(["number"])
+  @defaultValue([])
+  xMoves: number[];
+
+  @type(["number"])
+  @defaultValue([])
+  oMoves: number[];
+
   @type("string")
   @defaultValue("X")
   turn: string;
@@ -48,15 +56,37 @@ const WIN_LINES = [
   [2, 4, 6],
 ];
 
+function resetState(state: TicTacToeState): void {
+  state.cells = ["", "", "", "", "", "", "", "", ""];
+  state.xMoves = [];
+  state.oMoves = [];
+  state.turn = "X";
+  state.status = "PLAYING";
+  state.cursorIndex = -1;
+  state.currentPlayer = 0;
+}
+
+function applyMove(state: TicTacToeState, cellIndex: number): void {
+  const playerMark = state.turn;
+  const moveHistory = playerMark === "X" ? state.xMoves : state.oMoves;
+
+  if (moveHistory.length >= 3) {
+    const oldestMove = moveHistory.shift();
+    if (oldestMove !== undefined) {
+      state.cells[oldestMove] = "";
+    }
+  }
+
+  state.cells[cellIndex] = playerMark;
+  moveHistory.push(cellIndex);
+}
+
 function checkWinOrDraw(state: TicTacToeState): void {
   for (const [a, b, c] of WIN_LINES) {
     if (state.cells[a] !== "" && state.cells[a] === state.cells[b] && state.cells[b] === state.cells[c]) {
       state.status = state.cells[a] + "_WINS";
       return;
     }
-  }
-  if (state.cells.every((c) => c !== "")) {
-    state.status = "DRAW";
   }
 }
 
@@ -94,10 +124,7 @@ export class TicTacToeSystem extends SystemImpl<GameModel> {
 
   init = (gameModel: GameModel, entity: number) => {
     const state = gameModel.getTypedUnsafe(TicTacToeState, entity);
-    state.cells = ["", "", "", "", "", "", "", "", ""];
-    state.turn = "X";
-    state.status = "PLAYING";
-    state.cursorIndex = -1;
+    resetState(state);
   };
 }
 
@@ -134,7 +161,7 @@ export class TicTacToeUISystem extends DrawSystemImpl<ReadOnlyGameModel> {
           if (mutableState.turn !== playerMark) {
             return; // Not this player's turn
           }
-          mutableState.cells[cellIndex] = mutableState.turn;
+          applyMove(mutableState, cellIndex);
           checkWinOrDraw(mutableState);
           if (mutableState.status === "PLAYING") {
             mutableState.turn = mutableState.turn === "X" ? "O" : "X";
@@ -144,11 +171,7 @@ export class TicTacToeUISystem extends DrawSystemImpl<ReadOnlyGameModel> {
       }
 
       if (eventName === "onRestartClick") {
-        mutableState.cells = ["", "", "", "", "", "", "", "", ""];
-        mutableState.turn = "X";
-        mutableState.status = "PLAYING";
-        mutableState.cursorIndex = -1;
-        mutableState.currentPlayer = 0;
+        resetState(mutableState);
       }
     };
 

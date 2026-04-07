@@ -7,180 +7,176 @@
     },
     children: [
 
-      // ── Board ───────────────────────────────────────────────────────────────
+      // ── Main content ───────────────────────────────────────────────────────
       {
-        id: "boardGrid",
-        type: "Grid",
+        id: "mainContent",
+        type: "HStack",
         anchor: "Center",
-        offset: { x: -100 },
-        width: 271,
-        height: 541,
-        columns: 10,
-        spacing: 1,
-        items: "$$cells",
-        styles: {
-          backgroundColor: "#222222",
-          padding: "1px",
-          borderRadius: "4px",
-          boxSizing: "border-box"
-        },
-        element: {
-          type: "Box",
-          width: 26,
-          height: 26,
-          styles: {
-            backgroundColor: "$$color",
-            borderRadius: "2px"
-          }
-        }
-      },
-
-      // ── Side panel ────────────────────────────────────────────────────────
-      {
-        id: "sidePanel",
-        type: "VStack",
-        anchor: "Center",
-        offset: { x: 150 },
-        width: 160,
-        spacing: 34,
+        width: 470,
+        spacing: 40,
+        alignItems: "Center",
         children: [
-
-          // ── Score ─────────────────────────────────────────────────────────
           {
-            id: "scoreSection",
-            type: "VStack",
-            spacing: 8,
-            children: [
-              {
-                id: "scoreLabel",
-                type: "Text",
-                width: 160,
-                text: "SCORE",
-                styles: {
-                  fontSize: 18,
-                  color: "#aaaaaa",
-                  textAlign: "center"
-                }
-              },
-              {
-                id: "scoreValue",
-                type: "Text",
-                width: 160,
-                text: "$$score",
-                styles: {
-                  fontSize: 26,
-                  color: "#ffffff",
-                  textAlign: "center",
-                  fontWeight: "bold"
-                }
+            id: "boardGrid",
+            type: "Grid",
+            width: 271,
+            height: 541,
+            columns: 10,
+            spacing: 1,
+            items: "$$cells",
+            styles: {
+              backgroundColor: "#222222",
+              padding: "1px",
+              borderRadius: "4px",
+              boxSizing: "border-box"
+            },
+            element: {
+              type: "Box",
+              width: 26,
+              height: 26,
+              styles: {
+                backgroundColor: "$$color",
+                borderRadius: "2px"
               }
-            ]
+            }
           },
-
-          // ── Level ─────────────────────────────────────────────────────────
           {
-            id: "levelSection",
+            id: "sidePanel",
             type: "VStack",
-            spacing: 8,
+            width: 160,
+            spacing: 34,
             children: [
               {
-                id: "levelLabel",
-                type: "Text",
-                width: 160,
-                text: "LEVEL",
-                styles: {
-                  fontSize: 18,
-                  color: "#aaaaaa",
-                  textAlign: "center"
-                }
-              },
-              {
-                id: "levelValue",
-                type: "Text",
-                width: 160,
-                text: "$$level",
-                styles: {
-                  fontSize: 26,
-                  color: "#ffffff",
-                  textAlign: "center",
-                  fontWeight: "bold"
-                }
-              }
-            ]
-          },
-
-          // ── Lines ─────────────────────────────────────────────────────────
-          {
-            id: "linesSection",
-            type: "VStack",
-            spacing: 8,
-            children: [
-              {
-                id: "linesLabel",
-                type: "Text",
-                width: 160,
-                text: "LINES",
-                styles: {
-                  fontSize: 18,
-                  color: "#aaaaaa",
-                  textAlign: "center"
-                }
-              },
-              {
-                id: "linesValue",
-                type: "Text",
-                width: 160,
-                text: "$$lines",
-                styles: {
-                  fontSize: 26,
-                  color: "#ffffff",
-                  textAlign: "center",
-                  fontWeight: "bold"
-                }
-              }
-            ]
-          },
-
-          // ── Next piece ────────────────────────────────────────────────────
-          {
-            id: "nextSection",
-            type: "VStack",
-            spacing: 12,
-            children: [
-              {
-                id: "nextLabel",
-                type: "Text",
-                width: 160,
-                text: "NEXT",
-                styles: {
-                  fontSize: 18,
-                  color: "#aaaaaa",
-                  textAlign: "center"
-                }
-              },
-              {
-                id: "nextGrid",
-                type: "Grid",
-                width: 109,
-                height: 109,
-                columns: 4,
-                spacing: 1,
-                items: "$$nextCells",
-                styles: {
-                  backgroundColor: "#1a1a1a",
-                  padding: "1px",
-                  borderRadius: "4px",
-                  boxSizing: "border-box"
-                },
-                element: {
-                  type: "Box",
-                  width: 26,
-                  height: 26,
-                  styles: {
-                    backgroundColor: "$$color",
-                    borderRadius: "2px"
+                id: "scoreSection",
+                type: "VStack",
+                spacing: 8,
+                children: [
+                  {
+                    id: "scoreLabel",
+                    type: "Text",
+                    width: 160,
+                    text: "SCORE",
+                    styles: {
+                      fontSize: 18,
+                      color: "#aaaaaa",
+                      textAlign: "center"
+                    }
+                  },
+                  {
+                    id: "scoreValue",
+                    type: "Text",
+                    width: 160,
+                    text: "$$score",
+                    styles: {
+                      fontSize: 26,
+                      color: "#ffffff",
+                      textAlign: "center",
+                      fontWeight: "bold"
+                    }
                   }
-                }
+                ]
+              },
+              {
+                id: "levelSection",
+                type: "VStack",
+                spacing: 8,
+                children: [
+                  {
+                    id: "levelLabel",
+                    type: "Text",
+                    width: 160,
+                    text: "LEVEL",
+                    styles: {
+                      fontSize: 18,
+                      color: "#aaaaaa",
+                      textAlign: "center"
+                    }
+                  },
+                  {
+                    id: "levelValue",
+                    type: "Text",
+                    width: 160,
+                    text: "$$level",
+                    styles: {
+                      fontSize: 26,
+                      color: "#ffffff",
+                      textAlign: "center",
+                      fontWeight: "bold"
+                    }
+                  }
+                ]
+              },
+              {
+                id: "linesSection",
+                type: "VStack",
+                spacing: 8,
+                children: [
+                  {
+                    id: "linesLabel",
+                    type: "Text",
+                    width: 160,
+                    text: "LINES",
+                    styles: {
+                      fontSize: 18,
+                      color: "#aaaaaa",
+                      textAlign: "center"
+                    }
+                  },
+                  {
+                    id: "linesValue",
+                    type: "Text",
+                    width: 160,
+                    text: "$$lines",
+                    styles: {
+                      fontSize: 26,
+                      color: "#ffffff",
+                      textAlign: "center",
+                      fontWeight: "bold"
+                    }
+                  }
+                ]
+              },
+              {
+                id: "nextSection",
+                type: "VStack",
+                spacing: 12,
+                children: [
+                  {
+                    id: "nextLabel",
+                    type: "Text",
+                    width: 160,
+                    text: "NEXT",
+                    styles: {
+                      fontSize: 18,
+                      color: "#aaaaaa",
+                      textAlign: "center"
+                    }
+                  },
+                  {
+                    id: "nextGrid",
+                    type: "Grid",
+                    width: 109,
+                    height: 109,
+                    columns: 4,
+                    spacing: 1,
+                    items: "$$nextCells",
+                    styles: {
+                      backgroundColor: "#1a1a1a",
+                      padding: "1px",
+                      borderRadius: "4px",
+                      boxSizing: "border-box"
+                    },
+                    element: {
+                      type: "Box",
+                      width: 26,
+                      height: 26,
+                      styles: {
+                        backgroundColor: "$$color",
+                        borderRadius: "2px"
+                      }
+                    }
+                  }
+                ]
               }
             ]
           }
