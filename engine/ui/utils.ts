@@ -1,24 +1,32 @@
 import type { Vector2d } from "yage/utils/vector";
 import type { Position } from "./Rectangle";
 
+export const getVirtualViewport = () => {
+  const isPortrait = window.innerHeight > window.innerWidth;
+  return isPortrait ? { width: 1080, height: 1920 } : { width: 1920, height: 1080 };
+};
+
 export const toCanvasSpace = (mouseX: number, mouseY: number, element: HTMLElement): Vector2d => {
   const { width, height, top: offsetY, left: offsetX } = element.getBoundingClientRect();
+  const vp = getVirtualViewport();
 
   const xPercentage = (mouseX - offsetX) / width;
   const yPercentage = (mouseY - offsetY) / height;
 
-  return { x: Math.floor(xPercentage * 1920), y: Math.floor(yPercentage * 1080) };
+  return { x: Math.floor(xPercentage * vp.width), y: Math.floor(yPercentage * vp.height) };
 };
 
 export const getViewportScale = () => {
+  const vp = getVirtualViewport();
+  const aspectRatio = vp.width / vp.height;
   let width = window.innerWidth;
-  let height = (window.innerWidth * 9) / 16;
+  let height = window.innerWidth / aspectRatio;
   if (height > window.innerHeight) {
     height = window.innerHeight;
-    width = (window.innerHeight * 16) / 9;
+    width = window.innerHeight * aspectRatio;
   }
 
-  return Math.max(0.3, Math.min(width / 1920, height / 1080));
+  return Math.max(0.3, Math.min(width / vp.width, height / vp.height));
 };
 
 export const scalePxStyleValue = (value: string, scale: number) =>
@@ -145,14 +153,16 @@ export const positionToCanvasSpace = (
 };
 
 export const scaleFont = (fontSize: number, additionalScale: number): number => {
+  const vp = getVirtualViewport();
+  const ar = vp.width / vp.height;
   let width = window.innerWidth;
-  let height = (window.innerWidth * 9) / 16;
+  let height = window.innerWidth / ar;
   if (height > window.innerHeight) {
     height = window.innerHeight;
-    width = (window.innerHeight * 16) / 9;
+    width = window.innerHeight * ar;
   }
 
-  const scale = Math.max(0.3, Math.min(width / 1920, height / 1080));
+  const scale = Math.max(0.3, Math.min(width / vp.width, height / vp.height));
 
   return Math.floor(fontSize * scale * additionalScale);
 };

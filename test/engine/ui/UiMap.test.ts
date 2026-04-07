@@ -1236,6 +1236,57 @@ describe("UiMap — New Features", () => {
     });
   });
 
+  describe("Posspec breakpoints", () => {
+    it("assigns layout rects inside breakpoint branches without explicit ids", () => {
+      Object.defineProperty(window, "innerWidth", { value: 1920, configurable: true });
+      Object.defineProperty(window, "innerHeight", { value: 1080, configurable: true });
+
+      const json = {
+        overlay: {
+          $breakpoint: {
+            landscape: {
+              type: "VStack",
+              anchor: "Center",
+              width: 400,
+              spacing: 20,
+              children: [
+                {
+                  type: "Text",
+                  text: "Title",
+                  width: "fill",
+                  styles: { fontSize: 48, textAlign: "center" },
+                },
+                {
+                  type: "Button",
+                  width: 240,
+                  height: 60,
+                  label: "Play",
+                },
+              ],
+            },
+            portrait: {
+              type: "VStack",
+              anchor: "Center",
+              width: 400,
+              spacing: 20,
+              children: [],
+            },
+          },
+        },
+      };
+
+      const map = buildUiMap(json);
+      const elements = map.build({}, vi.fn());
+      const root = elements.overlay._config.children?.[0];
+      const title = root?._config.children?.[0];
+      const button = root?._config.children?.[1];
+
+      expect(root?.config.layoutRect).toBeDefined();
+      expect(title?.config.layoutRect).toBeDefined();
+      expect(button?.config.layoutRect).toBeDefined();
+    });
+  });
+
   // --------------------------------------------------------------------------
   // Security: sandboxed expressions
   // --------------------------------------------------------------------------

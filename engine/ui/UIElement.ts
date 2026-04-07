@@ -1,7 +1,7 @@
 import type { Position, Rectangle } from "./Rectangle";
 import { isRectangle } from "./Rectangle";
 import { nanoid } from "nanoid";
-import { getViewportScale, positionToCanvasSpace, scalePxStyleValue } from "../ui/utils";
+import { getViewportScale, getVirtualViewport, positionToCanvasSpace, scalePxStyleValue } from "../ui/utils";
 import lodash from "lodash";
 import { UIService } from "./UIService";
 import { InputEventType } from "yage/inputs/InputManager";
@@ -654,11 +654,13 @@ export abstract class UIElement<T extends UIElementConfig = any> {
 
     if (layoutRect) {
       const viewportScale = getViewportScale();
+      const vp = getVirtualViewport();
+      const aspectRatio = vp.width / vp.height;
       let viewportWidth = window.innerWidth;
-      let viewportHeight = (window.innerWidth * 9) / 16;
+      let viewportHeight = window.innerWidth / aspectRatio;
       if (viewportHeight > window.innerHeight) {
         viewportHeight = window.innerHeight;
-        viewportWidth = (window.innerHeight * 16) / 9;
+        viewportWidth = window.innerHeight * aspectRatio;
       }
 
       const parentHasLayoutRect = !!(this.parent && (this.parent.config as any)?.layoutRect);

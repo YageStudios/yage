@@ -207,7 +207,7 @@ const parseCssString = (cssString: string, ctx: any): Partial<CSSStyleDeclaratio
 
 const isStructuralNode = (value: any): boolean => {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  return "$if" in value || "$unless" in value || "$with" in value || "$partial" in value || "$each" in value;
+  return "$if" in value || "$unless" in value || "$with" in value || "$partial" in value || "$each" in value || "$breakpoint" in value;
 };
 
 const generateEventListener = (
@@ -449,6 +449,13 @@ const assignPosspecIds = (value: any, path = "root"): any => {
   if (cloned.content) cloned.content = assignPosspecIds(cloned.content, `${path}-content`);
   if (cloned.then) cloned.then = assignPosspecIds(cloned.then, `${path}-then`);
   if (cloned.else) cloned.else = assignPosspecIds(cloned.else, `${path}-else`);
+  if (cloned.$breakpoint) {
+    cloned.$breakpoint = {
+      ...cloned.$breakpoint,
+      landscape: assignPosspecIds(cloned.$breakpoint.landscape, `${path}-landscape`),
+      portrait: assignPosspecIds(cloned.$breakpoint.portrait, `${path}-portrait`),
+    };
+  }
   if (cloned.element) cloned.element = assignPosspecIds(cloned.element, `${path}-element`);
 
   return cloned;
@@ -504,6 +511,13 @@ const resolvePosspecNodes = (value: any, ctx: any, rootCtx: any): any[] => {
       return [];
     }
     return resolvePosspecNodes(value.content, { ...scoped, $root: rootCtx }, rootCtx);
+  }
+
+  if (value.$breakpoint !== undefined) {
+    const bp = value.$breakpoint;
+    const isPortrait = typeof window !== "undefined" ? window.innerHeight > window.innerWidth : false;
+    const branch = isPortrait ? bp.portrait : bp.landscape;
+    return branch ? resolvePosspecNodes(branch, ctx, rootCtx) : [];
   }
 
   if (value.$each !== undefined) {
@@ -835,6 +849,8 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
     let rootContext: any = null;
     let builtRoots: { [key: string]: UIElement<any> } = {};
     let fontRelayoutRegistered = false;
+    let resizeListenerRegistered = false;
+    let lastOrientation: "portrait" | "landscape" | null = null;
     let activeEventHandler:
       | ((
           playerIndex: number,
@@ -845,11 +861,19 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
         ) => void)
       | null = null;
 
+    const getVirtualViewport = () => {
+      if (typeof window !== "undefined" && window.innerHeight > window.innerWidth) {
+        return { width: 1080, height: 1920 };
+      }
+      return { width: 1920, height: 1080 };
+    };
+
     const runPosspecLayout = () => {
+      const vp = getVirtualViewport();
       for (const value of Object.values(posspecJson)) {
         const resolvedRoots = resolvePosspecNodes(cloneDeep(value), buildContext, rootContext);
         resolvedRoots.forEach((resolvedRoot) => {
-          const layout = computeLayout(resolvedRoot as LayoutNodeConfig, 1920, 1080, measureText);
+          const layout = computeLayout(resolvedRoot as LayoutNodeConfig, vp.width, vp.height, measureText);
           applyPosspecLayoutResult(layout);
         });
       }
@@ -922,6 +946,24 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
       fontRelayoutRegistered = true;
     };
 
+    const ensureResizeRelayout = () => {
+      if (resizeListenerRegistered || typeof window === "undefined") {
+        return;
+      }
+      lastOrientation = window.innerHeight > window.innerWidth ? "portrait" : "landscape";
+      window.addEventListener("resize", () => {
+        if (!activeEventHandler || !buildContext) {
+          return;
+        }
+        const orientation = window.innerHeight > window.innerWidth ? "portrait" : "landscape";
+        if (orientation !== lastOrientation) {
+          lastOrientation = orientation;
+          rebuildPosspecUi();
+        }
+      });
+      resizeListenerRegistered = true;
+    };
+
     const build = (
       context: any,
       eventHandler: (playerIndex: number, eventName: string, eventType: string, context: any, payload?: any) => void
@@ -931,6 +973,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
       activeEventHandler = eventHandler;
       const roots = rebuildPosspecUi();
       ensurePosspecFontRelayout();
+      ensureResizeRelayout();
       return roots;
     };
 
@@ -971,7 +1014,10 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
       if (!resolvedRoot) {
         continue;
       }
-      const layout = computeLayout(resolvedRoot as LayoutNodeConfig, 1920, 1080, measureText);
+      const isPortrait = typeof window !== "undefined" && window.innerHeight > window.innerWidth;
+      const vpW = isPortrait ? 1080 : 1920;
+      const vpH = isPortrait ? 1920 : 1080;
+      const layout = computeLayout(resolvedRoot as LayoutNodeConfig, vpW, vpH, measureText);
       applyPosspecLayoutResult(layout);
     }
   };
