@@ -1,17 +1,20 @@
-<Box width="1024" x="left" xOffset="300" height="1024" y="top" yOffset="100">
-  <Grid items="{{ items }}" width="100%" yOffset="30" height="90%" x="left" y="top" gap="5px">
-    <Box
+<Canvas width="1024" height="1024" anchor="TopLeft" pivot="TopLeft" offset-x="300" offset-y="100">
+  <Grid items="{{ items }}" columns="4" spacing="5" anchor="TopLeft" pivot="TopLeft"
+        offset-y="30" maxWidth="fill" maxHeight="fill">
+    <VStack
       width="230"
       height="600"
       style="border-width: 2px; border-style: solid; border-color: magenta"
       focusStyle="border-color: blue; border-radius: 5px;"
       focusable="true"
       onclick="selectItem"
+      alignItems="Center"
+      spacing="10"
     >
-      <Image x="center" y="center" height="60%" width="60%" imageKey="{{ data.imageKey }}" />
-      <Text x="center" y="top">
+      <Image anchor="Center" pivot="Center" height="60%" width="60%" imageKey="{{ data.imageKey }}" />
+      <Text anchor="TopCenter" pivot="TopCenter">
         {{ name }}
       </Text>
-    </Box>
+    </VStack>
   </Grid>
-</Box>
+</Canvas>

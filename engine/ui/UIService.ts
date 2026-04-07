@@ -56,28 +56,39 @@ export class UIService {
       return 0;
     }
 
+    if (element) {
+      const focusedIndices = this.elementFocusIndices(element);
+      if (focusedIndices.length > 0) {
+        return focusedIndices[0];
+      }
+    }
+
     if (element && eventType === InputEventType.TOUCH) {
-      const touchUsers = this.playerInputs.filter(([type]) => type === InputEventType.TOUCH);
-      for (let i = 0; i < touchUsers.length; i++) {
-        const focusables = this.getFocusables(i);
+      const touchUsers = this.playerInputs
+        .map(([type], index) => (type === InputEventType.TOUCH ? index : -1))
+        .filter((index) => index !== -1);
+      for (const playerIndex of touchUsers) {
+        const focusables = this.getFocusables(playerIndex);
         if (focusables.includes(element._element!)) {
-          return i;
+          return playerIndex;
         }
       }
     }
 
     if (element && eventType === InputEventType.MOUSE) {
-      const mouseUsers = this.playerInputs.filter(([type]) => type === InputEventType.MOUSE);
-      for (let i = 0; i < mouseUsers.length; i++) {
-        const focusables = this.getFocusables(i);
+      const mouseUsers = this.playerInputs
+        .map(([type], index) => (type === InputEventType.MOUSE ? index : -1))
+        .filter((index) => index !== -1);
+      for (const playerIndex of mouseUsers) {
+        const focusables = this.getFocusables(playerIndex);
         if (focusables.includes(element._element!)) {
-          return i;
+          return playerIndex;
         }
       }
     }
 
     for (let i = 0; i < this.playerInputs.length; i++) {
-      if (eventType === InputEventType.MOUSE && this.playerInputs[i][0] === InputEventType.KEYBOARD) {
+      if (!element && eventType === InputEventType.MOUSE && this.playerInputs[i][0] === InputEventType.KEYBOARD) {
         return i;
       }
       if (this.playerInputs[i][0] === eventType && this.playerInputs[i][1] === inputIndex) {
@@ -269,8 +280,18 @@ export class UIService {
       }, 100);
     });
 
-    window.addEventListener("mousemove", () => {
+    window.addEventListener("mousemove", (event) => {
       this.lastMouseMove = +new Date();
+
+      const hovered = document.elementFromPoint(event.clientX, event.clientY)?.closest(".focusable") as HTMLElement | null;
+      if (!hovered) {
+        return;
+      }
+
+      const mapped = this.mappedIds[hovered.id];
+      if (mapped && !mapped.destroyed) {
+        this.attemptMouseFocus(mapped);
+      }
     });
   }
 
@@ -583,9 +604,7 @@ export class UIService {
 
   debouncedFocusCheck = debounce(
     () => {
-      const playerIndices = this.playerInputs.map(([, index]) => index);
-      for (let i = 0; i < playerIndices.length; i++) {
-        const playerIndex = playerIndices[i];
+      for (let playerIndex = 0; playerIndex < this.playerInputs.length; playerIndex++) {
         this.attemptAutoFocus(playerIndex);
       }
     },

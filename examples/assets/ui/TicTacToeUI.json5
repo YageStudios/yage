@@ -1,129 +1,122 @@
 {
   root: {
-    type: "box",
-    rect: {
-      x: "full",
-      y: "full"
+    type: "Canvas",
+    styles: {
+      background: "linear-gradient(180deg, #172033 0%, #0f141f 100%)",
+      border: "none"
     },
-    config: {
-      style: {
-        background: "linear-gradient(180deg, #172033 0%, #0f141f 100%)",
-        border: "none"
-      }
-    },
-    children: {
-      statusText: {
-        type: "text",
-        rect: {
-          x: "center",
-          y: "top",
-          width: "100%",
-          yOffset: 100
-        },
-        config: {
-          label: "$$statusMessage",
-          fontSize: 48,
-          style: {
-            color: "#ffffff",
-            textShadow: "2px 2px 4px #000000"
-          }
-        }
-      },
-      playerText: {
-        type: "text",
-        rect: {
-          x: "center",
-          y: "top",
-          width: "100%",
-          yOffset: 140
-        },
-        config: {
-          label: "current player $$currentPlayer",
-          fontSize: 48,
-          style: {
-            color: "#ffffff",
-            textShadow: "2px 2px 4px #000000"
-          }
-        }
-      },
-      boardGrid: {
-        type: "grid",
-        rect: {
-          x: "center",
-          y: "center",
-          width: 300,
-          height: 300
-        },
-        config: {
-          captureFocus: "$$currentPlayer",
-          gap: "5px",
-          style: {
-            backgroundColor: "#222222",
-            padding: "5px",
-            borderRadius: "8px"
-          }
-        },
-        items: "$$cells",
-        element: {
-          type: "button",
-          rect: {
-            width: 93,
-            height: 93
+    children: [
+
+      // ── Main column ────────────────────────────────────────────────────────
+      {
+        type: "VStack",
+        id: "mainColumn",
+        anchor: "Center",
+        offset: { y: -20 },
+        width: 340,
+        height: 430,
+        spacing: 32,
+        alignItems: "Center",
+        justifyContent: "Center",
+        children: [
+          {
+            type: "VStack",
+            id: "topInfo",
+            width: "fill",
+            spacing: 10,
+            alignItems: "Center",
+            children: [
+              {
+                type: "Text",
+                id: "statusText",
+                text: "$$statusMessage",
+                styles: {
+                  fontSize: 48,
+                  color: "#ffffff",
+                  textShadow: "2px 2px 4px #000000"
+                }
+              },
+              {
+                type: "Text",
+                id: "playerText",
+                text: "current player $$currentPlayer",
+                styles: {
+                  fontSize: 48,
+                  color: "#ffffff",
+                  textShadow: "2px 2px 4px #000000"
+                }
+              }
+            ]
           },
-          config: {
-            label: "$$mark",
-            fontSize: 64,
-            focusable: true,
-            autoFocus: true,
-            style: {
-              backgroundColor: "#444444",
-              color: "#ffffff",
-              borderRadius: "4px",
-              cursor: "pointer"
+          {
+            type: "Grid",
+            id: "boardGrid",
+            columns: 3,
+            spacing: 5,
+            width: 300,
+            height: 300,
+            captureFocus: "$$currentPlayer",
+            padding: 5,
+            styles: {
+              backgroundColor: "#222222",
+              borderRadius: "8px"
             },
-            focusStyle: {
-              backgroundColor: "#666666",
-              outline: "3px solid #2FA6FF"
+            items: "$$cells",
+            element: {
+              type: "Button",
+              label: "$$mark",
+              width: 93,
+              height: 93,
+              focusable: true,
+              autoFocus: true,
+              styles: {
+                fontSize: 64,
+                backgroundColor: "#444444",
+                color: "#ffffff",
+                borderRadius: "4px",
+                cursor: "pointer"
+              },
+              focusStyle: {
+                backgroundColor: "#666666",
+                outline: "3px solid #2FA6FF"
+              },
+              events: {
+                click: "onCellClick"
+              }
             }
-          },
-          events: {
-            click: "onCellClick"
           }
-        }
+        ]
       },
 
-      resetButton: {
+      // ── Reset Button (bottom) ──────────────────────────────────────────────
+      {
         $if: "showReset",
         then: {
-          type: "button",
-          rect: {
-            x: "center",
-            y: "bottom",
-            yOffset: -100,
-            width: 200,
-            height: 60
-          },
-          config: {
-            label: "Restart Game",
+          type: "Button",
+          id: "resetButton",
+          anchor: "BottomCenter",
+          offset: { y: -100 },
+          width: 200,
+          height: 60,
+          label: "Restart Game",
+          focusable: true,
+          autoFocus: true,
+          styles: {
             fontSize: 28,
-            focusable: true,
-            autoFocus: true,
-            style: {
-              backgroundColor: "#4CAF50",
-              color: "#ffffff",
-              borderRadius: "8px",
-              cursor: "pointer"
-            },
-            focusStyle: {
-              backgroundColor: "#45a049",
-              outline: "3px solid #2FA6FF"
-            }
+            backgroundColor: "#4CAF50",
+            color: "#ffffff",
+            borderRadius: "8px",
+            cursor: "pointer"
+          },
+          focusStyle: {
+            backgroundColor: "#45a049",
+            outline: "3px solid #2FA6FF"
           },
           events: {
             click: "onRestartClick"
           }
         }
       }
-    }
+    ]
   }
 }

@@ -1,298 +1,254 @@
 {
   root: {
-    type: "box",
-    rect: {
-      x: "full",
-      y: "full"
+    type: "Canvas",
+    styles: {
+      background: "linear-gradient(180deg, #0d1117 0%, #0a0a0a 100%)",
+      border: "none"
     },
-    config: {
-      style: {
-        background: "linear-gradient(180deg, #0d1117 0%, #0a0a0a 100%)",
-        border: "none"
-      }
-    },
-    children: {
+    children: [
 
       // ── Board ───────────────────────────────────────────────────────────────
-      boardGrid: {
-        type: "grid",
-        rect: {
-          x: "center",
-          y: "center",
-          xOffset: -100,
-          width: 271,
-          height: 541
-        },
-        config: {
-          gap: "1px",
-          style: {
-            backgroundColor: "#222222",
-            padding: "1px",
-            borderRadius: "4px",
-            boxSizing: "border-box"
-          }
-        },
+      {
+        id: "boardGrid",
+        type: "Grid",
+        anchor: "Center",
+        offset: { x: -100 },
+        width: 271,
+        height: 541,
+        columns: 10,
+        spacing: 1,
         items: "$$cells",
+        styles: {
+          backgroundColor: "#222222",
+          padding: "1px",
+          borderRadius: "4px",
+          boxSizing: "border-box"
+        },
         element: {
-          type: "box",
-          rect: {
-            width: 26,
-            height: 26
+          type: "Box",
+          width: 26,
+          height: 26,
+          styles: {
+            backgroundColor: "$$color",
+            borderRadius: "2px"
+          }
+        }
+      },
+
+      // ── Side panel ────────────────────────────────────────────────────────
+      {
+        id: "sidePanel",
+        type: "VStack",
+        anchor: "Center",
+        offset: { x: 150 },
+        width: 160,
+        spacing: 34,
+        children: [
+
+          // ── Score ─────────────────────────────────────────────────────────
+          {
+            id: "scoreSection",
+            type: "VStack",
+            spacing: 8,
+            children: [
+              {
+                id: "scoreLabel",
+                type: "Text",
+                width: 160,
+                text: "SCORE",
+                styles: {
+                  fontSize: 18,
+                  color: "#aaaaaa",
+                  textAlign: "center"
+                }
+              },
+              {
+                id: "scoreValue",
+                type: "Text",
+                width: 160,
+                text: "$$score",
+                styles: {
+                  fontSize: 26,
+                  color: "#ffffff",
+                  textAlign: "center",
+                  fontWeight: "bold"
+                }
+              }
+            ]
           },
-          config: {
-            style: {
-              backgroundColor: "$$color",
-              borderRadius: "2px"
-            }
-          }
-        }
-      },
 
-      // ── Side panel: Score ───────────────────────────────────────────────────
-      scoreLabel: {
-        type: "text",
-        rect: {
-          x: "center",
-          y: "center",
-          xOffset: 150,
-          yOffset: -160,
-          width: 160
-        },
-        config: {
-          label: "SCORE",
-          fontSize: 18,
-          style: {
-            color: "#aaaaaa",
-            textAlign: "center"
-          }
-        }
-      },
-      scoreValue: {
-        type: "text",
-        rect: {
-          x: "center",
-          y: "center",
-          xOffset: 150,
-          yOffset: -128,
-          width: 160
-        },
-        config: {
-          label: "$$score",
-          fontSize: 26,
-          style: {
-            color: "#ffffff",
-            textAlign: "center",
-            fontWeight: "bold"
-          }
-        }
-      },
-
-      // ── Side panel: Level ───────────────────────────────────────────────────
-      levelLabel: {
-        type: "text",
-        rect: {
-          x: "center",
-          y: "center",
-          xOffset: 150,
-          yOffset: -60,
-          width: 160
-        },
-        config: {
-          label: "LEVEL",
-          fontSize: 18,
-          style: {
-            color: "#aaaaaa",
-            textAlign: "center"
-          }
-        }
-      },
-      levelValue: {
-        type: "text",
-        rect: {
-          x: "center",
-          y: "center",
-          xOffset: 150,
-          yOffset: -28,
-          width: 160
-        },
-        config: {
-          label: "$$level",
-          fontSize: 26,
-          style: {
-            color: "#ffffff",
-            textAlign: "center",
-            fontWeight: "bold"
-          }
-        }
-      },
-
-      // ── Side panel: Lines ───────────────────────────────────────────────────
-      linesLabel: {
-        type: "text",
-        rect: {
-          x: "center",
-          y: "center",
-          xOffset: 150,
-          yOffset: 40,
-          width: 160
-        },
-        config: {
-          label: "LINES",
-          fontSize: 18,
-          style: {
-            color: "#aaaaaa",
-            textAlign: "center"
-          }
-        }
-      },
-      linesValue: {
-        type: "text",
-        rect: {
-          x: "center",
-          y: "center",
-          xOffset: 150,
-          yOffset: 72,
-          width: 160
-        },
-        config: {
-          label: "$$lines",
-          fontSize: 26,
-          style: {
-            color: "#ffffff",
-            textAlign: "center",
-            fontWeight: "bold"
-          }
-        }
-      },
-
-      // ── Side panel: Next piece ──────────────────────────────────────────────
-      nextLabel: {
-        type: "text",
-        rect: {
-          x: "center",
-          y: "center",
-          xOffset: 150,
-          yOffset: 140,
-          width: 160
-        },
-        config: {
-          label: "NEXT",
-          fontSize: 18,
-          style: {
-            color: "#aaaaaa",
-            textAlign: "center"
-          }
-        }
-      },
-      nextGrid: {
-        type: "grid",
-        rect: {
-          x: "center",
-          y: "center",
-          xOffset: 150,
-          yOffset: 200,
-          width: 109,
-          height: 109
-        },
-        config: {
-          gap: "1px",
-          style: {
-            backgroundColor: "#1a1a1a",
-            padding: "1px",
-            borderRadius: "4px",
-            boxSizing: "border-box"
-          }
-        },
-        items: "$$nextCells",
-        element: {
-          type: "box",
-          rect: {
-            width: 26,
-            height: 26
+          // ── Level ─────────────────────────────────────────────────────────
+          {
+            id: "levelSection",
+            type: "VStack",
+            spacing: 8,
+            children: [
+              {
+                id: "levelLabel",
+                type: "Text",
+                width: 160,
+                text: "LEVEL",
+                styles: {
+                  fontSize: 18,
+                  color: "#aaaaaa",
+                  textAlign: "center"
+                }
+              },
+              {
+                id: "levelValue",
+                type: "Text",
+                width: 160,
+                text: "$$level",
+                styles: {
+                  fontSize: 26,
+                  color: "#ffffff",
+                  textAlign: "center",
+                  fontWeight: "bold"
+                }
+              }
+            ]
           },
-          config: {
-            style: {
-              backgroundColor: "$$color",
-              borderRadius: "2px"
-            }
+
+          // ── Lines ─────────────────────────────────────────────────────────
+          {
+            id: "linesSection",
+            type: "VStack",
+            spacing: 8,
+            children: [
+              {
+                id: "linesLabel",
+                type: "Text",
+                width: 160,
+                text: "LINES",
+                styles: {
+                  fontSize: 18,
+                  color: "#aaaaaa",
+                  textAlign: "center"
+                }
+              },
+              {
+                id: "linesValue",
+                type: "Text",
+                width: 160,
+                text: "$$lines",
+                styles: {
+                  fontSize: 26,
+                  color: "#ffffff",
+                  textAlign: "center",
+                  fontWeight: "bold"
+                }
+              }
+            ]
+          },
+
+          // ── Next piece ────────────────────────────────────────────────────
+          {
+            id: "nextSection",
+            type: "VStack",
+            spacing: 12,
+            children: [
+              {
+                id: "nextLabel",
+                type: "Text",
+                width: 160,
+                text: "NEXT",
+                styles: {
+                  fontSize: 18,
+                  color: "#aaaaaa",
+                  textAlign: "center"
+                }
+              },
+              {
+                id: "nextGrid",
+                type: "Grid",
+                width: 109,
+                height: 109,
+                columns: 4,
+                spacing: 1,
+                items: "$$nextCells",
+                styles: {
+                  backgroundColor: "#1a1a1a",
+                  padding: "1px",
+                  borderRadius: "4px",
+                  boxSizing: "border-box"
+                },
+                element: {
+                  type: "Box",
+                  width: 26,
+                  height: 26,
+                  styles: {
+                    backgroundColor: "$$color",
+                    borderRadius: "2px"
+                  }
+                }
+              }
+            ]
           }
-        }
+        ]
       },
 
       // ── Controls hint ───────────────────────────────────────────────────────
-      controlsHint: {
-        type: "text",
-        rect: {
-          x: "center",
-          y: "bottom",
-          yOffset: -30,
-          width: 400
-        },
-        config: {
-          label: "← → move  ↑ rotate  ↓ soft drop  space hard drop",
+      {
+        id: "controlsHint",
+        type: "Text",
+        anchor: "BottomCenter",
+        offset: { y: -30 },
+        width: 400,
+        text: "← → move  ↑ rotate  ↓ soft drop  space hard drop",
+        styles: {
           fontSize: 14,
-          style: {
-            color: "#555555",
-            textAlign: "center"
-          }
+          color: "#555555",
+          textAlign: "center"
         }
       },
 
       // ── Game Over overlay ───────────────────────────────────────────────────
-      gameOverText: {
+      {
+        id: "gameOverGroup",
         $if: "showGameOver",
         then: {
-          type: "text",
-          rect: {
-            x: "center",
-            y: "center",
-            yOffset: -60,
-            width: 500
-          },
-          config: {
-            label: "GAME OVER",
-            fontSize: 64,
-            style: {
-              color: "#ff4444",
-              textAlign: "center",
-              textShadow: "0 0 20px #ff0000"
-            }
-          }
-        }
-      },
-
-      restartButton: {
-        $if: "showGameOver",
-        then: {
-          type: "button",
-          rect: {
-            x: "center",
-            y: "center",
-            yOffset: 40,
-            width: 220,
-            height: 64
-          },
-          config: {
-            label: "Play Again",
-            fontSize: 28,
-            focusable: true,
-            autoFocus: true,
-            style: {
-              backgroundColor: "#4CAF50",
-              color: "#ffffff",
-              borderRadius: "8px",
-              cursor: "pointer"
+          type: "VStack",
+          anchor: "Center",
+          spacing: 24,
+          children: [
+            {
+              id: "gameOverText",
+              type: "Text",
+              width: 500,
+              text: "GAME OVER",
+              styles: {
+                fontSize: 64,
+                color: "#ff4444",
+                textAlign: "center",
+                textShadow: "0 0 20px #ff0000"
+              }
             },
-            focusStyle: {
-              backgroundColor: "#45a049",
-              outline: "3px solid #2FA6FF"
+            {
+              id: "restartButton",
+              type: "Button",
+              width: 220,
+              height: 64,
+              label: "Play Again",
+              focusable: true,
+              autoFocus: true,
+              styles: {
+                fontSize: 28,
+                backgroundColor: "#4CAF50",
+                color: "#ffffff",
+                borderRadius: "8px",
+                cursor: "pointer"
+              },
+              focusStyle: {
+                backgroundColor: "#45a049",
+                outline: "3px solid #2FA6FF"
+              },
+              events: {
+                click: "onRestartClick"
+              }
             }
-          },
-          events: {
-            click: "onRestartClick"
-          }
+          ]
         }
       }
-    }
+    ]
   }
 }

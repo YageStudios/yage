@@ -1291,7 +1291,7 @@ export class UiMapNext {
   }
 
   private watchStyleAttributes(attribute: Record<string, any>, element: UIElement, contextPath: string[]): void {
-    const styleAttributes = ["style", "focusStyle", "hoverStyle", "activeStyle", "disabledStyle"];
+    const styleAttributes = ["style", "styles", "focusStyle", "hoverStyle", "activeStyle", "disabledStyle"];
 
     for (const styleAttr of styleAttributes) {
       const originalStyleValue = attribute[styleAttr] || "";
@@ -1450,13 +1450,19 @@ export class UiMapNext {
     Object.entries(attributes).forEach(([attrKey, value]) => {
       if (value === null || value === undefined) return;
       if (styleAttributes.includes(attrKey)) {
+        const targetKey = attrKey === "styles" ? "style" : attrKey;
         if (typeof attributes[attrKey] === "string") {
-          config[attrKey] = { ...config[attrKey], ...this.generateStyleAttribute(attributes[attrKey], contextPath) };
+          config[targetKey] = { ...config[targetKey], ...this.generateStyleAttribute(attributes[attrKey], contextPath) };
           stylesGenerated = true;
         } else {
-          config[attrKey] = attributes[attrKey];
+          config[targetKey] = attributes[attrKey];
         }
-      } else if (!eventAttributes.includes(attrKey) && attrKey !== "items" && !positionAttributes.includes(attrKey)) {
+      } else if (
+        !eventAttributes.includes(attrKey) &&
+        attrKey !== "items" &&
+        !positionAttributes.includes(attrKey) &&
+        !["anchor", "pivot", "offset-x", "offset-y", "spacing", "alignItems", "justifyContent", "overflow", "columns", "flex", "padding"].includes(attrKey)
+      ) {
         const originalValue = value;
         let variablesInExpression: string[] = [];
         const processedValue = this.processTemplateString(
@@ -1495,7 +1501,69 @@ export class UiMapNext {
       config.y = parseFloat(config.y);
     }
 
-    if (tag === "Grid") {
+    // POSSPEC tag handling
+    const posspecTags: Record<string, string> = {
+      Canvas: "box",
+      VStack: "box",
+      HStack: "box",
+      Box: "box",
+      Grid: "box",
+      Text: "text",
+      Button: "button",
+      Image: "image",
+      Input: "input",
+    };
+
+    if (tag === "Canvas") {
+      position.x = "full" as any;
+      position.y = "full" as any;
+      uiElement = new Box(position, config);
+    } else if (tag === "VStack" || tag === "HStack") {
+      if (!config.style) config.style = {};
+      config.style.display = "flex";
+      config.style.flexDirection = tag === "VStack" ? "column" : "row";
+      config.style.overflow = config.style.overflow || "visible";
+      config.style.pointerEvents = config.style.pointerEvents || "none";
+
+      // Map POSSPEC attributes
+      if (attributes.spacing) {
+        const spacing = this.processTemplateString(attributes.spacing, undefined, this.context, contextPath);
+        config.style.gap = `${spacing}px`;
+      }
+      if (attributes.padding !== undefined) {
+        const padding = this.processTemplateString(attributes.padding, undefined, this.context, contextPath);
+        config.style.padding = /^\d+(\.\d+)?$/.test(String(padding)) ? `${padding}px` : padding;
+      }
+      if (attributes.flex !== undefined) {
+        const flex = this.processTemplateString(attributes.flex, undefined, this.context, contextPath);
+        config.style.flex = String(flex);
+        config.style.position = config.style.position || "relative";
+      }
+      if (attributes.alignItems) {
+        const alignMap: Record<string, string> = {
+          Start: "flex-start", Center: "center", End: "flex-end", Stretch: "stretch",
+        };
+        config.style.alignItems = alignMap[attributes.alignItems] || "flex-start";
+      }
+      if (attributes.justifyContent) {
+        const justifyMap: Record<string, string> = {
+          Start: "flex-start", Center: "center", End: "flex-end", SpaceBetween: "space-between",
+        };
+        config.style.justifyContent = justifyMap[attributes.justifyContent] || "flex-start";
+      }
+      if (attributes.overflow === "Scale") {
+        config.style.overflow = "visible";
+      } else if (attributes.overflow === "Hidden") {
+        config.style.overflow = "hidden";
+      } else if (attributes.overflow === "Scroll") {
+        config.style.overflow = "auto";
+      }
+
+      // Map anchor to position
+      this.applyAnchorToPosition(attributes, position);
+
+      uiElement = new Box(position, config);
+    } else if (tag === "Grid") {
       config.renderOnScroll = true;
       config.style = {
         border: "none",
@@ -1510,11 +1578,47 @@ export class UiMapNext {
         ...config.style,
       };
 
+      if (attributes.spacing) {
+        const spacing = this.processTemplateString(attributes.spacing, undefined, this.context, contextPath);
+        config.style.gap = `${spacing}px`;
+      }
+      if (attributes.padding !== undefined) {
+        const padding = this.processTemplateString(attributes.padding, undefined, this.context, contextPath);
+        config.style.padding = /^\d+(\.\d+)?$/.test(String(padding)) ? `${padding}px` : padding;
+      }
+      if (attributes.flex !== undefined) {
+        const flex = this.processTemplateString(attributes.flex, undefined, this.context, contextPath);
+        config.style.flex = String(flex);
+        config.style.position = config.style.position || "relative";
+      }
+
+      // Map anchor to position
+      this.applyAnchorToPosition(attributes, position);
+
       uiElement = new Box(position, config);
     } else {
+      if (attributes.padding !== undefined) {
+        const padding = this.processTemplateString(attributes.padding, undefined, this.context, contextPath);
+        config.style = {
+          ...config.style,
+          padding: /^\d+(\.\d+)?$/.test(String(padding)) ? `${padding}px` : padding,
+        };
+      }
+      if (attributes.flex !== undefined) {
+        const flex = this.processTemplateString(attributes.flex, undefined, this.context, contextPath);
+        config.style = {
+          ...config.style,
+          flex: String(flex),
+          position: config.style?.position || "relative",
+        };
+      }
+
+      // Map anchor for any element
+      this.applyAnchorToPosition(attributes, position);
+
       uiElement = createByType({
         rect: position,
-        type: tag.toLowerCase() as any,
+        type: (posspecTags[tag] || tag.toLowerCase()) as any,
         config,
       });
     }
@@ -1528,6 +1632,31 @@ export class UiMapNext {
     this.watchPositionVariables(positionVariablesToWatch, uiElement);
 
     return uiElement;
+  }
+
+  private applyAnchorToPosition(attributes: Record<string, any>, position: Position): void {
+    if (attributes.anchor) {
+      const anchorMap: Record<string, { x: string; y: string }> = {
+        TopLeft: { x: "left", y: "top" },
+        TopCenter: { x: "center", y: "top" },
+        TopRight: { x: "right", y: "top" },
+        MiddleLeft: { x: "left", y: "center" },
+        Center: { x: "center", y: "center" },
+        MiddleRight: { x: "right", y: "center" },
+        BottomLeft: { x: "left", y: "bottom" },
+        BottomCenter: { x: "center", y: "bottom" },
+        BottomRight: { x: "right", y: "bottom" },
+      };
+      const mapped = anchorMap[attributes.anchor] ?? { x: "center", y: "center" };
+      position.x = mapped.x as any;
+      position.y = mapped.y as any;
+    }
+    if (attributes["offset-x"]) {
+      position.xOffset = parseFloat(attributes["offset-x"]) as any;
+    }
+    if (attributes["offset-y"]) {
+      position.yOffset = parseFloat(attributes["offset-y"]) as any;
+    }
   }
 
   private extractEventHandlers(attributes: Record<string, any>): Record<string, string> {
@@ -1654,13 +1783,27 @@ export class UiMapNext {
     let positionVariablesToWatch: [string[], string, string, string[]][] = [];
 
     const positionAttributes = ["x", "y", "width", "height", "maxHeight", "maxWidth", "minHeight", "minWidth"];
-    const styleAttributes = ["style", "focusStyle", "hoverStyle", "activeStyle", "disabledStyle"];
+    const styleAttributes = ["style", "styles", "focusStyle", "hoverStyle", "activeStyle", "disabledStyle"];
 
     Object.entries(attributes).forEach(([attrKey, value]) => {
       if (value === null || value === undefined) return;
       if (styleAttributes.includes(attrKey)) {
-        uiElement.config[attrKey] = this.generateStyleAttribute(attributes[attrKey], contextPath);
+        const targetKey = attrKey === "styles" ? "style" : attrKey;
+        uiElement.config[targetKey] = this.generateStyleAttribute(attributes[attrKey], contextPath);
         this.watchStyleAttributes(attributes, uiElement, contextPath);
+      } else if (attrKey === "padding") {
+        const processedValue = this.processTemplateString(value, undefined, context, contextPath);
+        uiElement.config.style = {
+          ...uiElement.config.style,
+          padding: /^\d+(\.\d+)?$/.test(String(processedValue)) ? `${processedValue}px` : processedValue,
+        };
+      } else if (attrKey === "flex") {
+        const processedValue = this.processTemplateString(value, undefined, context, contextPath);
+        uiElement.config.style = {
+          ...uiElement.config.style,
+          flex: String(processedValue),
+          position: uiElement.config.style?.position || "relative",
+        };
       } else if (!positionAttributes.includes(attrKey)) {
         const originalValue = value;
         let variablesInExpression: string[] = [];

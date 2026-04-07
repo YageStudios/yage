@@ -5,8 +5,37 @@ import { getViewportScale, positionToCanvasSpace, scalePxStyleValue } from "../u
 import lodash from "lodash";
 import { UIService } from "./UIService";
 import { InputEventType } from "yage/inputs/InputManager";
+import { isSyntheticMouseEvent, markTouchInteraction } from "yage/inputs/TouchMouseGuard";
 
 const { debounce } = lodash;
+
+const PLAYER_FOCUS_COLORS = ["#3498db", "#e74c3c", "#2ecc71", "#f39c12"];
+
+const applyPlayerFocusStyle = (
+  style: Partial<CSSStyleDeclaration>,
+  focusIndices: number[]
+): Partial<CSSStyleDeclaration> => {
+  if (focusIndices.length === 0) {
+    return {
+      ...style,
+      outlineColor: style.outlineColor ?? "",
+      boxShadow: style.boxShadow ?? "",
+    };
+  }
+
+  const focusColors = [...new Set(focusIndices)]
+    .filter((index) => index >= 0)
+    .map((index) => PLAYER_FOCUS_COLORS[index % PLAYER_FOCUS_COLORS.length]);
+
+  const baseShadow = style.boxShadow ? [style.boxShadow] : [];
+  const ringShadows = focusColors.map((color, index) => `0 0 0 ${2 + index * 3}px ${color}`);
+
+  return {
+    ...style,
+    outlineColor: focusColors[0] ?? style.outlineColor ?? "",
+    boxShadow: [...baseShadow, ...ringShadows].join(", "),
+  };
+};
 
 export type UIElementConfig = {
   style: Partial<CSSStyleDeclaration>;
@@ -21,6 +50,13 @@ export type UIElementConfig = {
   scale?: number;
   scaleX?: number;
   scaleY?: number;
+  layoutRect?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  layoutScale?: number;
 };
 
 export type RootUIElement = {
@@ -53,9 +89,8 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   destroyed: boolean;
   uiService: UIService;
 
-  cachedStyle: Partial<CSSStyleDeclaration> | undefined;
-  focusedStyle: Partial<CSSStyleDeclaration> | undefined;
   focusedIndices: number[] = [];
+  protected lastPointerType: string | null = null;
 
   get id() {
     return this._id;
@@ -120,6 +155,16 @@ export abstract class UIElement<T extends UIElementConfig = any> {
           this._element.classList.remove("autoFocus");
         }
       }
+      return;
+    }
+    if (key === "layoutRect") {
+      (this._config as any).layoutRect = value;
+      this.update();
+      return;
+    }
+    if (key === "layoutScale") {
+      (this._config as any).layoutScale = value;
+      this.update();
       return;
     }
     (this._config as any)[key as keyof T] = value;
@@ -290,9 +335,6 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     if (playerIndex === -1) {
       return;
     }
-    if (!forced && this.uiService.lastMouseMove + 200 < +new Date()) {
-      return;
-    }
 
     let mouseInBounds = true;
 
@@ -326,10 +368,21 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     if (playerIndex === -1) {
       return;
     }
-    if (this.uiService.lastMouseMove + 200 < +new Date()) {
-      return;
-    }
     return this.onMouseLeaveInternal(playerIndex);
+  }
+
+  protected recordPointerInteraction(pointerType: string | null | undefined, timestamp?: number): void {
+    this.lastPointerType = pointerType ?? null;
+    if (pointerType === "touch") {
+      markTouchInteraction(timestamp);
+    }
+  }
+
+  protected getClickInputType(): InputEventType {
+    if (this.lastPointerType === "touch" || isSyntheticMouseEvent()) {
+      return InputEventType.TOUCH;
+    }
+    return InputEventType.MOUSE;
   }
 
   protected abstract onClickInternal(playerIndex: number): void | boolean;
@@ -342,6 +395,10 @@ export abstract class UIElement<T extends UIElementConfig = any> {
 
   onDestroy(noUpdate?: boolean) {
     this.destroyed = true;
+    const focusedIndices = this.uiService.elementFocusIndices(this);
+    focusedIndices.forEach((playerIndex) => {
+      this.uiService.clearFocusedElementByPlayerIndex(playerIndex);
+    });
     delete this.uiService.mappedIds[this._id];
     this.removeElement(noUpdate);
     this?.parent?.removeChild(this);
@@ -387,19 +444,29 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   }
 
   addEvents(element: HTMLElement) {
+    element.onpointerdown = (e) => {
+      this.recordPointerInteraction(e.pointerType, Date.now());
+    };
     element.onclick = (e) => {
-      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0, this);
+      const inputType = this.getClickInputType();
+      const playerIndex = this.uiService.getPlayerEventIndex(inputType, 0, this);
       if (playerIndex === -1) {
         e.stopPropagation();
         return;
       }
-      this.onMouseEnter(e, true);
+      if (inputType === InputEventType.MOUSE) {
+        this.onMouseEnter(e, true);
+      }
       const res = this.onClickInternal(playerIndex);
       if (res === false) {
         e.stopPropagation();
       }
     };
     element.onmousedown = (e) => {
+      if (isSyntheticMouseEvent()) {
+        e.stopPropagation();
+        return;
+      }
       const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0, this);
       if (playerIndex === -1) {
         e.stopPropagation();
@@ -411,6 +478,10 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       }
     };
     element.onmouseup = (e) => {
+      if (isSyntheticMouseEvent()) {
+        e.stopPropagation();
+        return;
+      }
       const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0, this);
       if (playerIndex === -1) {
         e.stopPropagation();
@@ -422,9 +493,15 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       }
     };
     element.onmouseenter = (e) => {
+      if (isSyntheticMouseEvent()) {
+        return;
+      }
       this.onMouseEnter(e);
     };
     element.onmouseleave = () => {
+      if (isSyntheticMouseEvent()) {
+        return;
+      }
       const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0, this);
       if (playerIndex === -1) {
         return;
@@ -465,11 +542,6 @@ export abstract class UIElement<T extends UIElementConfig = any> {
 
   updateVisibility() {
     if (!this.isVisible()) {
-      this.focusedStyle = undefined;
-      if (this.cachedStyle) {
-        this._config.style = this.cachedStyle;
-        this.cachedStyle = undefined;
-      }
       if (this._element) {
         this.removeElement();
         // this._element.style.display = "none";
@@ -518,41 +590,19 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     const removedFocusedIndices = this.focusedIndices.filter((x) => !focusIndices.includes(x));
     this.focusedIndices = focusIndices;
     if (newFocusedIndices.length > 0) {
-      if (!this.focusedStyle) {
-        this.focusedStyle = {
-          ...this._config.style,
-          ...this._config.focusStyle,
-        };
-        const reset = Object.entries(this.focusedStyle).reduce((acc, [key, value]) => {
-          acc[key as any] = "";
-          return acc;
-        }, {} as any);
-
-        // @ts-ignore
-        this.cachedStyle = {
-          ...reset,
-          ...this._config.style,
-        };
-
-        this._config.style = this.focusedStyle;
-        this._element!.focus();
-        this._element!.classList.add("focused");
-        // move the focus out of the render loop to allow the blur event to fire first
-        setTimeout(() => {
-          const focusIndex = this.uiService.elementFocusIndices(this);
-          for (const index of newFocusedIndices) {
-            if (focusIndex.includes(index)) {
-              this.onFocus(index);
-            }
+      this._element!.focus();
+      this._element!.classList.add("focused");
+      setTimeout(() => {
+        const focusIndex = this.uiService.elementFocusIndices(this);
+        for (const index of newFocusedIndices) {
+          if (focusIndex.includes(index)) {
+            this.onFocus(index);
           }
-        }, 0);
-      }
+        }
+      }, 0);
     }
-    if (removedFocusedIndices.length && this.cachedStyle) {
+    if (removedFocusedIndices.length) {
       if (focusIndices.length === 0) {
-        this._config.style = this.cachedStyle;
-        this.cachedStyle = undefined;
-        this.focusedStyle = undefined;
         this._element!.classList.remove("focused");
       }
       for (const index of removedFocusedIndices) {
@@ -568,24 +618,74 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       element.style.order = `${this.parent!.config.children?.indexOf(this) ?? 0}`;
     }
 
-    const styles = {
-      ...this._config.style,
-    };
+    const styles =
+      focusIndices.length > 0
+        ? applyPlayerFocusStyle(
+            {
+              ...this._config.style,
+              ...this._config.focusStyle,
+            },
+            focusIndices
+          )
+        : {
+            ...Object.keys(this._config.focusStyle ?? {}).reduce((acc, key) => {
+              acc[key as keyof CSSStyleDeclaration] = "";
+              return acc;
+            }, {} as Partial<CSSStyleDeclaration>),
+            ...this._config.style,
+            outlineColor: this._config.style.outlineColor ?? "",
+            boxShadow: this._config.style.boxShadow ?? "",
+          };
     const [elementScale] = this.getScales();
     const styleScale = getViewportScale() * elementScale;
+    const layoutRect = this._config.layoutRect;
+    const layoutScale = this._config.layoutScale ?? 1;
 
-    const [x, y, width, height] = positionToCanvasSpace(
-      this.bounds,
-      this._parent?._element ?? document.body,
-      element,
-      ...this.getScales()
-    );
-    if (styles.position === "absolute") {
+    if (layoutRect) {
+      const viewportScale = getViewportScale();
+      const x = Math.floor(layoutRect.x * viewportScale);
+      const y = Math.floor(layoutRect.y * viewportScale);
+      const width = Math.floor(layoutRect.width * viewportScale);
+      const height = Math.floor(layoutRect.height * viewportScale);
+
       element.style.left = `${x}px`;
       element.style.top = `${y}px`;
+      element.style.width = width > 1 ? `${width}px` : "auto";
+      element.style.height = height > 1 ? `${height}px` : "auto";
+
+      if (layoutScale !== 1) {
+        element.style.transform = `scale(${layoutScale})`;
+        element.style.transformOrigin = "top left";
+      } else if (element.style.transform.startsWith("scale(")) {
+        element.style.transform = "";
+        element.style.transformOrigin = "";
+      }
+
+      // Layout-managed text boxes should center their own content unless the
+      // screen explicitly opts into another layout mode.
+      if (
+        element.tagName !== "BUTTON" &&
+        styles.textAlign === "center" &&
+        !styles.display
+      ) {
+        element.style.display = "flex";
+        element.style.alignItems = "center";
+        element.style.justifyContent = "center";
+      }
+    } else {
+      const [x, y, width, height] = positionToCanvasSpace(
+        this.bounds,
+        this._parent?._element ?? document.body,
+        element,
+        ...this.getScales()
+      );
+      if (styles.position === "absolute") {
+        element.style.left = `${x}px`;
+        element.style.top = `${y}px`;
+      }
+      element.style.width = width > 1 ? `${width}px` : "auto";
+      element.style.height = height > 1 ? `${height}px` : "auto";
     }
-    element.style.width = width > 1 ? `${width}px` : "auto";
-    element.style.height = height > 1 ? `${height}px` : "auto";
 
     for (const [key, value] of Object.entries(styles)) {
       // @ts-ignore

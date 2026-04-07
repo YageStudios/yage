@@ -4,6 +4,7 @@ import AssetLoader from "yage/loader/AssetLoader";
 import { UIService } from "yage/ui/UIService";
 import { buildUiMap, type UiMap } from "yage/ui/UiMap";
 import type { UIElement } from "yage/ui/UIElement";
+import { isSyntheticMouseEvent, markTouchInteraction } from "yage/inputs/TouchMouseGuard";
 import { InputClusterer } from "./InputClusterer";
 import type {
   UmilStep,
@@ -66,6 +67,7 @@ export class UmilFlow<T = null> {
 
   async start(): Promise<UmilResult> {
     await AssetLoader.getInstance().loadUi(UmilFlow.UI_ASSET_KEY, this.config.uiAssetUrl ?? "umil/flow.json5");
+    this.uiService.playerInputs = [[InputEventType.ANY, 0]];
     return new Promise((resolve) => {
       this.resolvePromise = resolve;
       this.showInputDetection();
@@ -83,6 +85,9 @@ export class UmilFlow<T = null> {
 
     // Dispatch mouse clicks to InputManager so InputClusterer can detect them
     this.mouseHandler = (e: MouseEvent) => {
+      if (isSyntheticMouseEvent()) {
+        return;
+      }
       this.inputManager.dispatchEvent("click", true, InputEventType.MOUSE, 0, e);
       setTimeout(() => this.inputManager.dispatchEvent("click", false, InputEventType.MOUSE, 0), 100);
     };
@@ -90,6 +95,7 @@ export class UmilFlow<T = null> {
 
     // Dispatch touch events to InputManager
     this.touchHandler = (e: TouchEvent) => {
+      markTouchInteraction();
       this.inputManager.dispatchEvent("tap", true, InputEventType.TOUCH, 0, e);
       setTimeout(() => this.inputManager.dispatchEvent("tap", false, InputEventType.TOUCH, 0), 100);
     };

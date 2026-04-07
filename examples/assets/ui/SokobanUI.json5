@@ -1,196 +1,157 @@
 {
   root: {
-    type: "box",
-    rect: {
-      x: "full",
-      y: "full"
+    type: "Canvas",
+    styles: {
+      background: "linear-gradient(180deg, #1a1a2e 0%, #0a0a1a 100%)",
+      border: "none"
     },
-    config: {
-      style: {
-        background: "linear-gradient(180deg, #1a1a2e 0%, #0a0a1a 100%)",
-        border: "none"
-      }
-    },
-    children: {
+    children: [
 
       // ── Status ──────────────────────────────────────────────────────────────
-      statusText: {
-        type: "text",
-        rect: {
-          x: "center",
-          y: "top",
-          yOffset: 20,
-          width: 500
-        },
-        config: {
-          label: "$$statusMessage",
+      {
+        id: "statusText",
+        type: "Text",
+        anchor: "TopCenter",
+        offset: { y: 20 },
+        width: 500,
+        text: "$$statusMessage",
+        styles: {
           fontSize: 32,
-          style: {
-            color: "#ffffff",
-            textAlign: "center"
-          }
+          color: "#ffffff",
+          textAlign: "center"
         }
       },
 
       // ── Game field ──────────────────────────────────────────────────────────
-      fieldGrid: {
-        type: "grid",
-        rect: {
-          x: "center",
-          y: "center",
-          width: 482,
-          height: 322
-        },
-        config: {
-          gap: "2px",
-          style: {
-            backgroundColor: "#0a0a0a",
-            padding: "2px",
-            borderRadius: "6px",
-            boxSizing: "border-box",
-            border: "2px solid #333366"
-          }
+      {
+        id: "fieldGrid",
+        type: "Grid",
+        anchor: "Center",
+        width: 482,
+        height: 322,
+        columns: 12,
+        spacing: 2,
+        styles: {
+          backgroundColor: "#0a0a0a",
+          padding: "2px",
+          borderRadius: "6px",
+          boxSizing: "border-box",
+          border: "2px solid #333366"
         },
         items: "$$cells",
         element: {
-          type: "box",
-          rect: {
-            width: 38,
-            height: 38
-          },
-          config: {
-            style: {
-              backgroundColor: "$$color",
-              borderRadius: "4px"
-            }
+          type: "Box",
+          width: 38,
+          height: 38,
+          styles: {
+            backgroundColor: "$$color",
+            borderRadius: "4px"
           }
         }
       },
 
-      // ── Controls hint ───────────────────────────────────────────────────────
-      controlsHint: {
-        type: "text",
-        rect: {
-          x: "center",
-          y: "bottom",
-          yOffset: -50,
-          width: 500
-        },
-        config: {
-          label: "WASD/Arrows move  |  Q undo",
-          fontSize: 14,
-          style: {
-            color: "#555577",
-            textAlign: "center"
-          }
-        }
-      },
-
-      // ── Legend ───────────────────────────────────────────────────────────────
-      legendText: {
-        type: "text",
-        rect: {
-          x: "center",
-          y: "bottom",
-          yOffset: -25,
-          width: 600
-        },
-        config: {
-          label: "Blue=You  Brown=Box  DarkRed=Target  Green=Box on Target",
-          fontSize: 12,
-          style: {
-            color: "#444455",
-            textAlign: "center"
-          }
-        }
-      },
-
-      // ── Restart button ──────────────────────────────────────────────────────
-      restartButton: {
-        type: "button",
-        rect: {
-          x: "center",
-          y: "bottom",
-          yOffset: -90,
-          xOffset: -120,
-          width: 180,
-          height: 48
-        },
-        config: {
-          label: "Restart Level",
-          fontSize: 22,
-          focusable: true,
-          style: {
-            backgroundColor: "#cc4444",
-            color: "#ffffff",
-            borderRadius: "8px",
-            cursor: "pointer"
-          },
-          focusStyle: {
-            backgroundColor: "#aa3333",
-            outline: "3px solid #2FA6FF"
-          }
-        },
-        events: {
-          click: "onRestartClick"
-        }
-      },
-
-      // ── Win overlay ─────────────────────────────────────────────────────────
-      winText: {
-        $if: "showWin",
-        then: {
-          type: "text",
-          rect: {
-            x: "center",
-            y: "center",
-            yOffset: -60,
-            width: 500
-          },
-          config: {
-            label: "$$statusMessage",
-            fontSize: 48,
-            style: {
-              color: "#44ff44",
-              textAlign: "center",
-              textShadow: "0 0 20px #00ff00"
-            }
-          }
-        }
-      },
-
-      nextLevelButton: {
-        $if: "showWin",
-        then: {
-          type: "button",
-          rect: {
-            x: "center",
-            y: "center",
-            yOffset: 40,
-            width: 220,
-            height: 64
-          },
-          config: {
-            label: "Next Level",
-            fontSize: 28,
+      // ── Bottom controls / legend / restart ─────────────────────────────────
+      {
+        id: "bottomGroup",
+        type: "VStack",
+        anchor: "BottomCenter",
+        offset: { y: -25 },
+        spacing: 10,
+        children: [
+          {
+            id: "restartButton",
+            type: "Button",
+            width: 180,
+            height: 48,
+            label: "Restart Level",
             focusable: true,
-            autoFocus: true,
-            style: {
-              backgroundColor: "#4CAF50",
+            styles: {
+              fontSize: 22,
+              backgroundColor: "#cc4444",
               color: "#ffffff",
               borderRadius: "8px",
               cursor: "pointer"
             },
             focusStyle: {
-              backgroundColor: "#45a049",
+              backgroundColor: "#aa3333",
               outline: "3px solid #2FA6FF"
+            },
+            events: {
+              click: "onRestartClick"
             }
           },
-          events: {
-            click: "onNextLevelClick"
+          {
+            id: "controlsHint",
+            type: "Text",
+            width: 500,
+            text: "WASD/Arrows move  |  Q undo",
+            styles: {
+              fontSize: 14,
+              color: "#555577",
+              textAlign: "center"
+            }
+          },
+          {
+            id: "legendText",
+            type: "Text",
+            width: 600,
+            text: "Blue=You  Brown=Box  DarkRed=Target  Green=Box on Target",
+            styles: {
+              fontSize: 12,
+              color: "#444455",
+              textAlign: "center"
+            }
           }
+        ]
+      },
+
+      // ── Win overlay ─────────────────────────────────────────────────────────
+      {
+        id: "winGroup",
+        $if: "showWin",
+        then: {
+          type: "VStack",
+          anchor: "Center",
+          spacing: 24,
+          children: [
+            {
+              id: "winText",
+              type: "Text",
+              width: 500,
+              text: "$$statusMessage",
+              styles: {
+                fontSize: 48,
+                color: "#44ff44",
+                textAlign: "center",
+                textShadow: "0 0 20px #00ff00"
+              }
+            },
+            {
+              id: "nextLevelButton",
+              type: "Button",
+              width: 220,
+              height: 64,
+              label: "Next Level",
+              focusable: true,
+              autoFocus: true,
+              styles: {
+                fontSize: 28,
+                backgroundColor: "#4CAF50",
+                color: "#ffffff",
+                borderRadius: "8px",
+                cursor: "pointer"
+              },
+              focusStyle: {
+                backgroundColor: "#45a049",
+                outline: "3px solid #2FA6FF"
+              },
+              events: {
+                click: "onNextLevelClick"
+              }
+            }
+          ]
         }
       }
-    }
+    ]
   }
 }

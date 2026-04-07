@@ -1,114 +1,90 @@
 {
   root: {
-    type: "box",
-    rect: {
-      x: "full",
-      y: "full"
+    type: "Canvas",
+    styles: {
+      pointerEvents: "none"
     },
-    config: {
-      style: {
-        background: "none",
-        border: "none",
-        pointerEvents: "none"
-      }
-    },
-    children: {
+    children: [
 
       // ── HUD ─────────────────────────────────────────────────────────────────
-      statusText: {
-        type: "text",
-        rect: {
-          x: "center",
-          y: "top",
-          yOffset: 15,
-          width: 600
-        },
-        config: {
-          label: "$$statusMessage",
+      {
+        id: "statusText",
+        type: "Text",
+        anchor: "TopCenter",
+        offset: { y: 15 },
+        width: 600,
+        text: "$$statusMessage",
+        styles: {
           fontSize: 24,
-          style: {
-            color: "#00ff00",
-            textAlign: "center",
-            fontFamily: "monospace",
-            textShadow: "0 0 4px #000000"
-          }
+          color: "#00ff00",
+          textAlign: "center",
+          fontFamily: "monospace",
+          textShadow: "0 0 4px #000000"
         }
       },
 
       // ── Controls hint ───────────────────────────────────────────────────────
-      controlsHint: {
-        type: "text",
-        rect: {
-          x: "center",
-          y: "bottom",
-          yOffset: -15,
-          width: 600
-        },
-        config: {
-          label: "← → rotate  |  ↑ thrust  |  Space fire",
+      {
+        id: "controlsHint",
+        type: "Text",
+        anchor: "BottomCenter",
+        offset: { y: -15 },
+        width: 600,
+        text: "← → rotate  |  ↑ thrust  |  Space fire",
+        styles: {
           fontSize: 14,
-          style: {
-            color: "#aaaaaa",
-            textAlign: "center"
-          }
+          color: "#aaaaaa",
+          textAlign: "center"
         }
       },
 
       // ── Game Over overlay ───────────────────────────────────────────────────
-      gameOverText: {
+      {
+        id: "gameOverGroup",
         $if: "showGameOver",
         then: {
-          type: "text",
-          rect: {
-            x: "center",
-            y: "center",
-            yOffset: -60,
-            width: 500
-          },
-          config: {
-            label: "GAME OVER",
-            fontSize: 64,
-            style: {
-              color: "#ff4444",
-              textAlign: "center",
-              textShadow: "0 0 20px #ff0000"
-            }
-          }
-        }
-      },
-
-      restartButton: {
-        $if: "showGameOver",
-        then: {
-          type: "button",
-          rect: {
-            x: "center",
-            y: "center",
-            yOffset: 40,
-            width: 220,
-            height: 64
-          },
-          config: {
-            label: "Play Again",
-            fontSize: 28,
-            focusable: true,
-            autoFocus: true,
-            style: {
-              backgroundColor: "#226622",
-              color: "#ffffff",
-              borderRadius: "8px",
-              cursor: "pointer"
+          type: "VStack",
+          anchor: "Center",
+          spacing: 24,
+          children: [
+            {
+              id: "gameOverText",
+              type: "Text",
+              width: 500,
+              text: "GAME OVER",
+              styles: {
+                fontSize: 64,
+                color: "#ff4444",
+                textAlign: "center",
+                textShadow: "0 0 20px #ff0000"
+              }
             },
-            focusStyle: {
-              backgroundColor: "#1a551a",
-              outline: "3px solid #2FA6FF"
+            {
+              id: "restartButton",
+              type: "Button",
+              width: 220,
+              height: 64,
+              label: "Play Again",
+              focusable: true,
+              autoFocus: true,
+              styles: {
+                fontSize: 28,
+                backgroundColor: "#226622",
+                color: "#ffffff",
+                borderRadius: "8px",
+                cursor: "pointer"
+              },
+              focusStyle: {
+                backgroundColor: "#1a551a",
+                outline: "3px solid #2FA6FF"
+              },
+              events: {
+                click: "onRestartClick"
+              }
             }
-          },
-          events: {
-            click: "onRestartClick"
-          }
+          ]
         }
       }
-}
+    ]
   }
 }

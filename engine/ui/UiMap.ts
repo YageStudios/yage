@@ -2,9 +2,13 @@ import type { BoxConfig } from "yage/ui/Box";
 import { Box } from "yage/ui/Box";
 import { Position } from "yage/ui/Rectangle";
 import type { UIElement, UIElementConfig } from "yage/ui/UIElement";
+import { UIService } from "yage/ui/UIService";
 import type { UIConfig } from "yage/ui/UiConfigs";
 import { createByType } from "yage/ui/UiConfigs";
 import { cloneDeep, get, isEqual, merge } from "lodash";
+import type { LayoutNodeConfig, LayoutResult } from "yage/ui/layout";
+import { computeLayout } from "yage/ui/layout";
+import { createTextMeasurer, isPosspecFormat } from "yage/ui/layout/LayoutRenderer";
 
 export type UiMap = {
   build: (
@@ -406,12 +410,539 @@ export const getUiMapTemplate = (templateName: string, elementName?: string) => 
   }
 };
 
+const applyIdSuffix = (value: any, suffix: string): any => {
+  if (Array.isArray(value)) {
+    return value.map((item) => applyIdSuffix(item, suffix));
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  const cloned = { ...value };
+  if (typeof cloned.id === "string") {
+    cloned.id = `${cloned.id}${suffix}`;
+  }
+
+  if (cloned.children) cloned.children = applyIdSuffix(cloned.children, suffix);
+  if (cloned.content) cloned.content = applyIdSuffix(cloned.content, suffix);
+  if (cloned.then) cloned.then = applyIdSuffix(cloned.then, suffix);
+  if (cloned.else) cloned.else = applyIdSuffix(cloned.else, suffix);
+  if (cloned.element) cloned.element = applyIdSuffix(cloned.element, suffix);
+
+  return cloned;
+};
+
+const assignPosspecIds = (value: any, path = "root"): any => {
+  if (Array.isArray(value)) {
+    return value.map((item, index) => assignPosspecIds(item, `${path}-${index}`));
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  const cloned = { ...value };
+  if (cloned.type && !cloned.id) {
+    cloned.id = path;
+  }
+
+  if (cloned.children) cloned.children = assignPosspecIds(cloned.children, `${path}-children`);
+  if (cloned.content) cloned.content = assignPosspecIds(cloned.content, `${path}-content`);
+  if (cloned.then) cloned.then = assignPosspecIds(cloned.then, `${path}-then`);
+  if (cloned.else) cloned.else = assignPosspecIds(cloned.else, `${path}-else`);
+  if (cloned.element) cloned.element = assignPosspecIds(cloned.element, `${path}-element`);
+
+  return cloned;
+};
+
+const resolvePosspecValue = (value: any, ctx: any): any => {
+  if (typeof value === "string") {
+    if (value.includes("{{")) {
+      return evaluateTemplate(value, ctx);
+    }
+    if (value.includes("$$")) {
+      const match = /^(\$\$[a-zA-Z0-9_.]+)$/.exec(value);
+      if (match) {
+        return get(ctx, value.slice(2));
+      }
+      return value.replace(/(\$\$[a-zA-Z0-9_.]+)/g, (token) => {
+        const resolved = get(ctx, token.slice(2));
+        return resolved === undefined ? "" : String(resolved);
+      });
+    }
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => resolvePosspecValue(item, ctx));
+  }
+  if (value && typeof value === "object") {
+    const resolved: any = {};
+    for (const [key, next] of Object.entries(value)) {
+      resolved[key] = resolvePosspecValue(next, ctx);
+    }
+    return resolved;
+  }
+  return value;
+};
+
+const resolvePosspecNodes = (value: any, ctx: any, rootCtx: any): any[] => {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => resolvePosspecNodes(item, ctx, rootCtx));
+  }
+  if (!value || typeof value !== "object") {
+    return [];
+  }
+
+  if (value.$if !== undefined || value.$unless !== undefined) {
+    const raw = compileExpression(String(value.$if ?? value.$unless))(ctx);
+    const pass = value.$if !== undefined ? !!raw : !raw;
+    return pass ? resolvePosspecNodes(value.then, ctx, rootCtx) : resolvePosspecNodes(value.else, ctx, rootCtx);
+  }
+
+  if (value.$with !== undefined) {
+    const scoped = get(ctx, value.$with);
+    if (!scoped || typeof scoped !== "object") {
+      return [];
+    }
+    return resolvePosspecNodes(value.content, { ...scoped, $root: rootCtx }, rootCtx);
+  }
+
+  if (value.$each !== undefined) {
+    const items = get(ctx, value.$each) ?? [];
+    if (!Array.isArray(items) || items.length === 0) {
+      return resolvePosspecNodes(value.else, ctx, rootCtx);
+    }
+    return items.flatMap((item, index) => {
+      const itemCtx = { ...ctx, ...cloneDeep(item), $context: ctx, $index: index, $root: rootCtx };
+      return resolvePosspecNodes(applyIdSuffix(cloneDeep(value.content), `-${index}`), itemCtx, rootCtx);
+    });
+  }
+
+  if (!value.type) {
+    return Object.values(value).flatMap((item) => resolvePosspecNodes(item, ctx, rootCtx));
+  }
+
+  const resolvedNode: any = resolvePosspecValue(value, ctx);
+  resolvedNode.__eventContext = ctx;
+  if (resolvedNode.children) {
+    resolvedNode.children = resolvePosspecNodes(value.children, ctx, rootCtx);
+  }
+  if (resolvedNode.items && value.element) {
+    const items = resolvedNode.items;
+    resolvedNode.children = Array.isArray(items)
+      ? items.flatMap((item: any, index: number) => {
+          const itemCtx = { ...ctx, ...cloneDeep(item), $context: ctx, $index: index, $root: rootCtx };
+          return resolvePosspecNodes(applyIdSuffix(cloneDeep(value.element), `-${index}`), itemCtx, rootCtx);
+        })
+      : [];
+  }
+
+  return [resolvedNode];
+};
+
+const applyPosspecLayoutResult = (result: LayoutResult, parentResult?: LayoutResult) => {
+  const nodeId = (result.node as any).id;
+  if (nodeId) {
+    const element = UIService.getInstance().mappedIds[nodeId];
+    if (element) {
+      (element as any)._config.style.position = "absolute";
+      const relativeX = parentResult ? result.bounds.x - parentResult.bounds.x : result.bounds.x;
+      const relativeY = parentResult ? result.bounds.y - parentResult.bounds.y : result.bounds.y;
+      (element.config as any).layoutRect = {
+        x: relativeX,
+        y: relativeY,
+        width: result.bounds.width,
+        height: result.bounds.height,
+      };
+      (element.config as any).layoutScale = result.scaleFactor;
+    }
+  }
+  result.children.forEach((child) => applyPosspecLayoutResult(child, result));
+};
+
+const posspecElementType = (nodeType: string): UIConfig["type"] => {
+  switch (nodeType) {
+    case "Text":
+      return "text";
+    case "Button":
+      return "button";
+    case "Input":
+      return "input";
+    case "Image":
+      return "image";
+    default:
+      return "box";
+  }
+};
+
+const buildPosspecElementConfig = (
+  node: any,
+  contextRef: { context: any },
+  eventHandler: (playerIndex: number, eventName: string, eventType: string, context: any, payload?: any) => void
+) => {
+  const styles = { ...(node.styles ?? {}) };
+  if (
+    styles.pointerEvents === undefined &&
+    ["Canvas", "VStack", "HStack", "Grid", "Box", "Input"].includes(node.type)
+  ) {
+    styles.pointerEvents = "auto";
+  }
+  const fontSize = styles.fontSize !== undefined ? parseFloat(String(styles.fontSize)) : undefined;
+  delete styles.fontSize;
+
+  const config: any = {
+    style: styles,
+  };
+
+  if (node.focusStyle !== undefined) {
+    config.focusStyle = { ...node.focusStyle };
+  }
+  if (node.hoverStyle !== undefined) {
+    config.hoverStyle = { ...node.hoverStyle };
+  }
+
+  if (node.focusable !== undefined) {
+    config.focusable = node.focusable;
+  }
+  if (node.autoFocus !== undefined) {
+    config.autoFocus = node.autoFocus;
+  }
+  if (node.captureFocus !== undefined) {
+    config.captureFocus = node.captureFocus;
+  }
+  if (node.visible !== undefined) {
+    config.visible = node.visible;
+  }
+
+  if (fontSize !== undefined && !Number.isNaN(fontSize)) {
+    config.fontSize = fontSize;
+  }
+  if (node.text !== undefined) config.label = node.text;
+  if (node.label !== undefined) config.label = node.label;
+  if (node.texture !== undefined) config.imageKey = node.texture;
+  if (node.value !== undefined) config.value = node.value;
+
+  if (node.events) {
+    const eventContextRef = { context: node.__eventContext ?? contextRef.context };
+    Object.assign(config, generateEventListener(node.events, eventContextRef, eventHandler));
+  }
+
+  return config;
+};
+
+const createPosspecElement = (
+  node: any,
+  contextRef: { context: any },
+  eventHandler: (playerIndex: number, eventName: string, eventType: string, context: any, payload?: any) => void
+) => {
+  const element = createByType({
+    type: posspecElementType(node.type),
+    rect: new Position(0, 0, { width: 0, height: 0 }),
+    config: buildPosspecElementConfig(node, contextRef, eventHandler),
+  });
+  if (node.id) {
+    element.id = node.id;
+  }
+  return element;
+};
+
+const applyPosspecNodeToElement = (
+  element: UIElement<any>,
+  node: any,
+  contextRef: { context: any },
+  eventHandler: (playerIndex: number, eventName: string, eventType: string, context: any, payload?: any) => void
+) => {
+  const config = buildPosspecElementConfig(node, contextRef, eventHandler);
+  if (!isEqual(element.config.style, config.style ?? {})) {
+    element.config.style = config.style ?? {};
+  }
+  if (config.focusStyle !== undefined) {
+    if (!isEqual(element.config.focusStyle, config.focusStyle)) {
+      element.config.focusStyle = config.focusStyle;
+    }
+  }
+  if (config.hoverStyle !== undefined) {
+    if (!isEqual((element.config as any).hoverStyle, config.hoverStyle)) {
+      (element.config as any).hoverStyle = config.hoverStyle;
+    }
+  }
+  if (config.focusable !== undefined) {
+    if (element.config.focusable !== config.focusable) {
+      element.config.focusable = config.focusable;
+    }
+  }
+  if (config.autoFocus !== undefined) {
+    if (element.config.autoFocus !== config.autoFocus) {
+      element.config.autoFocus = config.autoFocus;
+    }
+  }
+  if (config.captureFocus !== undefined) {
+    if (element.config.captureFocus !== config.captureFocus) {
+      element.config.captureFocus = config.captureFocus;
+    }
+  }
+  if (config.visible !== undefined) {
+    if (element.config.visible !== config.visible) {
+      element.config.visible = config.visible;
+    }
+  }
+
+  if (config.fontSize !== undefined) {
+    if ((element.config as any).fontSize !== config.fontSize) {
+      (element.config as any).fontSize = config.fontSize;
+    }
+  }
+  if (config.label !== undefined) {
+    if ((element.config as any).label !== config.label) {
+      (element.config as any).label = config.label;
+    }
+  }
+  if (config.imageKey !== undefined) {
+    if ((element.config as any).imageKey !== config.imageKey) {
+      (element.config as any).imageKey = config.imageKey;
+    }
+  }
+  if (config.value !== undefined) {
+    if ((element.config as any).value !== config.value) {
+      (element.config as any).value = config.value;
+    }
+  }
+  const eventKeys = [
+    "onEscape",
+    "onClick",
+    "onMouseDown",
+    "onMouseUp",
+    "onMouseEnter",
+    "onMouseLeave",
+    "onBlur",
+    "onFocus",
+    "onChange",
+    "onSubmit",
+  ] as const;
+  eventKeys.forEach((key) => {
+    if (config[key] !== undefined) {
+      if ((element.config as any)[key] !== config[key]) {
+        (element.config as any)[key] = config[key];
+      }
+    }
+  });
+  if (node.id && element.id !== node.id) {
+    element.id = node.id;
+  }
+};
+
+const syncPosspecSubtree = (
+  parent: UIElement<any>,
+  nodes: any[],
+  contextRef: { context: any },
+  eventHandler: (playerIndex: number, eventName: string, eventType: string, context: any, payload?: any) => void
+) => {
+  const existingChildren = [...(parent.getChildren() ?? [])];
+  const nextChildren: UIElement<any>[] = [];
+  const used = new Set<UIElement<any>>();
+
+  nodes.forEach((node, index) => {
+    let element =
+      existingChildren[index] &&
+      !used.has(existingChildren[index]) &&
+      existingChildren[index].id === node.id
+        ? existingChildren[index]
+        : existingChildren.find((child) => !used.has(child) && child.id === node.id);
+
+    if (!element) {
+      element = createPosspecElement(node, contextRef, eventHandler);
+    } else {
+      applyPosspecNodeToElement(element, node, contextRef, eventHandler);
+    }
+
+    used.add(element);
+    syncPosspecSubtree(element, node.children ?? [], contextRef, eventHandler);
+    nextChildren.push(element);
+  });
+
+  existingChildren.forEach((child) => {
+    if (!used.has(child) && !child.destroyed) {
+      child.onDestroy(true);
+    }
+  });
+
+  const childrenChanged =
+    existingChildren.length !== nextChildren.length ||
+    existingChildren.some((child, index) => child !== nextChildren[index]);
+
+  (parent.config as any).children = nextChildren;
+  nextChildren.forEach((child) => {
+    if (child.parent !== parent) {
+      child.parent = parent;
+    }
+  });
+  if (childrenChanged) {
+    parent.update();
+  }
+};
+
+const buildPosspecSubtree = (
+  parent: UIElement<any>,
+  nodes: any[],
+  contextRef: { context: any },
+  eventHandler: (playerIndex: number, eventName: string, eventType: string, context: any, payload?: any) => void
+) => {
+  nodes.forEach((node) => {
+    const element = createPosspecElement(node, contextRef, eventHandler);
+    parent.addChild(element);
+    if (node.children?.length) {
+      buildPosspecSubtree(element, node.children, contextRef, eventHandler);
+    }
+  });
+};
+
+const createPosspecHost = (id: string) => {
+  const host = new Box(new Position("left", "top", { width: "full", height: "full" }), {
+    style: {
+      position: "absolute",
+      backgroundColor: "transparent",
+      border: "none",
+      padding: "0",
+      margin: "0",
+      overflow: "visible",
+      pointerEvents: "auto",
+    },
+    pointerEventsOnOverflow: false,
+  });
+  host.id = id;
+  return host;
+};
+
+const populatePosspecHost = (
+  host: UIElement<any>,
+  nodes: any[],
+  contextRef: { context: any },
+  eventHandler: (playerIndex: number, eventName: string, eventType: string, context: any, payload?: any) => void
+) => {
+  syncPosspecSubtree(host, nodes, contextRef, eventHandler);
+};
+
 export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partial<BoxConfig>): UiMap => {
   json = cloneDeep(json);
+  const posspecJson = isPosspecFormat(json)
+    ? Object.fromEntries(
+        Object.entries(cloneDeep(json)).map(([key, value]) => [key, assignPosspecIds(value, key)])
+      )
+    : null;
+  const measureText = posspecJson ? createTextMeasurer() : null;
+
+  if (posspecJson && measureText) {
+    let buildContext: any = null;
+    let rootContext: any = null;
+    let builtRoots: { [key: string]: UIElement<any> } = {};
+    let activeEventHandler:
+      | ((
+          playerIndex: number,
+          eventName: string,
+          eventType: string,
+          context: any,
+          payload?: any
+        ) => void)
+      | null = null;
+
+    const runPosspecLayout = () => {
+      for (const value of Object.values(posspecJson)) {
+        const resolvedRoots = resolvePosspecNodes(cloneDeep(value), buildContext, rootContext);
+        resolvedRoots.forEach((resolvedRoot) => {
+          const layout = computeLayout(resolvedRoot as LayoutNodeConfig, 1920, 1080, measureText);
+          applyPosspecLayoutResult(layout);
+        });
+      }
+    };
+
+    const buildPosspecRoots = () => {
+      if (!activeEventHandler) {
+        return {};
+      }
+
+      const contextRef = { context: buildContext };
+      const resolvedRootElements: { [key: string]: UIElement<any> } = {};
+
+      Object.entries(posspecJson).forEach(([key, value]) => {
+        const resolvedRoots = resolvePosspecNodes(cloneDeep(value), buildContext, rootContext);
+        const host =
+          builtRoots[key] && !builtRoots[key].destroyed
+            ? builtRoots[key]
+            : createPosspecHost(`__posspec_host_${key}`);
+        populatePosspecHost(host, resolvedRoots, contextRef, activeEventHandler);
+        resolvedRootElements[key] = host;
+      });
+
+      if (boxPosition) {
+        const box = builtRoots.box && !builtRoots.box.destroyed ? (builtRoots.box as Box) : new Box(boxPosition, boxConfig);
+        box.removeAllChildren();
+        Object.values(resolvedRootElements).forEach((element) => {
+          box.addChild(element);
+        });
+        builtRoots = { ...resolvedRootElements, box };
+        return builtRoots;
+      }
+
+      builtRoots = resolvedRootElements;
+      return builtRoots;
+    };
+
+    const rebuildPosspecUi = () => {
+      const roots = buildPosspecRoots();
+      runPosspecLayout();
+      return roots;
+    };
+
+    const build = (
+      context: any,
+      eventHandler: (playerIndex: number, eventName: string, eventType: string, context: any, payload?: any) => void
+    ) => {
+      buildContext = cloneDeep(context);
+      rootContext = buildContext;
+      activeEventHandler = eventHandler;
+      return rebuildPosspecUi();
+    };
+
+    const update = (partialContext: any) => {
+      const nextContext = cloneDeep(buildContext);
+      Object.keys(partialContext).forEach((key) => {
+        nextContext[key] = cloneDeep(partialContext[key]);
+      });
+      if (isEqual(nextContext, buildContext)) {
+        return;
+      }
+      buildContext = nextContext;
+      rootContext = buildContext;
+      rebuildPosspecUi();
+    };
+
+    const context = () => {
+      return cloneDeep(buildContext);
+    };
+
+    return { build, update, context };
+  }
 
   const lastContext: BuiltContext = [];
   let buildContext: any = null;
   let rootContext: any = null;
+  let builtRoots: { [key: string]: UIElement<any> } = {};
+
+  const runPosspecLayout = () => {
+    if (!posspecJson || !measureText) {
+      return;
+    }
+
+    Object.values(builtRoots).forEach((root) => clearPosspecLayoutRects(root));
+
+    for (const value of Object.values(posspecJson)) {
+      const [resolvedRoot] = resolvePosspecNodes(cloneDeep(value), buildContext, buildContext);
+      if (!resolvedRoot) {
+        continue;
+      }
+      const layout = computeLayout(resolvedRoot as LayoutNodeConfig, 1920, 1080, measureText);
+      applyPosspecLayoutResult(layout);
+    }
+  };
 
   const build = (
     context: any,
@@ -613,7 +1144,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
               }
 
               const itemJson = {
-                ...cloneDeep(value.element),
+                ...applyIdSuffix(cloneDeep(value.element), `-${i}`),
                 // rect: {
                 //   x: 0,
                 //   y: 0,
@@ -700,6 +1231,9 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
         };
 
         const element = createByType(config);
+        if (value.id) {
+          element.id = value.id;
+        }
 
         queriables.forEach((query) => {
           query.pointer = (_context) => {
@@ -785,23 +1319,95 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
       buildQueries: BuildQuery[],
       eventHandler: (playerIndex: number, eventName: string, eventType: string, context: any, payload?: any) => void
     ) => {
+      const parentIsFlowContainer = (parent as any)?.config?.style?.display === "flex";
+      const usingPosspecLayout = !!posspecJson;
+
       if ("$if" in value || "$unless" in value) {
         const conditionExpr = value.$if || value.$unless;
         const isUnless = "$unless" in value;
         const thenBranch = value.then;
         const elseBranch = value.else;
 
+        if (usingPosspecLayout) {
+          let currentBranchQueries: BuildQuery[] = [];
+          let currentConditionResult: boolean | null = null;
+          let currentBranchRoots: UIElement<any>[] = [];
+
+          const branchParent = {
+            addChild: (element: UIElement<any>) => {
+              currentBranchRoots.push(element);
+              parent.addChild(element);
+            },
+          };
+
+          const evaluateAndBuild = (ctx: any) => {
+            const fn = compileExpression(conditionExpr);
+            const rawResult = fn(ctx);
+            const conditionResult = isUnless ? !rawResult : !!rawResult;
+
+            if (conditionResult === currentConditionResult) {
+              currentBranchQueries.forEach(([, queries]) => {
+                queries.forEach(({ pointer }) => {
+                  if (typeof pointer === "function") pointer(ctx);
+                });
+              });
+              return false;
+            }
+
+            currentConditionResult = conditionResult;
+
+            currentBranchRoots.forEach((child) => child.onDestroy(true));
+            currentBranchRoots = [];
+            currentBranchQueries = [];
+
+            const branch = conditionResult ? thenBranch : elseBranch;
+            if (branch) {
+              recursiveBuild({ node: cloneDeep(branch) }, branchParent, contextRef, currentBranchQueries);
+            }
+
+            return true;
+          };
+
+          evaluateAndBuild(contextRef.context);
+
+          const conditionQuery: Query = {
+            query: conditionExpr,
+            key: "__$if__",
+            parent: "",
+            pointer: (_context: any) => evaluateAndBuild(_context),
+            expression: {
+              source: conditionExpr,
+              deps: extractDeps(conditionExpr),
+              evaluate: (ctx: any) => compileExpression(conditionExpr)(ctx),
+            },
+          };
+
+          buildQueries.push([null, [conditionQuery]]);
+          return;
+        }
+
         // Create a wrapper box to hold the conditional content
-        const wrapperPosition = thenBranch?.rect
-          ? new Position(thenBranch.rect.x ?? 0, thenBranch.rect.y ?? 0, {
-              width: thenBranch.rect.width ?? 0,
-              height: thenBranch.rect.height ?? 0,
-              ...thenBranch.rect,
+        const wrapperPosition = usingPosspecLayout
+          ? new Position(0, 0, {
+              width: thenBranch?.rect?.width ?? "auto",
+              height: thenBranch?.rect?.height ?? "auto",
             })
-          : new Position(0, 0, { width: 0, height: 0 });
+          : parentIsFlowContainer
+          ? new Position(0, 0, {
+              width: thenBranch?.rect?.width ?? "auto",
+              height: thenBranch?.rect?.height ?? "auto",
+            })
+          : thenBranch?.rect
+            ? new Position(thenBranch.rect.x ?? 0, thenBranch.rect.y ?? 0, {
+                width: thenBranch.rect.width ?? 0,
+                height: thenBranch.rect.height ?? 0,
+                ...thenBranch.rect,
+              })
+            : new Position(0, 0, { width: 0, height: 0 });
 
         const wrapper: Box = new Box(wrapperPosition, {
           style: {
+            position: parentIsFlowContainer ? "relative" : "absolute",
             border: "none",
             backgroundColor: "transparent",
             padding: "0",
@@ -926,9 +1532,139 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
           return;
         }
 
+        if (usingPosspecLayout) {
+          let childContexts: any[] = [];
+          let childQueries: BuildQuery[][] = [];
+          let childRoots: UIElement<any>[][] = [];
+          let alternateQueries: BuildQuery[] = [];
+          let alternateRoots: UIElement<any>[] = [];
+          let currentState: "items" | "empty" | "initial" = "initial";
+
+          const buildParentFor = (roots: UIElement<any>[]) => ({
+            addChild: (element: UIElement<any>) => {
+              roots.push(element);
+              parent.addChild(element);
+            },
+          });
+
+          const destroyRoots = (roots: UIElement<any>[]) => {
+            roots.forEach((element) => element.onDestroy(true));
+            roots.length = 0;
+          };
+
+          const buildEachChildren = (items: any[]) => {
+            if (!items || !Array.isArray(items)) {
+              items = [];
+            }
+
+            if (items.length === 0) {
+              if (currentState !== "empty") {
+                childRoots.forEach((roots) => destroyRoots(roots));
+                childRoots = [];
+                childContexts = [];
+                childQueries = [];
+                destroyRoots(alternateRoots);
+                alternateQueries = [];
+
+                if (elseTemplate) {
+                  recursiveBuild({ elseNode: cloneDeep(elseTemplate) }, buildParentFor(alternateRoots), contextRef, alternateQueries);
+                }
+                currentState = "empty";
+              }
+              return;
+            }
+
+            if (currentState === "empty") {
+              destroyRoots(alternateRoots);
+              alternateQueries = [];
+              childRoots = [];
+              childContexts = [];
+              childQueries = [];
+            }
+
+            if (childContexts.length > items.length) {
+              for (let i = items.length; i < childContexts.length; i++) {
+                destroyRoots(childRoots[i] ?? []);
+              }
+              childRoots = childRoots.slice(0, items.length);
+              childContexts = childContexts.slice(0, items.length);
+              childQueries = childQueries.slice(0, items.length);
+            }
+
+            for (let i = 0; i < items.length; i++) {
+              const itemContext = { ...contextRef.context, ...cloneDeep(items[i]) };
+              itemContext.$context = contextRef.context;
+              itemContext.$index = i;
+              itemContext.$root = rootContext;
+
+              if (i < childQueries.length && childQueries[i]) {
+                if (isEqual(childContexts[i].context, itemContext)) {
+                  continue;
+                }
+                childQueries[i].forEach(([, queries]) => {
+                  queries.forEach(({ pointer }) => typeof pointer === "function" && pointer(itemContext));
+                });
+                childContexts[i].context = itemContext;
+              } else {
+                childQueries[i] = [];
+                childContexts[i] = { context: itemContext };
+                childRoots[i] = [];
+
+                const itemJson = applyIdSuffix(cloneDeep(contentTemplate), `-${i}`);
+                recursiveBuild({ child: itemJson }, buildParentFor(childRoots[i]), childContexts[i], childQueries[i]);
+              }
+            }
+
+            currentState = "items";
+          };
+
+          const eachQueriables: Query[] = [];
+
+          if (arrayPath.includes("{{") && hasExpression(arrayPath)) {
+            const exprQuery = testExpressionQuery("$each", arrayPath, value, "");
+            if (exprQuery) eachQueriables.push(exprQuery);
+          } else if (arrayPath.includes("$$")) {
+            const dollarQuery = testQuery("$each", "$$" + arrayPath, value, "");
+            if (dollarQuery) eachQueriables.push(dollarQuery);
+          } else {
+            eachQueriables.push({
+              query: arrayPath,
+              key: "$each",
+              parent: "",
+              pointer: value,
+            });
+          }
+
+          eachQueriables.forEach((query) => {
+            query.pointer = (_context: any) => {
+              const items = query.expression ? query.expression.evaluate(_context) : get(_context, query.query);
+              buildEachChildren(items || []);
+              return false;
+            };
+          });
+
+          buildQueries.push([null, eachQueriables]);
+          buildEachChildren(get(contextRef.context, arrayPath) || []);
+          return;
+        }
+
         // Create a wrapper box to hold the each content
-        const wrapperPosition = new Position('center', 'center', { width: 'full', height: 'full' });
-        const wrapper: Box = new Box(wrapperPosition);
+        const wrapperPosition = usingPosspecLayout
+          ? new Position(0, 0, { width: "auto", height: "auto" })
+          : parentIsFlowContainer
+            ? new Position(0, 0, { width: "auto", height: "auto" })
+            : new Position("center", "center", { width: "full", height: "full" });
+        const wrapper: Box = new Box(wrapperPosition, {
+          style: {
+            position: parentIsFlowContainer ? "relative" : "absolute",
+            border: "none",
+            backgroundColor: "transparent",
+            padding: "0",
+            margin: "0",
+            overflow: "visible",
+            pointerEvents: "none",
+          },
+        });
 
         let childContexts: any[] = [];
         let childQueries: BuildQuery[][] = [];
@@ -1013,7 +1749,8 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
               childContexts[i] = { context: itemContext };
 
               const itemJson = cloneDeep(contentTemplate);
-              recursiveBuild({ child: itemJson }, wrapper, childContexts[i], childQueries[i]);
+              const suffixedItemJson = applyIdSuffix(itemJson, `-${i}`);
+              recursiveBuild({ child: suffixedItemJson }, wrapper, childContexts[i], childQueries[i]);
             }
           }
 
@@ -1092,9 +1829,13 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
       Object.entries(res).forEach(([key, value]) => {
         box.addChild(value);
       });
+      builtRoots = { box };
+      runPosspecLayout();
       return { box };
     }
 
+    builtRoots = res;
+    runPosspecLayout();
     return res;
   };
 
@@ -1116,6 +1857,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
       //   pointer[key] = contextValue;
       // }
     });
+    runPosspecLayout();
     return;
   };
 

@@ -1,5 +1,6 @@
-<Box width="1920" x="left" height="1080" y="top" captureFocus="{{ localPlayer }}">
-  <Grid items="{{ items }}" width="50%" x="center" height="80%" y="center" gap="5px">
+<Canvas width="1920" height="1080" captureFocus="{{ localPlayer }}">
+  <Grid items="{{ items }}" columns="5" spacing="5" anchor="Center" pivot="Center"
+        overflow="Scale" maxWidth="fill" maxHeight="fill">
     <Box
       width="150"
       height="150"
@@ -10,4 +11,4 @@
       {{ name }}
     </Box>
   </Grid>
-</Box>
+</Canvas>

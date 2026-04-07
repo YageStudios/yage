@@ -4,6 +4,7 @@ import type { BoxConfig } from "./Box";
 import type { TextConfig } from "./Text";
 import { scaleFont } from "./utils";
 import { InputEventType } from "yage/inputs/InputManager";
+import { isSyntheticMouseEvent } from "yage/inputs/TouchMouseGuard";
 
 export interface ButtonConfig extends BoxConfig, TextConfig {
   focusStyle?: Partial<CSSStyleDeclaration>;
@@ -136,28 +137,30 @@ export class Button extends UIElement<ButtonConfig> {
     buttonElement.style.fontSize = `${scaleFont(this.config.fontSize || 12, scales[0] * scales[1] * scales[2])}px`;
     this.textElement.innerHTML = this._config.label;
 
-    let pointerType = "mouse";
     buttonElement.onpointerdown = (e) => {
-      pointerType = e.pointerType;
+      this.recordPointerInteraction(e.pointerType, Date.now());
     };
 
     buttonElement.onclick = (e) => {
-      const playerIndex = this.uiService.getPlayerEventIndex(
-        pointerType === "mouse" ? InputEventType.MOUSE : InputEventType.TOUCH,
-        0,
-        this
-      );
+      const inputType = this.getClickInputType();
+      const playerIndex = this.uiService.getPlayerEventIndex(inputType, 0, this);
       if (playerIndex === -1) {
         e.stopPropagation();
         return;
       }
-      this.onMouseEnter(e, true);
+      if (inputType === InputEventType.MOUSE) {
+        this.onMouseEnter(e, true);
+      }
 
       if (this.onClick(playerIndex) === false) {
         e.stopPropagation();
       }
     };
     buttonElement.onmousedown = (e) => {
+      if (isSyntheticMouseEvent()) {
+        e.stopPropagation();
+        return;
+      }
       const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0, this);
       if (playerIndex === -1) {
         e.stopPropagation();
@@ -168,6 +171,10 @@ export class Button extends UIElement<ButtonConfig> {
       }
     };
     buttonElement.onmouseup = (e) => {
+      if (isSyntheticMouseEvent()) {
+        e.stopPropagation();
+        return;
+      }
       const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0, this);
       if (playerIndex === -1) {
         e.stopPropagation();
@@ -178,9 +185,15 @@ export class Button extends UIElement<ButtonConfig> {
       }
     };
     buttonElement.onmouseenter = (e) => {
+      if (isSyntheticMouseEvent()) {
+        return;
+      }
       this.onMouseEnter(e);
     };
     buttonElement.onmouseleave = () => {
+      if (isSyntheticMouseEvent()) {
+        return;
+      }
       this.onMouseLeave();
     };
   }
