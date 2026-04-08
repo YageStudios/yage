@@ -147,7 +147,12 @@ export class Button extends UIElement<ButtonConfig> {
         e.stopPropagation();
         return;
       }
-      const playerIndex = this.uiService.getPlayerEventIndex(inputType, 0, this);
+      let playerIndex = this.uiService.getPlayerEventIndex(inputType, 0, this);
+      const isSharedButton =
+        this._config.captureFocus === undefined || this._config.captureFocus === null || this._config.captureFocus < 0;
+      if (playerIndex === -1 && isSharedButton) {
+        playerIndex = 0;
+      }
       if (playerIndex === -1) {
         e.stopPropagation();
         return;
@@ -157,7 +162,8 @@ export class Button extends UIElement<ButtonConfig> {
       }
       this.syncFocusForInputType(inputType, playerIndex);
 
-      if (this.onClick(playerIndex) === false) {
+      const clickResult = isSharedButton ? this.onClickInternal(playerIndex) : this.onClick(playerIndex);
+      if (clickResult === false) {
         e.stopPropagation();
       }
     };
