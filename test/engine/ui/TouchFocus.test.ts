@@ -42,4 +42,21 @@ describe("UI touch focus", () => {
     expect(setFocusSpy).toHaveBeenCalledWith(0, button);
     expect(service.elementFocusIndices(button)).toEqual([0]);
   });
+
+  it("ignores touch clicks for buttons mounted after the touch began", () => {
+    const service = UIService.getInstance();
+    service.playerInputs = [[InputEventType.TOUCH, 0]];
+
+    service.beginTouchSession();
+
+    const button = new Button(new Position(0, 0), { label: "Late button" });
+    const onClick = vi.fn();
+    button.config.onClick = onClick;
+
+    button.element.onclick?.({
+      stopPropagation: vi.fn(),
+    } as any);
+
+    expect(onClick).not.toHaveBeenCalled();
+  });
 });

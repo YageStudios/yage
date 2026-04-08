@@ -29,6 +29,7 @@ const onPlayerJoin = (gameModel: GameModel, playerId: string) => {
   // This will show the UMIL flow: Input Detection -> Main Menu -> Game
   const instance = await UmilQuickStart<null>({
     gameName: "UMIL Example Game",
+    gameVersion: "1",
 
     // UMIL configuration
     umilConfig: {
@@ -76,10 +77,10 @@ const onPlayerJoin = (gameModel: GameModel, playerId: string) => {
 
     preload,
 
-    // Optional: PeerJS configuration for online play
-    // peerOptions: {
-    //   prefix: "yage-",
-    // },
+    peerOptions: {
+      prefix: "yage-",
+      host: "peer.yage.games",
+    },
 
     // Optional: Socket.IO configuration for online play
     // socketOptions: {

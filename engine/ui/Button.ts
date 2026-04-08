@@ -143,6 +143,10 @@ export class Button extends UIElement<ButtonConfig> {
 
     buttonElement.onclick = (e) => {
       const inputType = this.getClickInputType();
+      if (inputType === InputEventType.TOUCH && !this.uiService.canDispatchTouchClick(this)) {
+        e.stopPropagation();
+        return;
+      }
       const playerIndex = this.uiService.getPlayerEventIndex(inputType, 0, this);
       if (playerIndex === -1) {
         e.stopPropagation();

@@ -18,9 +18,11 @@ import { UmilInputType } from "./types";
 import type { InputEventType } from "yage/inputs/InputManager";
 import { InputEventType as InputEventTypeEnum } from "yage/inputs/InputManager";
 import { ensureMobileFullscreenButton } from "yage/game/mobileFullscreen";
+import { PeerRoomDiscovery } from "./PeerRoomDiscovery";
 
 type UmilQuickStartOptions<T> = {
   gameName: string;
+  gameVersion?: string;
   umilConfig?: Partial<UmilConfig>;
   buildWorld?: (gameModel: GameModel, firstPlayerConfig: T) => void;
   onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: T) => number;
@@ -35,6 +37,7 @@ type UmilQuickStartOptions<T> = {
 
 export async function UmilQuickStart<T = null>({
   gameName,
+  gameVersion = "1",
   umilConfig = {},
   buildWorld = () => {},
   onPlayerJoin,
@@ -79,6 +82,7 @@ export async function UmilQuickStart<T = null>({
   // Run UMIL flow first
   const config: UmilConfig = {
     appName: gameName,
+    appVersion: gameVersion,
     maxLocalPlayers: 4,
     maxOnlinePlayers: 4,
     allowLocalOnly: true,
@@ -87,7 +91,7 @@ export async function UmilQuickStart<T = null>({
   };
 
   const umilFlow = new UmilFlow<T>(config, playerConfig as T, peerOptions || socketOptions);
-  const result: UmilResult = await umilFlow.start();
+  const result: UmilResult<T> = await umilFlow.start();
 
   // Configure player inputs for UI service
   const uiService = UIService.getInstance();
@@ -128,10 +132,13 @@ export async function UmilQuickStart<T = null>({
   }
 
   // Create appropriate connection based on UMIL result
-  let connection;
+  let connection = result.connectionInstance;
 
   switch (result.connection) {
     case "COOP":
+      if (connection) {
+        break;
+      }
       // Build player inputs array for CoopConnectionInstance
       const players: [InputEventType, number, T | undefined][] = result.localPlayers.map((player) => {
         let eventType: InputEventType;
@@ -156,6 +163,9 @@ export async function UmilQuickStart<T = null>({
       break;
 
     case "PEER":
+      if (connection) {
+        break;
+      }
       if (!playerConnect) {
         throw new Error("Player connect is required for multiplayer");
       }
@@ -169,6 +179,9 @@ export async function UmilQuickStart<T = null>({
       break;
 
     case "SOCKET":
+      if (connection) {
+        break;
+      }
       if (!playerConnect) {
         throw new Error("Player connect is required for multiplayer");
       }
@@ -183,11 +196,15 @@ export async function UmilQuickStart<T = null>({
 
     case "SINGLEPLAYER":
     default:
-      connection = new SingleplayerConnectionInstance<T>(inputManager, playerConfig);
+      if (!connection) {
+        connection = new SingleplayerConnectionInstance<T>(inputManager, playerConfig);
+      }
       break;
   }
 
-  await connection.connect();
+  if (!result.connectionInstance) {
+    await connection.connect();
+  }
 
   const instance = new GameInstance<T>({
     connection,
@@ -197,7 +214,77 @@ export async function UmilQuickStart<T = null>({
     onPlayerLeave,
   });
 
-  instance.initializeRoom(result.roomId || roomId, seed);
+  if (result.connection === "PEER" && result.connectionInstance && !result.isHost && result.roomId) {
+    await new Promise<void>((resolve, reject) => {
+      if (connection.rooms[result.roomId]) {
+        resolve();
+        return;
+      }
+
+      let settled = false;
+      const unsubscribe = connection.on("updateRoom", (_playerId: string, room: { roomId: string }) => {
+        if (!settled && room.roomId === result.roomId) {
+          settled = true;
+          unsubscribe();
+          resolve();
+        }
+      });
+
+      setTimeout(() => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        unsubscribe();
+        reject(new Error("Timed out waiting for host room"));
+      }, 5000);
+    });
+  }
+
+  await instance.initializeRoom(result.roomId || roomId, seed, {
+    players:
+      result.connection === "PEER" && result.isHost
+        ? connection.localPlayers.map((player) => player.netId)
+        : undefined,
+  });
+
+  if (result.connection === "PEER" && result.isHost && peerOptions && result.roomId) {
+    const discovery = new PeerRoomDiscovery({
+      prefix: peerOptions.prefix,
+      host: peerOptions.host,
+      lobbyId: `${gameName.replace(/[^a-z0-9_-]/gi, "-").toLowerCase()}-${gameVersion
+        .replace(/[^a-z0-9_-]/gi, "-")
+        .toLowerCase()}-lobby`,
+    });
+    await discovery.start();
+
+    const publishRoom = () => {
+      const room = connection.rooms[result.roomId!];
+      discovery.publishRoom({
+        roomId: result.roomId!,
+        roomName: `${result.nickname}'s Room`,
+        hostName: result.nickname,
+        currentPlayers: room?.players.length ?? connection.localPlayers.length,
+        maxPlayers: config.maxOnlinePlayers ?? 4,
+      });
+    };
+
+    publishRoom();
+    connection.onPlayerConnect(publishRoom);
+    connection.onPlayerDisconnect(publishRoom);
+
+    if (typeof window !== "undefined") {
+      window.addEventListener(
+        "beforeunload",
+        () => {
+          discovery.unpublishRoom(result.roomId!);
+          discovery.stop();
+        },
+        { once: true }
+      );
+    }
+  }
+
   ensureMobileFullscreenButton();
 
   return instance;

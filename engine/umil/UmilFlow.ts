@@ -7,6 +7,9 @@ import type { UIElement } from "yage/ui/UIElement";
 import { isSyntheticMouseEvent, markTouchInteraction } from "yage/inputs/TouchMouseGuard";
 import { InputClusterer } from "./InputClusterer";
 import { ensureMobileFullscreenButton } from "yage/game/mobileFullscreen";
+import { PeerMultiplayerInstance, type PeerMultiplayerInstanceOptions } from "yage/connection/PeerMultiplayerInstance";
+import type { PlayerConnect } from "yage/connection/ConnectionInstance";
+import { PeerRoomDiscovery } from "./PeerRoomDiscovery";
 import type {
   UmilStep,
   UmilConfig,
@@ -14,6 +17,7 @@ import type {
   UMIL_LocalPlayerConfig,
   UMIL_RoomData,
   UMIL_LobbyState,
+  UMIL_LobbyPlayer,
   UMIL_ChatMessage,
 } from "./types";
 import { UmilInputType, UMIL_EVENTS } from "./types";
@@ -36,6 +40,7 @@ export class UmilFlow<T = null> {
   private chatMessages: UMIL_ChatMessage[] = [];
   private isReady: boolean = false;
   private chatDraft: string = "";
+  private joinRoomCode: string = "";
 
   private inputManager: InputManager;
   private inputClusterer: InputClusterer;
@@ -50,6 +55,10 @@ export class UmilFlow<T = null> {
   private lobbyUnsubscribe: (() => void) | null = null;
   private mouseHandler: ((e: MouseEvent) => void) | null = null;
   private touchHandler: ((e: TouchEvent) => void) | null = null;
+  private peerDiscovery: PeerRoomDiscovery | null = null;
+  private peerRoomConnection: PeerMultiplayerInstance<T> | null = null;
+  private peerRoomListenersBound: boolean = false;
+  private readonly peerNetId: string = `umil-${nanoid()}`;
 
   constructor(private config: UmilConfig, private playerConfig: T, private multiplayerConfig?: any) {
     this.uiService = UIService.getInstance();
@@ -131,6 +140,9 @@ export class UmilFlow<T = null> {
 
   private showMainMenu(): void {
     this.step = "MAIN_MENU";
+    if (this.isPeerMultiplayerConfig(this.multiplayerConfig)) {
+      void this.connectPeerDiscovery();
+    }
     this.syncUi();
   }
 
@@ -143,20 +155,40 @@ export class UmilFlow<T = null> {
     this.complete(result);
   }
 
-  private showHostDialog(): void {
-    const roomName = `${this.nickname}'s Room`;
+  private isPeerMultiplayerConfig(config: any): config is PeerMultiplayerInstanceOptions<T> {
+    return !!config?.prefix;
+  }
+
+  private getPeerLobbyId(): string {
+    const version = (this.config.appVersion ?? "1").replace(/[^a-z0-9_-]/gi, "-").toLowerCase();
+    const appName = this.config.appName.replace(/[^a-z0-9_-]/gi, "-").toLowerCase();
+    return `${appName}-${version}-lobby`;
+  }
+
+  private async showHostDialog(): Promise<void> {
     this.roomId = nanoid();
     this.isHost = true;
-    this.showLobby(roomName);
+    this.joinRoomCode = this.roomId;
+
+    if (this.isPeerMultiplayerConfig(this.multiplayerConfig)) {
+      await this.connectPeerDiscovery();
+      await this.connectPeerRoom(this.roomId);
+      this.showLobby(`${this.nickname}'s Room`);
+      this.publishHostedRoom();
+      this.broadcastLobbyState();
+      return;
+    }
+
+    this.showLobby(`${this.nickname}'s Room`);
   }
 
   private showRoomBrowser(): void {
     this.step = "BROWSING";
-
-    this.roomList = [
-      { roomId: "room1", roomName: "Test Room 1", hostName: "Player_A", currentPlayers: 2, maxPlayers: 4 },
-      { roomId: "room2", roomName: "Test Room 2", hostName: "Player_B", currentPlayers: 1, maxPlayers: 4 },
-    ];
+    if (this.isPeerMultiplayerConfig(this.multiplayerConfig)) {
+      void this.connectPeerDiscovery();
+    } else {
+      this.roomList = [];
+    }
 
     this.renderRoomBrowser();
   }
@@ -165,19 +197,36 @@ export class UmilFlow<T = null> {
     this.syncUi();
   }
 
-  private joinRoom(roomId: string): void {
+  private async joinRoom(roomId: string): Promise<void> {
     this.roomId = roomId;
     this.isHost = false;
+
+    if (this.isPeerMultiplayerConfig(this.multiplayerConfig)) {
+      this.joinRoomCode = roomId;
+      await this.connectPeerRoom(roomId);
+      const room = this.roomList.find((entry) => entry.roomId === roomId);
+      this.showLobby(room?.roomName ?? "Joined Room");
+      this.emitPeerPlayerUpdate();
+      return;
+    }
+
     this.showLobby("Joined Room");
   }
 
   private showLobby(roomName: string): void {
     this.step = "LOBBY";
 
-    this.lobbyState = {
+    this.lobbyState = this.lobbyState ?? {
       roomName,
       maxPlayers: this.config.maxOnlinePlayers ?? 4,
-      players: [{ netId: "local", name: this.nickname, isHost: this.isHost, isReady: this.isReady }],
+      players: [
+        {
+          netId: this.isPeerMultiplayerConfig(this.multiplayerConfig) ? this.peerNetId : "local",
+          name: this.nickname,
+          isHost: this.isHost,
+          isReady: this.isReady,
+        },
+      ],
     };
     this.syncUi();
 
@@ -191,25 +240,26 @@ export class UmilFlow<T = null> {
   }
 
   private startOnlineGame(): void {
-    const result: UmilResult = {
+    const result: UmilResult<T> = {
       connection: this.multiplayerConfig?.prefix ? "PEER" : "SOCKET",
       localPlayers: this.localPlayers,
       nickname: this.nickname,
       roomId: this.roomId!,
       isHost: this.isHost,
       signalingServerUrl: this.config.signalingServerUrl,
+      connectionInstance: this.peerRoomConnection ?? undefined,
     };
     this.complete(result);
   }
 
-  private complete(result: UmilResult): void {
-    this.cleanup();
+  private complete(result: UmilResult<T>): void {
+    this.cleanup(Boolean(result.connectionInstance));
     if (this.resolvePromise) {
       this.resolvePromise(result);
     }
   }
 
-  private cleanup(): void {
+  private cleanup(preservePeerRoomConnection = false): void {
     this.inputClusterer.stop();
     this.keyboardListener.destroy();
 
@@ -242,6 +292,191 @@ export class UmilFlow<T = null> {
       this.rootElement = null;
     }
     this.uiMap = null;
+    this.destroyPeerDiscoveryConnection();
+    if (!preservePeerRoomConnection) {
+      this.destroyPeerRoomConnection();
+    }
+  }
+
+  private destroyPeerDiscoveryConnection(): void {
+    if (!this.peerDiscovery) {
+      return;
+    }
+    this.peerDiscovery.stop();
+    this.peerDiscovery = null;
+  }
+
+  private destroyPeerRoomConnection(): void {
+    if (!this.peerRoomConnection) {
+      return;
+    }
+    const connection = this.peerRoomConnection;
+    this.peerRoomConnection = null;
+    this.peerRoomListenersBound = false;
+    connection.peer.destroy();
+  }
+
+  private publishHostedRoom(): void {
+    if (!this.peerDiscovery || !this.roomId || !this.lobbyState || !this.isHost) {
+      return;
+    }
+    this.peerDiscovery.publishRoom({
+      roomId: this.roomId,
+      roomName: this.lobbyState.roomName,
+      hostName: this.nickname,
+      currentPlayers: this.lobbyState.players.length,
+      maxPlayers: this.lobbyState.maxPlayers,
+      ownerNetId: this.peerNetId,
+    });
+  }
+
+  private unpublishHostedRoom(): void {
+    if (!this.peerDiscovery || !this.roomId) {
+      return;
+    }
+    this.peerDiscovery.unpublishRoom(this.roomId);
+  }
+
+  private buildPeerPlayer(): PlayerConnect<T> {
+    return {
+      netId: this.peerNetId,
+      uniqueId: this.nickname,
+      token: "",
+      config: this.playerConfig,
+    };
+  }
+
+  private async connectPeerDiscovery(): Promise<void> {
+    if (!this.isPeerMultiplayerConfig(this.multiplayerConfig)) {
+      return;
+    }
+    const lobbyId = this.getPeerLobbyId();
+    if (this.peerDiscovery) {
+      return;
+    }
+
+    this.destroyPeerDiscoveryConnection();
+    this.peerDiscovery = new PeerRoomDiscovery({
+      prefix: this.multiplayerConfig.prefix,
+      host: this.multiplayerConfig.host,
+      lobbyId,
+      onRoomsChanged: (rooms) => {
+        this.roomList = rooms;
+        this.syncUi();
+      },
+    });
+    await this.peerDiscovery.start();
+    this.roomList = this.peerDiscovery.getRooms();
+    this.syncUi();
+  }
+
+  private async connectPeerRoom(roomId: string): Promise<void> {
+    if (!this.isPeerMultiplayerConfig(this.multiplayerConfig)) {
+      return;
+    }
+    if (this.peerRoomConnection?.address === roomId) {
+      return;
+    }
+
+    this.destroyPeerRoomConnection();
+    this.peerRoomConnection = new PeerMultiplayerInstance<T>(this.buildPeerPlayer(), new InputManager(false), {
+      ...this.multiplayerConfig,
+      address: roomId,
+    });
+    this.bindPeerRoomListeners(this.peerRoomConnection);
+    await this.peerRoomConnection.connect();
+  }
+
+  private bindPeerRoomListeners(connection: PeerMultiplayerInstance<T>): void {
+    if (this.peerRoomListenersBound) {
+      return;
+    }
+    this.peerRoomListenersBound = true;
+
+    connection.on(UMIL_EVENTS.LOBBY_STATE, (_playerId, lobbyState: UMIL_LobbyState) => {
+      this.lobbyState = lobbyState;
+      const localPlayer = this.lobbyState.players.find((player) => player.netId === this.peerNetId);
+      this.isHost = !!localPlayer?.isHost;
+      this.isReady = !!localPlayer?.isReady;
+      this.syncUi();
+    });
+
+    connection.on(UMIL_EVENTS.CHAT_MESSAGE, (_playerId, message: UMIL_ChatMessage) => {
+      this.chatMessages = [...this.chatMessages, message];
+      this.syncUi();
+    });
+
+    connection.on(UMIL_EVENTS.PLAYER_UPDATE, (playerId, update: Partial<UMIL_LobbyPlayer>) => {
+      if (!this.isHost || !this.lobbyState) {
+        return;
+      }
+      const player = this.lobbyState.players.find((entry) => entry.netId === playerId);
+      if (!player) {
+        return;
+      }
+      Object.assign(player, update);
+      this.broadcastLobbyState();
+    });
+
+    connection.on(UMIL_EVENTS.START_GAME, () => {
+      if (!this.isHost) {
+        this.startOnlineGame();
+      }
+    });
+
+    connection.onPlayerConnect((player) => {
+      if (!this.isHost || !this.lobbyState) {
+        return;
+      }
+      const existing = this.lobbyState.players.find((entry) => entry.netId === player.netId);
+      if (!existing) {
+        this.lobbyState.players.push({
+          netId: player.netId,
+          name: player.uniqueId,
+          isHost: false,
+          isReady: false,
+        });
+      }
+      this.broadcastLobbyState();
+    });
+
+    connection.onPlayerDisconnect((playerId) => {
+      if (!this.isHost || !this.lobbyState) {
+        return;
+      }
+      this.lobbyState.players = this.lobbyState.players.filter((player) => player.netId !== playerId);
+      this.broadcastLobbyState();
+    });
+  }
+
+  private broadcastLobbyState(): void {
+    if (!this.peerRoomConnection || !this.lobbyState) {
+      return;
+    }
+    this.lobbyState = {
+      ...this.lobbyState,
+      players: [...this.lobbyState.players].sort((a, b) => {
+        if (a.isHost) return -1;
+        if (b.isHost) return 1;
+        return a.name.localeCompare(b.name);
+      }),
+    };
+    this.peerRoomConnection.emit(UMIL_EVENTS.LOBBY_STATE, this.lobbyState);
+    if (this.isHost) {
+      this.publishHostedRoom();
+    }
+    this.syncUi();
+  }
+
+  private emitPeerPlayerUpdate(): void {
+    if (!this.peerRoomConnection) {
+      return;
+    }
+    this.peerRoomConnection.updatePlayerConnect({ name: this.nickname });
+    this.peerRoomConnection.emit(UMIL_EVENTS.PLAYER_UPDATE, {
+      name: this.nickname,
+      isReady: this.isReady,
+    });
   }
 
   private syncUi(): void {
@@ -295,40 +530,96 @@ export class UmilFlow<T = null> {
         this.startLocalGame();
         return;
       case "showHostDialog":
-        this.showHostDialog();
+        void this.showHostDialog();
         return;
       case "showRoomBrowser":
         this.showRoomBrowser();
         return;
       case "showMainMenu":
       case "leaveRoom":
+        this.unpublishHostedRoom();
+        this.roomId = null;
+        this.lobbyState = null;
+        this.isHost = false;
+        this.isReady = false;
+        this.chatDraft = "";
+        this.chatMessages = [];
         this.showMainMenu();
         return;
       case "refreshRooms":
+        if (this.isPeerMultiplayerConfig(this.multiplayerConfig)) {
+          this.roomList = [];
+          this.destroyPeerDiscoveryConnection();
+          void this.connectPeerDiscovery();
+        }
         this.renderRoomBrowser();
         return;
       case "joinRoom":
         if (eventContext?.roomId) {
-          this.joinRoom(eventContext.roomId);
+          void this.joinRoom(eventContext.roomId);
         }
+        return;
+      case "joinRoomCodeChange":
+        this.joinRoomCode = typeof payload === "string" ? payload.trim().toUpperCase() : this.joinRoomCode;
+        this.syncUi();
+        return;
+      case "submitJoinRoomCode":
+        if (this.joinRoomCode) {
+          void this.joinRoom(this.joinRoomCode);
+        }
+        return;
+      case "startOnlineGame":
+        this.unpublishHostedRoom();
+        if (this.isPeerMultiplayerConfig(this.multiplayerConfig) && this.peerRoomConnection) {
+          if (this.isHost && this.roomId && this.lobbyState) {
+            const roomUpdate = {
+              roomId: this.roomId,
+              host: this.peerNetId,
+              players: this.lobbyState.players.map((player) => player.netId),
+              rebalanceOnLeave: false,
+            };
+            Object.values(this.peerRoomConnection.connections).forEach((conn) => {
+              conn.send([this.peerNetId, "updateRoom", roomUpdate]);
+            });
+          }
+          this.peerRoomConnection.emit(UMIL_EVENTS.START_GAME, { roomId: this.roomId });
+        }
+        this.startOnlineGame();
         return;
       case "toggleReady": {
         this.isReady = !this.isReady;
-        const localPlayer = this.lobbyState?.players.find((player) => player.netId === "local");
+        const localPlayer = this.lobbyState?.players.find((player) => player.netId === this.peerNetId || player.netId === "local");
         if (localPlayer) {
           localPlayer.isReady = this.isReady;
+        }
+        if (this.isPeerMultiplayerConfig(this.multiplayerConfig) && this.peerRoomConnection) {
+          if (this.isHost) {
+            this.broadcastLobbyState();
+          } else {
+            this.emitPeerPlayerUpdate();
+          }
         }
         this.syncUi();
         return;
       }
-      case "startOnlineGame":
-        if (this.lobbyState?.players.every((player) => player.isReady)) {
-          this.startOnlineGame();
-        }
-        return;
       case "nicknameChange":
         if (typeof payload === "string" && payload.trim()) {
           this.nickname = payload.trim();
+          if (this.isHost && this.step === "LOBBY") {
+            if (this.lobbyState) {
+              this.lobbyState.roomName = `${this.nickname}'s Room`;
+              const localPlayer = this.lobbyState.players.find(
+                (player) => player.netId === this.peerNetId || player.netId === "local"
+              );
+              if (localPlayer) {
+                localPlayer.name = this.nickname;
+              }
+            }
+            this.publishHostedRoom();
+          }
+          if (this.isPeerMultiplayerConfig(this.multiplayerConfig) && this.peerRoomConnection && !this.isHost) {
+            this.emitPeerPlayerUpdate();
+          }
           this.syncUi();
         }
         return;
@@ -347,7 +638,17 @@ export class UmilFlow<T = null> {
     if (!nextMessage) {
       return;
     }
-
+    if (this.isPeerMultiplayerConfig(this.multiplayerConfig) && this.peerRoomConnection) {
+      this.peerRoomConnection.emit(UMIL_EVENTS.CHAT_MESSAGE, {
+        senderId: this.peerNetId,
+        senderName: this.nickname,
+        text: nextMessage,
+        timestamp: Date.now(),
+      });
+      this.chatDraft = "";
+      this.syncUi();
+      return;
+    }
     this.chatMessages.push({
       senderId: "local",
       senderName: this.nickname,
@@ -418,6 +719,8 @@ export class UmilFlow<T = null> {
       appName: this.config.appName,
       step: this.step,
       nickname: this.nickname,
+      isPeerLobby: this.isPeerMultiplayerConfig(this.multiplayerConfig),
+      joinRoomCode: this.joinRoomCode,
       inputPlayers,
       sharedSurfaceActions,
       showInputStartButton,
@@ -448,7 +751,6 @@ export class UmilFlow<T = null> {
       })),
       chatDraft: this.chatDraft,
       playerConfig: this.playerConfig,
-      multiplayerEvents: UMIL_EVENTS,
     };
   }
 }

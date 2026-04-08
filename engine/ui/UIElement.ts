@@ -88,6 +88,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   removeTheseChildren: UIElement[] = [];
   destroyed: boolean;
   uiService: UIService;
+  interactionMountEpoch = 0;
 
   focusedIndices: number[] = [];
   protected lastPointerType: string | null = null;
@@ -208,6 +209,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     if (!this._element) {
       const element = this.createElement();
       this._element = element;
+      this.interactionMountEpoch = this.uiService.registerElementMount();
       this.addEvents(element);
     }
     // @ts-ignore
@@ -459,6 +461,10 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     };
     element.onclick = (e) => {
       const inputType = this.getClickInputType();
+      if (inputType === InputEventType.TOUCH && !this.uiService.canDispatchTouchClick(this)) {
+        e.stopPropagation();
+        return;
+      }
       const playerIndex = this.uiService.getPlayerEventIndex(inputType, 0, this);
       if (playerIndex === -1) {
         e.stopPropagation();

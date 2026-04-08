@@ -26,6 +26,10 @@ export class UIService {
   lastMouseMove: number;
   debugCanvas: any;
   unsub: (() => void) | undefined;
+  uiMutationEpoch = 0;
+  activeTouchStartEpoch: number | null = null;
+  activeTouchCount = 0;
+  private touchReleaseTimer: ReturnType<typeof setTimeout> | null = null;
 
   playerInputs: [InputEventType, number][] = [[InputEventType.ANY, 0]];
 
@@ -97,6 +101,43 @@ export class UIService {
     }
 
     return -1;
+  }
+
+  registerElementMount(): number {
+    this.uiMutationEpoch += 1;
+    return this.uiMutationEpoch;
+  }
+
+  beginTouchSession() {
+    if (this.touchReleaseTimer) {
+      clearTimeout(this.touchReleaseTimer);
+      this.touchReleaseTimer = null;
+    }
+    this.activeTouchCount += 1;
+    if (this.activeTouchStartEpoch === null) {
+      this.activeTouchStartEpoch = this.uiMutationEpoch;
+    }
+  }
+
+  endTouchSession(activeTouches = 0) {
+    this.activeTouchCount = Math.max(0, activeTouches);
+    if (this.activeTouchCount > 0) {
+      return;
+    }
+    if (this.touchReleaseTimer) {
+      clearTimeout(this.touchReleaseTimer);
+    }
+    this.touchReleaseTimer = setTimeout(() => {
+      this.activeTouchStartEpoch = null;
+      this.touchReleaseTimer = null;
+    }, 750);
+  }
+
+  canDispatchTouchClick(element: UIElement): boolean {
+    if (this.activeTouchStartEpoch === null) {
+      return true;
+    }
+    return element.interactionMountEpoch <= this.activeTouchStartEpoch;
   }
 
   _keyCaptureListener = (
@@ -293,6 +334,34 @@ export class UIService {
         this.attemptMouseFocus(mapped);
       }
     });
+
+    window.addEventListener("touchstart", (event) => {
+      if (event.changedTouches.length > 0) {
+        this.beginTouchSession();
+      }
+    });
+
+    const finishTouchSession = (event: TouchEvent) => {
+      this.endTouchSession(event.touches.length);
+    };
+
+    window.addEventListener("touchend", finishTouchSession);
+    window.addEventListener("touchcancel", finishTouchSession);
+
+    window.addEventListener("pointerdown", (event) => {
+      if (event.pointerType === "touch") {
+        this.beginTouchSession();
+      }
+    });
+
+    const finishPointerTouchSession = (event: PointerEvent) => {
+      if (event.pointerType === "touch") {
+        this.endTouchSession(0);
+      }
+    };
+
+    window.addEventListener("pointerup", finishPointerTouchSession);
+    window.addEventListener("pointercancel", finishPointerTouchSession);
   }
 
   addKeyPressListener(listener: (key: string) => void) {

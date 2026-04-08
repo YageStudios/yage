@@ -1,3 +1,4 @@
+import type { ConnectionInstance } from "yage/connection/ConnectionInstance";
 import type { InputEventType } from "yage/inputs/InputManager";
 
 export type UmilStep = "INPUT_DETECTION" | "MAIN_MENU" | "BROWSING" | "LOBBY" | "COMPLETE";
@@ -24,6 +25,7 @@ export interface UMIL_RoomData {
   hostName: string;
   currentPlayers: number;
   maxPlayers: number;
+  ownerNetId?: string;
 }
 
 export interface UMIL_LobbyPlayer {
@@ -48,6 +50,7 @@ export interface UMIL_LobbyState {
 
 export interface UmilConfig {
   appName: string;
+  appVersion?: string;
   uiAssetUrl?: string;
   maxLocalPlayers?: number;
   maxOnlinePlayers?: number;
@@ -58,13 +61,14 @@ export interface UmilConfig {
   maxSharedTouchPlayers?: number;
 }
 
-export interface UmilResult {
+export interface UmilResult<T = any> {
   connection: "SINGLEPLAYER" | "COOP" | "PEER" | "SOCKET";
   localPlayers: UMIL_LocalPlayerConfig[];
   nickname: string;
   roomId?: string;
   isHost?: boolean;
   signalingServerUrl?: string;
+  connectionInstance?: ConnectionInstance<T>;
 }
 
 export const KEYBOARD_CLUSTERS: Record<NonNullable<UmilKeyboardCluster>, string[]> = {

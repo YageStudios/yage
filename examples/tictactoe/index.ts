@@ -32,6 +32,7 @@ const onPlayerJoin = (gameModel: GameModel, playerId: string) => {
   // Supports: Local Singleplayer, Local Co-op (WASD vs Arrows), Online Host/Join
   await UmilQuickStart<null>({
     gameName: "Tic Tac Toe",
+    gameVersion: "1",
 
     umilConfig: {
       appName: "Tic Tac Toe",
@@ -62,5 +63,10 @@ const onPlayerJoin = (gameModel: GameModel, playerId: string) => {
     },
 
     preload,
+
+    peerOptions: {
+      prefix: "yage-",
+      host: "peer.yage.games",
+    },
   });
 })();
