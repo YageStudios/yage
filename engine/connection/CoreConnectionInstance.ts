@@ -21,7 +21,7 @@ import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import type { TouchRegion } from "yage/inputs/InputRegion";
 import { md5 } from "yage/utils/md5";
 import { ComponentCategory } from "yage/constants/enums";
-import { SystemImpl } from "minecs";
+import { stepWorldDraw, SystemImpl } from "minecs";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export type CoreConnectionInstanceOptions<T> = {
@@ -37,6 +37,8 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   frameOffset = 8;
   disconnectingPlayers: [string, number][] = [];
   leavingPlayers: { [roomId: string]: [string, number][] } = {};
+  pendingMissedFrames: { [roomId: string]: { [playerId: string]: number | undefined } } = {};
+  publishedFrames: { [roomId: string]: { [playerId: string]: { [frame: number]: Frame } } } = {};
 
   roomSyncResolve: () => void = () => {};
   roomSyncPromise: Promise<void> = new Promise((resolve) => {
@@ -62,6 +64,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   messageListeners: ((message: string, time: number, playerId: string) => void)[] = [];
   connectListeners: ((player: PlayerConnect<T>) => void)[] = [];
   disconnectListeners: ((playerId: string) => void)[] = [];
+  stepRequestedListeners: (() => void)[] = [];
 
   rooms: { [roomId: string]: Room } = {};
   roomStates: { [roomId: string]: RoomState } = {};
@@ -247,6 +250,22 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       this.players = this.players.map((p) => (p.netId === player.netId ? player : p));
       this.connectListeners.forEach((listener) => listener(player));
     });
+
+    this.on("missedFrame", (_playerId, roomId: string, targetPlayerId: string, frameNumber: number) => {
+      if (targetPlayerId !== this.player.netId) {
+        return;
+      }
+      const frame = this.publishedFrames[roomId]?.[targetPlayerId]?.[frameNumber];
+      if (!frame) {
+        return;
+      }
+      this.emit("frame", {
+        keys: this.inputManager.keyMapToJsonObject(frame.keys as KeyMap),
+        frame: frame.frame,
+        events: frame.events,
+        playerId: frame.playerId,
+      });
+    });
   }
 
   async roomHasPlayers(roomId: string): Promise<boolean> {
@@ -332,6 +351,17 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       this.disconnectListeners = this.disconnectListeners.filter((listener) => listener !== cb);
     };
   }
+  onStepRequested(cb: () => void): () => void {
+    this.stepRequestedListeners.push(cb);
+    return () => {
+      this.stepRequestedListeners = this.stepRequestedListeners.filter((listener) => listener !== cb);
+    };
+  }
+
+  requestStep(): boolean {
+    this.stepRequestedListeners.forEach((listener) => listener());
+    return true;
+  }
 
   handleLeavingPlayers(gameModel: GameModel, frameStack: { [playerId: string]: Frame[] }) {
     if (this.leavingPlayers[gameModel.roomId]?.length) {
@@ -363,6 +393,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   frameSkipCheck = (gameModel: GameModel): boolean => {
     const room = this.roomStates[gameModel.roomId];
     const frameStack = room?.frameStack;
+    const isStepMode = gameModel.executionMode === "step";
 
     this.handleLeavingPlayers(gameModel, frameStack);
 
@@ -378,13 +409,30 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
         const playerInput = gameModel.getTypedUnsafe(PlayerInput, player);
         const netId = playerInput.pid;
         while ((frameStack[netId]?.[0]?.frame ?? Infinity) < gameModel.frame) {
-          console.error("old frame received:" + netId);
+          if (!isStepMode) {
+            console.error("old frame received:" + netId);
+          }
           frameStack[netId].shift();
         }
 
         if (!frameStack[netId] || !frameStack[netId][0]) {
+          if (isStepMode) {
+            continue;
+          }
           console.error("dropping slow frame", netId, gameModel.frame);
           // console.error(this.frameStack);
+          return true;
+        }
+
+        if (frameStack[netId][0].frame > gameModel.frame) {
+          if (isStepMode) {
+            continue;
+          }
+          this.pendingMissedFrames[gameModel.roomId] = this.pendingMissedFrames[gameModel.roomId] ?? {};
+          if (this.pendingMissedFrames[gameModel.roomId][netId] !== gameModel.frame) {
+            this.pendingMissedFrames[gameModel.roomId][netId] = gameModel.frame;
+            this.emit("missedFrame", gameModel.roomId, netId, gameModel.frame);
+          }
           return true;
         }
       }
@@ -403,6 +451,8 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       delete this.roomSubs[roomId];
       delete this.roomStates[roomId];
       delete this.rooms[roomId];
+      delete this.pendingMissedFrames[roomId];
+      delete this.publishedFrames[roomId];
     }
   }
 
@@ -441,21 +491,57 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
         "frame",
         (playerId, frame: { keys: { [key: string]: boolean }; events: string[]; frame: number; playerId: string }) => {
           const obj = this.inputManager.toKeyMap(frame.keys);
+          if (room.gameModel && frame.frame < room.gameModel.frame) {
+            return;
+          }
           if (!room.frameStack[frame.playerId]) {
             room.frameStack[frame.playerId] = [];
           }
-          const lastFrame = room.lastFrame[frame.playerId] ?? -1;
-          if (lastFrame >= frame.frame) {
-            return;
+          const isStepMode = room.gameModel?.executionMode === "step";
+          if (!isStepMode) {
+            const lastFrame = room.lastFrame[frame.playerId] ?? -1;
+            if (lastFrame >= frame.frame) {
+              return;
+            }
+            room.frameStack[frame.playerId].push({
+              keys: obj,
+              frame: frame.frame,
+              events: frame.events,
+              playerId: frame.playerId,
+            });
+          } else {
+            const existingIndex = room.frameStack[frame.playerId].findIndex((queuedFrame) => queuedFrame.frame === frame.frame);
+            if (existingIndex !== -1) {
+              room.frameStack[frame.playerId][existingIndex] = {
+                keys: obj,
+                frame: frame.frame,
+                events: frame.events,
+                playerId: frame.playerId,
+              };
+            } else {
+              const queuedFrame = {
+                keys: obj,
+                frame: frame.frame,
+                events: frame.events,
+                playerId: frame.playerId,
+              };
+              room.frameStack[frame.playerId].push(queuedFrame);
+              room.frameStack[frame.playerId].sort((a, b) => a.frame - b.frame);
+            }
+          }
+          room.lastFrame[frame.playerId] = Math.max(room.lastFrame[frame.playerId] ?? -1, frame.frame);
+
+          if (this.pendingMissedFrames[roomId]?.[frame.playerId] === frame.frame) {
+            delete this.pendingMissedFrames[roomId][frame.playerId];
           }
 
-          room.frameStack[frame.playerId].push({
-            keys: obj,
-            frame: frame.frame,
-            events: frame.events,
-            playerId: frame.playerId,
-          });
-          room.lastFrame[frame.playerId] = frame.frame;
+          if (
+            isStepMode &&
+            !this.localPlayers.some((player) => player.netId === frame.playerId) &&
+            frame.frame >= (room.gameModel?.frame ?? frame.frame)
+          ) {
+            this.requestStep();
+          }
         }
       )
     );
@@ -523,7 +609,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       this.roomSubs[roomId].push(
         this.once(
           "state",
-          (
+          async (
             playerId,
             stateJson: string,
             frameStack: {
@@ -568,7 +654,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
                     playerId: playerId,
                   });
                 });
-                if (previousFrames.length) {
+                if (previousFrames.length && roomState.frameStack[playerId].length) {
                   const lastFrame = roomState.frameStack[playerId][roomState.frameStack[playerId].length - 1].frame;
                   const firstFrame = roomState.frameStack[playerId][0].frame;
 
@@ -585,6 +671,8 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
                       });
                     });
                   }
+                } else if (previousFrames.length && roomState.frameStack[playerId].length === 0) {
+                  roomState.frameStack[playerId] = previousFrames;
                 }
               });
             }
@@ -595,7 +683,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
                 inputManager: gameInstance.options.connection.inputManager,
                 playerEventManager: this.playerEventManager,
               }); // GameModel(GameCoordinator.GetInstance(), gameInstance, seed, coreOverrides);
-              roomState.gameModel.deserializeState(state);
+              await roomState.gameModel.deserializeState(state);
             }
             this.history[roomState.gameModel.roomId] = {
               frames: {},
@@ -608,6 +696,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
             if (roomState.gameModel) {
               // roomState.gameModel?.loadStateObject(state);
               roomState.gameModel.localNetIds = [this.player.netId];
+              stepWorldDraw(roomState.gameModel);
             }
             resolve(roomState.gameModel);
           }
@@ -651,6 +740,9 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
           this.stateRequested = [];
         }
         this.stateRequested.push([playerId, JSON.parse(playerConfig || "{}")]);
+        if (this.roomStates[roomId]?.gameModel?.executionMode === "step") {
+          this.requestStep();
+        }
       })
     );
   }
@@ -876,18 +968,57 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
 
   publishState(roomState: RoomState, netId: string, gameModel: GameModel) {
     const localPlayer = this.localPlayers.find((player) => player.netId === netId);
+    const targetFrame = gameModel.executionMode === "step" ? gameModel.frame : gameModel.frame + this.frameOffset;
 
-    if (
-      localPlayer &&
-      gameModel.frame + this.frameOffset > roomState.frameStack[netId][roomState.frameStack[netId].length - 1].frame
-    ) {
+    if (localPlayer) {
       const currentKeyMap = this.inputManager.getKeyMap(localPlayer.inputType, localPlayer.inputIndex);
       const frame: Frame = {
         keys: this.inputManager.keyMapToJsonObject(currentKeyMap),
-        frame: gameModel.frame + this.frameOffset,
+        frame: targetFrame,
         playerId: localPlayer.netId,
         events: this.playerEventManager.getEvents(localPlayer.netId),
       };
+      roomState.frameStack[netId] = roomState.frameStack[netId] ?? [];
+      if (gameModel.executionMode !== "step") {
+        const lastQueuedFrame = roomState.frameStack[netId][roomState.frameStack[netId].length - 1]?.frame ?? -Infinity;
+        if (targetFrame <= lastQueuedFrame) {
+          return;
+        }
+        roomState.frameStack[netId].push({
+          keys: currentKeyMap,
+          frame: targetFrame,
+          events: frame.events,
+          playerId: localPlayer.netId,
+        });
+      } else {
+        const existingIndex = roomState.frameStack[netId].findIndex((queuedFrame) => queuedFrame.frame === targetFrame);
+        if (existingIndex !== -1) {
+          roomState.frameStack[netId][existingIndex] = {
+            keys: currentKeyMap,
+            frame: targetFrame,
+            events: frame.events,
+            playerId: localPlayer.netId,
+          };
+        } else {
+          roomState.frameStack[netId].push({
+            keys: currentKeyMap,
+            frame: targetFrame,
+            events: frame.events,
+            playerId: localPlayer.netId,
+          });
+          roomState.frameStack[netId].sort((a, b) => a.frame - b.frame);
+        }
+      }
+      roomState.lastFrame[netId] = Math.max(roomState.lastFrame[netId] ?? -1, targetFrame);
+      this.publishedFrames[gameModel.roomId] = this.publishedFrames[gameModel.roomId] ?? {};
+      this.publishedFrames[gameModel.roomId][localPlayer.netId] = this.publishedFrames[gameModel.roomId][localPlayer.netId] ?? {};
+      this.publishedFrames[gameModel.roomId][localPlayer.netId][frame.frame] = frame;
+      const pruneBeforeFrame = Math.max(0, gameModel.frame - Math.max(this.frameOffset * 4, 32));
+      Object.keys(this.publishedFrames[gameModel.roomId][localPlayer.netId]).forEach((publishedFrame) => {
+        if (+publishedFrame < pruneBeforeFrame) {
+          delete this.publishedFrames[gameModel.roomId][localPlayer.netId][+publishedFrame];
+        }
+      });
       this.emit("frame", frame);
     }
   }
@@ -905,6 +1036,16 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   }
 
   consumePlayerFrame(roomState: RoomState, netId: string, playerInput: PlayerInput, gameModel: GameModel) {
+    while ((roomState.frameStack[netId]?.[0]?.frame ?? Infinity) < gameModel.frame) {
+      roomState.frameStack[netId].shift();
+    }
+
+    if (gameModel.executionMode === "step" && roomState.frameStack[netId]?.[0]?.frame !== gameModel.frame) {
+      playerInput.prevKeyMap = playerInput.keyMap;
+      playerInput.events = [];
+      return;
+    }
+
     if (roomState.frameStack[netId][0].frame === gameModel.frame) {
       const prevKeyMap = playerInput.keyMap;
       const frame = roomState.frameStack[netId].shift()!;
@@ -923,18 +1064,31 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   }
 
   startFrame(gameModel: GameModel) {
+    const players = gameModel.getComponentActives("PlayerInput");
+    const roomState = this.roomStates[gameModel.roomId];
+
+    if (gameModel.executionMode === "step") {
+      for (let i = 0; i < players.length; ++i) {
+        const player = players[i];
+        if (gameModel.hasComponent(PlayerInput, player)) {
+          const playerInput = gameModel.getTypedUnsafe(PlayerInput, player);
+          this.publishState(roomState, playerInput.pid, gameModel);
+        }
+      }
+    }
+
     if (this.frameSkipCheck(gameModel)) {
       return false;
     }
-    const players = gameModel.getComponentActives("PlayerInput");
-    const roomState = this.roomStates[gameModel.roomId];
 
     for (let i = 0; i < players.length; ++i) {
       const player = players[i];
       if (gameModel.hasComponent(PlayerInput, player)) {
         const playerInput = gameModel.getTypedUnsafe(PlayerInput, player);
         const netId = playerInput.pid;
-        this.publishState(roomState, netId, gameModel);
+        if (gameModel.executionMode !== "step") {
+          this.publishState(roomState, netId, gameModel);
+        }
         this.consumePlayerFrame(roomState, netId, playerInput, gameModel);
       }
     }

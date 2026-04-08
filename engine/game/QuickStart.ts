@@ -34,6 +34,7 @@ type QuickStartOptions<T> = {
   roomId?: string;
   seed?: string;
   preload: (uiService: UIService) => Promise<void>;
+  executionMode?: "realtime" | "step";
 };
 
 export async function QuickStart<T = null>(
@@ -59,6 +60,7 @@ export async function QuickStart<T = null>(
     roomId = "QuickStart",
     seed = "QuickStart",
     connection = "SINGLEPLAYER",
+    executionMode,
     buildWorld = () => {},
     onPlayerJoin,
     onPlayerLeave = (gameModel: GameModel, playerId: string) => {
@@ -132,6 +134,7 @@ export async function QuickStart<T = null>(
       buildWorld,
       onPlayerJoin,
       onPlayerLeave,
+      executionMode,
     });
   };
 

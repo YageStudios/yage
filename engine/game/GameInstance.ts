@@ -15,6 +15,7 @@ export type GameInstanceOptions<T> = {
   onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: any) => number;
   onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
   achievementService?: AchievementService;
+  executionMode?: "realtime" | "step";
 };
 
 export class GameInstance<T> {
@@ -26,6 +27,11 @@ export class GameInstance<T> {
   protected targetFPS: number = 60;
 
   render30Fps: boolean;
+
+  private _stepInputUnsubscribe: (() => void) | null = null;
+  private _stepConnectionUnsubscribe: (() => void) | null = null;
+  private _stepEventUnsubscribe: (() => void) | null = null;
+  private _stepScheduled = false;
 
   constructor(public options: GameInstanceOptions<T>) {
     this.achievementService = options.achievementService ?? {
@@ -64,7 +70,7 @@ export class GameInstance<T> {
     }
 
     if (await this.options.connection.roomHasPlayers(roomId)) {
-      this.join(roomId, seed);
+      await this.join(roomId, seed);
     } else {
       await this.options.connection.initialize(roomId, {
         gameInstance: this,
@@ -80,8 +86,51 @@ export class GameInstance<T> {
     if (this.ticker) {
       this.ticker.stop();
     }
+
+    if (this._stepInputUnsubscribe) {
+      this._stepInputUnsubscribe();
+      this._stepInputUnsubscribe = null;
+    }
+    if (this._stepConnectionUnsubscribe) {
+      this._stepConnectionUnsubscribe();
+      this._stepConnectionUnsubscribe = null;
+    }
+    if (this._stepEventUnsubscribe) {
+      this._stepEventUnsubscribe();
+      this._stepEventUnsubscribe = null;
+    }
+
+    const executionMode = this.options.executionMode ?? "realtime";
+
+    // Propagate executionMode to all active game models
+    for (const rid of Object.keys(this.options.connection.roomStates)) {
+      const gm = this.options.connection.roomStates[rid]?.gameModel;
+      if (gm) {
+        gm.executionMode = executionMode;
+        if (executionMode === "step") {
+          const roomState = this.options.connection.roomStates[rid];
+          Object.keys(roomState.frameStack).forEach((playerId) => {
+            roomState.frameStack[playerId] = [];
+            roomState.lastFrame[playerId] = gm.frame - 1;
+          });
+        }
+      }
+    }
+
     const ticker = new Ticker(this.timestep, this.targetFPS);
-    ticker.add(() => this.run());
+    if (executionMode !== "step") {
+      ticker.add(() => this.run());
+    } else {
+      this._stepInputUnsubscribe = this.options.connection.inputManager.onInputStateChanged(() => {
+        this.scheduleStep();
+      });
+      this._stepConnectionUnsubscribe = this.options.connection.onStepRequested?.(() => {
+        this.scheduleStep();
+      }) ?? null;
+      this._stepEventUnsubscribe = this.options.connection.playerEventManager.onEventAdded(() => {
+        this.scheduleStep();
+      });
+    }
 
     ticker.start();
     this.ticker = ticker;
@@ -111,8 +160,6 @@ export class GameInstance<T> {
   }
 
   run() {
-    const connection = this.options.connection;
-
     const activeRooms = new Set(this.options.connection.players.map((p) => p.currentRoomId));
     if (activeRooms.size > 0) {
       for (const roomId of activeRooms) {
@@ -130,20 +177,53 @@ export class GameInstance<T> {
     // }
   }
 
-  runGameLoop(gameModel: GameModel) {
-    if (!gameModel) {
+  /**
+   * Force one frame of simulation to execute immediately.
+   * In "step" executionMode this is how the simulation advances.
+   * Returns true if the step executed, false if blocked by connection state.
+   */
+  stepManual(): boolean {
+    const activeRooms = new Set(this.options.connection.players.map((p) => p.currentRoomId));
+    if (activeRooms.size === 0) {
+      return false;
+    }
+    let executed = false;
+    for (const roomId of activeRooms) {
+      if (roomId) {
+        const result = this.runGameLoop(this.options.connection.roomStates[roomId].gameModel);
+        if (result) {
+          executed = true;
+        }
+      }
+    }
+    return executed;
+  }
+
+  private scheduleStep(): void {
+    if (this._stepScheduled) {
       return;
+    }
+    this._stepScheduled = true;
+    queueMicrotask(() => {
+      this._stepScheduled = false;
+      this.stepManual();
+    });
+  }
+
+  runGameLoop(gameModel: GameModel): boolean {
+    if (!gameModel) {
+      return false;
     }
     try {
       if (this.options.connection.startFrame(gameModel) === false) {
-        return;
+        return false;
       }
 
       gameModel.step(this.dt);
 
       if (gameModel.destroyed) {
         console.log("destroyed");
-        return;
+        return false;
       }
 
       if (!flags.FPS_30 || gameModel.frame % 2 === 0) {
@@ -151,6 +231,7 @@ export class GameInstance<T> {
       }
 
       this.options.connection.endFrame(gameModel);
+      return true;
     } catch (e) {
       console.error(e);
       throw e;

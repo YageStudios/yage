@@ -33,6 +33,7 @@ const onPlayerJoin = (gameModel: GameModel, playerId: string) => {
   await UmilQuickStart<null>({
     gameName: "Tic Tac Toe",
     gameVersion: "1",
+    executionMode: "step",
 
     umilConfig: {
       appName: "Tic Tac Toe",

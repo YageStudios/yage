@@ -77,6 +77,7 @@ export type GameModel = World & {
   localNetIds: string[];
   currentWorld: number;
   frameDt: number;
+  executionMode: "realtime" | "step";
   event: (netId: string, event: string, data: any) => void;
   step: (dt?: number) => void;
   getTypedUnsafe: <T extends Schema>(type: Constructor<T>, entity: number) => T;
@@ -190,6 +191,7 @@ export const GameModel = ({
     players: [] as number[],
     localNetIds: [],
     currentWorld: 0,
+    executionMode: "realtime" as "realtime" | "step",
     getEntityByDescription(description: string): number[] | undefined {
       const entities = this.getComponentActives("Description");
       return entities?.filter((entity) => {

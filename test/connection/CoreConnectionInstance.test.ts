@@ -350,6 +350,45 @@ describe("CoreConnectionInstance", () => {
       const result = instance.frameSkipCheck(gameModel);
       expect(result).toBe(true);
     });
+
+    it("should request and accept a resent missing frame when a future frame arrives first", () => {
+      const roomId = "test-room";
+      const gameModel = {
+        roomId,
+        frame: 10,
+        getComponentActives: vi.fn().mockReturnValue([1]),
+        hasComponent: vi.fn().mockReturnValue(true),
+        getTypedUnsafe: vi.fn().mockReturnValue({ pid: "player-2" }),
+      } as unknown as GameModel;
+
+      instance.roomStates[roomId] = {
+        gameModel,
+        frameStack: {
+          "player-2": [{ frame: 11, keys: {}, events: [], playerId: "player-2" }],
+        },
+        lastFrame: { "player-2": 11 },
+      };
+      (inputManager.toKeyMap as any).mockImplementation((keys) => keys);
+      instance.testSubscribeFrame(roomId);
+
+      const emitSpy = vi.spyOn(instance, "emit");
+      const result = instance.frameSkipCheck(gameModel);
+
+      expect(result).toBe(true);
+      expect(emitSpy).toHaveBeenCalledWith("missedFrame", roomId, "player-2", 10);
+
+      instance.subscriptions["frame"]?.forEach((cb) =>
+        cb("player-2", { frame: 10, keys: { left: true }, events: ["jump"], playerId: "player-2" })
+      );
+
+      expect(instance.roomStates[roomId].frameStack["player-2"].map((frame) => frame.frame)).toEqual([10, 11]);
+      expect(instance.roomStates[roomId].frameStack["player-2"][0]).toEqual({
+        frame: 10,
+        keys: { left: true },
+        events: ["jump"],
+        playerId: "player-2",
+      });
+    });
   });
 
   describe("Frame Processing", () => {

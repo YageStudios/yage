@@ -33,6 +33,7 @@ type UmilQuickStartOptions<T> = {
   playerConfig?: T;
   peerOptions?: PeerMultiplayerInstanceOptions<T>;
   socketOptions?: SocketIoMultiplayerInstanceOptions<T>;
+  executionMode?: "realtime" | "step";
 };
 
 export async function UmilQuickStart<T = null>({
@@ -50,6 +51,7 @@ export async function UmilQuickStart<T = null>({
   playerConfig,
   peerOptions,
   socketOptions,
+  executionMode,
 }: UmilQuickStartOptions<T>) {
   // Detect E2E mode - skip UMIL in E2E mode
   const isE2E = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("e2e") === "true";
@@ -69,9 +71,13 @@ export async function UmilQuickStart<T = null>({
       buildWorld,
       onPlayerJoin,
       onPlayerLeave,
+      executionMode,
     });
 
-    instance.initializeRoom(roomId, seed);
+    await instance.initializeRoom(roomId, seed);
+    if (executionMode === "step") {
+      instance.stepManual();
+    }
     ensureMobileFullscreenButton();
     return instance;
   }
@@ -212,18 +218,21 @@ export async function UmilQuickStart<T = null>({
     buildWorld,
     onPlayerJoin,
     onPlayerLeave,
+    executionMode,
   });
 
   if (result.connection === "PEER" && result.connectionInstance && !result.isHost && result.roomId) {
+    const peerConnection = connection as PeerMultiplayerInstance<T>;
+    const peerRoomId = result.roomId;
     await new Promise<void>((resolve, reject) => {
-      if (connection.rooms[result.roomId]) {
+      if (peerConnection.rooms[peerRoomId]) {
         resolve();
         return;
       }
 
       let settled = false;
-      const unsubscribe = connection.on("updateRoom", (_playerId: string, room: { roomId: string }) => {
-        if (!settled && room.roomId === result.roomId) {
+      const unsubscribe = peerConnection.on("updateRoom", (_playerId: string, room: { roomId: string }) => {
+        if (!settled && room.roomId === peerRoomId) {
           settled = true;
           unsubscribe();
           resolve();
@@ -247,6 +256,9 @@ export async function UmilQuickStart<T = null>({
         ? connection.localPlayers.map((player) => player.netId)
         : undefined,
   });
+  if (executionMode === "step") {
+    instance.stepManual();
+  }
 
   if (result.connection === "PEER" && result.isHost && peerOptions && result.roomId) {
     const discovery = new PeerRoomDiscovery({

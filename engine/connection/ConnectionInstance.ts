@@ -131,6 +131,9 @@ export abstract class ConnectionInstance<T> {
   abstract startFrame(gameModel: GameModel): boolean | void;
   abstract endFrame(gameModel: GameModel): void;
 
+  requestStep?(): boolean;
+  onStepRequested?(cb: () => void): () => void;
+
   abstract sendMessage(message: string, includeSelf?: boolean): void;
   abstract onReceiveMessage(cb: (message: string) => void): () => void;
 

@@ -60,6 +60,7 @@ export class InputManager {
 
   private changes: { [key: string]: boolean } = {};
   private keyListeners: Function[] = [];
+  private inputStateChangedListeners: ((keys: KeyMap, events: string[]) => void)[] = [];
 
   public getKeyMap(type?: InputEventType, typeIndex: number = 0): KeyMap {
     return this.clone(type, typeIndex);
@@ -124,6 +125,13 @@ export class InputManager {
     this.keyListeners = this.keyListeners.filter((l) => l !== listener);
   }
 
+  public onInputStateChanged(cb: (keys: KeyMap, events: string[]) => void): () => void {
+    this.inputStateChangedListeners.push(cb);
+    return () => {
+      this.inputStateChangedListeners = this.inputStateChangedListeners.filter((l) => l !== cb);
+    };
+  }
+
   dispatchEvent = (key: string, keyPressed: boolean, eventType: InputEventType, typeIndex = 0, e?: Event) => {
     let keyMap: KeyMap;
 
@@ -146,6 +154,10 @@ export class InputManager {
       keyMap.set(key, keyPressed);
     } else {
       keyMap.delete(key);
+    }
+
+    if (this.inputStateChangedListeners.length > 0) {
+      this.inputStateChangedListeners.forEach((listener) => listener(this.keyMap, [key]));
     }
   };
 
