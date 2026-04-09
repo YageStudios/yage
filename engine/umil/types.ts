@@ -1,7 +1,12 @@
 import type { ConnectionInstance } from "yage/connection/ConnectionInstance";
 import type { InputEventType } from "yage/inputs/InputManager";
 
-export type UmilStep = "INPUT_DETECTION" | "MAIN_MENU" | "BROWSING" | "LOBBY" | "COMPLETE";
+export type UmilStep = "MAIN_MENU" | "PROFILE_SETUP" | "ROOM_BROWSER" | "INPUT_SETUP" | "LOBBY" | "COMPLETE";
+
+/** @deprecated Kept for backward compatibility with old step references */
+export type UmilStepLegacy = "INPUT_DETECTION" | "BROWSING";
+
+export type UmilMode = "LOCAL" | "HOST" | "JOIN";
 
 export enum UmilInputType {
   KEYBOARD = "KEYBOARD",
@@ -52,8 +57,15 @@ export interface UmilConfig {
   appName: string;
   appVersion?: string;
   uiAssetUrl?: string;
+
+  minPlayersTotal?: number;
+  maxPlayersTotal?: number;
+  minLocalPlayers?: number;
   maxLocalPlayers?: number;
+
+  /** @deprecated Use maxPlayersTotal instead. Kept for backward compatibility. */
   maxOnlinePlayers?: number;
+
   allowLocalOnly?: boolean;
   allowOnline?: boolean;
   signalingServerUrl?: string;
@@ -72,10 +84,14 @@ export interface UmilResult<T = any> {
 }
 
 export const KEYBOARD_CLUSTERS: Record<NonNullable<UmilKeyboardCluster>, string[]> = {
-  WASD: ["w", "a", "s", "d", " ", "shift", "q", "e"],
+  WASD: ["w", "a", "s", "d", "space", "shift", "q", "e"],
   ARROWS: ["arrowup", "arrowdown", "arrowleft", "arrowright", "enter", "control"],
   IJKL: ["i", "j", "k", "l", "u", "o"],
 };
+
+export const EXPLICIT_JOIN_KEYS = ["space", "enter"];
+
+export const EXPLICIT_LEAVE_KEYS = ["escape"];
 
 export const UMIL_EVENTS = {
   LOBBY_STATE: "UMIL_LOBBY_STATE",

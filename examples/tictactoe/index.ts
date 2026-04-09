@@ -37,6 +37,9 @@ const onPlayerJoin = (gameModel: GameModel, playerId: string) => {
 
     umilConfig: {
       appName: "Tic Tac Toe",
+      minPlayersTotal: 2,
+      maxPlayersTotal: 2,
+      minLocalPlayers: 2,
       maxLocalPlayers: 2,
       maxOnlinePlayers: 2,
       allowLocalOnly: true,

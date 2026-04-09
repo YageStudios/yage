@@ -157,7 +157,6 @@ export class BallLobbyScene extends Scene {
     }
     this.ui.background = new Box(new Position("full", "full"), {
       style: {
-        background: "linear-gradient(to bottom, #666, #333)",
         zIndex: "-3",
       },
     });

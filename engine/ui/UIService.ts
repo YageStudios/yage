@@ -387,6 +387,17 @@ export class UIService {
   }
 
   attemptAutoFocus(playerIndex: number) {
+    const currentFocused = this._focusedElementByPlayerIndex[playerIndex];
+    if (currentFocused?._element) {
+      const focusables = this.getFocusables(playerIndex);
+      if (!focusables.includes(currentFocused._element)) {
+        this._focusedElementByPlayerIndex[playerIndex] = undefined;
+        if (!currentFocused.destroyed) {
+          currentFocused._update();
+        }
+      }
+    }
+
     if (!this._focusedElementByPlayerIndex[playerIndex]) {
       const availableAutoFocus = this.getFocusables(playerIndex, true);
 
@@ -459,10 +470,15 @@ export class UIService {
     }
   }
 
-  clearFocusedElementByPlayerIndex(playerIndex: number) {
+  clearFocusedElementByPlayerIndex(playerIndex: number, preservePosition = true) {
     const previous = this._focusedElementByPlayerIndex[playerIndex];
     this._focusedElementByPlayerIndex[playerIndex] = undefined;
-    this._focusedElementPositionByPlayerIndex[playerIndex] = undefined;
+    if (preservePosition) {
+      this._focusedElementPositionByPlayerIndex[playerIndex] =
+        this.getElementCenter(previous?._element) ?? this._focusedElementPositionByPlayerIndex[playerIndex];
+    } else {
+      this._focusedElementPositionByPlayerIndex[playerIndex] = undefined;
+    }
     setTimeout(() => {
       if (previous && !previous?.destroyed) {
         previous._update();

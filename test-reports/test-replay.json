@@ -379,9 +379,9 @@
       ]
     },
     "seed": "QuickStart",
-    "startTimestamp": 1773586363082,
+    "startTimestamp": 1775690450619,
     "stateHashes": {
-      "0": "27130e9e6f143a17f6da2a3d06d3c4c9"
+      "0": "71f10348cb2a39d4f6896e9d04f7200b"
     },
     "snapshots": {
       "0": {
@@ -510,6 +510,7 @@
                   "velocityLock": false,
                   "collisionEvents": true,
                   "isometric": false,
+                  "restitution": 0,
                   "collisionCategory": 2,
                   "collisionMask": [
                     65535
@@ -1447,37 +1448,6 @@
                 ]
               }
             },
-            "RigidCircle|Transform": {
-              "queryKey": "RigidCircle|Transform",
-              "generations": [
-                2
-              ],
-              "masks": {
-                "2": 524320
-              },
-              "dense": [
-                2
-              ],
-              "sparse": [
-                -1,
-                -1,
-                0
-              ],
-              "toRemove": {
-                "dense": [],
-                "sparse": []
-              },
-              "entered": {
-                "dense": [
-                  2
-                ],
-                "sparse": [
-                  -1,
-                  -1,
-                  0
-                ]
-              }
-            },
             "Map": {
               "queryKey": "Map",
               "generations": [
@@ -1644,6 +1614,37 @@
               "entered": {
                 "dense": [],
                 "sparse": []
+              }
+            },
+            "RigidCircle|Transform": {
+              "queryKey": "RigidCircle|Transform",
+              "generations": [
+                2
+              ],
+              "masks": {
+                "2": 524320
+              },
+              "dense": [
+                2
+              ],
+              "sparse": [
+                -1,
+                -1,
+                0
+              ],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [
+                  2
+                ],
+                "sparse": [
+                  -1,
+                  -1,
+                  0
+                ]
               }
             },
             "Physics": {

@@ -112,12 +112,17 @@ function formatStatusMessage(state: TicTacToeState): string {
 }
 
 function formatContext(state: TicTacToeState) {
+  const isPlaying = state.status === "PLAYING";
   return {
     statusMessage: formatStatusMessage(state),
-    showReset: state.status !== "PLAYING",
+    showReset: !isPlaying,
     cells: state.cells.map((mark, i) => ({ mark, cellIndex: i })),
     cursorIndex: state.cursorIndex,
     currentPlayer: state.currentPlayer,
+    boardFocusable: isPlaying,
+    boardCaptureFocus: isPlaying ? state.currentPlayer : -1,
+    boardAutoFocus: isPlaying,
+    resetAutoFocus: !isPlaying,
   };
 }
 

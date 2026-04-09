@@ -12,6 +12,7 @@ import type { PlayerConnect } from "yage/connection/ConnectionInstance";
 import { PeerRoomDiscovery } from "./PeerRoomDiscovery";
 import type {
   UmilStep,
+  UmilMode,
   UmilConfig,
   UmilResult,
   UMIL_LocalPlayerConfig,
@@ -30,17 +31,27 @@ const playerColors = ["#3498db", "#e74c3c", "#2ecc71", "#f39c12"];
 export class UmilFlow<T = null> {
   private static readonly UI_ASSET_KEY = "__umil_flow__";
 
-  private step: UmilStep = "INPUT_DETECTION";
+  private step: UmilStep = "MAIN_MENU";
+  private mode: UmilMode = "LOCAL";
   private localPlayers: UMIL_LocalPlayerConfig[] = [];
   private nickname: string = `Player_${nanoid()}`;
   private roomList: UMIL_RoomData[] = [];
   private lobbyState: UMIL_LobbyState | null = null;
   private isHost: boolean = false;
   private roomId: string | null = null;
+  private targetRoomId: string | null = null;
   private chatMessages: UMIL_ChatMessage[] = [];
   private isReady: boolean = false;
   private chatDraft: string = "";
   private joinRoomCode: string = "";
+  private copyLinkLabel: string = "Copy Link";
+  private copyLinkTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Resolved config bounds (computed once in start())
+  private minPlayersTotal = 1;
+  private maxPlayersTotal = 4;
+  private minLocalPlayers = 1;
+  private maxLocalPlayers = 4;
 
   private inputManager: InputManager;
   private inputClusterer: InputClusterer;
@@ -53,6 +64,7 @@ export class UmilFlow<T = null> {
   private roomListPolling: ReturnType<typeof setInterval> | null = null;
   private chatUnsubscribe: (() => void) | null = null;
   private lobbyUnsubscribe: (() => void) | null = null;
+  private navKeyUnsubscribe: (() => void) | null = null;
   private mouseHandler: ((e: MouseEvent) => void) | null = null;
   private touchHandler: ((e: TouchEvent) => void) | null = null;
   private peerDiscovery: PeerRoomDiscovery | null = null;
@@ -60,16 +72,26 @@ export class UmilFlow<T = null> {
   private peerRoomListenersBound: boolean = false;
   private readonly peerNetId: string = `umil-${nanoid()}`;
 
-  constructor(private config: UmilConfig, private playerConfig: T, private multiplayerConfig?: any) {
+  constructor(
+    private config: UmilConfig,
+    private playerConfig: T,
+    private multiplayerConfig?: any,
+  ) {
     this.uiService = UIService.getInstance();
     this.inputManager = new InputManager(false);
     this.keyboardListener = new KeyboardListener(this.inputManager);
     this.keyboardListener.init();
 
+    // Resolve backward-compatible config bounds
+    this.maxPlayersTotal = config.maxPlayersTotal ?? config.maxOnlinePlayers ?? 4;
+    this.minPlayersTotal = Math.min(config.minPlayersTotal ?? 1, this.maxPlayersTotal);
+    this.maxLocalPlayers = Math.min(config.maxLocalPlayers ?? this.maxPlayersTotal, this.maxPlayersTotal);
+    this.minLocalPlayers = Math.min(config.minLocalPlayers ?? 1, this.maxLocalPlayers);
+
     this.inputClusterer = new InputClusterer(
       this.inputManager,
-      config.maxLocalPlayers ?? 4,
-      (config) => this.onInputDetected(config),
+      this.maxLocalPlayers,
+      (cfg) => this.onInputDetected(cfg),
       Math.max(1, config.maxSharedMousePlayers ?? 1),
       Math.max(1, config.maxSharedTouchPlayers ?? 1),
     );
@@ -77,22 +99,56 @@ export class UmilFlow<T = null> {
 
   async start(): Promise<UmilResult> {
     await AssetLoader.getInstance().loadUi(UmilFlow.UI_ASSET_KEY, this.config.uiAssetUrl ?? "umil/flow.json5");
-    this.uiService.playerInputs = [[InputEventType.ANY, 0]];
+    this.configureTemporaryUiInputs();
     ensureMobileFullscreenButton();
+    this.bindNavigationKeys();
+
+    // Parse ?room= deep link
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const roomParam = params.get("room");
+      if (roomParam && roomParam.trim().length > 0) {
+        this.targetRoomId = roomParam.trim().toUpperCase();
+        this.mode = "JOIN";
+      }
+    }
+
     return new Promise((resolve) => {
       this.resolvePromise = resolve;
-      this.showInputDetection();
+      if (this.targetRoomId) {
+        // Deep link: skip main menu, go straight to profile
+        this.showProfileSetup();
+      } else {
+        this.showMainMenu();
+      }
     });
   }
 
   private onInputDetected(config: UMIL_LocalPlayerConfig): void {
-    this.localPlayers.push(config);
-    this.renderInputDetection();
+    this.localPlayers = this.inputClusterer.getPlayers();
+    this.syncUi();
   }
 
-  private showInputDetection(): void {
-    this.inputClusterer.start();
+  private onInputRemoved(localIndex: number): void {
+    this.localPlayers = this.inputClusterer.getPlayers();
     this.syncUi();
+  }
+
+  private showInputSetup(): void {
+    this.step = "INPUT_SETUP";
+    this.configureTemporaryUiInputs();
+    this.localPlayers = [];
+    this.inputClusterer.stop();
+    this.inputClusterer.reset();
+    const allowedLocalPlayers = this.getAllowedLocalPlayersForCurrentMode();
+
+    // Use explicit detection: only Enter/Space/Gamepad A to join, Escape/Gamepad B to leave
+    this.inputClusterer.startExplicitDetection(
+      allowedLocalPlayers,
+      (cfg) => this.onInputDetected(cfg),
+      (idx) => this.onInputRemoved(idx),
+    );
+    this.bindNavigationKeys();
 
     // Dispatch mouse clicks to InputManager so InputClusterer can detect them
     this.mouseHandler = (e: MouseEvent) => {
@@ -112,21 +168,89 @@ export class UmilFlow<T = null> {
     };
     document.addEventListener("touchstart", this.touchHandler);
 
-    this.inputManager.addKeyListener((key: string, pressed: boolean) => {
-      if (pressed && (key === "enter" || key === "start") && this.localPlayers.length > 0) {
-        this.confirmInputDetection();
-        return false;
-      }
-      return true;
-    });
-  }
-
-  private renderInputDetection(): void {
     this.syncUi();
   }
 
-  private confirmInputDetection(): void {
+  private showProfileSetup(): void {
+    this.bindNavigationKeys();
+    this.step = "PROFILE_SETUP";
+    this.configureTemporaryUiInputs();
+    this.syncUi();
+  }
+
+  private configureTemporaryUiInputs(): void {
+    if (this.step === "INPUT_SETUP") {
+      this.uiService.playerInputs = [[InputEventType.ANY, 0]];
+      this.uiService.disableKeyCapture();
+      return;
+    }
+
+    this.uiService.playerInputs = [[InputEventType.KEYBOARD, 0]];
+    this.uiService.enableKeyCapture(this.inputManager);
+  }
+
+  private getRequiredLocalPlayersForCurrentMode(): number {
+    if (this.mode === "HOST" || this.mode === "JOIN") {
+      return Math.max(1, this.minLocalPlayers - 1);
+    }
+    return this.minLocalPlayers;
+  }
+
+  private getAllowedLocalPlayersForCurrentMode(): number {
+    if (this.mode === "HOST" || this.mode === "JOIN") {
+      return Math.max(1, Math.min(this.maxLocalPlayers, this.maxPlayersTotal - 1));
+    }
+    return this.maxLocalPlayers;
+  }
+
+  private bindNavigationKeys(): void {
+    if (this.navKeyUnsubscribe) {
+      this.navKeyUnsubscribe();
+      this.navKeyUnsubscribe = null;
+    }
+
+    this.navKeyUnsubscribe = this.inputManager.addKeyListener((key, pressed, eventType, typeIndex) => {
+      if (!pressed) {
+        return;
+      }
+
+      const normalizedKey = key.toLowerCase();
+      const isBackKey =
+        (eventType === InputEventType.KEYBOARD && normalizedKey === "escape") ||
+        (eventType === InputEventType.GAMEPAD && key === "1");
+
+      if (!isBackKey) {
+        return;
+      }
+
+      if (this.step === "PROFILE_SETUP" || this.step === "ROOM_BROWSER") {
+        this.showMainMenu();
+        return false;
+      }
+
+      if (this.step !== "INPUT_SETUP") {
+        return;
+      }
+
+      const playerIndex = this.inputClusterer.getPlayerIndexForDevice(eventType, typeIndex, normalizedKey);
+      if (playerIndex === -1) {
+        this.showMainMenu();
+        return false;
+      }
+    });
+  }
+
+  private confirmInputSetup(): void {
     this.localPlayers = this.inputClusterer.confirmInputs();
+    const requiredLocalPlayers = this.getRequiredLocalPlayersForCurrentMode();
+
+    // Ensure minimum local players requirement met
+    if (this.localPlayers.length < requiredLocalPlayers) {
+      // Re-start detection – don't proceed
+      this.showInputSetup();
+      return;
+    }
+
     if (this.localPlayers.length === 0) {
       this.localPlayers.push({
         localIndex: 0,
@@ -135,14 +259,56 @@ export class UmilFlow<T = null> {
         keyboardCluster: null,
       });
     }
-    this.showMainMenu();
+
+    if (this.mode === "LOCAL") {
+      this.startLocalGame();
+    } else if (this.mode === "HOST") {
+      void this.showHostDialog();
+    } else if (this.mode === "JOIN") {
+      void this.joinRoom(this.targetRoomId ?? this.joinRoomCode);
+    }
+  }
+
+  generateRoomUrl(roomId: string): string {
+    if (typeof window === "undefined") return roomId;
+    return `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(roomId)}`;
+  }
+
+  private async copyRoomLink(): Promise<void> {
+    if (!this.roomId) return;
+    const url = this.generateRoomUrl(this.roomId);
+    try {
+      if (typeof window !== "undefined" && window.isSecureContext && navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        // Fallback: hidden textarea
+        const textarea = document.createElement("textarea");
+        textarea.value = url;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      this.copyLinkLabel = "Copied!";
+      this.syncUi();
+      if (this.copyLinkTimer) clearTimeout(this.copyLinkTimer);
+      this.copyLinkTimer = setTimeout(() => {
+        this.copyLinkLabel = "Copy Link";
+        this.syncUi();
+      }, 2000);
+    } catch {
+      // silently fail
+    }
   }
 
   private showMainMenu(): void {
+    this.bindNavigationKeys();
     this.step = "MAIN_MENU";
-    if (this.isPeerMultiplayerConfig(this.multiplayerConfig)) {
-      void this.connectPeerDiscovery();
-    }
+    this.mode = "LOCAL";
+    this.targetRoomId = null;
+    this.configureTemporaryUiInputs();
     this.syncUi();
   }
 
@@ -183,17 +349,15 @@ export class UmilFlow<T = null> {
   }
 
   private showRoomBrowser(): void {
-    this.step = "BROWSING";
+    this.bindNavigationKeys();
+    this.step = "ROOM_BROWSER";
+    this.configureTemporaryUiInputs();
     if (this.isPeerMultiplayerConfig(this.multiplayerConfig)) {
       void this.connectPeerDiscovery();
     } else {
       this.roomList = [];
     }
 
-    this.renderRoomBrowser();
-  }
-
-  private renderRoomBrowser(): void {
     this.syncUi();
   }
 
@@ -215,10 +379,11 @@ export class UmilFlow<T = null> {
 
   private showLobby(roomName: string): void {
     this.step = "LOBBY";
+    this.configureTemporaryUiInputs();
 
     this.lobbyState = this.lobbyState ?? {
       roomName,
-      maxPlayers: this.config.maxOnlinePlayers ?? 4,
+      maxPlayers: this.maxPlayersTotal,
       players: [
         {
           netId: this.isPeerMultiplayerConfig(this.multiplayerConfig) ? this.peerNetId : "local",
@@ -262,6 +427,7 @@ export class UmilFlow<T = null> {
   private cleanup(preservePeerRoomConnection = false): void {
     this.inputClusterer.stop();
     this.keyboardListener.destroy();
+    this.uiService.disableKeyCapture();
 
     if (this.mouseHandler) {
       document.removeEventListener("mousedown", this.mouseHandler);
@@ -277,6 +443,11 @@ export class UmilFlow<T = null> {
       this.roomListPolling = null;
     }
 
+    if (this.copyLinkTimer) {
+      clearTimeout(this.copyLinkTimer);
+      this.copyLinkTimer = null;
+    }
+
     if (this.chatUnsubscribe) {
       this.chatUnsubscribe();
       this.chatUnsubscribe = null;
@@ -285,6 +456,11 @@ export class UmilFlow<T = null> {
     if (this.lobbyUnsubscribe) {
       this.lobbyUnsubscribe();
       this.lobbyUnsubscribe = null;
+    }
+
+    if (this.navKeyUnsubscribe) {
+      this.navKeyUnsubscribe();
+      this.navKeyUnsubscribe = null;
     }
 
     if (this.rootElement) {
@@ -487,15 +663,9 @@ export class UmilFlow<T = null> {
       this.uiMap = buildUiMap(template);
       const elements = this.uiMap.build(
         context,
-        (
-          playerIndex: number,
-          eventName: string,
-          eventType: string,
-          eventContext: any,
-          payload?: unknown
-        ) => {
+        (playerIndex: number, eventName: string, eventType: string, eventContext: any, payload?: unknown) => {
           this.handleUiEvent(playerIndex, String(eventName), eventType, eventContext, payload);
-        }
+        },
       );
       this.rootElement = Object.values(elements)[0] ?? null;
       if (this.rootElement) {
@@ -512,28 +682,48 @@ export class UmilFlow<T = null> {
     eventName: string,
     _eventType: string,
     eventContext: any,
-    payload?: unknown
+    payload?: unknown,
   ): void {
     switch (eventName) {
       case "addMousePlayer":
         this.inputClusterer.addSharedPlayer(UmilInputType.MOUSE, 0);
+        this.localPlayers = this.inputClusterer.getPlayers();
         this.syncUi();
         return;
       case "addTouchPlayer":
         this.inputClusterer.addSharedPlayer(UmilInputType.TOUCH, 0);
+        this.localPlayers = this.inputClusterer.getPlayers();
         this.syncUi();
         return;
-      case "confirmInputDetection":
-        this.confirmInputDetection();
+      case "removePlayer":
+        if (typeof eventContext?.localIndex === "number") {
+          this.inputClusterer.removePlayer(eventContext.localIndex);
+          this.localPlayers = this.inputClusterer.getPlayers();
+          this.syncUi();
+        }
         return;
-      case "startLocalGame":
-        this.startLocalGame();
+      case "confirmInputSetup":
+        this.confirmInputSetup();
         return;
-      case "showHostDialog":
-        void this.showHostDialog();
+      case "selectLocal":
+        this.mode = "LOCAL";
+        this.showInputSetup();
         return;
-      case "showRoomBrowser":
-        this.showRoomBrowser();
+      case "selectHost":
+        this.mode = "HOST";
+        this.showProfileSetup();
+        return;
+      case "selectJoin":
+        this.mode = "JOIN";
+        this.showProfileSetup();
+        return;
+      case "submitProfile":
+        // After profile, go to input setup (or room browser for JOIN without deep link)
+        if (this.mode === "JOIN" && !this.targetRoomId) {
+          this.showRoomBrowser();
+        } else {
+          this.showInputSetup();
+        }
         return;
       case "showMainMenu":
       case "leaveRoom":
@@ -544,6 +734,11 @@ export class UmilFlow<T = null> {
         this.isReady = false;
         this.chatDraft = "";
         this.chatMessages = [];
+        this.localPlayers = [];
+        this.inputClusterer.reset();
+        this.showMainMenu();
+        return;
+      case "backToMainMenu":
         this.showMainMenu();
         return;
       case "refreshRooms":
@@ -552,11 +747,12 @@ export class UmilFlow<T = null> {
           this.destroyPeerDiscoveryConnection();
           void this.connectPeerDiscovery();
         }
-        this.renderRoomBrowser();
+        this.syncUi();
         return;
       case "joinRoom":
         if (eventContext?.roomId) {
-          void this.joinRoom(eventContext.roomId);
+          this.targetRoomId = eventContext.roomId;
+          this.showInputSetup();
         }
         return;
       case "joinRoomCodeChange":
@@ -565,10 +761,17 @@ export class UmilFlow<T = null> {
         return;
       case "submitJoinRoomCode":
         if (this.joinRoomCode) {
-          void this.joinRoom(this.joinRoomCode);
+          this.targetRoomId = this.joinRoomCode;
+          this.showInputSetup();
         }
         return;
+      case "copyRoomLink":
+        void this.copyRoomLink();
+        return;
       case "startOnlineGame":
+        if (this.lobbyState && this.lobbyState.players.length < this.minPlayersTotal) {
+          return; // Not enough players
+        }
         this.unpublishHostedRoom();
         if (this.isPeerMultiplayerConfig(this.multiplayerConfig) && this.peerRoomConnection) {
           if (this.isHost && this.roomId && this.lobbyState) {
@@ -588,7 +791,9 @@ export class UmilFlow<T = null> {
         return;
       case "toggleReady": {
         this.isReady = !this.isReady;
-        const localPlayer = this.lobbyState?.players.find((player) => player.netId === this.peerNetId || player.netId === "local");
+        const localPlayer = this.lobbyState?.players.find(
+          (player) => player.netId === this.peerNetId || player.netId === "local",
+        );
         if (localPlayer) {
           localPlayer.isReady = this.isReady;
         }
@@ -609,7 +814,7 @@ export class UmilFlow<T = null> {
             if (this.lobbyState) {
               this.lobbyState.roomName = `${this.nickname}'s Room`;
               const localPlayer = this.lobbyState.players.find(
-                (player) => player.netId === this.peerNetId || player.netId === "local"
+                (player) => player.netId === this.peerNetId || player.netId === "local",
               );
               if (localPlayer) {
                 localPlayer.name = this.nickname;
@@ -660,12 +865,13 @@ export class UmilFlow<T = null> {
   }
 
   private getViewModel() {
+    const allowedLocalPlayers = this.getAllowedLocalPlayersForCurrentMode();
     const maxSharedMouse = Math.max(1, this.config.maxSharedMousePlayers ?? 1);
     const maxSharedTouch = Math.max(1, this.config.maxSharedTouchPlayers ?? 1);
     const mouseCount = this.inputClusterer.getAssignedTypeCount(UmilInputType.MOUSE);
     const touchCount = this.inputClusterer.getAssignedTypeCount(UmilInputType.TOUCH);
-    const canAddMouse = mouseCount > 0 && mouseCount < maxSharedMouse;
-    const canAddTouch = touchCount > 0 && touchCount < maxSharedTouch;
+    const canAddMouse = mouseCount > 0 && mouseCount < maxSharedMouse && this.localPlayers.length < allowedLocalPlayers;
+    const canAddTouch = touchCount > 0 && touchCount < maxSharedTouch && this.localPlayers.length < allowedLocalPlayers;
 
     const cardWidth = 180;
     const cardGap = 20;
@@ -679,58 +885,88 @@ export class UmilFlow<T = null> {
       xOffset: startX + index * (cardWidth + cardGap) + cardWidth / 2,
     }));
 
-    const sharedSurfaceActions: { action: string; label: string; yOffset: number }[] = [];
-    let inputButtonOffset = 80;
+    const sharedSurfaceActions: { action: string; label: string }[] = [];
     if (canAddMouse) {
       sharedSurfaceActions.push({
         action: "addMousePlayer",
         label: "+ Add another Mouse Player",
-        yOffset: inputButtonOffset,
       });
-      inputButtonOffset += 350;
     }
     if (canAddTouch) {
       sharedSurfaceActions.push({
         action: "addTouchPlayer",
         label: "+ Add another Touch Player",
-        yOffset: inputButtonOffset,
       });
-      inputButtonOffset += 50;
     }
 
     const showInputContinuePrompt = this.localPlayers.length > 0;
     const showInputStartButton = this.localPlayers.some(
-      (player) => player.inputType === UmilInputType.MOUSE || player.inputType === UmilInputType.TOUCH
+      (player) => player.inputType === UmilInputType.MOUSE || player.inputType === UmilInputType.TOUCH,
     );
 
-    const mainMenuActions: { action: string; label: string; yOffset: number }[] = [];
-    let buttonY = -20;
-    if (this.config.allowLocalOnly !== false) {
-      mainMenuActions.push({ action: "startLocalGame", label: "Local Game", yOffset: buttonY });
-      buttonY += 60;
+    const mainMenuActions: { action: string; label: string; disabled: boolean }[] = [];
+    const canLocal = this.config.allowLocalOnly !== false && this.maxPlayersTotal >= this.minLocalPlayers;
+    const canOnline = this.config.allowOnline !== false;
+    if (canLocal) {
+      mainMenuActions.push({ action: "selectLocal", label: "Play Local", disabled: false });
     }
-    if (this.config.allowOnline !== false) {
-      mainMenuActions.push({ action: "showHostDialog", label: "Host Online Game", yOffset: buttonY });
-      buttonY += 60;
-      mainMenuActions.push({ action: "showRoomBrowser", label: "Join Online Game", yOffset: buttonY });
+    if (canOnline) {
+      mainMenuActions.push({ action: "selectHost", label: "Host Online Game", disabled: false });
+      mainMenuActions.push({ action: "selectJoin", label: "Join via Room Code", disabled: false });
     }
+
+    // Player slot cards for INPUT_SETUP screen
+    const playerSlots: { localIndex: number; label: string; color: string; isAssigned: boolean; deviceType: string }[] =
+      [];
+    for (let i = 0; i < allowedLocalPlayers; i++) {
+      const player = this.localPlayers.find((p) => p.localIndex === i);
+      if (player) {
+        playerSlots.push({
+          localIndex: i,
+          label: `Player ${i + 1} - ${player.inputType}${player.keyboardCluster ? ` (${player.keyboardCluster})` : ""}`,
+          color: playerColors[i % playerColors.length],
+          isAssigned: true,
+          deviceType: player.inputType,
+        });
+      } else {
+        playerSlots.push({
+          localIndex: i,
+          label: "Press ENTER, SPACE, or A to Join",
+          color: "rgba(255,255,255,0.3)",
+          isAssigned: false,
+          deviceType: "",
+        });
+      }
+    }
+
+    const requiredLocalPlayers = this.getRequiredLocalPlayersForCurrentMode();
+    const meetsMinLocal = this.localPlayers.length >= requiredLocalPlayers;
+    const meetsMinTotal = this.lobbyState ? this.lobbyState.players.length >= this.minPlayersTotal : meetsMinLocal;
+    const inputSetupContinueLabel = meetsMinLocal ? "Continue" : `Need at least ${requiredLocalPlayers} player(s)`;
+    const roomUrl = this.roomId ? this.generateRoomUrl(this.roomId) : "";
 
     return {
       appName: this.config.appName,
       step: this.step,
+      mode: this.mode,
       nickname: this.nickname,
       isPeerLobby: this.isPeerMultiplayerConfig(this.multiplayerConfig),
       joinRoomCode: this.joinRoomCode,
       inputPlayers,
+      playerSlots,
       sharedSurfaceActions,
       showInputStartButton,
-      showInputContinuePrompt,
-      inputStartButtonY: inputButtonOffset + 20,
-      inputContinuePromptY: inputButtonOffset + (showInputStartButton ? 80 : 20),
+      showInputContinuePrompt: meetsMinLocal,
+      inputSetupContinueLabel,
+      meetsMinLocal,
+      meetsMinTotal,
       mainMenuActions,
       roomId: this.roomId,
+      roomUrl,
+      copyLinkLabel: this.copyLinkLabel,
       roomList: this.roomList.map((room, index) => ({
         ...room,
+        isFull: room.currentPlayers >= room.maxPlayers,
         yOffset: -150 + index * 70,
       })),
       lobbyState: this.lobbyState,
@@ -744,13 +980,18 @@ export class UmilFlow<T = null> {
       isHost: this.isHost,
       readyButtonLabel: this.isReady ? "Ready!" : "Not Ready",
       readyButtonColor: this.isReady ? "green" : "transparent",
-      startButtonOpacity: this.lobbyState?.players.every((player) => player.isReady) ? "1" : "0.5",
-      chatMessages: this.chatMessages.map((message, index) => ({
+      startButtonOpacity: meetsMinTotal && this.lobbyState?.players.every((player) => player.isReady) ? "1" : "0.5",
+      canStartGame: meetsMinTotal && (this.lobbyState?.players.every((player) => player.isReady) ?? false),
+      chatMessages: this.chatMessages.slice(-100).map((message, index) => ({
         ...message,
         yOffset: index * 22,
       })),
       chatDraft: this.chatDraft,
       playerConfig: this.playerConfig,
+      minPlayersTotal: this.minPlayersTotal,
+      maxPlayersTotal: this.maxPlayersTotal,
+      minLocalPlayers: requiredLocalPlayers,
+      maxLocalPlayers: allowedLocalPlayers,
     };
   }
 }

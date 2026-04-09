@@ -79,7 +79,7 @@
     "tsc": "tsc --noEmit",
     "test": "vitest",
     "test:e2e": "vitest --config vitest.e2e.config.ts",
-    "examples": "vite examples --host",
+    "examples": "vite --config examples/vite.config.js --host",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "pretty": "prettier --write \"./**/*.{js,jsx,json,ts}\"",

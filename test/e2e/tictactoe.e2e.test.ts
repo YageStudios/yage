@@ -88,6 +88,49 @@ describe("TicTacToe E2E", () => {
     expect(await env.getErrors()).toEqual([]);
   });
 
+  it("lets a keyboard player restart the game after the round ends", async () => {
+    env = await createEnv();
+
+    const xPlayer = await env.joinPlayer("ttt_keyboard_x");
+    const oPlayer = await env.joinPlayer("ttt_keyboard_o");
+
+    await env.tick(5);
+    await env.waitForUI({ type: "text", textIncludes: "Turn: X" });
+
+    const cells = await getBoardCells(env);
+    expect(cells).toHaveLength(9);
+
+    await xPlayer.clickUI(cells[0].id);
+    await env.tick(1);
+    await oPlayer.clickUI(cells[3].id);
+    await env.tick(1);
+    await xPlayer.clickUI(cells[1].id);
+    await env.tick(1);
+    await oPlayer.clickUI(cells[4].id);
+    await env.tick(1);
+    await xPlayer.clickUI(cells[2].id);
+    await env.tick(2);
+
+    await env.waitForUI({ type: "text", textIncludes: "X Wins!" });
+    await env.waitForUI({ type: "button", textIncludes: "Restart Game" });
+
+    await xPlayer.keyDown("space");
+    await env.tick(1);
+    await xPlayer.keyUp("space");
+    await env.tick(2);
+
+    await env.waitForUI({ type: "text", textIncludes: "Turn: X" });
+    expect(await env.queryUI({ type: "button", textIncludes: "Restart Game" })).toHaveLength(0);
+
+    const gameState = await env.queryECS({
+      components: ["TicTacToeState"],
+    });
+    expect(gameState).toHaveLength(1);
+    expect(gameState[0].components["TicTacToeState"].cells).toEqual(["", "", "", "", "", "", "", "", ""]);
+    expect(gameState[0].components["TicTacToeState"].status).toBe("PLAYING");
+    expect(gameState[0].components["TicTacToeState"].turn).toBe("X");
+  });
+
   it("keeps the board in a 3x3 layout at a smaller viewport", async () => {
     env = await createEnv();
     await env.setViewportSize(640, 360);

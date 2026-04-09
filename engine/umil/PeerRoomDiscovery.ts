@@ -4,9 +4,7 @@ import type { UMIL_RoomData } from "./types";
 
 const nanoid = customAlphabet("234579ACDEFGHJKMNPQRTWXYZ", 10);
 
-type DiscoveryMessage =
-  | { type: "announce"; rooms: UMIL_RoomData[] }
-  | { type: "state"; rooms: UMIL_RoomData[] };
+type DiscoveryMessage = { type: "announce"; rooms: UMIL_RoomData[] } | { type: "state"; rooms: UMIL_RoomData[] };
 
 type PeerRoomDiscoveryOptions = {
   prefix: string;
@@ -34,7 +32,7 @@ export class PeerRoomDiscovery {
   private isCoordinator = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor({ prefix, host, lobbyId, onRoomsChanged, connectionTimeoutMs = 1000 }: PeerRoomDiscoveryOptions) {
+  constructor({ prefix, host, lobbyId, onRoomsChanged, connectionTimeoutMs = 2000 }: PeerRoomDiscoveryOptions) {
     this.prefix = prefix;
     this.host = host;
     this.lobbyId = this.normalizeId(lobbyId);

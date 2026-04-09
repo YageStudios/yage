@@ -89,8 +89,10 @@ export async function UmilQuickStart<T = null>({
   const config: UmilConfig = {
     appName: gameName,
     appVersion: gameVersion,
+    minPlayersTotal: 1,
+    maxPlayersTotal: 4,
+    minLocalPlayers: 1,
     maxLocalPlayers: 4,
-    maxOnlinePlayers: 4,
     allowLocalOnly: true,
     allowOnline: true,
     ...umilConfig,
@@ -252,9 +254,7 @@ export async function UmilQuickStart<T = null>({
 
   await instance.initializeRoom(result.roomId || roomId, seed, {
     players:
-      result.connection === "PEER" && result.isHost
-        ? connection.localPlayers.map((player) => player.netId)
-        : undefined,
+      result.connection === "PEER" && result.isHost ? connection.localPlayers.map((player) => player.netId) : undefined,
   });
   if (executionMode === "step") {
     instance.stepManual();
@@ -277,7 +277,7 @@ export async function UmilQuickStart<T = null>({
         roomName: `${result.nickname}'s Room`,
         hostName: result.nickname,
         currentPlayers: room?.players.length ?? connection.localPlayers.length,
-        maxPlayers: config.maxOnlinePlayers ?? 4,
+        maxPlayers: config.maxPlayersTotal ?? config.maxOnlinePlayers ?? 4,
       });
     };
 
@@ -292,7 +292,7 @@ export async function UmilQuickStart<T = null>({
           discovery.unpublishRoom(result.roomId!);
           discovery.stop();
         },
-        { once: true }
+        { once: true },
       );
     }
   }

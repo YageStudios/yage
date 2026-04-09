@@ -2,7 +2,6 @@
   root: {
     type: "Canvas",
     styles: {
-      background: "linear-gradient(180deg, #172033 0%, #0f141f 100%)",
       border: "none"
     },
     children: [
@@ -57,7 +56,7 @@
                 spacing: 5,
                 width: 300,
                 height: 300,
-                captureFocus: "$$currentPlayer",
+                captureFocus: "$$boardCaptureFocus",
                 padding: 5,
                 styles: {
                   backgroundColor: "#222222",
@@ -69,8 +68,8 @@
                   label: "$$mark",
                   width: 93,
                   height: 93,
-                  focusable: true,
-                  autoFocus: true,
+                  focusable: "$$boardFocusable",
+                  autoFocus: "$$boardAutoFocus",
                   styles: {
                     fontSize: 64,
                     backgroundColor: "#444444",
@@ -135,7 +134,7 @@
                 spacing: 8,
                 width: 660,
                 height: 660,
-                captureFocus: "$$currentPlayer",
+                captureFocus: "$$boardCaptureFocus",
                 padding: 8,
                 styles: {
                   backgroundColor: "#222222",
@@ -147,8 +146,8 @@
                   label: "$$mark",
                   width: 208,
                   height: 208,
-                  focusable: true,
-                  autoFocus: true,
+                  focusable: "$$boardFocusable",
+                  autoFocus: "$$boardAutoFocus",
                   styles: {
                     fontSize: 96,
                     backgroundColor: "#444444",
@@ -184,7 +183,7 @@
               height: 60,
               label: "Restart Game",
               focusable: true,
-              autoFocus: true,
+              autoFocus: "$$resetAutoFocus",
               styles: {
                 fontSize: 28,
                 backgroundColor: "#4CAF50",
@@ -209,7 +208,7 @@
               height: 90,
               label: "Restart Game",
               focusable: true,
-              autoFocus: true,
+              autoFocus: "$$resetAutoFocus",
               styles: {
                 fontSize: 42,
                 backgroundColor: "#4CAF50",

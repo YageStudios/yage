@@ -129,6 +129,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
           this._element.classList.remove("focusable");
         }
       }
+      this.uiService.debouncedFocusCheck();
       return;
     }
     if (key === "captureFocus") {
@@ -145,6 +146,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
           this.update();
         }
       }
+      this.uiService.debouncedFocusCheck();
       return;
     }
     if (key === "autoFocus") {
@@ -156,6 +158,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
           this._element.classList.remove("autoFocus");
         }
       }
+      this.uiService.debouncedFocusCheck();
       return;
     }
     if (key === "layoutRect") {

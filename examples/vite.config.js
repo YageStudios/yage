@@ -1,21 +1,24 @@
-// vite.config.ts
 import { defineConfig } from "vite";
 import path from "path";
+import { fileURLToPath } from "url";
 import json5Plugin from "../vite-plugin-json5";
 
+const examplesRoot = fileURLToPath(new URL(".", import.meta.url));
+
 export default defineConfig({
-  root: "tests",
-  base: "",
+  appType: "spa",
+  root: examplesRoot,
+  base: "/",
   build: {
-    outDir: "../testdist",
+    outDir: path.resolve(examplesRoot, "../testdist"),
   },
   server: {
     port: 5173,
-    allowedHosts: [".sprkt.xyz"]
+    allowedHosts: [".sprkt.xyz"],
   },
   resolve: {
     alias: {
-      yage: path.resolve(__dirname, "../engine/"),
+      yage: path.resolve(examplesRoot, "../engine/"),
     },
     extensions: [".ts", ".tsx", ".js", ".mjs"],
   },

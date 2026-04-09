@@ -2,7 +2,6 @@
   root: {
     type: "Canvas",
     styles: {
-      background: "linear-gradient(180deg, #0a1a0a 0%, #000000 100%)",
       border: "none"
     },
     children: [
