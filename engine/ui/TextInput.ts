@@ -4,6 +4,7 @@ import { UIElement } from "./UIElement";
 import type { BoxConfig } from "./Box";
 import type { TextConfig } from "./Text";
 import { scaleFont } from "./utils";
+import { InputEventType } from "yage/inputs/InputManager";
 
 export interface TextInputConfig extends BoxConfig, TextConfig {
   value?: string;
@@ -22,6 +23,8 @@ const defaultStyle: Partial<CSSStyleDeclaration> = {
 
 export class TextInput extends UIElement<TextInputConfig> {
   focusTime: number = 0;
+  editingPlayerIndex: number | null = null;
+  editingStartValue: string = "";
 
   _element: HTMLInputElement | undefined = undefined;
 
@@ -35,28 +38,61 @@ export class TextInput extends UIElement<TextInputConfig> {
     super(bounds, config, defaultStyle);
   }
 
-  listenKeyPress = (e: any) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.key === "Backspace") {
-      this._config.value = this._config.value?.substring(0, this._config.value.length - 1) || "";
-    } else if (e.key.length === 1) {
-      this._config.value = (this._config.value || "") + e.key;
-    } else if (e.key === "Enter") {
-      this._config.onSubmit?.(this._config.value || "");
-      return;
+  private startEditing(playerIndex: number, selectContents = false): boolean {
+    if (this.editingPlayerIndex === playerIndex) {
+      return true;
     }
-    this._config.onChange?.(this._config.value || "");
-  };
+    this.editingStartValue = this._config.value || "";
+    this.editingPlayerIndex = playerIndex;
+    this.uiService.setFocusedElementByPlayerIndex(playerIndex, this);
+    this.focusTime = Date.now();
+    if (this._element) {
+      this._element.readOnly = false;
+    }
+    this.update();
+    requestAnimationFrame(() => {
+      this.element?.focus();
+      if (selectContents) {
+        this.element?.select();
+        return;
+      }
+      const valueLength = this.element?.value.length ?? 0;
+      this.element?.setSelectionRange(valueLength, valueLength);
+    });
+    return true;
+  }
+
+  private stopEditing(options?: { revert?: boolean; submit?: boolean }): void {
+    const previousValue = this._config.value || "";
+    if (options?.revert) {
+      this._config.value = this.editingStartValue;
+      if (previousValue !== this.editingStartValue) {
+        this._config.onChange?.(this.editingStartValue);
+      }
+    }
+    if (options?.submit) {
+      this._config.onSubmit?.(this._config.value || "");
+    }
+    this.focusTime = -1;
+    this.editingPlayerIndex = null;
+    if (this._element) {
+      this._element.readOnly = true;
+      const valueLength = this._element.value.length;
+      this._element.setSelectionRange(valueLength, valueLength);
+    }
+    this.element?.blur();
+    this.update();
+  }
+
   protected onClickInternal(playerIndex: number): void | boolean {
     if (this._config.onClick) {
       return this._config.onClick(playerIndex);
     }
-    this.focusTime = +new Date();
-    document.addEventListener("keydown", this.listenKeyPress);
+    return this.startEditing(playerIndex, true);
   }
 
   protected onMouseDownInternal(playerIndex: number): void | boolean {
+    this.startEditing(playerIndex, true);
     if (this._config.onMouseDown) {
       return this._config.onMouseDown(playerIndex);
     }
@@ -69,8 +105,9 @@ export class TextInput extends UIElement<TextInputConfig> {
   }
 
   protected onBlurInternal(playerIndex: number): void {
-    this.focusTime = -1;
-    document.removeEventListener("keydown", this.listenKeyPress);
+    if (this.editingPlayerIndex === playerIndex) {
+      this.stopEditing();
+    }
     if (this._config.onBlur) {
       this._config.onBlur(playerIndex);
     }
@@ -96,7 +133,51 @@ export class TextInput extends UIElement<TextInputConfig> {
 
   onDestroy(noUpdate?: boolean): void {
     super.onDestroy(noUpdate);
-    document.removeEventListener("keydown", this.listenKeyPress);
+  }
+
+  onEscape(playerIndex: number): void {
+    if (this.editingPlayerIndex === playerIndex) {
+      this.stopEditing({ revert: true });
+      this.uiService.setFocusedElementByPlayerIndex(playerIndex, this);
+      return;
+    }
+    super.onEscape(playerIndex);
+  }
+
+  capturesTextInput(playerIndex: number): boolean {
+    return this.editingPlayerIndex === playerIndex;
+  }
+
+  beginTextInput(playerIndex: number): boolean {
+    return this.startEditing(playerIndex, true);
+  }
+
+  handleTextInputKey(playerIndex: number, key: string): boolean {
+    if (this.editingPlayerIndex !== playerIndex) {
+      return false;
+    }
+
+    if (key === "Backspace") {
+      this._config.value = this._config.value?.substring(0, this._config.value.length - 1) || "";
+      this._config.onChange?.(this._config.value || "");
+      this.update();
+      return true;
+    }
+
+    if (key === "Enter") {
+      this.stopEditing({ submit: true });
+      this.uiService.setFocusedElementByPlayerIndex(playerIndex, this);
+      return true;
+    }
+
+    if (key.length === 1) {
+      this._config.value = (this._config.value || "") + key;
+      this._config.onChange?.(this._config.value || "");
+      this.update();
+      return true;
+    }
+
+    return true;
   }
 
   createElement(): HTMLInputElement {
@@ -133,18 +214,69 @@ export class TextInput extends UIElement<TextInputConfig> {
     textInputElement.style.color = "white";
     textInputElement.style.border = `1px solid ${this._config.style.borderColor ?? "white"}`;
     textInputElement.value = this._config.value || "";
+    textInputElement.readOnly = this.editingPlayerIndex === null;
     const scales = this.getScales();
     textInputElement.style.fontSize = `${scaleFont(this.config.fontSize || 12, scales[0] * scales[1] * scales[2])}px`;
 
-    textInputElement.onkeyup = (e) => {
+    textInputElement.onmousedown = (e) => {
+      const playerIndex = this.getSharedInteractionPlayerIndex(InputEventType.MOUSE);
+      if (playerIndex === -1) {
+        e.stopPropagation();
+        return;
+      }
+      this.startEditing(playerIndex, true);
+    };
+
+    textInputElement.onclick = (e) => {
+      const playerIndex = this.getSharedInteractionPlayerIndex(InputEventType.MOUSE);
+      if (playerIndex === -1) {
+        e.stopPropagation();
+        return;
+      }
+      this.startEditing(playerIndex, true);
+      e.stopPropagation();
+    };
+
+    textInputElement.onkeyup = () => {
+      if (this.editingPlayerIndex === null) {
+        textInputElement.value = this._config.value || "";
+        return;
+      }
       this._config.value = textInputElement.value;
       this._config.onChange?.(this._config.value);
     };
 
     textInputElement.onkeydown = (e) => {
-      if (e.key === "Enter") {
-        this._config.onSubmit?.(textInputElement.value);
+      if (this.editingPlayerIndex === null) {
+        return;
       }
+      const editingPlayerIndex = this.editingPlayerIndex;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        this._config.value = textInputElement.value;
+        this.stopEditing({ submit: true });
+        this.uiService.setFocusedElementByPlayerIndex(editingPlayerIndex, this);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        this.stopEditing({ revert: true });
+        textInputElement.value = this._config.value || "";
+        this.uiService.setFocusedElementByPlayerIndex(editingPlayerIndex, this);
+      }
+    };
+
+    textInputElement.oninput = () => {
+      if (this.editingPlayerIndex === null) {
+        textInputElement.value = this._config.value || "";
+        return;
+      }
+      this._config.value = textInputElement.value;
+      this._config.onChange?.(this._config.value);
     };
   }
 }

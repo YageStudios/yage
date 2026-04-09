@@ -146,7 +146,6 @@
                   },
                   events: {
                     change: "nicknameChange",
-                    submit: "submitProfile",
                   },
                 },
                 {
@@ -220,7 +219,6 @@
                   },
                   events: {
                     change: "nicknameChange",
-                    submit: "submitProfile",
                   },
                 },
                 {
@@ -379,6 +377,7 @@
                 {
                   id: "inputSetupButtons",
                   type: "HStack",
+                  captureFocus: "{{inputSetupFocusCapture}}",
                   spacing: 12,
                   alignItems: "Center",
                   children: [
@@ -400,6 +399,7 @@
                       $ref: "PrimaryButton",
                       width: 240,
                       height: 50,
+                      autoFocus: "{{inputSetupContinueAutoFocus}}",
                       props: {
                         label: "{{inputSetupContinueLabel}}",
                       },
@@ -524,6 +524,7 @@
                 {
                   id: "inputSetupButtons",
                   type: "HStack",
+                  captureFocus: "{{inputSetupFocusCapture}}",
                   spacing: 20,
                   alignItems: "Center",
                   children: [
@@ -545,6 +546,7 @@
                       $ref: "PrimaryButton",
                       width: 400,
                       height: 70,
+                      autoFocus: "{{inputSetupContinueAutoFocus}}",
                       props: {
                         label: "{{inputSetupContinueLabel}}",
                       },

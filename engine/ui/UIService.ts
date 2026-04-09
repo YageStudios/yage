@@ -152,6 +152,29 @@ export class UIService {
     if (!pressed || [InputEventType.TOUCH, InputEventType.MOUSE].includes(eventType)) {
       return;
     }
+    const focusedElement = this._focusedElementByPlayerIndex[playerEventIndex];
+
+    if (focusedElement?.capturesTextInput(playerEventIndex)) {
+      const normalizedKey = key.toLocaleLowerCase();
+      if (normalizedKey === "escape" || (eventType === InputEventType.GAMEPAD && key === "q")) {
+        focusedElement.onEscape(playerEventIndex);
+        e?.preventDefault();
+        e?.stopImmediatePropagation();
+        return false;
+      }
+      if (normalizedKey === "enter" && eventType === InputEventType.KEYBOARD) {
+        e?.preventDefault();
+        e?.stopImmediatePropagation();
+        return false;
+      }
+      if (eventType !== InputEventType.KEYBOARD && focusedElement.handleTextInputKey(playerEventIndex, key)) {
+        e?.preventDefault();
+        e?.stopImmediatePropagation();
+        return false;
+      }
+      return;
+    }
+
     let left = key === "left" || key === "a";
     let right = key === "right" || key === "d";
     let up = key === "up" || key === "w";
@@ -229,9 +252,16 @@ export class UIService {
     }
 
     switch (key.toLocaleLowerCase()) {
+      case "enter":
+        if (focusedElement?.beginTextInput(playerEventIndex)) {
+          e?.preventDefault();
+          e?.stopImmediatePropagation();
+          return false;
+        }
+        break;
       case "space":
-        if (this._focusedElementByPlayerIndex[playerEventIndex]) {
-          this._focusedElementByPlayerIndex[playerEventIndex]!.onClick(playerEventIndex);
+        if (focusedElement) {
+          focusedElement.onClick(playerEventIndex);
           e?.preventDefault();
           e?.stopImmediatePropagation();
           return false;
@@ -239,8 +269,8 @@ export class UIService {
 
         break;
       case "escape":
-        if (this._focusedElementByPlayerIndex[playerEventIndex]) {
-          this._focusedElementByPlayerIndex[playerEventIndex]!.onEscape(playerEventIndex);
+        if (focusedElement) {
+          focusedElement.onEscape(playerEventIndex);
         }
         break;
     }
@@ -400,7 +430,6 @@ export class UIService {
 
     if (!this._focusedElementByPlayerIndex[playerIndex]) {
       const availableAutoFocus = this.getFocusables(playerIndex, true);
-
       if (!availableAutoFocus.length) {
         return;
       }

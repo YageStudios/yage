@@ -98,7 +98,9 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   }
 
   set id(value: string) {
-    delete this.uiService.mappedIds[this._id];
+    if (this.uiService.mappedIds[this._id] === this) {
+      delete this.uiService.mappedIds[this._id];
+    }
     this._id = value;
     this.element.id = value;
     this.uiService.mappedIds[value] = this;
@@ -313,6 +315,18 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     }
   }
 
+  capturesTextInput(_playerIndex: number): boolean {
+    return false;
+  }
+
+  beginTextInput(_playerIndex: number): boolean {
+    return false;
+  }
+
+  handleTextInputKey(_playerIndex: number, _key: string): boolean {
+    return false;
+  }
+
   onClick(playerIndex: number) {
     const focusables = this.uiService.getFocusables(playerIndex);
     if (this._element && focusables?.includes(this._element)) {
@@ -391,6 +405,16 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     return InputEventType.MOUSE;
   }
 
+  protected getSharedInteractionPlayerIndex(inputType: InputEventType): number {
+    let playerIndex = this.uiService.getPlayerEventIndex(inputType, 0, this);
+    const isSharedElement =
+      this._config.captureFocus === undefined || this._config.captureFocus === null || this._config.captureFocus < 0;
+    if (playerIndex === -1 && isSharedElement) {
+      playerIndex = 0;
+    }
+    return playerIndex;
+  }
+
   protected syncFocusForInputType(inputType: InputEventType, playerIndex: number): void {
     if (!this._config.focusable) {
       return;
@@ -415,7 +439,9 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     focusedIndices.forEach((playerIndex) => {
       this.uiService.clearFocusedElementByPlayerIndex(playerIndex);
     });
-    delete this.uiService.mappedIds[this._id];
+    if (this.uiService.mappedIds[this._id] === this) {
+      delete this.uiService.mappedIds[this._id];
+    }
     this.removeElement(noUpdate);
     this?.parent?.removeChild(this);
 
@@ -469,7 +495,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
         e.stopPropagation();
         return;
       }
-      const playerIndex = this.uiService.getPlayerEventIndex(inputType, 0, this);
+      const playerIndex = this.getSharedInteractionPlayerIndex(inputType);
       if (playerIndex === -1) {
         e.stopPropagation();
         return;
@@ -488,7 +514,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
         e.stopPropagation();
         return;
       }
-      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0, this);
+      const playerIndex = this.getSharedInteractionPlayerIndex(InputEventType.MOUSE);
       if (playerIndex === -1) {
         e.stopPropagation();
         return;
@@ -503,7 +529,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
         e.stopPropagation();
         return;
       }
-      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0, this);
+      const playerIndex = this.getSharedInteractionPlayerIndex(InputEventType.MOUSE);
       if (playerIndex === -1) {
         e.stopPropagation();
         return;

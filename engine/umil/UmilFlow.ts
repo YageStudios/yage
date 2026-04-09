@@ -136,11 +136,20 @@ export class UmilFlow<T = null> {
   private onInputDetected(config: UMIL_LocalPlayerConfig): void {
     this.localPlayers = this.inputClusterer.getPlayers();
     this.syncUi();
+    if (config.inputType === UmilInputType.KEYBOARD) {
+      this.uiService.clearFocusedElementByPlayerIndex(0, false);
+      setTimeout(() => {
+        this.uiService.debouncedFocusCheck();
+      }, 0);
+    }
   }
 
   private onInputRemoved(localIndex: number): void {
     this.localPlayers = this.inputClusterer.getPlayers();
     this.syncUi();
+    if (!this.localPlayers.some((player) => player.inputType === UmilInputType.KEYBOARD)) {
+      this.uiService.clearFocusedElementByPlayerIndex(0, false);
+    }
   }
 
   private showInputSetup(): void {
@@ -190,7 +199,7 @@ export class UmilFlow<T = null> {
   private configureTemporaryUiInputs(): void {
     if (this.step === "INPUT_SETUP") {
       this.uiService.playerInputs = [[InputEventType.ANY, 0]];
-      this.uiService.disableKeyCapture();
+      this.uiService.enableKeyCapture(this.inputManager);
       return;
     }
 
@@ -962,11 +971,14 @@ export class UmilFlow<T = null> {
   }
 
   private getInputSetupViewModel(allowedLocalPlayers: number, requiredLocalPlayers: number, meetsMinLocal: boolean) {
+    const keyboardPlayerJoined = this.localPlayers.some((player) => player.inputType === UmilInputType.KEYBOARD);
     return {
       playerSlots: this.buildPlayerSlots(allowedLocalPlayers),
       sharedSurfaceActions: this.buildSharedSurfaceActions(allowedLocalPlayers),
       showInputContinuePrompt: meetsMinLocal,
       inputSetupContinueLabel: meetsMinLocal ? "Continue" : `Need at least ${requiredLocalPlayers} player(s)`,
+      inputSetupFocusCapture: keyboardPlayerJoined ? 0 : -1,
+      inputSetupContinueAutoFocus: keyboardPlayerJoined,
     };
   }
 
