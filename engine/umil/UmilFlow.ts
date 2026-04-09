@@ -28,6 +28,15 @@ const nanoid = customAlphabet("234579ACDEFGHJKMNPQRTWXYZ", 6);
 
 const playerColors = ["#3498db", "#e74c3c", "#2ecc71", "#f39c12"];
 
+type UmilSharedSurfaceAction = { action: string; label: string };
+type UmilPlayerSlot = {
+  localIndex: number;
+  label: string;
+  color: string;
+  isAssigned: boolean;
+  deviceType: string;
+};
+
 export class UmilFlow<T = null> {
   private static readonly UI_ASSET_KEY = "__umil_flow__";
 
@@ -684,39 +693,60 @@ export class UmilFlow<T = null> {
     eventContext: any,
     payload?: unknown,
   ): void {
+    if (this.handleInputSetupEvent(eventName, eventContext)) {
+      return;
+    }
+
+    if (this.handleFlowEvent(eventName, eventContext, payload)) {
+      return;
+    }
+
+    if (this.handleLobbyEvent(eventName, payload)) {
+      return;
+    }
+  }
+
+  private handleInputSetupEvent(eventName: string, eventContext: any): boolean {
     switch (eventName) {
       case "addMousePlayer":
         this.inputClusterer.addSharedPlayer(UmilInputType.MOUSE, 0);
         this.localPlayers = this.inputClusterer.getPlayers();
         this.syncUi();
-        return;
+        return true;
       case "addTouchPlayer":
         this.inputClusterer.addSharedPlayer(UmilInputType.TOUCH, 0);
         this.localPlayers = this.inputClusterer.getPlayers();
         this.syncUi();
-        return;
+        return true;
       case "removePlayer":
         if (typeof eventContext?.localIndex === "number") {
           this.inputClusterer.removePlayer(eventContext.localIndex);
           this.localPlayers = this.inputClusterer.getPlayers();
           this.syncUi();
         }
-        return;
+        return true;
       case "confirmInputSetup":
         this.confirmInputSetup();
-        return;
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  private handleFlowEvent(eventName: string, eventContext: any, payload?: unknown): boolean {
+    switch (eventName) {
       case "selectLocal":
         this.mode = "LOCAL";
         this.showInputSetup();
-        return;
+        return true;
       case "selectHost":
         this.mode = "HOST";
         this.showProfileSetup();
-        return;
+        return true;
       case "selectJoin":
         this.mode = "JOIN";
         this.showProfileSetup();
-        return;
+        return true;
       case "submitProfile":
         // After profile, go to input setup (or room browser for JOIN without deep link)
         if (this.mode === "JOIN" && !this.targetRoomId) {
@@ -724,7 +754,7 @@ export class UmilFlow<T = null> {
         } else {
           this.showInputSetup();
         }
-        return;
+        return true;
       case "showMainMenu":
       case "leaveRoom":
         this.unpublishHostedRoom();
@@ -737,10 +767,10 @@ export class UmilFlow<T = null> {
         this.localPlayers = [];
         this.inputClusterer.reset();
         this.showMainMenu();
-        return;
+        return true;
       case "backToMainMenu":
         this.showMainMenu();
-        return;
+        return true;
       case "refreshRooms":
         if (this.isPeerMultiplayerConfig(this.multiplayerConfig)) {
           this.roomList = [];
@@ -748,29 +778,36 @@ export class UmilFlow<T = null> {
           void this.connectPeerDiscovery();
         }
         this.syncUi();
-        return;
+        return true;
       case "joinRoom":
         if (eventContext?.roomId) {
           this.targetRoomId = eventContext.roomId;
           this.showInputSetup();
         }
-        return;
+        return true;
       case "joinRoomCodeChange":
         this.joinRoomCode = typeof payload === "string" ? payload.trim().toUpperCase() : this.joinRoomCode;
         this.syncUi();
-        return;
+        return true;
       case "submitJoinRoomCode":
         if (this.joinRoomCode) {
           this.targetRoomId = this.joinRoomCode;
           this.showInputSetup();
         }
-        return;
+        return true;
       case "copyRoomLink":
         void this.copyRoomLink();
-        return;
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  private handleLobbyEvent(eventName: string, payload?: unknown): boolean {
+    switch (eventName) {
       case "startOnlineGame":
         if (this.lobbyState && this.lobbyState.players.length < this.minPlayersTotal) {
-          return; // Not enough players
+          return true; // Not enough players
         }
         this.unpublishHostedRoom();
         if (this.isPeerMultiplayerConfig(this.multiplayerConfig) && this.peerRoomConnection) {
@@ -788,7 +825,7 @@ export class UmilFlow<T = null> {
           this.peerRoomConnection.emit(UMIL_EVENTS.START_GAME, { roomId: this.roomId });
         }
         this.startOnlineGame();
-        return;
+        return true;
       case "toggleReady": {
         this.isReady = !this.isReady;
         const localPlayer = this.lobbyState?.players.find(
@@ -805,7 +842,7 @@ export class UmilFlow<T = null> {
           }
         }
         this.syncUi();
-        return;
+        return true;
       }
       case "nicknameChange":
         if (typeof payload === "string" && payload.trim()) {
@@ -827,14 +864,16 @@ export class UmilFlow<T = null> {
           }
           this.syncUi();
         }
-        return;
+        return true;
       case "chatChange":
         this.chatDraft = typeof payload === "string" ? payload : this.chatDraft;
-        return;
+        return true;
       case "chatSubmit":
       case "chatSend":
         this.submitChat(typeof payload === "string" ? payload : this.chatDraft);
-        return;
+        return true;
+      default:
+        return false;
     }
   }
 
@@ -866,44 +905,6 @@ export class UmilFlow<T = null> {
 
   private getViewModel() {
     const allowedLocalPlayers = this.getAllowedLocalPlayersForCurrentMode();
-    const maxSharedMouse = Math.max(1, this.config.maxSharedMousePlayers ?? 1);
-    const maxSharedTouch = Math.max(1, this.config.maxSharedTouchPlayers ?? 1);
-    const mouseCount = this.inputClusterer.getAssignedTypeCount(UmilInputType.MOUSE);
-    const touchCount = this.inputClusterer.getAssignedTypeCount(UmilInputType.TOUCH);
-    const canAddMouse = mouseCount > 0 && mouseCount < maxSharedMouse && this.localPlayers.length < allowedLocalPlayers;
-    const canAddTouch = touchCount > 0 && touchCount < maxSharedTouch && this.localPlayers.length < allowedLocalPlayers;
-
-    const cardWidth = 180;
-    const cardGap = 20;
-    const totalPlayers = this.localPlayers.length;
-    const totalWidth = totalPlayers * cardWidth + Math.max(totalPlayers - 1, 0) * cardGap;
-    const startX = -totalWidth / 2;
-
-    const inputPlayers = this.localPlayers.map((player, index) => ({
-      label: `P${index + 1}: ${player.inputType}${player.keyboardCluster ? ` (${player.keyboardCluster})` : ""}`,
-      color: playerColors[index % playerColors.length],
-      xOffset: startX + index * (cardWidth + cardGap) + cardWidth / 2,
-    }));
-
-    const sharedSurfaceActions: { action: string; label: string }[] = [];
-    if (canAddMouse) {
-      sharedSurfaceActions.push({
-        action: "addMousePlayer",
-        label: "+ Add another Mouse Player",
-      });
-    }
-    if (canAddTouch) {
-      sharedSurfaceActions.push({
-        action: "addTouchPlayer",
-        label: "+ Add another Touch Player",
-      });
-    }
-
-    const showInputContinuePrompt = this.localPlayers.length > 0;
-    const showInputStartButton = this.localPlayers.some(
-      (player) => player.inputType === UmilInputType.MOUSE || player.inputType === UmilInputType.TOUCH,
-    );
-
     const mainMenuActions: { action: string; label: string; disabled: boolean }[] = [];
     const canLocal = this.config.allowLocalOnly !== false && this.maxPlayersTotal >= this.minLocalPlayers;
     const canOnline = this.config.allowOnline !== false;
@@ -915,9 +916,88 @@ export class UmilFlow<T = null> {
       mainMenuActions.push({ action: "selectJoin", label: "Join via Room Code", disabled: false });
     }
 
-    // Player slot cards for INPUT_SETUP screen
-    const playerSlots: { localIndex: number; label: string; color: string; isAssigned: boolean; deviceType: string }[] =
-      [];
+    const requiredLocalPlayers = this.getRequiredLocalPlayersForCurrentMode();
+    const meetsMinLocal = this.localPlayers.length >= requiredLocalPlayers;
+    const meetsMinTotal = this.lobbyState ? this.lobbyState.players.length >= this.minPlayersTotal : meetsMinLocal;
+    const context = {
+      appName: this.config.appName,
+      step: this.step,
+      mode: this.mode,
+      nickname: this.nickname,
+      isPeerLobby: this.isPeerMultiplayerConfig(this.multiplayerConfig),
+      joinRoomCode: this.joinRoomCode,
+      meetsMinLocal,
+      meetsMinTotal,
+      mainMenuActions,
+      roomId: this.roomId,
+      copyLinkLabel: this.copyLinkLabel,
+      playerConfig: this.playerConfig,
+      minPlayersTotal: this.minPlayersTotal,
+      maxPlayersTotal: this.maxPlayersTotal,
+      minLocalPlayers: requiredLocalPlayers,
+      maxLocalPlayers: allowedLocalPlayers,
+    };
+
+    switch (this.step) {
+      case "MAIN_MENU":
+        return context;
+      case "INPUT_SETUP":
+        return {
+          ...context,
+          ...this.getInputSetupViewModel(allowedLocalPlayers, requiredLocalPlayers, meetsMinLocal),
+        };
+      case "ROOM_BROWSER":
+        return {
+          ...context,
+          roomList: this.getRoomBrowserRooms(),
+        };
+      case "LOBBY":
+        return {
+          ...context,
+          ...this.getLobbyViewModel(meetsMinTotal),
+        };
+      default:
+        return context;
+    }
+  }
+
+  private getInputSetupViewModel(allowedLocalPlayers: number, requiredLocalPlayers: number, meetsMinLocal: boolean) {
+    return {
+      playerSlots: this.buildPlayerSlots(allowedLocalPlayers),
+      sharedSurfaceActions: this.buildSharedSurfaceActions(allowedLocalPlayers),
+      showInputContinuePrompt: meetsMinLocal,
+      inputSetupContinueLabel: meetsMinLocal ? "Continue" : `Need at least ${requiredLocalPlayers} player(s)`,
+    };
+  }
+
+  private buildSharedSurfaceActions(allowedLocalPlayers: number): UmilSharedSurfaceAction[] {
+    const maxSharedMouse = Math.max(1, this.config.maxSharedMousePlayers ?? 1);
+    const maxSharedTouch = Math.max(1, this.config.maxSharedTouchPlayers ?? 1);
+    const mouseCount = this.inputClusterer.getAssignedTypeCount(UmilInputType.MOUSE);
+    const touchCount = this.inputClusterer.getAssignedTypeCount(UmilInputType.TOUCH);
+    const canAddMouse = mouseCount > 0 && mouseCount < maxSharedMouse && this.localPlayers.length < allowedLocalPlayers;
+    const canAddTouch = touchCount > 0 && touchCount < maxSharedTouch && this.localPlayers.length < allowedLocalPlayers;
+    const actions: UmilSharedSurfaceAction[] = [];
+
+    if (canAddMouse) {
+      actions.push({
+        action: "addMousePlayer",
+        label: "+ Add another Mouse Player",
+      });
+    }
+
+    if (canAddTouch) {
+      actions.push({
+        action: "addTouchPlayer",
+        label: "+ Add another Touch Player",
+      });
+    }
+
+    return actions;
+  }
+
+  private buildPlayerSlots(allowedLocalPlayers: number): UmilPlayerSlot[] {
+    const playerSlots: UmilPlayerSlot[] = [];
     for (let i = 0; i < allowedLocalPlayers; i++) {
       const player = this.localPlayers.find((p) => p.localIndex === i);
       if (player) {
@@ -928,70 +1008,47 @@ export class UmilFlow<T = null> {
           isAssigned: true,
           deviceType: player.inputType,
         });
-      } else {
-        playerSlots.push({
-          localIndex: i,
-          label: "Press ENTER, SPACE, or A to Join",
-          color: "rgba(255,255,255,0.3)",
-          isAssigned: false,
-          deviceType: "",
-        });
+        continue;
       }
+
+      playerSlots.push({
+        localIndex: i,
+        label: "Press ENTER, SPACE, or A to Join",
+        color: "rgba(255,255,255,0.3)",
+        isAssigned: false,
+        deviceType: "",
+      });
     }
 
-    const requiredLocalPlayers = this.getRequiredLocalPlayersForCurrentMode();
-    const meetsMinLocal = this.localPlayers.length >= requiredLocalPlayers;
-    const meetsMinTotal = this.lobbyState ? this.lobbyState.players.length >= this.minPlayersTotal : meetsMinLocal;
-    const inputSetupContinueLabel = meetsMinLocal ? "Continue" : `Need at least ${requiredLocalPlayers} player(s)`;
-    const roomUrl = this.roomId ? this.generateRoomUrl(this.roomId) : "";
+    return playerSlots;
+  }
+
+  private getRoomBrowserRooms() {
+    return this.roomList.map((room) => ({
+      ...room,
+      isFull: room.currentPlayers >= room.maxPlayers,
+    }));
+  }
+
+  private getLobbyViewModel(meetsMinTotal: boolean) {
+    const allPlayersReady = this.lobbyState?.players.every((player) => player.isReady) ?? false;
 
     return {
-      appName: this.config.appName,
-      step: this.step,
-      mode: this.mode,
-      nickname: this.nickname,
-      isPeerLobby: this.isPeerMultiplayerConfig(this.multiplayerConfig),
-      joinRoomCode: this.joinRoomCode,
-      inputPlayers,
-      playerSlots,
-      sharedSurfaceActions,
-      showInputStartButton,
-      showInputContinuePrompt: meetsMinLocal,
-      inputSetupContinueLabel,
-      meetsMinLocal,
-      meetsMinTotal,
-      mainMenuActions,
-      roomId: this.roomId,
-      roomUrl,
-      copyLinkLabel: this.copyLinkLabel,
-      roomList: this.roomList.map((room, index) => ({
-        ...room,
-        isFull: room.currentPlayers >= room.maxPlayers,
-        yOffset: -150 + index * 70,
-      })),
+      roomUrl: this.roomId ? this.generateRoomUrl(this.roomId) : "",
       lobbyState: this.lobbyState,
       lobbyPlayers:
-        this.lobbyState?.players.map((player, index) => ({
+        this.lobbyState?.players.map((player) => ({
           ...player,
           readyColor: player.isReady ? "green" : "red",
           nameLabel: `${player.name}${player.isHost ? " (Host)" : ""}`,
-          yOffset: index * 40,
         })) ?? [],
       isHost: this.isHost,
       readyButtonLabel: this.isReady ? "Ready!" : "Not Ready",
       readyButtonColor: this.isReady ? "green" : "transparent",
-      startButtonOpacity: meetsMinTotal && this.lobbyState?.players.every((player) => player.isReady) ? "1" : "0.5",
-      canStartGame: meetsMinTotal && (this.lobbyState?.players.every((player) => player.isReady) ?? false),
-      chatMessages: this.chatMessages.slice(-100).map((message, index) => ({
-        ...message,
-        yOffset: index * 22,
-      })),
+      startButtonOpacity: meetsMinTotal && allPlayersReady ? "1" : "0.5",
+      canStartGame: meetsMinTotal && allPlayersReady,
+      chatMessages: this.chatMessages.slice(-100),
       chatDraft: this.chatDraft,
-      playerConfig: this.playerConfig,
-      minPlayersTotal: this.minPlayersTotal,
-      maxPlayersTotal: this.maxPlayersTotal,
-      minLocalPlayers: requiredLocalPlayers,
-      maxLocalPlayers: allowedLocalPlayers,
     };
   }
 }

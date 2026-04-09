@@ -217,35 +217,54 @@ function measureStack(
   const children = node.children ?? [];
   const alignItems = node.alignItems ?? "Start";
 
-  // First pass: measure all fixed children, collect flex children
+  const mainAxisProp = direction === "vertical" ? "height" : "width";
+  const crossAxisProp = direction === "vertical" ? "width" : "height";
+
+  // First pass: measure fixed children, defer main-axis fill/flex children
   const childResults: LayoutResult[] = [];
-  const flexChildren: number[] = [];
+  const deferredChildren: Array<{ index: number; weight: number; crossFill: boolean }> = [];
   let fixedMainAxis = 0;
   let maxCrossAxis = 0;
-  let flexTotal = 0;
+  let deferredTotalWeight = 0;
 
   for (let i = 0; i < children.length; i++) {
     const child = children[i];
     if (!child?.type) continue;
 
+    const mainFill = child[mainAxisProp] === "fill";
+    const crossFill = child[crossAxisProp] === "fill";
     const flex = child.flex ?? 0;
-    if (flex > 0) {
-      flexChildren.push(i);
-      flexTotal += flex;
-      // Measure with minimal space first
-      const result = measure(child, availableW, availableH, measureText);
-      childResults.push(result);
-    } else {
-      const result = measure(child, availableW, availableH, measureText);
-      childResults.push(result);
+    if (flex > 0 || mainFill) {
+      const weight = flex > 0 ? flex : 1;
+      deferredChildren.push({ index: childResults.length, weight, crossFill });
+      deferredTotalWeight += weight;
+      childResults.push(
+        measure(
+          child,
+          direction === "vertical" ? availableW : 0,
+          direction === "vertical" ? 0 : availableH,
+          measureText
+        )
+      );
+      continue;
+    }
 
+    const result = measure(child, availableW, availableH, measureText);
+    if (crossFill) {
       if (direction === "vertical") {
-        fixedMainAxis += result.intrinsicSize.height;
-        maxCrossAxis = Math.max(maxCrossAxis, result.intrinsicSize.width);
+        result.intrinsicSize.width = availableW;
       } else {
-        fixedMainAxis += result.intrinsicSize.width;
-        maxCrossAxis = Math.max(maxCrossAxis, result.intrinsicSize.height);
+        result.intrinsicSize.height = availableH;
       }
+    }
+    childResults.push(result);
+
+    if (direction === "vertical") {
+      fixedMainAxis += result.intrinsicSize.height;
+      maxCrossAxis = Math.max(maxCrossAxis, result.intrinsicSize.width);
+    } else {
+      fixedMainAxis += result.intrinsicSize.width;
+      maxCrossAxis = Math.max(maxCrossAxis, result.intrinsicSize.height);
     }
   }
 
@@ -253,22 +272,35 @@ function measureStack(
   const mainAxisAvailable = (direction === "vertical" ? availableH : availableW);
   const remainingSpace = Math.max(0, mainAxisAvailable - fixedMainAxis - gapTotal);
 
-  // Second pass: distribute flex space
-  if (flexTotal > 0) {
-    for (const idx of flexChildren) {
-      const child = children.filter((c: any) => c?.type)[idx];
+  // Second pass: distribute remaining space to deferred children
+  if (deferredTotalWeight > 0) {
+    const typedChildren = children.filter((c: any) => c?.type);
+    for (const deferred of deferredChildren) {
+      const child = typedChildren[deferred.index];
       if (!child) continue;
-      const flex = child.flex ?? 0;
-      const allocatedMain = (remainingSpace * flex) / flexTotal;
+      const allocatedMain = (remainingSpace * deferred.weight) / deferredTotalWeight;
+      const result = measure(
+        child,
+        direction === "vertical" ? availableW : allocatedMain,
+        direction === "vertical" ? allocatedMain : availableH,
+        measureText
+      );
 
-      const result = childResults[idx];
       if (direction === "vertical") {
         result.intrinsicSize.height = allocatedMain;
+        if (deferred.crossFill) {
+          result.intrinsicSize.width = availableW;
+        }
         maxCrossAxis = Math.max(maxCrossAxis, result.intrinsicSize.width);
       } else {
         result.intrinsicSize.width = allocatedMain;
+        if (deferred.crossFill) {
+          result.intrinsicSize.height = availableH;
+        }
         maxCrossAxis = Math.max(maxCrossAxis, result.intrinsicSize.height);
       }
+
+      childResults[deferred.index] = result;
     }
   }
 

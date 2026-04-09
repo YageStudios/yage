@@ -287,6 +287,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       style: {
         ...defaultStyle,
         ..._config.style,
+        boxSizing: _config.style?.boxSizing ?? defaultStyle.boxSizing ?? "border-box",
       },
     };
     if (isRectangle(bounds)) {

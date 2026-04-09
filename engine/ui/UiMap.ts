@@ -491,6 +491,38 @@ const resolvePosspecValue = (value: any, ctx: any): any => {
   return value;
 };
 
+const buildScopedContext = (ctx: any, props: any, rootCtx: any): any => {
+  if (!props || typeof props !== "object") {
+    return ctx;
+  }
+
+  return {
+    ...ctx,
+    props: resolvePosspecValue(cloneDeep(props), ctx),
+    $root: rootCtx,
+  };
+};
+
+const createScopedContextRef = (contextRef: { context: any }, props: any, rootCtx: any): { context: any } => {
+  if (!props || typeof props !== "object") {
+    return contextRef;
+  }
+
+  const scopedContextRef: { context: any } = { context: contextRef.context };
+  Object.defineProperty(scopedContextRef, "context", {
+    enumerable: true,
+    configurable: true,
+    get: () => buildScopedContext(contextRef.context, props, rootCtx),
+  });
+  return scopedContextRef;
+};
+
+const throwIfUnresolvedRefNode = (value: any, path: string): void => {
+  if (value && typeof value === "object" && !Array.isArray(value) && typeof value.$ref === "string") {
+    throw new Error(`UiMap: Unresolved $ref "${value.$ref}" reached build phase at "${path}".`);
+  }
+};
+
 const resolvePosspecNodes = (value: any, ctx: any, rootCtx: any): any[] => {
   if (Array.isArray(value)) {
     return value.flatMap((item) => resolvePosspecNodes(item, ctx, rootCtx));
@@ -531,20 +563,23 @@ const resolvePosspecNodes = (value: any, ctx: any, rootCtx: any): any[] => {
     });
   }
 
+  throwIfUnresolvedRefNode(value, "posspec");
+
   if (!value.type) {
     return Object.values(value).flatMap((item) => resolvePosspecNodes(item, ctx, rootCtx));
   }
 
-  const resolvedNode: any = resolvePosspecValue(value, ctx);
-  resolvedNode.__eventContext = ctx;
+  const scopedCtx = buildScopedContext(ctx, value.props, rootCtx);
+  const resolvedNode: any = resolvePosspecValue(value, scopedCtx);
+  resolvedNode.__eventContext = scopedCtx;
   if (resolvedNode.children) {
-    resolvedNode.children = resolvePosspecNodes(value.children, ctx, rootCtx);
+    resolvedNode.children = resolvePosspecNodes(value.children, scopedCtx, rootCtx);
   }
   if (resolvedNode.items && value.element) {
     const items = resolvedNode.items;
     resolvedNode.children = Array.isArray(items)
       ? items.flatMap((item: any, index: number) => {
-          const itemCtx = { ...ctx, ...cloneDeep(item), $context: ctx, $index: index, $root: rootCtx };
+          const itemCtx = { ...scopedCtx, ...cloneDeep(item), $context: scopedCtx, $index: index, $root: rootCtx };
           return resolvePosspecNodes(applyIdSuffix(cloneDeep(value.element), `-${index}`), itemCtx, rootCtx);
         })
       : [];
@@ -1048,7 +1083,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
             }
             return value.map((v) => getQueriables(v)).flat();
           } else if (typeof value === "object") {
-            if (key === "children" || key === "element") {
+            if (key === "children" || key === "element" || key === "props") {
               return [];
             }
             return getQueriables(value, parent ? `${parent}.${key}` : key);
@@ -1071,14 +1106,18 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
           return;
         }
 
+        throwIfUnresolvedRefNode(value, key);
+
         // ─── Handle structural nodes ($if, $unless, $with, $partial) ───
         if (isStructuralNode(value)) {
           handleStructuralNode(key, value, parent, contextRef, buildQueries, eventHandler);
           return;
         }
 
+        const nodeContextRef = createScopedContextRef(contextRef, value.props, rootContext);
+
         if (!value.type) {
-          return recursiveBuild(value, parent, contextRef, buildQueries);
+          return recursiveBuild(value, parent, nodeContextRef, buildQueries);
         }
         if (value.type === "template") {
           const config = cloneDeep(value.config);
@@ -1089,7 +1128,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
 
             elements.forEach((element) => {
               const templateJson = cloneDeep(registeredTemplates.get(template)[element]);
-              const templateContext = contextRef.context;
+              const templateContext = nodeContextRef.context;
               if (templateJson) {
                 if (value.context) {
                   remapTemplateQueries(templateJson, value.context);
@@ -1109,12 +1148,13 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
           if (gridQueriables.length) {
             gridQueriables.forEach(
               ({ query, key, pointer, expression }: { query: string; key: string; pointer: any; expression?: any }) => {
+                const scopedContext = nodeContextRef.context;
                 if (expression) {
-                  const contextValue = expression.evaluate(contextRef.context);
+                  const contextValue = expression.evaluate(scopedContext);
                   pointer[key] = contextValue;
                   return;
                 }
-                const contextValue = get(contextRef.context, query);
+                const contextValue = get(scopedContext, query);
                 if (key === "items") {
                   pointer[key] = contextValue;
                   return;
@@ -1150,7 +1190,8 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
           gridQueriables.forEach((query) => {
             if (query.key === "items") {
               query.pointer = (_context) => {
-                const items = query.expression ? query.expression.evaluate(_context) : get(_context, query.query);
+                const scopedContext = buildScopedContext(_context, value.props, rootContext);
+                const items = query.expression ? query.expression.evaluate(scopedContext) : get(scopedContext, query.query);
                 buildChildren(items);
                 return false;
               };
@@ -1202,8 +1243,9 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
               childQueries = childQueries.slice(0, items.length);
             }
             for (let i = 0; i < items.length; i++) {
-              const itemContext = { ...contextRef.context, ...cloneDeep(items[i]) };
-              itemContext.$context = contextRef.context;
+              const parentNodeContext = nodeContextRef.context;
+              const itemContext = { ...parentNodeContext, ...cloneDeep(items[i]) };
+              itemContext.$context = parentNodeContext;
               itemContext.$index = i;
               itemContext.$root = rootContext;
 
@@ -1258,7 +1300,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
 
         // ─── Inline CSS string parsing ─────────────────────────────────
         if (typeof value.config.style === "string") {
-          value.config.style = parseCssString(value.config.style, contextRef.context);
+          value.config.style = parseCssString(value.config.style, nodeContextRef.context);
         }
 
         const queriables = getQueriables(value);
@@ -1267,10 +1309,11 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
             // eslint-disable-next-line @typescript-eslint/ban-types
             const pointer: Object = query.pointer as Object;
             let contextValue: any;
+            const scopedContext = nodeContextRef.context;
             if (query.expression) {
-              contextValue = query.expression.evaluate(contextRef.context);
+              contextValue = query.expression.evaluate(scopedContext);
             } else {
-              contextValue = get(contextRef.context, query.query);
+              contextValue = get(scopedContext, query.query);
               if (query.partial) {
                 contextValue =
                   query.partial.source.slice(0, query.partial.start) +
@@ -1287,7 +1330,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
         });
 
         if (value.events) {
-          const events = generateEventListener(value.events, contextRef, eventHandler);
+          const events = generateEventListener(value.events, nodeContextRef, eventHandler);
           Object.entries(events).forEach(([key, event]) => {
             value.config[key] = event;
           });
@@ -1315,8 +1358,9 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
 
         queriables.forEach((query) => {
           query.pointer = (_context) => {
+            const scopedContext = buildScopedContext(_context, value.props, rootContext);
             if (query.expression) {
-              const contextValue = query.expression.evaluate(_context);
+              const contextValue = query.expression.evaluate(scopedContext);
 
               if (query.parent === "config" || !query.parent) {
                 // @ts-ignore
@@ -1335,10 +1379,10 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
               return false;
             }
 
-            let contextValue = get(_context, query.query);
+            let contextValue = get(scopedContext, query.query);
 
             if (query.key === "events") {
-              const events = generateEventListener(contextValue, contextRef, eventHandler);
+              const events = generateEventListener(contextValue, { context: scopedContext }, eventHandler);
               // Object.assign(config.config, events);
               let shouldUpdate = false;
               Object.entries(events).forEach(([key, value]) => {
@@ -1381,7 +1425,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
         parent.addChild(element);
 
         if (value.children) {
-          recursiveBuild(value.children, element, contextRef, buildQueries);
+          recursiveBuild(value.children, element, nodeContextRef, buildQueries);
         }
 
         return element;

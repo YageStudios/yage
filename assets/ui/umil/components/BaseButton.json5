@@ -1,0 +1,10 @@
+{
+  type: "Button",
+  focusable: true,
+  label: "{{props.label || 'Button'}}",
+  styles: {
+    backgroundColor: "transparent",
+    color: "white",
+    cursor: "pointer",
+  },
+}
