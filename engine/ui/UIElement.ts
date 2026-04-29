@@ -91,6 +91,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   interactionMountEpoch = 0;
   cachedStyle: Partial<CSSStyleDeclaration> | null = null;
 
+
   focusedIndices: number[] = [];
   protected lastPointerType: string | null = null;
 
@@ -310,6 +311,18 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     }
   }
 
+  capturesTextInput(_playerIndex: number): boolean {
+    return false;
+  }
+
+  beginTextInput(_playerIndex: number): boolean {
+    return false;
+  }
+
+  handleTextInputKey(_playerIndex: number, _key: string): boolean {
+    return false;
+  }
+
   onClick(playerIndex: number) {
     const focusables = this.uiService.getFocusables(playerIndex);
     if (this._element && focusables?.includes(this._element)) {
@@ -386,6 +399,16 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       return InputEventType.TOUCH;
     }
     return InputEventType.MOUSE;
+  }
+
+  protected getSharedInteractionPlayerIndex(inputType: InputEventType): number {
+    let playerIndex = this.uiService.getPlayerEventIndex(inputType, 0, this);
+    const isSharedElement =
+      this._config.captureFocus === undefined || this._config.captureFocus === null || this._config.captureFocus < 0;
+    if (playerIndex === -1 && isSharedElement) {
+      playerIndex = 0;
+    }
+    return playerIndex;
   }
 
   protected syncFocusForInputType(inputType: InputEventType, playerIndex: number): void {
@@ -466,7 +489,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
         e.stopPropagation();
         return;
       }
-      const playerIndex = this.uiService.getPlayerEventIndex(inputType, 0, this);
+      const playerIndex = this.getSharedInteractionPlayerIndex(inputType);
       if (playerIndex === -1) {
         e.stopPropagation();
         return;
@@ -485,7 +508,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
         e.stopPropagation();
         return;
       }
-      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0, this);
+      const playerIndex = this.getSharedInteractionPlayerIndex(InputEventType.MOUSE);
       if (playerIndex === -1) {
         e.stopPropagation();
         return;
@@ -500,7 +523,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
         e.stopPropagation();
         return;
       }
-      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0, this);
+      const playerIndex = this.getSharedInteractionPlayerIndex(InputEventType.MOUSE);
       if (playerIndex === -1) {
         e.stopPropagation();
         return;
