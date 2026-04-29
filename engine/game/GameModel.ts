@@ -502,7 +502,7 @@ export const GameModel = ({
       for (let i = 0; i < systemsSet.length; i++) {
         const systems = systemsSet[i] as unknown as SystemImpl<GameModel>[];
         for (let j = 0; j < systems.length; j++) {
-          const system = systems[i];
+          const system = systems[j];
           if ((system.constructor as typeof SystemImpl).depth >= 0) {
             break;
           }

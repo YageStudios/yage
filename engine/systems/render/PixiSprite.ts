@@ -215,6 +215,10 @@ export class SpriteComponentPixi extends DrawSystemImpl<ReadOnlyGameModel> {
     instance.container!.zIndex = zIndex;
     instance.sprite.position.set(0, 0);
     instance.container?.scale.set(spriteData.scale);
+    instance.sprite.visible = spriteData.opacity !== 0;
+    instance.sprite.alpha = spriteData.opacity ?? 1;
+    const transform = renderModel(Transform, entity);
+    instance.container!.position.set(transform.x, transform.y - transform.z);
 
     this.instances[entity] = instance as PixiSpriteContainer;
     viewport.addChild(instance.container!);

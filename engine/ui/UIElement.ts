@@ -89,6 +89,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   destroyed: boolean;
   uiService: UIService;
   interactionMountEpoch = 0;
+  cachedStyle: Partial<CSSStyleDeclaration> | null = null;
 
   focusedIndices: number[] = [];
   protected lastPointerType: string | null = null;
@@ -98,9 +99,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   }
 
   set id(value: string) {
-    if (this.uiService.mappedIds[this._id] === this) {
-      delete this.uiService.mappedIds[this._id];
-    }
+    delete this.uiService.mappedIds[this._id];
     this._id = value;
     this.element.id = value;
     this.uiService.mappedIds[value] = this;
@@ -131,7 +130,6 @@ export abstract class UIElement<T extends UIElementConfig = any> {
           this._element.classList.remove("focusable");
         }
       }
-      this.uiService.debouncedFocusCheck();
       return;
     }
     if (key === "captureFocus") {
@@ -148,7 +146,6 @@ export abstract class UIElement<T extends UIElementConfig = any> {
           this.update();
         }
       }
-      this.uiService.debouncedFocusCheck();
       return;
     }
     if (key === "autoFocus") {
@@ -160,7 +157,6 @@ export abstract class UIElement<T extends UIElementConfig = any> {
           this._element.classList.remove("autoFocus");
         }
       }
-      this.uiService.debouncedFocusCheck();
       return;
     }
     if (key === "layoutRect") {
@@ -289,7 +285,6 @@ export abstract class UIElement<T extends UIElementConfig = any> {
       style: {
         ...defaultStyle,
         ..._config.style,
-        boxSizing: _config.style?.boxSizing ?? defaultStyle.boxSizing ?? "border-box",
       },
     };
     if (isRectangle(bounds)) {
@@ -313,18 +308,6 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     if (this._config.onEscape) {
       this._config.onEscape(playerIndex);
     }
-  }
-
-  capturesTextInput(_playerIndex: number): boolean {
-    return false;
-  }
-
-  beginTextInput(_playerIndex: number): boolean {
-    return false;
-  }
-
-  handleTextInputKey(_playerIndex: number, _key: string): boolean {
-    return false;
   }
 
   onClick(playerIndex: number) {
@@ -405,16 +388,6 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     return InputEventType.MOUSE;
   }
 
-  protected getSharedInteractionPlayerIndex(inputType: InputEventType): number {
-    let playerIndex = this.uiService.getPlayerEventIndex(inputType, 0, this);
-    const isSharedElement =
-      this._config.captureFocus === undefined || this._config.captureFocus === null || this._config.captureFocus < 0;
-    if (playerIndex === -1 && isSharedElement) {
-      playerIndex = 0;
-    }
-    return playerIndex;
-  }
-
   protected syncFocusForInputType(inputType: InputEventType, playerIndex: number): void {
     if (!this._config.focusable) {
       return;
@@ -439,9 +412,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     focusedIndices.forEach((playerIndex) => {
       this.uiService.clearFocusedElementByPlayerIndex(playerIndex);
     });
-    if (this.uiService.mappedIds[this._id] === this) {
-      delete this.uiService.mappedIds[this._id];
-    }
+    delete this.uiService.mappedIds[this._id];
     this.removeElement(noUpdate);
     this?.parent?.removeChild(this);
 
@@ -495,7 +466,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
         e.stopPropagation();
         return;
       }
-      const playerIndex = this.getSharedInteractionPlayerIndex(inputType);
+      const playerIndex = this.uiService.getPlayerEventIndex(inputType, 0, this);
       if (playerIndex === -1) {
         e.stopPropagation();
         return;
@@ -514,7 +485,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
         e.stopPropagation();
         return;
       }
-      const playerIndex = this.getSharedInteractionPlayerIndex(InputEventType.MOUSE);
+      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0, this);
       if (playerIndex === -1) {
         e.stopPropagation();
         return;
@@ -529,7 +500,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
         e.stopPropagation();
         return;
       }
-      const playerIndex = this.getSharedInteractionPlayerIndex(InputEventType.MOUSE);
+      const playerIndex = this.uiService.getPlayerEventIndex(InputEventType.MOUSE, 0, this);
       if (playerIndex === -1) {
         e.stopPropagation();
         return;
@@ -676,7 +647,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
           )
         : {
             ...Object.keys(this._config.focusStyle ?? {}).reduce((acc, key) => {
-              acc[key as keyof CSSStyleDeclaration] = "";
+              (acc as any)[key] = "";
               return acc;
             }, {} as Partial<CSSStyleDeclaration>),
             ...this._config.style,
