@@ -2,7 +2,7 @@ import { isPlayerConnect, type ConnectionInstance, type PlayerConnect } from "..
 import { SingleplayerConnectionInstance } from "../connection/SingleplayerConnectionInstance";
 import { GameInstance } from "./GameInstance";
 import type { GameModel } from "./GameModel";
-import { InputManager } from "../inputs/InputManager";
+import { InputManager, MappedKeys } from "../inputs/InputManager";
 import { KeyboardListener } from "../inputs/KeyboardListener";
 import AssetLoader from "../loader/AssetLoader";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
@@ -21,8 +21,13 @@ import {
 import { E2EConnectionInstance } from "yage/connection/E2EConnectionInstance";
 import { E2EBridge } from "yage/testing/E2EBridge";
 import { CoopConnectionInstance } from "yage/connection/CoopConnectionInstance";
-import { InputEventType } from "yage/inputs/InputManager";
 import { ensureMobileFullscreenButton } from "./mobileFullscreen";
+
+type QuickStartMappedKeys = Record<string, string>;
+
+const keyboardKeysFromMappedKeys = (mappedKeys: QuickStartMappedKeys): string[] => {
+  return [...new Set(Object.values(mappedKeys))];
+};
 
 type QuickStartOptions<T> = {
   gameName: string;
@@ -35,6 +40,7 @@ type QuickStartOptions<T> = {
   seed?: string;
   preload: (uiService: UIService) => Promise<void>;
   executionMode?: "realtime" | "step";
+  mappedKeys?: QuickStartMappedKeys;
 };
 
 export async function QuickStart<T = null>(
@@ -76,6 +82,7 @@ export async function QuickStart<T = null>(
     preload = async () => {
       await AssetLoader.getInstance().load();
     },
+    mappedKeys = MappedKeys,
   }: QuickStartOptions<T>,
   playerConfig?: T | PlayerConnect<T>,
   multiplayerConfig?: PeerMultiplayerInstanceOptions<T> | SocketIoMultiplayerInstanceOptions<T>,
@@ -86,7 +93,7 @@ export async function QuickStart<T = null>(
   const initializeInputManager = () => {
     inputManager = new InputManager();
     const keyboardListener = new KeyboardListener(inputManager);
-    keyboardListener.init(["w", "a", "s", "d", "i", "j", "k", "l", "q", "e", "escape", "space", "tab"]);
+    keyboardListener.init(keyboardKeysFromMappedKeys(mappedKeys));
     unsubscribes.push(() => keyboardListener.destroy());
   };
 
