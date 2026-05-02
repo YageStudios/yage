@@ -33,7 +33,13 @@ export const isPlayerConnect = <T>(player: any): player is PlayerConnect<T> => {
   return (player as PlayerConnect<T>)?.config !== undefined && player?.netId !== undefined;
 };
 
-export type Frame = { keys: KeyMap | { [key: string]: boolean }; frame: number; events: string[]; playerId: string };
+export type Frame = {
+  keys: KeyMap | { [key: string]: boolean };
+  frame: number;
+  events: string[];
+  playerId: string;
+  roomId?: string;
+};
 
 export type FrameStack = { [playerId: string]: Frame[] };
 
@@ -63,10 +69,34 @@ export type RoomState = {
   lastFrame: { [playerId: string]: number };
 };
 
+export type RoomPreloadOptions<T> = {
+  players?: string[];
+  gameInstance: GameInstance<T>;
+  seed: string;
+  coreOverrides?: { [key: string]: any };
+  buildWorld: (gameModel: GameModel, firstPlayerConfig: any) => void | Promise<void>;
+  onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: T) => number;
+  onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
+  rebalanceOnLeave?: boolean;
+  playerConfig?: Partial<T>;
+};
+
+export type ActivatePreloadedRoomOptions<T> = {
+  localPlayerIndex?: number;
+  deferPlayerEntity?: boolean;
+  playerConfig?: Partial<T>;
+  gameInstance: GameInstance<T>;
+  seed: string;
+  coreOverrides?: { [key: string]: any };
+  onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: T) => number;
+  onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
+};
+
 export abstract class ConnectionInstance<T> {
   abstract players: PlayerConnection<T>[];
   abstract player: PlayerConnection<T>;
   abstract localPlayers: PlayerConnection<T>[];
+  abstract preloadedRoomIds: Set<string>;
   abstract playerEventManager: PlayerEventManager;
   abstract inputManager: InputManager;
   abstract touchListener?: TouchListener;
@@ -127,6 +157,9 @@ export abstract class ConnectionInstance<T> {
       playerConfig?: Partial<T>;
     }
   ): Promise<GameModel>;
+
+  abstract preloadRoom(roomId: string, options: RoomPreloadOptions<T>): Promise<GameModel>;
+  abstract activatePreloadedRoom(roomId: string, options: ActivatePreloadedRoomOptions<T>): Promise<GameModel>;
 
   abstract startFrame(gameModel: GameModel): boolean | void;
   abstract endFrame(gameModel: GameModel): void;

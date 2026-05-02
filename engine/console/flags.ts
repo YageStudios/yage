@@ -22,6 +22,7 @@ const flagConfig: { [flagName: string]: FlagingConfig } = {
   ACTIVE_ONLY: {},
   SERIALIZE_TO_BUFFER: {},
   PERFORMANCE_LOGS: {},
+  DRAW_PERFORMANCE_LOGS: {},
   DEBUG: {
     action: (active: boolean) => {
       console.log(active);

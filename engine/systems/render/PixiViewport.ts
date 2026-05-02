@@ -14,6 +14,7 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
   private static pixiApp: PIXI.Application;
   private static viewports: Map<string, Viewport> = new Map();
   private static instanceCount = 0;
+  private static activeRoomId = "";
 
   // Instance properties
   private roomId: string;
@@ -79,7 +80,7 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
 
     // Clean up existing viewport for this room if it exists
     if (PixiViewportSystem.viewports.has(this.roomId)) {
-      PixiViewportSystem.viewports.get(this.roomId)?.destroy();
+      PixiViewportSystem.viewports.get(this.roomId)?.destroy({ children: true });
       PixiViewportSystem.viewports.delete(this.roomId);
     }
 
@@ -149,13 +150,13 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
   };
 
   run = (gameModel: ReadOnlyGameModel) => {
-    // Only render if this is the last/active instance
     const viewport = PixiViewportSystem.viewports.get(this.roomId);
 
     if (viewport) {
-      if (viewport.visible === false && gameModel.players.length > 0) {
-        viewport.visible = true;
-      }
+      PixiViewportSystem.activeRoomId = this.roomId;
+      PixiViewportSystem.viewports.forEach((candidate, roomId) => {
+        candidate.visible = roomId === PixiViewportSystem.activeRoomId;
+      });
       PixiViewportSystem.pixiApp.renderer.render(PixiViewportSystem.pixiApp.stage);
     }
   };
@@ -163,7 +164,7 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
   cleanup(gameModel: ReadOnlyGameModel) {
     // Clean up viewport for this room
     if (PixiViewportSystem.viewports.has(this.roomId)) {
-      PixiViewportSystem.viewports.get(this.roomId)?.destroy();
+      PixiViewportSystem.viewports.get(this.roomId)?.destroy({ children: true });
       PixiViewportSystem.viewports.delete(this.roomId);
     }
 
@@ -175,6 +176,7 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
       // @ts-ignore
       PixiViewportSystem.pixiApp = null;
       PixiViewportSystem.viewports.clear();
+      PixiViewportSystem.activeRoomId = "";
     }
   }
 }

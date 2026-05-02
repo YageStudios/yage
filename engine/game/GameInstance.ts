@@ -3,7 +3,6 @@ import type { GameModel } from "./GameModel";
 import type { UIService } from "yage/ui/UIService";
 import { flags } from "yage/console/flags";
 import type { AchievementService } from "yage/achievements/AchievementService";
-import { stepWorldDraw } from "minecs";
 import Ticker from "./Ticker";
 import type { SceneTimestep } from "./Scene";
 
@@ -136,6 +135,49 @@ export class GameInstance<T> {
     this.ticker = ticker;
   }
 
+  async preloadRoom(
+    roomId: string,
+    seed?: string,
+    { players, coreOverrides }: { players?: string[]; coreOverrides?: { [key: string]: any } } = {}
+  ): Promise<GameModel> {
+    if (!this.options.connection.localPlayers.every((player) => player.connected)) {
+      await this.options.connection.connect();
+    }
+    const gameModel = await this.options.connection.preloadRoom(roomId, {
+      gameInstance: this,
+      players,
+      seed: seed ?? "NO_SEED",
+      coreOverrides,
+      buildWorld: this.options.buildWorld,
+      onPlayerJoin: this.options.onPlayerJoin,
+      onPlayerLeave: this.options.onPlayerLeave,
+    });
+    gameModel.executionMode = this.options.executionMode ?? "realtime";
+    return gameModel;
+  }
+
+  async activatePreloadedRoom(
+    roomId: string,
+    seed?: string,
+    {
+      localPlayerIndex,
+      deferPlayerEntity,
+      playerConfig,
+      coreOverrides,
+    }: { localPlayerIndex?: number; deferPlayerEntity?: boolean; playerConfig?: Partial<T>; coreOverrides?: { [key: string]: any } } = {}
+  ): Promise<GameModel> {
+    return this.options.connection.activatePreloadedRoom(roomId, {
+      gameInstance: this,
+      seed: seed ?? "NO_SEED",
+      coreOverrides,
+      localPlayerIndex,
+      deferPlayerEntity,
+      playerConfig,
+      onPlayerJoin: this.options.onPlayerJoin,
+      onPlayerLeave: this.options.onPlayerLeave,
+    });
+  }
+
   protected async join(roomId: string, seed?: string, playerConfig?: T, coreOverrides?: { [key: string]: any }) {
     if (!this.options.connection.localPlayers.every((player) => player.connected)) {
       throw new Error("Player not connected");
@@ -160,11 +202,16 @@ export class GameInstance<T> {
   }
 
   run() {
-    const activeRooms = new Set(this.options.connection.players.map((p) => p.currentRoomId));
+    const drawableRooms = new Set(this.options.connection.localPlayers.map((p) => p.currentRoomId));
+    const activeRooms = new Set([
+      ...this.options.connection.players.map((p) => p.currentRoomId),
+      ...this.options.connection.preloadedRoomIds,
+    ]);
     if (activeRooms.size > 0) {
       for (const roomId of activeRooms) {
-        if (roomId) {
-          this.runGameLoop(this.options.connection.roomStates[roomId].gameModel);
+        const gameModel = roomId ? this.options.connection.roomStates[roomId]?.gameModel : null;
+        if (gameModel && !gameModel.destroyed) {
+          this.runGameLoop(gameModel, drawableRooms.has(roomId));
         }
       }
     }
@@ -183,14 +230,19 @@ export class GameInstance<T> {
    * Returns true if the step executed, false if blocked by connection state.
    */
   stepManual(): boolean {
-    const activeRooms = new Set(this.options.connection.players.map((p) => p.currentRoomId));
+    const drawableRooms = new Set(this.options.connection.localPlayers.map((p) => p.currentRoomId));
+    const activeRooms = new Set([
+      ...this.options.connection.players.map((p) => p.currentRoomId),
+      ...this.options.connection.preloadedRoomIds,
+    ]);
     if (activeRooms.size === 0) {
       return false;
     }
     let executed = false;
     for (const roomId of activeRooms) {
-      if (roomId) {
-        const result = this.runGameLoop(this.options.connection.roomStates[roomId].gameModel);
+      const gameModel = roomId ? this.options.connection.roomStates[roomId]?.gameModel : null;
+      if (gameModel && !gameModel.destroyed) {
+        const result = this.runGameLoop(gameModel, drawableRooms.has(roomId));
         if (result) {
           executed = true;
         }
@@ -210,7 +262,7 @@ export class GameInstance<T> {
     });
   }
 
-  runGameLoop(gameModel: GameModel): boolean {
+  runGameLoop(gameModel: GameModel, draw = true): boolean {
     if (!gameModel) {
       return false;
     }
@@ -226,8 +278,8 @@ export class GameInstance<T> {
         return false;
       }
 
-      if (!flags.FPS_30 || gameModel.frame % 2 === 0) {
-        stepWorldDraw(gameModel);
+      if (draw && !gameModel.preloadOnly && (!flags.FPS_30 || gameModel.frame % 2 === 0)) {
+        gameModel.stepDraw();
       }
 
       this.options.connection.endFrame(gameModel);

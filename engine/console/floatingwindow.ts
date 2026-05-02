@@ -17,8 +17,8 @@ export class FloatingWindow {
     this.window.style.width = `${width}px`;
     this.window.style.height = `${height}px`;
     this.window.style.zIndex = "100";
-    this.window.style.backgroundColor = "beige";
-    this.window.style.color = "#black";
+    this.window.style.backgroundColor = "#f8fafc";
+    this.window.style.color = "#111827";
     this.window.style.padding = "10px";
     this.window.style.boxSizing = "border-box";
     this.window.style.fontFamily = "monospace";
@@ -41,6 +41,8 @@ export class FloatingWindow {
     this.dragButton.style.width = "100%";
     this.dragButton.style.zIndex = "101";
     this.dragButton.style.height = "20px";
+    this.dragButton.style.backgroundColor = "#e2e8f0";
+    this.dragButton.style.border = "1px solid #94a3b8";
 
     this.closeButton = document.createElement("button");
     this.closeButton.style.position = "absolute";

@@ -73,6 +73,7 @@ export type GameModel = World & {
   coreEntity: number;
   players: number[];
   paused: boolean;
+  preloadOnly: boolean;
   destroyed: boolean;
   localNetIds: string[];
   currentWorld: number;
@@ -80,6 +81,7 @@ export type GameModel = World & {
   executionMode: "realtime" | "step";
   event: (netId: string, event: string, data: any) => void;
   step: (dt?: number) => void;
+  stepDraw: () => void;
   getTypedUnsafe: <T extends Schema>(type: Constructor<T>, entity: number) => T;
   getTyped: {
     <T extends Schema>(type: Constructor<T>, entity: EntityWithComponent<T>): T;
@@ -87,8 +89,10 @@ export type GameModel = World & {
   };
   hasComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => entity is EntityWithComponent<T>;
   getComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => T | any | null;
+  cloneComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => ComponentData | null;
   ejectComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => ComponentData | null;
   ejectEntity: (entity: number) => EjectedEntity;
+  cloneEntity: (entity: number) => EjectedEntity;
   injectEntity: (entity: EjectedEntity) => number;
   addComponent: <T extends Schema>(
     type: Constructor<T> | string,
@@ -132,6 +136,155 @@ export type GameModel = World & {
   ) => void;
 };
 
+const MAX_ENTITY_DIAGNOSTIC_ROW_LIMIT = 50;
+
+const isMaxEntityError = (error: unknown): boolean => {
+  const message = error instanceof Error ? error.message : String(error);
+  return /max entities|max entity|entity limit|entity capacity|maximum.*entities|no more entities/i.test(message);
+};
+
+const incrementGroup = <T extends { count: number; examples: string[] }>(
+  groups: Map<string, T>,
+  key: string,
+  create: () => T,
+  example: string
+) => {
+  const group = groups.get(key) ?? create();
+  group.count += 1;
+  if (group.examples.length < 8) {
+    group.examples.push(example);
+  }
+  groups.set(key, group);
+};
+
+const sortedRows = <T extends { count: number }>(rows: T[]) => rows.sort((a, b) => b.count - a.count);
+
+const tableOrLog = (label: string, rows: Record<string, unknown>[]) => {
+  console.error(label);
+  if (typeof console.table === "function") {
+    console.table(rows);
+  } else {
+    console.error(rows);
+  }
+};
+
+const entityComponentSet = (world: World, entity: number): string[] => {
+  return componentList
+    .filter((component) => hasComponent(world, component, entity))
+    .map((component) => component.type)
+    .sort();
+};
+
+const logMaxEntityDiagnostics = (world: World, error: unknown) => {
+  if (!isMaxEntityError(error)) {
+    return;
+  }
+
+  const activeEntities = [...world.entitySparseSet.dense].sort((a, b) => a - b);
+  const byDescription = new Map<string, { count: number; examples: string[] }>();
+  const withoutDescriptionByComponentSet = new Map<
+    string,
+    { count: number; componentCount: number; components: string; examples: string[] }
+  >();
+
+  activeEntities.forEach((entity) => {
+    if (hasComponent(world, Description, entity)) {
+      const description = world(Description, entity).description || "(blank Description)";
+      incrementGroup(
+        byDescription,
+        description,
+        () => ({ count: 0, examples: [] }),
+        `#${entity}`
+      );
+      return;
+    }
+    const components = entityComponentSet(world, entity);
+    const componentKey = components.join(" + ") || "(no components)";
+    incrementGroup(
+      withoutDescriptionByComponentSet,
+      componentKey,
+      () => ({ count: 0, componentCount: components.length, components: componentKey, examples: [] }),
+      `#${entity}`
+    );
+  });
+
+  const descriptionRows = sortedRows(
+    Array.from(byDescription.entries()).map(([description, group]) => ({
+      count: group.count,
+      description,
+      examples: group.examples.join(", "),
+    }))
+  );
+  const componentRows = sortedRows(
+    Array.from(withoutDescriptionByComponentSet.values()).map((group) => ({
+      count: group.count,
+      componentCount: group.componentCount,
+      components: group.components,
+      examples: group.examples.join(", "),
+    }))
+  );
+  const visibleDescriptionRows = descriptionRows.slice(0, MAX_ENTITY_DIAGNOSTIC_ROW_LIMIT);
+  const visibleComponentRows = componentRows.slice(0, MAX_ENTITY_DIAGNOSTIC_ROW_LIMIT);
+
+  console.error(
+    `[Yage] max entities reached. active=${activeEntities.length}/${world.size}, cursor=${world.entityCursor}, reusableRemoved=${
+      world.removed.length
+    }`
+  );
+  tableOrLog(
+    `[Yage] active entities by Description (showing ${visibleDescriptionRows.length}/${descriptionRows.length})`,
+    visibleDescriptionRows
+  );
+  tableOrLog(
+    `[Yage] active entities without Description by component set (showing ${visibleComponentRows.length}/${componentRows.length})`,
+    visibleComponentRows
+  );
+};
+
+const publishPerformanceTiming = (timing: World["timing"], channel: "perf" | "draw") => {
+  if (!timing || typeof window === "undefined" || !(window as any).performanceUpdate) {
+    return;
+  }
+  (window as any).performanceUpdate(
+    timing.systems.map((system) => ({ type: system.name, time: system.totalTime })),
+    channel
+  );
+};
+
+const clonePlainData = <T>(value: T): T => {
+  if (value === undefined || value === null || typeof value !== "object") {
+    return value;
+  }
+  if (typeof globalThis.structuredClone === "function") {
+    return globalThis.structuredClone(value);
+  }
+  return JSON.parse(JSON.stringify(value)) as T;
+};
+
+const stepWorldDrawTiming = (world: World): World["timing"] => {
+  const timing: NonNullable<World["timing"]> = { systems: [], totalTime: 0 };
+  const systems = world.drawSystems;
+  for (let i = 0; i < systems.length; i++) {
+    const system = systems[i];
+    const entities = system.query(world);
+    if (!entities.length) {
+      continue;
+    }
+
+    const start = performance.now();
+    system.runAll(world);
+    const elapsed = performance.now() - start;
+    timing.totalTime += elapsed;
+    timing.systems.push({
+      name: system.constructor.name,
+      totalTime: elapsed,
+      totalCalls: entities.length,
+      averageTime: elapsed / Math.max(1, entities.length),
+    });
+  }
+  return timing;
+};
+
 export const GameModel = ({
   world = createWorld(10000),
   seed,
@@ -145,6 +298,14 @@ export const GameModel = ({
   inputManager: InputManager;
   playerEventManager: PlayerEventManager;
 }): GameModel => {
+  const allocateEntity = () => {
+    try {
+      return addEntity(world);
+    } catch (error) {
+      logMaxEntityDiagnostics(world, error);
+      throw error;
+    }
+  };
   const componentsByCategory = componentList.reduce((acc, component) => {
     acc[component.category] = acc[component.category] || [];
     acc[component.category].push(component);
@@ -181,12 +342,13 @@ export const GameModel = ({
     inputManager,
     roomId: roomId ?? "",
     seed: seed ?? "",
-    coreEntity: addEntity(world),
+    coreEntity: allocateEntity(),
     timeElapsed: 0,
     rand: null as any,
     ping: 0,
     frameDt: 16,
     paused: false,
+    preloadOnly: false,
     destroyed: false,
     players: [] as number[],
     localNetIds: [],
@@ -224,19 +386,16 @@ export const GameModel = ({
       gameModel.frameDt = dt || 16;
       if (flags.PERFORMANCE_LOGS) {
         stepWorldTiming(gameModel);
-        if (gameModel.timing && typeof window !== "undefined" && (window as any).performanceUpdate) {
-          (window as any).performanceUpdate(
-            gameModel.timing.systems.map((s) => ({ type: s.name, time: s.totalTime }))
-          );
-          if (gameModel.frame % 60 === 0) {
-            console.log(gameModel.timing)
-          }
-        }
+        publishPerformanceTiming(gameModel.timing, "perf");
       } else {
         stepWorld(gameModel);
       }
     },
     stepDraw: () => {
+      if (flags.PERFORMANCE_LOGS && flags.DRAW_PERFORMANCE_LOGS) {
+        publishPerformanceTiming(stepWorldDrawTiming(gameModel), "draw");
+        return;
+      }
       stepWorldDraw(gameModel);
     },
     addComponent: <T extends Schema>(
@@ -282,7 +441,7 @@ export const GameModel = ({
 
       if (Object.keys(entityIdMap).length === 0) {
         for (let i = 0; i < entities.length; i++) {
-          entityIdMap[entities[i]] = addEntity(world);
+          entityIdMap[entities[i]] = allocateEntity();
         }
       }
 
@@ -296,26 +455,26 @@ export const GameModel = ({
         if (!schema) {
           return;
         }
+        const componentData = clonePlainData(component.data);
         if (schema.entityTypes?.length) {
           for (let i = 0; i < schema.entityTypes.length; i++) {
             const key = schema.entityTypes[i];
-            if (component.data[key] !== undefined) {
-              if (Array.isArray(component.data[key])) {
-                component.data[key] = component.data[key]
+            if (componentData[key] !== undefined) {
+              if (Array.isArray(componentData[key])) {
+                componentData[key] = componentData[key]
                   .map((eid: number) => entityIdMap[eid])
                   .filter((eid: number) => typeof eid === "number");
               } else {
-                if (entityIdMap[component.data[key]] === undefined) {
-                  delete component.data[key];
+                if (entityIdMap[componentData[key]] === undefined) {
+                  delete componentData[key];
                 } else {
-                  component.data[key] = entityIdMap[component.data[key]];
+                  componentData[key] = entityIdMap[componentData[key]];
                 }
               }
             }
           }
         }
-        console.log("Adding Component", schema.type, newEntity, component.data);
-        gameModel.addComponent(component.type, newEntity, component.data);
+        gameModel.addComponent(component.type, newEntity, componentData);
       });
       if (entity.hasChildren) {
         Object.keys(entity.children).forEach((child) => {
@@ -323,6 +482,43 @@ export const GameModel = ({
         });
       }
       return newEntity;
+    },
+    cloneEntity: (entity: number): EjectedEntity => {
+      const data = {
+        entityType: gameModel(EntityType).store.entityType[entity],
+        description: gameModel.getTypedUnsafe(Description, entity)?.description ?? "",
+        entityId: entity,
+        components: [],
+        entities: [],
+        children: {},
+        hasChildren: false,
+      } as EjectedEntity;
+      const children = gameModel.hasComponent(Parent, entity) ? gameModel.getTypedUnsafe(Parent, entity).children ?? [] : [];
+
+      for (let i = 0; i < children.length; i++) {
+        if (gameModel.hasComponent(DoNotEject, children[i]) || data.children[children[i]]) {
+          continue;
+        }
+        const childEntity = gameModel.cloneEntity(children[i]);
+
+        data.entities.push(...childEntity.entities);
+        data.children[childEntity.entityId] = childEntity;
+      }
+
+      const components: ComponentData[] = [];
+      componentList.forEach((component) => {
+        if (hasComponent(world, component, entity)) {
+          const componentData = gameModel.cloneComponent(component, entity);
+          if (componentData) {
+            components.push(componentData);
+          }
+        }
+      });
+      data.components = components;
+      data.entities.push(entity);
+      data.entities = data.entities.filter((e: number) => gameModel.isActive(e)).sort();
+      data.hasChildren = !!Object.keys(data.children).length;
+      return data;
     },
     ejectEntity: (entity: number, removeEjectedEntity = true): any => {
       if (removeEjectedEntity) {
@@ -396,6 +592,24 @@ export const GameModel = ({
         return {
           type: componentType,
           data,
+        };
+      }
+      return null;
+    },
+    cloneComponent: <T extends Schema>(type: Constructor<T> | string, entity: number): ComponentData | null => {
+      if (typeof type === "string") {
+        type = getComponentByType(type) as unknown as Constructor<T>;
+        if (!type) {
+          return null;
+        }
+      }
+      if (hasComponent(world, type, entity)) {
+        const component = world(type, entity);
+        // @ts-ignore
+        const { type: componentType, ...data } = component;
+        return {
+          type: componentType,
+          data: clonePlainData(data),
         };
       }
       return null;
@@ -586,7 +800,7 @@ export const GameModel = ({
       return getSystem(world, system);
     },
     addEntity: () => {
-      return addEntity(world);
+      return allocateEntity();
     },
     removeEntity: (entity: number) => removeEntity(world, entity),
     serializeState(): GameModelState {
@@ -621,6 +835,15 @@ export const GameModel = ({
       }
     },
     destroy: () => {
+      if (gameModel.destroyed) {
+        return;
+      }
+      const entities = [...world.entitySparseSet.dense].sort((a, b) => b - a);
+      for (const entity of entities) {
+        if (entityExists(world, entity)) {
+          removeEntity(world, entity);
+        }
+      }
       deleteWorld(world);
       gameModel.destroyed = true;
     },

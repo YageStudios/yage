@@ -1,4 +1,3 @@
-import { stepWorldDraw } from "minecs";
 import type { GameInstanceOptions } from "./GameInstance";
 import { GameInstance } from "./GameInstance";
 import type { ReplayStack } from "yage/connection/ConnectionInstance";
@@ -94,7 +93,7 @@ export class GameReplayInstance<T> extends GameInstance<T> {
     }
   }
 
-  runGameLoop(gameModel: GameModel) {
+  runGameLoop(gameModel: GameModel, draw = true): boolean {
     // const nextFrame = this.previousFrame + this.playSpeed;
 
     const framesToRun = Math.floor(this.nextFrame) - Math.floor(this.previousFrame);
@@ -107,24 +106,24 @@ export class GameReplayInstance<T> extends GameInstance<T> {
 
     if (framesToRun <= 0) {
       this.checkScrubs();
-      return;
+      return false;
     }
 
     try {
       for (let i = 0; i < framesToRun; i++) {
         if (this.options.connection.startFrame(gameModel) === false) {
-          return;
+          return false;
         }
 
         gameModel.step(this.dt);
 
         if (gameModel.destroyed) {
           console.log("destroyed");
-          return;
+          return false;
         }
 
-        if (i === 0) {
-          stepWorldDraw(gameModel);
+        if (i === 0 && draw) {
+          gameModel.stepDraw();
         }
 
         this.options.connection.endFrame(gameModel);
@@ -135,6 +134,7 @@ export class GameReplayInstance<T> extends GameInstance<T> {
     }
 
     this.checkScrubs();
+    return true;
   }
 
   pausePlayback() {

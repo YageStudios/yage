@@ -27,6 +27,7 @@ class SocketIoGameServer {
   private groups: Map<string, Group> = new Map();
   private clientGroups: Map<string, string> = new Map();
   private clientRooms: Map<string, string> = new Map();
+  private clientPreloadRooms: Map<string, Set<string>> = new Map();
   private messageCounter: number = 0;
   private clientNetIds: Map<string, string> = new Map(); // Maps socket.id to player netId
   private clientLastFrame: Map<string, number> = new Map(); // Maps socket.id to last frame
@@ -142,6 +143,52 @@ class SocketIoGameServer {
         socket.to(`${groupId}:${roomId}`).emit("requestState", netId, roomId, playerConfig);
       });
 
+      socket.on("requestPreloadState", (roomId: string, requestId: string) => {
+        const groupId = this.clientGroups.get(socket.id);
+        if (!groupId) {
+          console.error("Client tried to request preload state without being in a group");
+          return;
+        }
+        const group = this.groups.get(groupId);
+        if (!group) {
+          console.error("Invalid group for preload state request");
+          return;
+        }
+        const room = group.rooms.get(roomId);
+        if (!room) {
+          console.error("Room not found for preload state request:", roomId);
+          return;
+        }
+        const netId = this.clientNetIds.get(socket.id);
+        if (!netId) {
+          console.error("Client tried to request preload state without valid netId");
+          return;
+        }
+        socket.join(`${groupId}:${roomId}`);
+        const preloadRooms = this.clientPreloadRooms.get(socket.id) ?? new Set<string>();
+        preloadRooms.add(roomId);
+        this.clientPreloadRooms.set(socket.id, preloadRooms);
+        socket.to(`${groupId}:${roomId}`).emit("requestPreloadState", netId, roomId, requestId);
+      });
+
+      socket.on(
+        "preloadState",
+        (
+          targetPlayerId: string,
+          requestId: string,
+          roomId: string,
+          stateJson: string,
+          frameStack: { [playerId: string]: { keys: any; frame: number; events?: string[] }[] }
+        ) => {
+          const groupId = this.clientGroups.get(socket.id);
+          const sourcePlayerId = this.clientNetIds.get(socket.id);
+          if (!groupId || !sourcePlayerId) return;
+          const targetSocketId = Array.from(this.clientNetIds.entries()).find(([, netId]) => netId === targetPlayerId)?.[0];
+          if (!targetSocketId || this.clientGroups.get(targetSocketId) !== groupId) return;
+          this.io.to(targetSocketId).emit("preloadState", sourcePlayerId, targetPlayerId, requestId, roomId, stateJson, frameStack);
+        }
+      );
+
       // Join group
       socket.on("joinGroup", (groupId: string, netId: string) => {
         console.log(`Client ${socket.id} joining group ${groupId} with netId ${netId}`);
@@ -173,7 +220,7 @@ class SocketIoGameServer {
         } else {
           this.clientLastFrame.set(socket.id, args[0].frame);
         }
-        if (["joinGroup", "leaveGroup", "joinRoom", "leaveRoom"].includes(event)) return;
+        if (["joinGroup", "leaveGroup", "joinRoom", "leaveRoom", "requestPreloadState", "preloadState"].includes(event)) return;
         this.handleMessage(socket, event, args);
       });
 
@@ -213,6 +260,7 @@ class SocketIoGameServer {
 
     // Leave any room first
     this.handleLeaveRoom(socket);
+    this.leavePreloadRooms(socket);
 
     const group = this.groups.get(groupId)!;
     group.clients.delete(socket.id);
@@ -243,6 +291,7 @@ class SocketIoGameServer {
     const room = group.rooms.get(roomId)!;
     room.clients.add(socket.id);
     this.clientRooms.set(socket.id, roomId);
+    this.clientPreloadRooms.get(socket.id)?.delete(roomId);
 
     // Join socket.io room
     socket.join(`${groupId}:${roomId}`);
@@ -276,6 +325,19 @@ class SocketIoGameServer {
     }
   }
 
+  private leavePreloadRooms(socket: any) {
+    const groupId = this.clientGroups.get(socket.id);
+    if (!groupId) return;
+    const preloadRooms = this.clientPreloadRooms.get(socket.id);
+    if (!preloadRooms) return;
+    for (const roomId of preloadRooms) {
+      if (this.clientRooms.get(socket.id) !== roomId) {
+        socket.leave(`${groupId}:${roomId}`);
+      }
+    }
+    this.clientPreloadRooms.delete(socket.id);
+  }
+
   private handleMessage(socket: any, event: string, args: any[]) {
     const groupId = this.clientGroups.get(socket.id);
     const roomId = this.clientRooms.get(socket.id);
@@ -288,6 +350,9 @@ class SocketIoGameServer {
     if (!netId) {
       console.error("Client tried to send message without valid netId");
       return;
+    }
+    if (event === "frame" && args[0] && typeof args[0] === "object") {
+      args[0] = { ...args[0], roomId };
     }
 
     // Create message

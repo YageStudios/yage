@@ -39,6 +39,7 @@ const applyPlayerFocusStyle = (
 
 export type UIElementConfig = {
   style: Partial<CSSStyleDeclaration>;
+  testId?: string;
   children?: UIElement[];
   visible?: boolean;
   parent?: UIElement | RootUIElement;
@@ -117,6 +118,11 @@ export abstract class UIElement<T extends UIElementConfig = any> {
   }
 
   protected handleConfigChange(key: string, value: any) {
+    if (key === "testId") {
+      this._config.testId = value;
+      this.syncDomAttributes();
+      return;
+    }
     if (key === "visible") {
       this._config.visible = value;
       this.updateVisibility();
@@ -211,6 +217,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     if (!this._element) {
       const element = this.createElement();
       this._element = element;
+      this.syncDomAttributes(element);
       this.interactionMountEpoch = this.uiService.registerElementMount();
       this.addEvents(element);
     }
@@ -479,6 +486,13 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     return element;
   }
 
+  protected syncDomAttributes(element: HTMLElement | undefined = this._element) {
+    if (!element) return;
+    const testId = this._config.testId;
+    if (testId) element.setAttribute("data-testid", testId);
+    else element.removeAttribute("data-testid");
+  }
+
   addEvents(element: HTMLElement) {
     element.onpointerdown = (e) => {
       this.recordPointerInteraction(e.pointerType, Date.now());
@@ -624,6 +638,7 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     if (!element) {
       return;
     }
+    this.syncDomAttributes(element);
     element.style.display = "block";
 
     const focusIndices = this.uiService.elementFocusIndices(this);

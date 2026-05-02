@@ -618,6 +618,9 @@ const buildPosspecElementConfig = (
     style: styles,
   };
 
+  if (node.testId !== undefined) {
+    config.testId = node.testId;
+  }
   if (node.focusStyle !== undefined) {
     config.focusStyle = { ...node.focusStyle };
   }
@@ -645,6 +648,7 @@ const buildPosspecElementConfig = (
   if (node.label !== undefined) config.label = node.label;
   if (node.texture !== undefined) config.imageKey = node.texture;
   if (node.value !== undefined) config.value = node.value;
+  if (node.disabled !== undefined) config.disabled = node.disabled;
 
   if (node.events) {
     const eventContextRef = { context: node.__eventContext ?? contextRef.context };
@@ -710,6 +714,11 @@ const applyPosspecNodeToElement = (
       element.config.visible = config.visible;
     }
   }
+  if (config.testId !== undefined) {
+    if (element.config.testId !== config.testId) {
+      element.config.testId = config.testId;
+    }
+  }
 
   if (config.fontSize !== undefined) {
     if ((element.config as any).fontSize !== config.fontSize) {
@@ -729,6 +738,11 @@ const applyPosspecNodeToElement = (
   if (config.value !== undefined) {
     if ((element.config as any).value !== config.value) {
       (element.config as any).value = config.value;
+    }
+  }
+  if (config.disabled !== undefined) {
+    if ((element.config as any).disabled !== config.disabled) {
+      (element.config as any).disabled = config.disabled;
     }
   }
   const eventKeys = [

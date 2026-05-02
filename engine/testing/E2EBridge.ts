@@ -6,7 +6,6 @@ import { GameCoordinator } from "yage/game/GameCoordinator";
 import { UIService } from "yage/ui/UIService";
 import type { UIElement } from "yage/ui/UIElement";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
-import { stepWorldDraw } from "minecs";
 import { componentList, hasComponent } from "minecs";
 
 /**
@@ -187,7 +186,7 @@ export class E2EBridge {
         gameModel.step(16.666666666666668);
 
         // Run draw systems
-        stepWorldDraw(gameModel);
+        gameModel.stepDraw();
 
         // Process connection endFrame (history recording, etc.)
         this.connection.endFrame(gameModel);

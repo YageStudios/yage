@@ -110,7 +110,7 @@
     "vitest": "^4.0.18"
   },
   "dependencies": {
-    "@dimforge/rapier2d-compat": "^0.19.3",
+    "@dimforge/rapier2d-deterministic-compat": "^0.19.3",
     "@json-editor/json-editor": "^2.9.0-beta.0",
     "@pixi/sound": "^5.2.3",
     "@types/ws": "^8.5.10",

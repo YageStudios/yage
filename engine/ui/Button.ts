@@ -8,6 +8,7 @@ import { isSyntheticMouseEvent } from "yage/inputs/TouchMouseGuard";
 
 export interface ButtonConfig extends BoxConfig, TextConfig {
   focusStyle?: Partial<CSSStyleDeclaration>;
+  disabled?: boolean;
 }
 
 const defaultStyle: Partial<CSSStyleDeclaration> = {
@@ -101,6 +102,8 @@ export class Button extends UIElement<ButtonConfig> {
     if (this._config.autoFocus) {
       element.classList.add("autoFocus");
     }
+    element.disabled = Boolean(this._config.disabled);
+    element.classList.toggle("disabled", Boolean(this._config.disabled));
     return element as unknown as HTMLButtonElement;
   }
 
@@ -117,6 +120,13 @@ export class Button extends UIElement<ButtonConfig> {
       this._config.fontSize = value;
       const scales = this.getScales();
       this.element.style.fontSize = `${scaleFont(value, scales[0] * scales[1] * scales[2])}px`;
+      return;
+    }
+    if (key === "disabled") {
+      this._config.disabled = Boolean(value);
+      const buttonElement = this.element;
+      buttonElement.disabled = Boolean(value);
+      buttonElement.classList.toggle("disabled", Boolean(value));
       return;
     }
     super.handleConfigChange(key, value);
@@ -136,6 +146,8 @@ export class Button extends UIElement<ButtonConfig> {
     const scales = this.getScales();
     buttonElement.style.fontSize = `${scaleFont(this.config.fontSize || 12, scales[0] * scales[1] * scales[2])}px`;
     this.textElement.innerHTML = this._config.label;
+    buttonElement.disabled = Boolean(this._config.disabled);
+    buttonElement.classList.toggle("disabled", Boolean(this._config.disabled));
 
     buttonElement.onpointerdown = (e) => {
       this.recordPointerInteraction(e.pointerType, Date.now());
