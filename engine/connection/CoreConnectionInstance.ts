@@ -40,7 +40,7 @@ export type CoreConnectionInstanceOptions<T> = {
 export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   instanceId = nanoid();
 
-  stateRequested: null | [string, any][] = null;
+  stateRequested: null | { roomId: string; playerId: string; playerConfig: any }[] = null;
   frameOffset = 8;
   disconnectingPlayers: [string, number][] = [];
   leavingPlayers: { [roomId: string]: [string, number][] } = {};
@@ -97,6 +97,39 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       throw new Error("Multiple local players");
     }
     return this.localPlayers[0];
+  }
+
+  private playersInRoom(roomId: string): string[] {
+    const players = new Set<string>();
+    for (const playerId of this.rooms[roomId]?.players ?? []) {
+      if (playerId) players.add(playerId);
+    }
+    for (const player of this.players) {
+      if (player.connected !== false && player.currentRoomId === roomId) {
+        players.add(player.netId);
+      }
+    }
+    return [...players];
+  }
+
+  private retainKnownRoom(roomId: string, playerIds: string[], fallbackHost = ""): void {
+    const existing = this.rooms[roomId];
+    this.rooms[roomId] = {
+      rebalanceOnLeave: existing?.rebalanceOnLeave ?? false,
+      host: existing?.host && playerIds.includes(existing.host) ? existing.host : fallbackHost || playerIds[0] || "",
+      players: playerIds,
+      roomId,
+    };
+  }
+
+  private destroyRoomState(roomId: string): void {
+    const gameModel = this.roomStates[roomId]?.gameModel;
+    if (!gameModel || gameModel.destroyed) return;
+    try {
+      gameModel.destroy();
+    } catch (error) {
+      console.warn("Failed to destroy room state", roomId, error);
+    }
   }
 
   roomSubs: { [roomId: string]: (() => void)[] } = {};
@@ -161,28 +194,44 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       }
     });
     this.on("leaveRoom", (playerId: string, roomId: string, lastFrame: number) => {
-      this.rooms[roomId] = {
-        ...this.rooms[roomId],
-        players: this.rooms[roomId].players.filter((player) => player !== playerId),
-      };
-      const localId = this.roomStates[roomId]?.gameModel.localNetIds.indexOf(playerId);
+      const room = this.rooms[roomId];
+      if (room) {
+        this.rooms[roomId] = {
+          ...room,
+          players: room.players.filter((player) => player !== playerId),
+        };
+      }
+      if (this.isRemotePlayer(playerId)) {
+        const player = this.players.find((player) => player.netId === playerId);
+        if (player?.currentRoomId === roomId) {
+          player.currentRoomId = null;
+        }
+      }
+      const localNetIds = this.roomStates[roomId]?.gameModel?.localNetIds;
+      const localId = localNetIds?.indexOf(playerId) ?? -1;
       if (localId !== -1) {
-        this.roomStates[roomId]?.gameModel.localNetIds.splice(localId, 1);
+        localNetIds?.splice(localId, 1);
       }
 
-      if (playerId === this.player.netId) {
-        const gameModel = this.roomStates[roomId]!.gameModel;
+      const remainingPlayerIds = this.playersInRoom(roomId).filter((candidate) => candidate !== playerId);
+      if (remainingPlayerIds.length > 0) {
+        this.retainKnownRoom(roomId, remainingPlayerIds, room?.host);
+      }
+
+      const roomState = this.roomStates[roomId];
+      if (!this.isRemotePlayer(playerId) && roomState?.gameModel) {
+        const gameModel = roomState.gameModel;
         this.leavingPlayers[roomId] = this.leavingPlayers[roomId] ?? [];
         this.leavingPlayers[roomId].push([playerId, gameModel.frame]);
-        this.handleLeavingPlayers(gameModel, this.roomStates[roomId]!.frameStack);
-      } else {
+        this.handleLeavingPlayers(gameModel, roomState.frameStack);
+      } else if (roomState) {
         this.leavingPlayers[roomId] = this.leavingPlayers[roomId] ?? [];
         this.leavingPlayers[roomId].push([playerId, lastFrame]);
       }
 
-      if (this.rooms[roomId].players.length === 0) {
+      if ((this.rooms[roomId]?.players.length ?? 0) === 0) {
         if (!this.options.roomPersist) {
-          this.roomStates[roomId]?.gameModel.destroy();
+          this.destroyRoomState(roomId);
           delete this.rooms[roomId];
           delete this.roomStates[roomId];
           this.roomSubs[roomId]?.forEach((sub) => sub());
@@ -190,7 +239,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
         } else if (typeof this.options.roomPersist === "number") {
           this.persistTimeouts[roomId] = setTimeout(() => {
             console.log("DESTROYING");
-            this.roomStates[roomId]?.gameModel.destroy();
+            this.destroyRoomState(roomId);
             delete this.rooms[roomId];
             delete this.roomStates[roomId];
             this.roomSubs[roomId]?.forEach((sub) => sub());
@@ -201,11 +250,34 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     });
 
     this.on("joinRoom", (playerId: string, roomId: string) => {
-      if (!this.rooms[roomId].players.includes(playerId)) {
+      const isRemotePlayer = this.isRemotePlayer(playerId);
+      if (isRemotePlayer) {
+        Object.entries(this.rooms).forEach(([existingRoomId, room]) => {
+          if (existingRoomId !== roomId && room.players.includes(playerId)) {
+            this.rooms[existingRoomId] = {
+              ...room,
+              players: room.players.filter((player) => player !== playerId),
+            };
+          }
+        });
+        const player = this.players.find((player) => player.netId === playerId);
+        if (player) {
+          player.currentRoomId = roomId;
+        }
+      }
+      const room = this.rooms[roomId] ?? {
+        rebalanceOnLeave: false,
+        host: playerId,
+        players: [],
+        roomId,
+      };
+      if (!room.players.includes(playerId)) {
         this.rooms[roomId] = {
-          ...this.rooms[roomId],
-          players: [...this.rooms[roomId].players, playerId],
+          ...room,
+          players: [...room.players, playerId],
         };
+      } else if (!this.rooms[roomId]) {
+        this.rooms[roomId] = room;
       }
     });
 
@@ -241,13 +313,13 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
           players: room.players.filter((player) => player !== playerId),
         };
       }
-      const localNetIds = roomState?.gameModel.localNetIds;
+      const localNetIds = roomState?.gameModel?.localNetIds;
       const localId = localNetIds?.indexOf(playerId);
       if (localId !== undefined && localId !== -1) {
         localNetIds?.splice(localId, 1);
       }
 
-      if (!roomState?.frameStack[playerId]) {
+      if (!roomState?.frameStack[playerId] || !roomState.gameModel) {
         return;
       }
       const frameStack = roomState.frameStack[playerId];
@@ -346,8 +418,8 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
 
   leaveRoom(roomId: string, lastFrame: number, localPlayerIndex?: number): void {
     this.touchListener?.replaceRegions([]);
-    const gameModel = this.roomStates[roomId]!.gameModel;
-    if (lastFrame < gameModel.frame + this.frameOffset) {
+    const gameModel = this.roomStates[roomId]?.gameModel;
+    if (gameModel && lastFrame < gameModel.frame + this.frameOffset) {
       lastFrame = gameModel.frame + this.frameOffset;
     }
     if (localPlayerIndex !== undefined) {
@@ -621,7 +693,8 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
 
   private mergeSerializedFrameStack(
     roomState: RoomState,
-    frameStack: { [playerId: string]: { keys: any; frame: number; events?: string[] }[] }
+    frameStack: { [playerId: string]: { keys: any; frame: number; events?: string[]; roomId?: string }[] },
+    roomId: string
   ): void {
     Object.entries(frameStack).forEach(([playerId, frames]) => {
       const previousFrames = roomState.frameStack[playerId] ?? [];
@@ -632,7 +705,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
           frame: frame.frame,
           events: frame.events ?? [],
           playerId,
-          roomId: roomState.gameModel.roomId,
+          roomId: frame.roomId ?? roomState.gameModel?.roomId ?? roomId,
         });
       });
       if (previousFrames.length && roomState.frameStack[playerId].length) {
@@ -736,7 +809,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
           clearTimeout(timeout);
           unsubscribe();
           const roomState = this.roomStates[roomId];
-          this.mergeSerializedFrameStack(roomState, frameStack ?? {});
+          this.mergeSerializedFrameStack(roomState, frameStack ?? {}, roomId);
           const state: GameModelState = JSON.parse(stateJson);
           if (!roomState.gameModel || roomState.gameModel.destroyed) {
             roomState.gameModel = GameModel({
@@ -781,7 +854,18 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     const room = this.rooms[roomId];
     const roomState = this.roomStates[roomId];
     const gameModel = roomState?.gameModel;
-    if ((!gameModel || gameModel.destroyed) && room?.players.length && !room.players.includes(player.netId)) {
+    const shouldJoinRemoteRoom = !!room?.players.length && !room.players.includes(player.netId);
+    if (shouldJoinRemoteRoom) {
+      if (player.currentRoomId && player.currentRoomId !== roomId) {
+        const currentRoomState = this.roomStates[player.currentRoomId];
+        this.leaveRoom(player.currentRoomId, currentRoomState?.gameModel?.frame ?? gameModel?.frame ?? 0, localPlayerIndex);
+      }
+      if (roomState?.gameModel) {
+        roomState.gameModel = null as any;
+      }
+      this.preloadedRoomIds.delete(roomId);
+      this.roomSubs[roomId]?.forEach((sub) => sub());
+      delete this.roomSubs[roomId];
       return this.join(roomId, {
         gameInstance: options.gameInstance,
         seed: options.seed,
@@ -789,13 +873,13 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
         onPlayerJoin: options.onPlayerJoin,
         onPlayerLeave: options.onPlayerLeave,
         playerConfig: options.playerConfig,
+        localPlayerIndex,
       });
     }
 
     if (!gameModel || gameModel.destroyed) {
       throw new Error(`Cannot activate room ${roomId}; it has not been preloaded.`);
     }
-    const needsRemoteJoinState = !!room?.players.length && !room.players.includes(player.netId);
     if (player.currentRoomId && player.currentRoomId !== roomId) {
       const currentRoomState = this.roomStates[player.currentRoomId];
       this.leaveRoom(player.currentRoomId, currentRoomState?.gameModel?.frame ?? gameModel.frame, localPlayerIndex);
@@ -826,9 +910,6 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       players: room?.players.includes(player.netId) ? room.players : [...(room?.players ?? []), player.netId],
       roomId,
     };
-    if (needsRemoteJoinState) {
-      this.emit("requestState", roomId, JSON.stringify({ ...player.config, ...options.playerConfig }));
-    }
     this.emit("joinRoom", roomId);
     return gameModel;
   }
@@ -842,6 +923,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       gameInstance,
       seed,
       coreOverrides,
+      localPlayerIndex = 0,
     }: {
       onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: T) => number;
       onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
@@ -849,9 +931,14 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       gameInstance: GameInstance<T>;
       seed: string;
       coreOverrides?: { [key: string]: any };
+      localPlayerIndex?: number;
     }
   ): Promise<GameModel> {
-    if (!this.player.connected) {
+    const localPlayer = this.localPlayers[localPlayerIndex];
+    if (!localPlayer) {
+      throw new Error(`No local player at index ${localPlayerIndex}.`);
+    }
+    if (!localPlayer.connected) {
       throw new Error("Not connected");
     }
     this.cleanup();
@@ -860,7 +947,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     if (!playerConfig) {
       playerConfig = {};
     }
-    playerConfig = { ...this.player.config, ...playerConfig };
+    playerConfig = { ...localPlayer.config, ...playerConfig };
     let room = this.rooms[roomId];
     if (!room) {
       try {
@@ -903,12 +990,12 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
             }
             // timestamp: number
           ) => {
-            if (playerId === this.player.netId) {
+            if (playerId === localPlayer.netId) {
               return;
             }
             const roomState = this.roomStates[roomId];
 
-            this.player.currentRoomId = roomId;
+            localPlayer.currentRoomId = roomId;
             const state: GameModelState = JSON.parse(stateJson);
 
             if (!Object.keys(roomState.frameStack)) {
@@ -984,7 +1071,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
             if (roomState.gameModel) {
               // roomState.gameModel?.loadStateObject(state);
               roomState.gameModel.preloadOnly = false;
-              roomState.gameModel.localNetIds = [this.player.netId];
+              roomState.gameModel.localNetIds = [localPlayer.netId];
               roomState.gameModel.stepDraw();
             }
             resolve(roomState.gameModel);
@@ -993,7 +1080,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       );
       this.emit("requestState", roomId, JSON.stringify(playerConfig));
       this.emit("joinRoom", roomId);
-      this.setupStateRequest(this.player, roomId);
+      this.setupStateRequest(localPlayer, roomId);
     });
   }
 
@@ -1033,7 +1120,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
         if (!this.stateRequested) {
           this.stateRequested = [];
         }
-        this.stateRequested.push([playerId, JSON.parse(playerConfig || "{}")]);
+        this.stateRequested.push({ roomId, playerId, playerConfig: JSON.parse(playerConfig || "{}") });
         if (this.roomStates[roomId]?.gameModel?.executionMode === "step") {
           this.requestStep();
         }
@@ -1041,7 +1128,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     );
     this.roomSubs[roomId].push(
       this.on("requestPreloadState", (playerId, _roomId, requestId) => {
-        if (_roomId !== roomId || playerId === this.player.netId) {
+        if (_roomId !== roomId || playerId === player.netId) {
           return;
         }
         const roomState = this.roomStates[roomId];
@@ -1425,18 +1512,21 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
 
   endFrame(gameModel: GameModel) {
     const roomState = this.roomStates[gameModel.roomId];
+    const stateRequests = this.stateRequested?.filter((request) => request.roomId === gameModel.roomId) ?? [];
 
-    if (this.stateRequested?.length) {
+    if (stateRequests.length) {
+      const remainingStateRequests = this.stateRequested?.filter((request) => request.roomId !== gameModel.roomId) ?? [];
+      this.stateRequested = remainingStateRequests.length ? remainingStateRequests : null;
       const playerIds: string[] = [];
-      while (this.stateRequested?.length) {
-        const [playerId, playerConfig] = this.stateRequested.pop()!;
+      while (stateRequests.length) {
+        const { playerId, playerConfig } = stateRequests.pop()!;
         playerIds.push(playerId);
         this.createPlayer(gameModel, playerId, playerConfig, gameModel.frame);
       }
-      this.stateRequested = null;
-      if (
-        this.rooms[gameModel.roomId]?.players.sort().filter((pid) => !playerIds.includes(pid))[0] === this.player.netId
-      ) {
+      const hostId = [...(this.rooms[gameModel.roomId]?.players ?? [])].sort().filter((pid) => !playerIds.includes(pid))[0];
+      const localPlayerIds = new Set(this.localPlayers.map((player) => player.netId));
+      const localNetIds = gameModel.localNetIds ?? [];
+      if (hostId && localPlayerIds.has(hostId) && localNetIds.includes(hostId)) {
         const state = gameModel.serializeState();
 
         const frameStack = Object.entries(roomState.frameStack).reduce(

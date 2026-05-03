@@ -5,6 +5,7 @@ import { customAlphabet } from "nanoid";
 import type { InputManager } from "yage/inputs/InputManager";
 import type { CoreConnectionInstanceOptions } from "./CoreConnectionInstance";
 import { CoreConnectionInstance } from "./CoreConnectionInstance";
+import { flags } from "yage/console/flags";
 
 const nanoid = customAlphabet("234579ACDEFGHJKMNPQRTWXYZ", 10);
 
@@ -143,7 +144,7 @@ export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
   handleData = (data: any) => {
     const [playerId, event, ...args] = data as [string, string, ...any[]];
 
-    if (event !== "frame") {
+    if (event !== "frame" && flags.DEBUG) {
       console.info("received", event, args);
     }
 

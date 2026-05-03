@@ -206,7 +206,7 @@ export class GameInstance<T> {
   run() {
     const drawableRooms = new Set(this.options.connection.localPlayers.map((p) => p.currentRoomId));
     const activeRooms = new Set([
-      ...this.options.connection.players.map((p) => p.currentRoomId),
+      ...this.options.connection.localPlayers.map((p) => p.currentRoomId),
       ...this.options.connection.preloadedRoomIds,
     ]);
     if (activeRooms.size > 0) {
@@ -234,7 +234,7 @@ export class GameInstance<T> {
   stepManual(): boolean {
     const drawableRooms = new Set(this.options.connection.localPlayers.map((p) => p.currentRoomId));
     const activeRooms = new Set([
-      ...this.options.connection.players.map((p) => p.currentRoomId),
+      ...this.options.connection.localPlayers.map((p) => p.currentRoomId),
       ...this.options.connection.preloadedRoomIds,
     ]);
     if (activeRooms.size === 0) {
@@ -271,7 +271,7 @@ export class GameInstance<T> {
 
   private catchUpBackgroundRooms(maxSteps: number): number {
     const activeRooms = new Set([
-      ...this.options.connection.players.map((p) => p.currentRoomId),
+      ...this.options.connection.localPlayers.map((p) => p.currentRoomId),
       ...this.options.connection.preloadedRoomIds,
     ]);
     let executed = 0;

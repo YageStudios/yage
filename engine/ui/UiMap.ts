@@ -461,6 +461,11 @@ const assignPosspecIds = (value: any, path = "root"): any => {
   return cloned;
 };
 
+const browserViewportDimensions = () => ({
+  width: typeof window === "undefined" ? 1920 : window.innerWidth,
+  height: typeof window === "undefined" ? 1080 : window.innerHeight,
+});
+
 const resolvePosspecValue = (value: any, ctx: any): any => {
   if (typeof value === "string") {
     if (value.includes("{{")) {
@@ -567,6 +572,7 @@ const applyPosspecLayoutResult = (result: LayoutResult, parentResult?: LayoutRes
         width: result.bounds.width,
         height: result.bounds.height,
       };
+      (element.config as any).layoutViewportPixels = true;
       (element.config as any).layoutScale = result.scaleFactor;
     }
   }
@@ -577,6 +583,9 @@ const clearPosspecLayoutRects = (element: UIElement<any>) => {
   const config = element.config as any;
   if (config.layoutRect !== undefined) {
     config.layoutRect = undefined;
+  }
+  if (config.layoutViewportPixels !== undefined) {
+    config.layoutViewportPixels = undefined;
   }
   if (config.layoutScale !== undefined) {
     config.layoutScale = undefined;
@@ -875,7 +884,6 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
     let builtRoots: { [key: string]: UIElement<any> } = {};
     let fontRelayoutRegistered = false;
     let resizeListenerRegistered = false;
-    let lastOrientation: "portrait" | "landscape" | null = null;
     let activeEventHandler:
       | ((
           playerIndex: number,
@@ -886,19 +894,12 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
         ) => void)
       | null = null;
 
-    const getVirtualViewport = () => {
-      if (typeof window !== "undefined" && window.innerHeight > window.innerWidth) {
-        return { width: 1080, height: 1920 };
-      }
-      return { width: 1920, height: 1080 };
-    };
-
     const runPosspecLayout = () => {
-      const vp = getVirtualViewport();
+      const viewport = browserViewportDimensions();
       for (const value of Object.values(posspecJson)) {
         const resolvedRoots = resolvePosspecNodes(cloneDeep(value), buildContext, rootContext);
         resolvedRoots.forEach((resolvedRoot) => {
-          const layout = computeLayout(resolvedRoot as LayoutNodeConfig, vp.width, vp.height, measureText);
+          const layout = computeLayout(resolvedRoot as LayoutNodeConfig, viewport.width, viewport.height, measureText);
           applyPosspecLayoutResult(layout);
         });
       }
@@ -976,16 +977,11 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
       if (resizeListenerRegistered || typeof window === "undefined") {
         return;
       }
-      lastOrientation = window.innerHeight > window.innerWidth ? "portrait" : "landscape";
       window.addEventListener("resize", () => {
         if (!activeEventHandler || !buildContext) {
           return;
         }
-        const orientation = window.innerHeight > window.innerWidth ? "portrait" : "landscape";
-        if (orientation !== lastOrientation) {
-          lastOrientation = orientation;
-          rebuildPosspecUi();
-        }
+        rebuildPosspecUi();
       });
       resizeListenerRegistered = true;
     };
@@ -1027,6 +1023,8 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
   let buildContext: any = null;
   let rootContext: any = null;
   let builtRoots: { [key: string]: UIElement<any> } = {};
+  let resizeListenerRegistered = false;
+  let resizeRelayoutQueued = false;
 
   const runPosspecLayout = () => {
     if (!posspecJson || !measureText) {
@@ -1040,12 +1038,36 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
       if (!resolvedRoot) {
         continue;
       }
-      const isPortrait = typeof window !== "undefined" && window.innerHeight > window.innerWidth;
-      const vpW = isPortrait ? 1080 : 1920;
-      const vpH = isPortrait ? 1920 : 1080;
-      const layout = computeLayout(resolvedRoot as LayoutNodeConfig, vpW, vpH, measureText);
+      const viewport = browserViewportDimensions();
+      const layout = computeLayout(resolvedRoot as LayoutNodeConfig, viewport.width, viewport.height, measureText);
       applyPosspecLayoutResult(layout);
     }
+  };
+
+  const updateBuiltRootPositions = () => {
+    runPosspecLayout();
+    Object.values(builtRoots).forEach((root) => root.update());
+  };
+
+  const scheduleResizeRelayout = () => {
+    if (resizeRelayoutQueued) {
+      return;
+    }
+    resizeRelayoutQueued = true;
+    const run = () => {
+      resizeRelayoutQueued = false;
+      updateBuiltRootPositions();
+    };
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(run);
+    else run();
+  };
+
+  const ensureResizeRelayout = () => {
+    if (resizeListenerRegistered || typeof window === "undefined") {
+      return;
+    }
+    window.addEventListener("resize", scheduleResizeRelayout);
+    resizeListenerRegistered = true;
   };
 
   const build = (
@@ -1935,11 +1957,13 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
       });
       builtRoots = { box };
       runPosspecLayout();
+      ensureResizeRelayout();
       return { box };
     }
 
     builtRoots = res;
     runPosspecLayout();
+    ensureResizeRelayout();
     return res;
   };
 

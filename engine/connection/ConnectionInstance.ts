@@ -155,6 +155,7 @@ export abstract class ConnectionInstance<T> {
       onPlayerJoin: (gameModel: GameModel, playerId: string, playerConfig: T) => number;
       onPlayerLeave: (gameModel: GameModel, playerId: string) => void;
       playerConfig?: Partial<T>;
+      localPlayerIndex?: number;
     }
   ): Promise<GameModel>;
 

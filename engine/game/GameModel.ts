@@ -881,6 +881,7 @@ export const GameModel = ({
 };
 
 export interface ReadOnlyGameModel extends GameModel {
+  readonly: true;
   <T extends Schema>(schema: Constructor<T>, eid: number): Readonly<T>;
   <T extends Schema>(schema: Constructor<T>): Readonly<WorldComponent<T>>;
   getComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => Readonly<T> | null;

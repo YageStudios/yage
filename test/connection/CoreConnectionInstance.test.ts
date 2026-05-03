@@ -26,6 +26,7 @@ vi.mock("../../engine/game/GameModel", () => ({
     hasComponent: vi.fn(),
     getTypedUnsafe: vi.fn(),
     runGlobalMods: vi.fn(),
+    stepDraw: vi.fn(),
   }),
   GameModelState: {},
 }));
@@ -99,6 +100,7 @@ describe("CoreConnectionInstance", () => {
       hasComponent: vi.fn(),
       getTypedUnsafe: vi.fn(),
       runGlobalMods: vi.fn(),
+      stepDraw: vi.fn(),
     });
 
     // Setup mock input manager
@@ -222,6 +224,130 @@ describe("CoreConnectionInstance", () => {
       expect(gameModel).toBeDefined();
       expect(instance.player.currentRoomId).toBe(roomId);
     });
+
+    it("tracks remote room joins without moving the local player", () => {
+      instance.players.push({
+        ...instance.player,
+        netId: "player-2",
+        currentRoomId: "old-room",
+        connected: true,
+      });
+      instance.rooms["old-room"] = {
+        roomId: "old-room",
+        players: ["player-1", "player-2"],
+        host: "player-1",
+        rebalanceOnLeave: false,
+      };
+
+      instance.subscriptions["joinRoom"]?.forEach((cb) => cb("player-2", "new-room"));
+
+      expect(instance.rooms["old-room"].players).toEqual(["player-1"]);
+      expect(instance.rooms["new-room"].players).toEqual(["player-2"]);
+      expect(instance.players.find((player) => player.netId === "player-2")?.currentRoomId).toBe("new-room");
+      expect(instance.player.currentRoomId).toBeNull();
+    });
+
+    it("handles remote leaves for rooms that are not locally simulated", () => {
+      instance.players.push({
+        ...instance.player,
+        netId: "player-2",
+        currentRoomId: "remote-room",
+        connected: true,
+      });
+
+      expect(() => {
+        instance.subscriptions["leaveRoom"]?.forEach((cb) => cb("player-2", "remote-room", 120));
+      }).not.toThrow();
+      expect(instance.players.find((player) => player.netId === "player-2")?.currentRoomId).toBeNull();
+    });
+
+    it("uses remote state sync when activating a preloaded room that already has peers", async () => {
+      const sourceRoomId = "source-room";
+      const roomId = "remote-room";
+      const sourceModel = {
+        roomId: sourceRoomId,
+        frame: 40,
+        destroyed: false,
+        localNetIds: ["player-1"],
+      } as unknown as GameModel;
+      const preloadedModel = {
+        roomId,
+        frame: 80,
+        destroyed: false,
+        localNetIds: [],
+        destroy: vi.fn(),
+      } as unknown as GameModel;
+      instance.player.connected = true;
+      instance.player.currentRoomId = sourceRoomId;
+      instance.roomStates[sourceRoomId] = { gameModel: sourceModel, frameStack: {}, lastFrame: {} };
+      instance.roomStates[roomId] = { gameModel: preloadedModel, frameStack: {}, lastFrame: {} };
+      instance.preloadedRoomIds.add(roomId);
+      instance.rooms[sourceRoomId] = {
+        roomId: sourceRoomId,
+        players: ["player-1"],
+        host: "player-1",
+        rebalanceOnLeave: false,
+      };
+      instance.rooms[roomId] = {
+        roomId,
+        players: ["player-2"],
+        host: "player-2",
+        rebalanceOnLeave: false,
+      };
+      const leaveRoom = vi.spyOn(instance, "leaveRoom").mockImplementation(() => {
+        instance.player.currentRoomId = null;
+      });
+      const join = vi.spyOn(instance, "join").mockResolvedValue(preloadedModel);
+
+      const result = await instance.activatePreloadedRoom(roomId, {
+        gameInstance: mockGameInstance,
+        seed: "test-seed",
+        onPlayerJoin: vi.fn(),
+        onPlayerLeave: vi.fn(),
+      });
+
+      expect(result).toBe(preloadedModel);
+      expect(leaveRoom).toHaveBeenCalledWith(sourceRoomId, 40, 0);
+      expect((preloadedModel as any).destroy).not.toHaveBeenCalled();
+      expect(instance.roomStates[roomId].gameModel).toBeNull();
+      expect(instance.preloadedRoomIds.has(roomId)).toBe(false);
+      expect(join).toHaveBeenCalledWith(
+        roomId,
+        expect.objectContaining({
+          gameInstance: mockGameInstance,
+          seed: "test-seed",
+          localPlayerIndex: 0,
+        })
+      );
+    });
+
+    it("merges preloaded frame stacks before the preload game model exists", () => {
+      const roomId = "remote-room";
+      instance.roomStates[roomId] = {
+        gameModel: null as any,
+        frameStack: {},
+        lastFrame: {},
+      };
+      (inputManager.toKeyMap as any).mockImplementation((keys: any) => keys);
+
+      expect(() => {
+        (instance as any).mergeSerializedFrameStack(
+          instance.roomStates[roomId],
+          {
+            "player-2": [{ frame: 12, keys: { up: true }, events: ["jump"] }],
+          },
+          roomId
+        );
+      }).not.toThrow();
+
+      expect(instance.roomStates[roomId].frameStack["player-2"][0]).toEqual({
+        frame: 12,
+        keys: { up: true },
+        events: ["jump"],
+        playerId: "player-2",
+        roomId,
+      });
+    });
   });
 
   describe("Room Hosting", () => {
@@ -281,7 +407,18 @@ describe("CoreConnectionInstance", () => {
       // Simulate state request
       instance.subscriptions["requestState"]?.forEach((cb) => cb("player-2", roomId, JSON.stringify(playerConfig)));
 
-      expect(instance.stateRequested).toEqual([["player-2", playerConfig]]);
+      expect(instance.stateRequested).toEqual([{ roomId, playerId: "player-2", playerConfig }]);
+    });
+
+    it("keeps state requests scoped to their requested room", () => {
+      instance.setupStateRequest(mockPlayer, "room-a");
+      instance.setupStateRequest(mockPlayer, "room-b");
+
+      instance.subscriptions["requestState"]?.forEach((cb) => cb("player-2", "room-b", JSON.stringify({ test: true })));
+
+      expect(instance.stateRequested).toEqual([
+        { roomId: "room-b", playerId: "player-2", playerConfig: { test: true } },
+      ]);
     });
 
     it("should send state to joining players", () => {
@@ -289,6 +426,7 @@ describe("CoreConnectionInstance", () => {
       const gameModel = {
         roomId,
         frame: 10,
+        localNetIds: ["player-1"],
         serializeState: vi.fn().mockReturnValue({ test: true }),
         runGlobalMods: vi.fn(),
       } as unknown as GameModel;
@@ -311,7 +449,7 @@ describe("CoreConnectionInstance", () => {
       };
 
       instance.emit = vi.fn();
-      instance.stateRequested = [["player-2", {}]];
+      instance.stateRequested = [{ roomId, playerId: "player-2", playerConfig: {} }];
 
       instance.endFrame(gameModel);
 

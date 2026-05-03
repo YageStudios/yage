@@ -57,6 +57,7 @@ export type UIElementConfig = {
     width: number;
     height: number;
   };
+  layoutViewportPixels?: boolean;
   layoutScale?: number;
 };
 
@@ -698,19 +699,23 @@ export abstract class UIElement<T extends UIElementConfig = any> {
     const layoutScale = this._config.layoutScale ?? 1;
 
     if (layoutRect) {
-      const viewportScale = getViewportScale();
-      const vp = getVirtualViewport();
-      const aspectRatio = vp.width / vp.height;
-      let viewportWidth = window.innerWidth;
-      let viewportHeight = window.innerWidth / aspectRatio;
-      if (viewportHeight > window.innerHeight) {
-        viewportHeight = window.innerHeight;
-        viewportWidth = window.innerHeight * aspectRatio;
-      }
-
+      const viewportPixels = this._config.layoutViewportPixels === true;
+      const viewportScale = viewportPixels ? 1 : getViewportScale();
       const parentHasLayoutRect = !!(this.parent && (this.parent.config as any)?.layoutRect);
-      const viewportOffsetX = parentHasLayoutRect ? 0 : Math.floor((window.innerWidth - viewportWidth) / 2);
-      const viewportOffsetY = parentHasLayoutRect ? 0 : Math.floor((window.innerHeight - viewportHeight) / 2);
+      let viewportOffsetX = 0;
+      let viewportOffsetY = 0;
+      if (!viewportPixels) {
+        const vp = getVirtualViewport();
+        const aspectRatio = vp.width / vp.height;
+        let viewportWidth = window.innerWidth;
+        let viewportHeight = window.innerWidth / aspectRatio;
+        if (viewportHeight > window.innerHeight) {
+          viewportHeight = window.innerHeight;
+          viewportWidth = window.innerHeight * aspectRatio;
+        }
+        viewportOffsetX = parentHasLayoutRect ? 0 : Math.floor((window.innerWidth - viewportWidth) / 2);
+        viewportOffsetY = parentHasLayoutRect ? 0 : Math.floor((window.innerHeight - viewportHeight) / 2);
+      }
 
       const x = Math.floor(layoutRect.x * viewportScale);
       const y = Math.floor(layoutRect.y * viewportScale);
