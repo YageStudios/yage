@@ -27,6 +27,7 @@ export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
   connectionPromise: Promise<void>;
   prefix: string;
   selfAddress: string;
+  private unloadDisconnectAnnounced = false;
 
   constructor(
     player: PlayerConnect<T>,
@@ -41,6 +42,38 @@ export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
       address = this.prefix + address;
     }
     this.handshake(address, host);
+    this.installPageDisconnectHandlers();
+  }
+
+  private installPageDisconnectHandlers(): void {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const announceDisconnect = () => this.announceLocalDisconnect();
+    window.addEventListener("pagehide", announceDisconnect, { capture: true });
+    window.addEventListener("beforeunload", announceDisconnect, { capture: true });
+  }
+
+  private announceLocalDisconnect(): void {
+    if (this.unloadDisconnectAnnounced) {
+      return;
+    }
+    this.unloadDisconnectAnnounced = true;
+    for (const player of this.localPlayers) {
+      const roomId = player.currentRoomId;
+      if (!roomId) {
+        continue;
+      }
+      const gameModel = this.roomStates[roomId]?.gameModel;
+      const disconnectFrame = gameModel ? gameModel.frame + this.frameOffset : undefined;
+      for (const conn of Object.values(this.connections)) {
+        try {
+          conn.send([player.netId, "userDisconnect", player.netId, disconnectFrame]);
+        } catch {
+          // Browser unload can tear down the data channel before this best-effort send completes.
+        }
+      }
+    }
   }
 
   async handshake(address: string, hostUrl?: string) {
@@ -171,7 +204,7 @@ export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
       const player = this.players.find((p) => p.connectionId === conn.peer);
       if (player) {
         this.players = this.players.filter((p) => p.connectionId !== conn.peer);
-        this.handleData([this.player.netId, "userDisconnect", player.netId]);
+        this.handleData([player.netId, "userDisconnect"]);
         if (this.players.length === 1) {
           this.player.connected = false;
           this.player.connectionTime = 0;

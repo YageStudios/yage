@@ -24,12 +24,17 @@ import type { TouchRegion } from "yage/inputs/InputRegion";
 import { md5 } from "yage/utils/md5";
 import { ComponentCategory } from "yage/constants/enums";
 import { SystemImpl } from "minecs";
+import { BackgroundFrameFlow, type BackgroundFrameFlowOptions } from "./BackgroundFrameFlow";
+import { HistoryPersistenceFlow, type HistoryPersistenceOptions } from "./HistoryPersistenceFlow";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export type CoreConnectionInstanceOptions<T> = {
   touchRegions?: TouchRegion[];
   roomTimeout?: number;
   roomPersist?: boolean | number;
+  disconnectTimeoutMs?: number;
+  backgroundFrameFlow?: BackgroundFrameFlowOptions | false;
+  historyPersistence?: HistoryPersistenceOptions;
 };
 
 export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
@@ -40,7 +45,9 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   disconnectingPlayers: [string, number][] = [];
   leavingPlayers: { [roomId: string]: [string, number][] } = {};
   pendingMissedFrames: { [roomId: string]: { [playerId: string]: number | undefined } } = {};
+  missingFrameStalls: { [roomId: string]: { [playerId: string]: { frame: number; since: number } | undefined } } = {};
   publishedFrames: { [roomId: string]: { [playerId: string]: { [frame: number]: Frame } } } = {};
+  historyPersistenceFlow: HistoryPersistenceFlow<T>;
 
   roomSyncResolve: () => void = () => {};
   roomSyncPromise: Promise<void> = new Promise((resolve) => {
@@ -95,6 +102,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   roomSubs: { [roomId: string]: (() => void)[] } = {};
 
   playerEventManager: PlayerEventManager = new PlayerEventManager();
+  backgroundFrameFlow: BackgroundFrameFlow;
 
   emit(event: string, ...args: any[]) {} // eslint-disable-line
   async connect(): Promise<void> {} // eslint-disable-line
@@ -124,6 +132,8 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       this.localPlayers.push(playerConnection);
       this.players.push(playerConnection);
     }
+    this.backgroundFrameFlow = new BackgroundFrameFlow(this, options.backgroundFrameFlow);
+    this.historyPersistenceFlow = new HistoryPersistenceFlow(() => this.history, options.historyPersistence);
 
     this.on("message", (playerId: string, message: string, time: number) => {
       this.messageListeners.forEach((listener) => listener(message, time, playerId));
@@ -199,52 +209,94 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       }
     });
 
-    this.on("userDisconnect", (playerId: string, lastFrame: number) => {
+    this.on("userDisconnect", (sourcePlayerId: string, targetPlayerIdOrFrame?: string | number, reportedDisconnectFrame?: number) => {
+      const playerId = typeof targetPlayerIdOrFrame === "string" ? targetPlayerIdOrFrame : sourcePlayerId;
+      const requestedDisconnectFrame =
+        typeof targetPlayerIdOrFrame === "number" ? targetPlayerIdOrFrame : reportedDisconnectFrame;
       const player = this.players.find((player) => player.netId === playerId);
+      const currentRoomId =
+        player?.currentRoomId ??
+        Object.keys(this.roomStates).find((roomId) => this.roomStates[roomId]?.frameStack[playerId]) ??
+        "";
       if (!player) {
-        console.error("Something went horribly wrong, player not found", playerId, this.players);
-        return;
+        if (!currentRoomId) {
+          console.error("Something went horribly wrong, player not found", playerId, this.players);
+          return;
+        }
+      } else {
+        player.connected = false;
       }
+      const wasDisconnecting = this.disconnectingPlayers.some(([disconnectingPlayerId]) => disconnectingPlayerId === playerId);
       this.players = this.players.filter((player) => player.netId !== playerId);
       this.localPlayers = this.localPlayers.filter((player) => player.netId !== playerId);
-      this.disconnectListeners.forEach((listener) => listener(playerId));
+      if (!wasDisconnecting) {
+        this.disconnectListeners.forEach((listener) => listener(playerId));
+      }
 
-      const currentRoomId = player.currentRoomId ?? "";
+      const roomState = this.roomStates[currentRoomId];
+      const room = this.rooms[currentRoomId];
+      if (room) {
+        this.rooms[currentRoomId] = {
+          ...room,
+          players: room.players.filter((player) => player !== playerId),
+        };
+      }
+      const localNetIds = roomState?.gameModel.localNetIds;
+      const localId = localNetIds?.indexOf(playerId);
+      if (localId !== undefined && localId !== -1) {
+        localNetIds?.splice(localId, 1);
+      }
 
-      if (!this.roomStates[currentRoomId]?.frameStack[playerId]) {
+      if (!roomState?.frameStack[playerId]) {
         return;
       }
-      if (!lastFrame) {
-        const room = this.rooms[currentRoomId];
-        if (room) {
-          this.emit("leaveRoom", currentRoomId, lastFrame);
-        }
-      }
-      const frameStack = this.roomStates[currentRoomId].frameStack[playerId];
-      const gameModel = this.roomStates[currentRoomId].gameModel;
-      lastFrame = Math.floor(this.roomStates[currentRoomId].lastFrame[playerId] / 10) * 10 + 10;
+      const frameStack = roomState.frameStack[playerId];
+      const gameModel = roomState.gameModel;
+      const knownDisconnectFrame = Math.floor((roomState.lastFrame[playerId] ?? gameModel.frame) / 10) * 10 + 10;
+      const disconnectFrame = Math.max(
+        knownDisconnectFrame,
+        Number.isFinite(requestedDisconnectFrame) ? requestedDisconnectFrame! : knownDisconnectFrame
+      );
 
       let startingFrame;
       if (frameStack.length === 0) {
-        startingFrame = gameModel.frame + 1;
+        startingFrame = gameModel.frame;
       } else {
-        startingFrame = this.roomStates[currentRoomId].lastFrame[playerId] + 1;
+        startingFrame = (roomState.lastFrame[playerId] ?? gameModel.frame) + 1;
       }
-      for (let i = startingFrame; i < lastFrame; i += 1) {
+      for (let i = startingFrame; i < disconnectFrame; i += 1) {
         frameStack.push({
           keys: InputManager.buildKeyMap(),
           frame: i,
           events: [],
           playerId: playerId,
+          roomId: currentRoomId,
         });
       }
+      roomState.lastFrame[playerId] = Math.max(roomState.lastFrame[playerId] ?? -1, disconnectFrame - 1);
 
-      const leavingIndex = this.disconnectingPlayers.findIndex(([playerId]) => playerId === playerId);
-      if (leavingIndex !== -1 && this.disconnectingPlayers[leavingIndex][1] < lastFrame) {
-        this.disconnectingPlayers[leavingIndex][1] = lastFrame;
+      const disconnectingIndex = this.disconnectingPlayers.findIndex(
+        ([disconnectingPlayerId]) => disconnectingPlayerId === playerId
+      );
+      let disconnectFrameChanged = false;
+      if (disconnectingIndex !== -1 && this.disconnectingPlayers[disconnectingIndex][1] < disconnectFrame) {
+        this.disconnectingPlayers[disconnectingIndex][1] = disconnectFrame;
+        disconnectFrameChanged = true;
+      } else if (disconnectingIndex === -1) {
+        this.disconnectingPlayers.push([playerId, disconnectFrame]);
+        disconnectFrameChanged = true;
+      }
+
+      this.leavingPlayers[currentRoomId] = this.leavingPlayers[currentRoomId] ?? [];
+      const leavingIndex = this.leavingPlayers[currentRoomId].findIndex(([leavingPlayerId]) => leavingPlayerId === playerId);
+      if (leavingIndex !== -1 && this.leavingPlayers[currentRoomId][leavingIndex][1] < disconnectFrame) {
+        this.leavingPlayers[currentRoomId][leavingIndex][1] = disconnectFrame;
       } else if (leavingIndex === -1) {
-        this.disconnectingPlayers.push([playerId, lastFrame]);
-        this.emit("userDisconnect", lastFrame);
+        this.leavingPlayers[currentRoomId].push([playerId, disconnectFrame]);
+      }
+
+      if (disconnectFrameChanged) {
+        this.emit("userDisconnect", playerId, disconnectFrame);
       }
     });
 
@@ -393,6 +445,49 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     }
   }
 
+  private clearMissingFrameStall(roomId: string, playerId: string): void {
+    if (this.missingFrameStalls[roomId]) {
+      delete this.missingFrameStalls[roomId][playerId];
+    }
+  }
+
+  private recordMissingFrameStall(
+    gameModel: GameModel,
+    playerId: string
+  ): { firstMiss: boolean; timedOut: boolean } {
+    this.missingFrameStalls[gameModel.roomId] = this.missingFrameStalls[gameModel.roomId] ?? {};
+    const roomStalls = this.missingFrameStalls[gameModel.roomId];
+    const current = roomStalls[playerId];
+    const now = Date.now();
+    const firstMiss = !current || current.frame !== gameModel.frame;
+    if (firstMiss) {
+      roomStalls[playerId] = { frame: gameModel.frame, since: now };
+      return { firstMiss: true, timedOut: false };
+    }
+    return {
+      firstMiss: false,
+      timedOut: now - current.since >= (this.options.disconnectTimeoutMs ?? 3000),
+    };
+  }
+
+  private isRemotePlayer(playerId: string): boolean {
+    return !this.localPlayers.some((player) => player.netId === playerId);
+  }
+
+  private maybeDisconnectStalledPlayer(gameModel: GameModel, playerId: string): boolean {
+    const stall = this.recordMissingFrameStall(gameModel, playerId);
+    if (stall.firstMiss) {
+      console.error("dropping slow frame", playerId, gameModel.frame);
+    }
+    if (!stall.timedOut || !this.isRemotePlayer(playerId)) {
+      return false;
+    }
+    console.warn("disconnecting stalled player", playerId, gameModel.frame);
+    this.clearMissingFrameStall(gameModel.roomId, playerId);
+    this.emit("userDisconnect", playerId);
+    return true;
+  }
+
   frameSkipCheck = (gameModel: GameModel): boolean => {
     const room = this.roomStates[gameModel.roomId];
     const frameStack = room?.frameStack;
@@ -422,13 +517,17 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
           if (isStepMode) {
             continue;
           }
-          console.error("dropping slow frame", netId, gameModel.frame);
-          // console.error(this.frameStack);
+          if (this.maybeDisconnectStalledPlayer(gameModel, netId)) {
+            continue;
+          }
           return true;
         }
 
         if (frameStack[netId][0].frame > gameModel.frame) {
           if (isStepMode) {
+            continue;
+          }
+          if (this.maybeDisconnectStalledPlayer(gameModel, netId)) {
             continue;
           }
           this.pendingMissedFrames[gameModel.roomId] = this.pendingMissedFrames[gameModel.roomId] ?? {};
@@ -438,6 +537,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
           }
           return true;
         }
+        this.clearMissingFrameStall(gameModel.roomId, netId);
       }
     }
     return false;
@@ -457,6 +557,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
       this.preloadedRoomIds.delete(roomId);
       delete this.pendingMissedFrames[roomId];
       delete this.publishedFrames[roomId];
+      this.backgroundFrameFlow.clearRoom(roomId);
     }
   }
 
@@ -489,71 +590,15 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
         lastFrame: {},
       };
     }
-    const room = this.roomStates[roomId];
     this.roomSubs[roomId].push(
-      this.on(
-        "frame",
-        (playerId, frame: { keys: { [key: string]: boolean }; events: string[]; frame: number; playerId: string; roomId?: string }) => {
-          if (frame.roomId && frame.roomId !== roomId) {
-            return;
-          }
-          const obj = this.inputManager.toKeyMap(frame.keys);
-          if (room.gameModel && frame.frame < room.gameModel.frame) {
-            return;
-          }
-          if (!room.frameStack[frame.playerId]) {
-            room.frameStack[frame.playerId] = [];
-          }
-          const isStepMode = room.gameModel?.executionMode === "step";
-          if (!isStepMode) {
-            const lastFrame = room.lastFrame[frame.playerId] ?? -1;
-            if (lastFrame >= frame.frame) {
-              return;
-            }
-            room.frameStack[frame.playerId].push({
-              keys: obj,
-              frame: frame.frame,
-              events: frame.events,
-              playerId: frame.playerId,
-              roomId,
-            });
-          } else {
-            const existingIndex = room.frameStack[frame.playerId].findIndex((queuedFrame) => queuedFrame.frame === frame.frame);
-            if (existingIndex !== -1) {
-              room.frameStack[frame.playerId][existingIndex] = {
-                keys: obj,
-                frame: frame.frame,
-                events: frame.events,
-                playerId: frame.playerId,
-                roomId,
-              };
-            } else {
-              const queuedFrame = {
-                keys: obj,
-                frame: frame.frame,
-                events: frame.events,
-                playerId: frame.playerId,
-                roomId,
-              };
-              room.frameStack[frame.playerId].push(queuedFrame);
-              room.frameStack[frame.playerId].sort((a, b) => a.frame - b.frame);
-            }
-          }
-          room.lastFrame[frame.playerId] = Math.max(room.lastFrame[frame.playerId] ?? -1, frame.frame);
-
-          if (this.pendingMissedFrames[roomId]?.[frame.playerId] === frame.frame) {
-            delete this.pendingMissedFrames[roomId][frame.playerId];
-          }
-
-          if (
-            isStepMode &&
-            !this.localPlayers.some((player) => player.netId === frame.playerId) &&
-            frame.frame >= (room.gameModel?.frame ?? frame.frame)
-          ) {
-            this.requestStep();
-          }
-        }
-      )
+      this.on("frame", (_playerId, frame) => {
+        this.backgroundFrameFlow.enqueueFrame(roomId, frame);
+      })
+    );
+    this.roomSubs[roomId].push(
+      this.on("frameBatch", (_playerId, batch) => {
+        this.backgroundFrameFlow.enqueueFrameBatch(roomId, batch);
+      })
     );
   }
 
@@ -705,14 +750,14 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
           roomState.gameModel.preloadOnly = true;
           roomState.gameModel.localNetIds = [];
           this.preloadedRoomIds.add(roomId);
-          this.history[roomState.gameModel.roomId] = {
+          this.resetHistory(roomState.gameModel.roomId, {
             frames: {},
             seed: roomState.gameModel.seed,
             startTimestamp: Date.now(),
             stateHashes: {},
             snapshots: {},
             configs: {},
-          };
+          });
           resolve(roomState.gameModel);
         }
       );
@@ -928,14 +973,14 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
               }); // GameModel(GameCoordinator.GetInstance(), gameInstance, seed, coreOverrides);
               await roomState.gameModel.deserializeState(state);
             }
-            this.history[roomState.gameModel.roomId] = {
+            this.resetHistory(roomState.gameModel.roomId, {
               frames: {},
               seed: roomState.gameModel.seed,
               startTimestamp: Date.now(),
               stateHashes: {},
               snapshots: {},
               configs: {},
-            };
+            });
             if (roomState.gameModel) {
               // roomState.gameModel?.loadStateObject(state);
               roomState.gameModel.preloadOnly = false;
@@ -1101,16 +1146,22 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     firstPlayerConfig: any,
     buildWorld: (gameModel: GameModel, firstPlayerConfig: any) => void | Promise<void>
   ): Promise<void> | void {
-    this.history[gameModel.roomId] = {
+    this.resetHistory(gameModel.roomId, {
       frames: {},
       seed: gameModel.seed,
       startTimestamp: Date.now(),
       stateHashes: {},
       snapshots: {},
       configs: {},
-    };
+    });
     this.history[gameModel.roomId].configs[this.localPlayers[0].netId] = firstPlayerConfig;
+    this.historyPersistenceFlow.setPlayerConfig(gameModel.roomId, this.localPlayers[0].netId, firstPlayerConfig);
     return buildWorld(gameModel, firstPlayerConfig);
+  }
+
+  private resetHistory(roomId: string, stack: ReplayStack<T>): void {
+    this.history[roomId] = stack;
+    this.historyPersistenceFlow.resetRoom(roomId, stack);
   }
 
   firstFrame(gameModel: GameModel, _firstPlayerConfig: any): void | Promise<void> {
@@ -1119,6 +1170,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
 
     this.history[gameModel.roomId].stateHashes[gameModel.frame] = serializedState;
     this.history[gameModel.roomId].snapshots[gameModel.frame] = state;
+    this.historyPersistenceFlow.recordSnapshot(gameModel.roomId, gameModel.frame, serializedState, state);
 
     return;
   }
@@ -1209,6 +1261,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   protected createPlayer(gameModel: GameModel, playerId: string, playerConfig: T, frame: number) {
     if (this.history[gameModel.roomId]) {
       this.history[gameModel.roomId].configs[playerId] = playerConfig ?? ({} as any);
+      this.historyPersistenceFlow.setPlayerConfig(gameModel.roomId, playerId, playerConfig ?? ({} as any));
     }
 
     const entityId = this._onPlayerJoin(gameModel, playerId, playerConfig);
@@ -1243,13 +1296,14 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     const targetFrame = gameModel.executionMode === "step" ? gameModel.frame : gameModel.frame + this.frameOffset;
 
     if (localPlayer) {
-      const currentKeyMap = this.inputManager.getKeyMap(localPlayer.inputType, localPlayer.inputIndex);
+      const backgroundFrame = this.backgroundFrameFlow.localFrameOverride(localPlayer);
+      const currentKeyMap = backgroundFrame?.keys ?? this.inputManager.getKeyMap(localPlayer.inputType, localPlayer.inputIndex);
       const frame: Frame = {
         keys: this.inputManager.keyMapToJsonObject(currentKeyMap),
         frame: targetFrame,
         playerId: localPlayer.netId,
         roomId: gameModel.roomId,
-        events: this.playerEventManager.getEvents(localPlayer.netId),
+        events: backgroundFrame?.events ?? this.playerEventManager.getEvents(localPlayer.netId),
       };
       roomState.frameStack[netId] = roomState.frameStack[netId] ?? [];
       if (gameModel.executionMode !== "step") {
@@ -1301,14 +1355,13 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
 
   updateHistory(netId: string, frame: Frame, gameModel: GameModel) {
     this.history[gameModel.roomId].frames[netId] = this.history[gameModel.roomId].frames[netId] ?? [];
-    this.history[gameModel.roomId].frames[netId].push({
+    const historyFrame = {
       ...frame,
       keys: this.inputManager.keyMapToJsonObject(frame.keys as KeyMap),
-    });
-
-    if (gameModel.frame % 300 === 0) {
-      localStorage.setItem("history", JSON.stringify(this.history));
-    }
+    };
+    this.history[gameModel.roomId].frames[netId].push(historyFrame);
+    this.historyPersistenceFlow.recordFrame(gameModel.roomId, netId, historyFrame);
+    this.historyPersistenceFlow.persistIfDue(gameModel.frame);
   }
 
   consumePlayerFrame(roomState: RoomState, netId: string, playerInput: PlayerInput, gameModel: GameModel) {

@@ -368,7 +368,7 @@ describe("CoreConnectionInstance", () => {
         },
         lastFrame: { "player-2": 11 },
       };
-      (inputManager.toKeyMap as any).mockImplementation((keys) => keys);
+      (inputManager.toKeyMap as any).mockImplementation((keys: any) => keys);
       instance.testSubscribeFrame(roomId);
 
       const emitSpy = vi.spyOn(instance, "emit");
@@ -483,6 +483,30 @@ describe("CoreConnectionInstance", () => {
       expect(playerInput.prevKeyMap).toEqual({ up: false });
       expect(playerInput.events).toEqual(["jump"]);
     });
+
+    it("should record replay history through the persistence flow", () => {
+      const roomId = "test-room";
+      const recordFrame = vi.fn();
+      const persistIfDue = vi.fn();
+      (instance as any).historyPersistenceFlow = {
+        recordFrame,
+        persistIfDue,
+      };
+      (inputManager.keyMapToJsonObject as any).mockReturnValue({});
+
+      const gameModel = { roomId, frame: 300 } as unknown as GameModel;
+      const frame = { frame: 300, keys: {}, events: [], playerId: "player-1" };
+
+      instance.updateHistory("player-1", frame, gameModel);
+
+      expect(recordFrame).toHaveBeenCalledWith(roomId, "player-1", {
+        frame: 300,
+        keys: {},
+        events: [],
+        playerId: "player-1",
+      });
+      expect(persistIfDue).toHaveBeenCalledWith(300);
+    });
   });
 
   describe("Player Event Management", () => {
@@ -570,6 +594,154 @@ describe("CoreConnectionInstance", () => {
       expect(instance.players).not.toContain("player-2");
       expect(disconnectListener).toHaveBeenCalledWith("player-2");
       expect(instance.disconnectingPlayers).toContainEqual(["player-2", lastFrame]);
+    });
+
+    it("should schedule disconnected player removal on the shared disconnect frame", () => {
+      const roomId = "test-room";
+      const onPlayerLeave = vi.fn();
+      const gameModel = {
+        roomId,
+        frame: 9,
+        players: [100, 200],
+        getComponentsByCategory: vi.fn().mockReturnValue([]),
+      } as unknown as GameModel;
+
+      instance.rooms[roomId] = {
+        roomId,
+        players: ["player-1", "player-2"],
+        host: "player-1",
+        rebalanceOnLeave: false,
+      };
+      instance.players[1] = {
+        ...instance.players[0],
+        netId: "player-2",
+        currentRoomId: roomId,
+      };
+      instance.roomStates[roomId] = {
+        gameModel,
+        frameStack: {
+          "player-2": [{ frame: 9, keys: {}, events: [], playerId: "player-2" }],
+        },
+        lastFrame: { "player-2": 9 },
+      };
+      instance._onPlayerLeave = onPlayerLeave;
+
+      instance.subscriptions["userDisconnect"]?.forEach((cb) => cb("player-2"));
+
+      expect(instance.leavingPlayers[roomId]).toContainEqual(["player-2", 10]);
+
+      (gameModel as any).frame = 10;
+      instance.handleLeavingPlayers(gameModel, instance.roomStates[roomId].frameStack);
+
+      expect(onPlayerLeave).toHaveBeenCalledWith(gameModel, "player-2");
+      expect(instance.roomStates[roomId].frameStack["player-2"]).toBeUndefined();
+    });
+
+    it("should synthesize the currently blocked frame when a disconnected player queue is empty", () => {
+      const roomId = "test-room";
+      const gameModel = {
+        roomId,
+        frame: 656,
+        players: [100, 200],
+        localNetIds: ["player-1"],
+      } as unknown as GameModel;
+
+      instance.rooms[roomId] = {
+        roomId,
+        players: ["player-1", "player-2"],
+        host: "player-1",
+        rebalanceOnLeave: false,
+      };
+      instance.players[1] = {
+        ...instance.players[0],
+        netId: "player-2",
+        currentRoomId: roomId,
+      };
+      instance.roomStates[roomId] = {
+        gameModel,
+        frameStack: {
+          "player-2": [],
+        },
+        lastFrame: { "player-2": 655 },
+      };
+
+      instance.subscriptions["userDisconnect"]?.forEach((cb) => cb("player-2"));
+
+      expect(instance.roomStates[roomId].frameStack["player-2"][0].frame).toBe(656);
+      expect(instance.leavingPlayers[roomId]).toContainEqual(["player-2", 660]);
+    });
+
+    it("should disconnect a remote player whose missing frame stalls past the timeout", () => {
+      const roomId = "test-room";
+      instance = new TestCoreConnectionInstance(mockPlayer, inputManager, { ...mockOptions, disconnectTimeoutMs: 0 });
+      const gameModel = {
+        roomId,
+        frame: 656,
+        executionMode: "realtime",
+        localNetIds: ["player-1"],
+        getComponentActives: vi.fn().mockReturnValue([200]),
+        hasComponent: vi.fn().mockReturnValue(true),
+        getTypedUnsafe: vi.fn().mockReturnValue({ pid: "player-2" }),
+      } as unknown as GameModel;
+
+      instance.rooms[roomId] = {
+        roomId,
+        players: ["player-1", "player-2"],
+        host: "player-1",
+        rebalanceOnLeave: false,
+      };
+      instance.players[1] = {
+        ...instance.players[0],
+        netId: "player-2",
+        currentRoomId: roomId,
+      };
+      instance.roomStates[roomId] = {
+        gameModel,
+        frameStack: {
+          "player-2": [],
+        },
+        lastFrame: { "player-2": 655 },
+      };
+
+      expect(instance.frameSkipCheck(gameModel)).toBe(true);
+      expect(instance.frameSkipCheck(gameModel)).toBe(false);
+      expect(instance.leavingPlayers[roomId]).toContainEqual(["player-2", 660]);
+      expect(instance.roomStates[roomId].frameStack["player-2"][0].frame).toBe(656);
+    });
+
+    it("should track multiple disconnecting players independently", () => {
+      const roomId = "test-room";
+
+      instance.rooms[roomId] = {
+        roomId,
+        players: ["player-1", "player-2", "player-3"],
+        host: "player-1",
+        rebalanceOnLeave: false,
+      };
+      instance.players[1] = {
+        ...instance.players[0],
+        netId: "player-2",
+        currentRoomId: roomId,
+      };
+      instance.players[2] = {
+        ...instance.players[0],
+        netId: "player-3",
+        currentRoomId: roomId,
+      };
+      instance.roomStates[roomId] = {
+        gameModel: { roomId, frame: 9 } as GameModel,
+        frameStack: {
+          "player-2": [{ frame: 9, keys: {}, events: [], playerId: "player-2" }],
+          "player-3": [{ frame: 9, keys: {}, events: [], playerId: "player-3" }],
+        },
+        lastFrame: { "player-2": 9, "player-3": 19 },
+      };
+
+      instance.subscriptions["userDisconnect"]?.forEach((cb) => cb("player-2"));
+      instance.subscriptions["userDisconnect"]?.forEach((cb) => cb("player-3"));
+
+      expect(instance.disconnectingPlayers).toContainEqual(["player-2", 10]);
+      expect(instance.disconnectingPlayers).toContainEqual(["player-3", 20]);
     });
   });
 

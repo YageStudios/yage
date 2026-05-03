@@ -5,24 +5,55 @@ import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import { md5 } from "yage/utils/md5";
 import { detailedDiff } from "deep-object-diff";
 import { cloneDeep } from "lodash";
-import type { ReplayStack } from "./ConnectionInstance";
+import type { PlayerConnect, ReplayStack } from "./ConnectionInstance";
+import { loadPersistedHistory, type HistoryPersistenceOptions } from "./HistoryPersistenceFlow";
+
+type ReplayHistory<T> = { [key: string]: ReplayStack<T> };
+
+function firstReplayRoom<T>(history: ReplayHistory<T>): string | null {
+  return Object.keys(history)[0] ?? null;
+}
+
+function replayPlayer<T>(history: ReplayHistory<T>): PlayerConnect<T> | null {
+  const roomId = firstReplayRoom(history);
+  if (!roomId) {
+    return null;
+  }
+  const playerId = Object.keys(history[roomId].configs)[0];
+  if (!playerId) {
+    return null;
+  }
+  return {
+    netId: playerId,
+    uniqueId: playerId,
+    token: playerId,
+    config: history[roomId].configs[playerId],
+  };
+}
 
 export class HistoryConnectionInstance<T> extends CoreConnectionInstance<T> {
-  replayHistory: ReplayStack<T>;
-  constructor(history: { [key: string]: ReplayStack<T> }) {
+  replayHistory!: ReplayStack<T>;
+
+  constructor(
+    history?: ReplayHistory<T>,
+    private readonly historyPersistenceOptions?: HistoryPersistenceOptions
+  ) {
+    const player = (history && replayPlayer(history)) ?? {
+      netId: "replay-player",
+      uniqueId: "replay-player",
+      token: "replay-player",
+      config: undefined as T | undefined,
+    };
     super(
-      {
-        netId: Object.keys(history[Object.keys(history)[0]].configs)[0],
-        uniqueId: Object.keys(history[Object.keys(history)[0]].configs)[0],
-        token: Object.keys(history[Object.keys(history)[0]].configs)[0],
-        config: history[Object.keys(history)[0]].configs[Object.keys(history[Object.keys(history)[0]].configs)[0]],
-      },
+      player,
       new InputManager(),
-      {}
+      { historyPersistence: false }
     );
-    const gameModelHistory = history[Object.keys(history)[0]];
-    this.player.connected = true;
-    this.replayHistory = gameModelHistory;
+    if (history && firstReplayRoom(history)) {
+      this.applyReplayHistory(history);
+      this.player.connected = true;
+      this.roomSyncResolve();
+    }
   }
   stacked = false;
 
@@ -30,6 +61,38 @@ export class HistoryConnectionInstance<T> extends CoreConnectionInstance<T> {
   publishState = () => {};
   updateHistory = () => {};
   frameSkipCheck: (gameModel: GameModel) => boolean = () => false;
+
+  async connect(): Promise<void> {
+    if (!this.replayHistory) {
+      this.applyReplayHistory(await loadPersistedHistory<T>(this.historyPersistenceOptions));
+    }
+    this.player.connected = true;
+    this.player.connectionTime = Date.now();
+    this.roomSyncResolve();
+  }
+
+  async roomHasPlayers(): Promise<boolean> {
+    return false;
+  }
+
+  private applyReplayHistory(history: ReplayHistory<T>): void {
+    const roomId = firstReplayRoom(history);
+    if (!roomId) {
+      throw new Error("No replay history available");
+    }
+    const player = replayPlayer(history);
+    if (!player) {
+      throw new Error("Replay history does not contain a player config");
+    }
+    this.history = history;
+    this.replayHistory = history[roomId];
+    const localPlayer = this.localPlayers[0];
+    localPlayer.netId = player.netId;
+    localPlayer.uniqueId = player.uniqueId;
+    localPlayer.token = player.token;
+    localPlayer.config = player.config;
+    this.players[0] = localPlayer;
+  }
 
   startFrame(gameModel: GameModel) {
     if (!this.stacked) {

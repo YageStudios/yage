@@ -5,6 +5,7 @@ import { flags } from "yage/console/flags";
 import type { AchievementService } from "yage/achievements/AchievementService";
 import Ticker from "./Ticker";
 import type { SceneTimestep } from "./Scene";
+import type { BackgroundFrameFlow } from "yage/connection/BackgroundFrameFlow";
 
 export type GameInstanceOptions<T> = {
   connection: ConnectionInstance<T>;
@@ -133,6 +134,7 @@ export class GameInstance<T> {
 
     ticker.start();
     this.ticker = ticker;
+    this.bindBackgroundFrameFlow();
   }
 
   async preloadRoom(
@@ -260,6 +262,36 @@ export class GameInstance<T> {
       this._stepScheduled = false;
       this.stepManual();
     });
+  }
+
+  private bindBackgroundFrameFlow(): void {
+    const backgroundFrameFlow = (this.options.connection as { backgroundFrameFlow?: BackgroundFrameFlow }).backgroundFrameFlow;
+    backgroundFrameFlow?.setCatchUpRunner((maxSteps) => this.catchUpBackgroundRooms(maxSteps));
+  }
+
+  private catchUpBackgroundRooms(maxSteps: number): number {
+    const activeRooms = new Set([
+      ...this.options.connection.players.map((p) => p.currentRoomId),
+      ...this.options.connection.preloadedRoomIds,
+    ]);
+    let executed = 0;
+    for (const roomId of activeRooms) {
+      const gameModel = roomId ? this.options.connection.roomStates[roomId]?.gameModel : null;
+      if (!gameModel || gameModel.destroyed) {
+        continue;
+      }
+      while (executed < maxSteps && !gameModel.destroyed) {
+        const result = this.runGameLoop(gameModel, false);
+        if (!result) {
+          break;
+        }
+        executed += 1;
+      }
+      if (executed >= maxSteps) {
+        break;
+      }
+    }
+    return executed;
   }
 
   runGameLoop(gameModel: GameModel, draw = true): boolean {

@@ -105,7 +105,7 @@ export async function QuickStart<T = null>(
       return connection;
     }
     if (connection === "REPLAY") {
-      return new HistoryConnectionInstance<T>(JSON.parse(localStorage.getItem("history") ?? "{}"));
+      return new HistoryConnectionInstance<T>();
     }
     if (connection === "SINGLEPLAYER") {
       return new SingleplayerConnectionInstance<T>(
