@@ -26,6 +26,7 @@ import { ComponentCategory } from "yage/constants/enums";
 import { SystemImpl } from "minecs";
 import { BackgroundFrameFlow, type BackgroundFrameFlowOptions } from "./BackgroundFrameFlow";
 import { HistoryPersistenceFlow, type HistoryPersistenceOptions } from "./HistoryPersistenceFlow";
+import { flags } from "yage/console/flags";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export type CoreConnectionInstanceOptions<T> = {
@@ -1551,7 +1552,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
 
     // const state = gameModel.linearSerializeState();
 
-    if (gameModel.frame % 300 === 0) {
+    if (gameModel.frame % 300 === 0 && flags.DEBUG) {
       // const perf = performance.now();
       // const state = gameModel.serializeState();
       // const serializedState = md5(JSON.stringify(state));
