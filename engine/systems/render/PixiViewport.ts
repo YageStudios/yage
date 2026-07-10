@@ -43,7 +43,8 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
   private initializeSharedPixi = () => {
     document.querySelectorAll(".pixi-canvas").forEach((el) => el.remove());
 
-    PixiViewportSystem.pixiApp = new PIXI.Application();
+    PixiViewportSystem.pixiApp = new PIXI.Application({ autoStart: false });
+    PixiViewportSystem.pixiApp.stop();
     const canvas = PixiViewportSystem.pixiApp.renderer.view as HTMLCanvasElement;
     canvas.className = "pixi-canvas";
     canvas.style.position = "fixed";

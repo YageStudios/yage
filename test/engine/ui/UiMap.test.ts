@@ -1287,6 +1287,53 @@ describe("UiMap — New Features", () => {
     });
   });
 
+  describe("Posspec layout styles", () => {
+    it("promotes container style padding into layout padding", () => {
+      Object.defineProperty(window, "innerWidth", { value: 1920, configurable: true });
+      Object.defineProperty(window, "innerHeight", { value: 1080, configurable: true });
+
+      const json = {
+        overlay: {
+          type: "Canvas",
+          children: [
+            {
+              id: "panel",
+              type: "VStack",
+              anchor: "TopLeft",
+              width: 164,
+              height: 80,
+              styles: {
+                padding: "8px",
+                boxSizing: "border-box",
+                backgroundColor: "rgba(0, 0, 0, 0.8)",
+              },
+              children: [
+                {
+                  id: "depart",
+                  type: "Button",
+                  width: 148,
+                  height: 32,
+                  label: "Depart",
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      const map = buildUiMap(json);
+      const elements = map.build({}, vi.fn());
+      const root = elements.overlay._config.children?.[0];
+      const panel = root?._config.children?.[0];
+      const button = panel?._config.children?.[0];
+
+      expect(panel?._config.style.padding).toBeUndefined();
+      expect(panel?._config.style.boxSizing).toBe("border-box");
+      expect(panel?.config.layoutRect).toMatchObject({ x: 0, y: 0, width: 164, height: 80 });
+      expect(button?.config.layoutRect).toMatchObject({ x: 8, y: 8, width: 148, height: 32 });
+    });
+  });
+
   // --------------------------------------------------------------------------
   // Security: sandboxed expressions
   // --------------------------------------------------------------------------

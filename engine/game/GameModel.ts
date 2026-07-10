@@ -251,6 +251,72 @@ const publishPerformanceTiming = (timing: World["timing"], channel: "perf" | "dr
   );
 };
 
+const drawSystemEnabled = (systemName: string): boolean => {
+  if (typeof window === "undefined") {
+    return true;
+  }
+
+  const checker = (window as Window & { yageDrawSystemEnabled?: (systemName: string) => boolean })
+    .yageDrawSystemEnabled;
+  return typeof checker === "function" ? checker(systemName) !== false : true;
+};
+
+const shouldScheduledSystemRun = (frame: number, frameMod: number, frameModOffset: number): boolean => {
+  if (frameMod <= 1 && frameModOffset === 0) return true;
+  const clampedMod = Math.max(1, Math.min(60, frameMod));
+  const clampedOffset = Math.max(0, Math.min(clampedMod - 1, frameModOffset));
+  return (frame - 1 - clampedOffset) % clampedMod === 0 && frame > clampedOffset;
+};
+
+const drawSystemCleanupState = new WeakMap<World, Map<string, Set<number>>>();
+const drawSystemCleanupSkipped = new Set(["PixiViewportSystem"]);
+
+const cleanupStateForDrawSystem = (world: World, systemName: string): Set<number> => {
+  let worldState = drawSystemCleanupState.get(world);
+  if (!worldState) {
+    worldState = new Map();
+    drawSystemCleanupState.set(world, worldState);
+  }
+  let cleanedEntities = worldState.get(systemName);
+  if (!cleanedEntities) {
+    cleanedEntities = new Set();
+    worldState.set(systemName, cleanedEntities);
+  }
+  return cleanedEntities;
+};
+
+const cleanupDisabledDrawSystem = (world: World, system: SystemImpl<any>, systemName: string, entities: number[]) => {
+  if (drawSystemCleanupSkipped.has(systemName) || typeof system.cleanup !== "function") {
+    return;
+  }
+
+  const cleanedEntities = cleanupStateForDrawSystem(world, systemName);
+  for (const entity of entities) {
+    if (cleanedEntities.has(entity)) {
+      continue;
+    }
+    system.cleanup(world, entity);
+    cleanedEntities.add(entity);
+  }
+};
+
+const restoreEnabledDrawSystem = (world: World, system: SystemImpl<any>, systemName: string, entities: number[]) => {
+  const cleanedEntities = drawSystemCleanupState.get(world)?.get(systemName);
+  if (!cleanedEntities?.size) {
+    return;
+  }
+
+  if (typeof system.init === "function") {
+    for (const entity of entities) {
+      if (cleanedEntities.has(entity)) {
+        system.init(world, entity);
+      }
+    }
+  }
+  cleanedEntities.clear();
+  drawSystemCleanupState.get(world)?.delete(systemName);
+};
+
 const clonePlainData = <T>(value: T): T => {
   if (value === undefined || value === null || typeof value !== "object") {
     return value;
@@ -266,17 +332,34 @@ const stepWorldDrawTiming = (world: World): World["timing"] => {
   const systems = world.drawSystems;
   for (let i = 0; i < systems.length; i++) {
     const system = systems[i];
+    const SystemClass = system.constructor as typeof SystemImpl;
+    if (!shouldScheduledSystemRun(world.frame, SystemClass.frameMod ?? 1, SystemClass.frameModOffset ?? 0)) {
+      continue;
+    }
+    const systemName = system.constructor.name;
     const entities = system.query(world);
     if (!entities.length) {
       continue;
     }
 
+    if (!drawSystemEnabled(systemName)) {
+      cleanupDisabledDrawSystem(world, system, systemName, entities);
+      timing.systems.push({
+        name: systemName,
+        totalTime: 0,
+        totalCalls: entities.length,
+        averageTime: 0,
+      });
+      continue;
+    }
+
+    restoreEnabledDrawSystem(world, system, systemName, entities);
     const start = performance.now();
     system.runAll(world);
     const elapsed = performance.now() - start;
     timing.totalTime += elapsed;
     timing.systems.push({
-      name: system.constructor.name,
+      name: systemName,
       totalTime: elapsed,
       totalCalls: entities.length,
       averageTime: elapsed / Math.max(1, entities.length),
@@ -392,7 +475,7 @@ export const GameModel = ({
       }
     },
     stepDraw: () => {
-      if (flags.PERFORMANCE_LOGS && flags.DRAW_PERFORMANCE_LOGS) {
+      if (flags.DRAW_PERFORMANCE_LOGS) {
         publishPerformanceTiming(stepWorldDrawTiming(gameModel), "draw");
         return;
       }
@@ -802,7 +885,16 @@ export const GameModel = ({
     addEntity: () => {
       return allocateEntity();
     },
-    removeEntity: (entity: number) => removeEntity(world, entity),
+    removeEntity: (entity: number) => {
+      if (
+        entityExists(world, entity) &&
+        gameModel.hasComponent("Physics", gameModel.coreEntity) &&
+        (gameModel.hasComponent("RigidCircle", entity) || gameModel.hasComponent("RigidBox", entity))
+      ) {
+        gameModel.getSystem(PhysicsSystem).removeEntity(gameModel, entity);
+      }
+      removeEntity(world, entity);
+    },
     serializeState(): GameModelState {
       const hasPhysics = gameModel.hasComponent("Physics", gameModel.coreEntity);
       const physicsSystem = hasPhysics ? this.getSystem(PhysicsSystem) : null;
@@ -838,10 +930,13 @@ export const GameModel = ({
       if (gameModel.destroyed) {
         return;
       }
+      if (gameModel.hasComponent("Physics", gameModel.coreEntity)) {
+        gameModel.getSystem(PhysicsSystem).cleanup?.();
+      }
       const entities = [...world.entitySparseSet.dense].sort((a, b) => b - a);
       for (const entity of entities) {
         if (entityExists(world, entity)) {
-          removeEntity(world, entity);
+          gameModel.removeEntity(entity);
         }
       }
       deleteWorld(world);

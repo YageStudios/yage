@@ -376,6 +376,8 @@ function buildLegacyConfig(node: any): any {
   if (node.text !== undefined) config.label = node.text;
   if (node.label !== undefined) config.label = node.label;
   if (node.texture !== undefined) config.imageKey = node.texture;
+  if (node.imageKey !== undefined) config.imageKey = node.imageKey;
+  if (node.backgroundSize !== undefined) config.backgroundSize = node.backgroundSize;
   if (node.value !== undefined) config.value = node.value;
 
   // Map focus/interaction

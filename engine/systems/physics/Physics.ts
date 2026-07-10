@@ -196,6 +196,10 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
   }
 
   removeEntityColliders(entity: number) {
+    if (!this.world) {
+      this.clearEntityColliderTracking(entity);
+      return;
+    }
     const colliders = this.colliders[entity];
     if (colliders) {
       for (const collider of colliders) {
@@ -206,7 +210,17 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
     }
   }
 
+  private clearEntityColliderTracking(entity: number) {
+    const colliders = this.colliders[entity];
+    if (!colliders) return;
+    for (const collider of colliders) {
+      delete this.colliderHandles[collider.handle];
+    }
+    delete this.colliders[entity];
+  }
+
   removeCollider(bodyOrHandle: RAPIER.Collider | number) {
+    if (!this.world) return;
     if (typeof bodyOrHandle !== "number") {
       bodyOrHandle = bodyOrHandle.handle;
     }
@@ -243,11 +257,18 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
       delete this.collisionCounts[entity];
     }
 
-    this.removeEntityColliders(entity);
     const body = this.bodies[entity];
+    if (!this.world) {
+      delete this.bodies[entity];
+      this.clearEntityColliderTracking(entity);
+      return;
+    }
     if (body) {
       this.world.removeRigidBody(body);
       delete this.bodies[entity];
+      this.clearEntityColliderTracking(entity);
+    } else {
+      this.removeEntityColliders(entity);
     }
   }
 
@@ -260,6 +281,22 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
       this.eventQueue = new RAPIER.EventQueue(false);
     }
     return this.world;
+  }
+
+  resetWorld(gameModel: GameModel) {
+    const physics = gameModel.getTypedUnsafe(Physics, this.coreEntity);
+    this.world = new RAPIER.World({ x: physics.gravityX, y: physics.gravityY });
+    this.world.timestep = 0.016;
+    this.eventQueue = new RAPIER.EventQueue(false);
+    this.bodies = {};
+    this.colliders = {};
+    this.colliderHandles = {};
+    this.collisionCounts = {};
+    const collisions = gameModel.getTyped(Collisions, this.coreEntity);
+    if (collisions) {
+      collisions.collisionMap = {};
+      collisions.collisions = collisions.collisionMap;
+    }
   }
 
   runAll = (gameModel: GameModel) => {
@@ -325,14 +362,15 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
   };
 
   cleanup = () => {
-    this.world.forEachRigidBody((body) => {
-      this.world.removeRigidBody(body);
-    });
-    this.world.forEachCollider((collider) => {
-      this.world.removeCollider(collider, false);
-    });
+    // Rapier can reject synchronous free/remove calls while MineCS cleanup still
+    // holds body/collider wrappers, so teardown abandons the world bookkeeping.
     // @ts-ignore
     this.world = null;
+    // @ts-ignore
+    this.eventQueue = null;
+    this.bodies = {};
+    this.colliders = {};
+    this.colliderHandles = {};
     this.collisionCounts = {};
   };
 }

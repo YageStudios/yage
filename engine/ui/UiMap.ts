@@ -466,6 +466,67 @@ const browserViewportDimensions = () => ({
   height: typeof window === "undefined" ? 1080 : window.innerHeight,
 });
 
+const LAYOUT_PADDING_NODE_TYPES = new Set(["Canvas", "VStack", "HStack", "Grid", "Box"]);
+
+const parsePosspecStylePaddingToken = (value: string): number | undefined => {
+  const match = /^(\d+(?:\.\d+)?|\.\d+)(px)?$/i.exec(value.trim());
+  if (!match) {
+    return undefined;
+  }
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+const parsePosspecStylePadding = (value: any): number | number[] | undefined => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) && value >= 0 ? value : undefined;
+  }
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const tokens = value.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length < 1 || tokens.length > 4) {
+    return undefined;
+  }
+
+  const parsed = tokens.map(parsePosspecStylePaddingToken);
+  if (parsed.some((item) => item === undefined)) {
+    return undefined;
+  }
+
+  const values = parsed as number[];
+  if (tokens.length === 1) {
+    return values[0];
+  }
+  if (tokens.length === 2) {
+    return [values[0], values[1]];
+  }
+  if (tokens.length === 3) {
+    return [values[0], values[1], values[2], values[1]];
+  }
+  return [values[0], values[1], values[2], values[3]];
+};
+
+const normalizePosspecLayoutPadding = (node: any) => {
+  if (!LAYOUT_PADDING_NODE_TYPES.has(node?.type) || !node.styles) {
+    return;
+  }
+  if (!Object.prototype.hasOwnProperty.call(node.styles, "padding")) {
+    return;
+  }
+
+  const layoutPadding = parsePosspecStylePadding(node.styles.padding);
+  if (layoutPadding === undefined) {
+    return;
+  }
+
+  if (node.padding === undefined) {
+    node.padding = layoutPadding;
+  }
+  delete node.styles.padding;
+};
+
 const resolvePosspecValue = (value: any, ctx: any): any => {
   if (typeof value === "string") {
     if (value.includes("{{")) {
@@ -541,6 +602,7 @@ const resolvePosspecNodes = (value: any, ctx: any, rootCtx: any): any[] => {
   }
 
   const resolvedNode: any = resolvePosspecValue(value, ctx);
+  normalizePosspecLayoutPadding(resolvedNode);
   resolvedNode.__eventContext = ctx;
   if (resolvedNode.children) {
     resolvedNode.children = resolvePosspecNodes(value.children, ctx, rootCtx);
@@ -656,6 +718,8 @@ const buildPosspecElementConfig = (
   if (node.text !== undefined) config.label = node.text;
   if (node.label !== undefined) config.label = node.label;
   if (node.texture !== undefined) config.imageKey = node.texture;
+  if (node.imageKey !== undefined) config.imageKey = node.imageKey;
+  if (node.backgroundSize !== undefined) config.backgroundSize = node.backgroundSize;
   if (node.value !== undefined) config.value = node.value;
   if (node.disabled !== undefined) config.disabled = node.disabled;
 
@@ -742,6 +806,11 @@ const applyPosspecNodeToElement = (
   if (config.imageKey !== undefined) {
     if ((element.config as any).imageKey !== config.imageKey) {
       (element.config as any).imageKey = config.imageKey;
+    }
+  }
+  if (config.backgroundSize !== undefined) {
+    if ((element.config as any).backgroundSize !== config.backgroundSize) {
+      (element.config as any).backgroundSize = config.backgroundSize;
     }
   }
   if (config.value !== undefined) {
