@@ -40,6 +40,7 @@ import { PlayerEventManager } from "yage/inputs/PlayerEventManager";
 import { ShareOnEject } from "yage/schemas/share/ShareOnEject";
 import { DoNotEject } from "yage/schemas/entity/DoNotEject";
 import { UiCleanupOnLeave } from "yage/schemas/render/UiCleanupOnLeave";
+import { FIXED_TIMESTEP_MS } from "yage/game/Timing";
 
 // @ts-expect-error - MineCS doesn't have a type for this
 type EntityWithComponent<T extends Schema> = number & { __hasComponent: T["type"] };
@@ -425,11 +426,11 @@ export const GameModel = ({
     inputManager,
     roomId: roomId ?? "",
     seed: seed ?? "",
-    coreEntity: allocateEntity(),
+    coreEntity: -1,
     timeElapsed: 0,
     rand: null as any,
     ping: 0,
-    frameDt: 16,
+    frameDt: FIXED_TIMESTEP_MS,
     paused: false,
     preloadOnly: false,
     destroyed: false,
@@ -465,8 +466,9 @@ export const GameModel = ({
       });
     },
     step: (dt?: number) => {
-      gameModel.timeElapsed += dt || 16;
-      gameModel.frameDt = dt || 16;
+      const elapsed = dt ?? FIXED_TIMESTEP_MS;
+      gameModel.timeElapsed += elapsed;
+      gameModel.frameDt = elapsed;
       if (flags.PERFORMANCE_LOGS) {
         stepWorldTiming(gameModel);
         publishPerformanceTiming(gameModel.timing, "perf");

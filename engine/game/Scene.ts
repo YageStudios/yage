@@ -12,6 +12,7 @@ import { TextInput } from "yage/ui/TextInput";
 import { UIService } from "yage/ui/UIService";
 import type { IDestroyOptions } from "pixi.js";
 import { Container } from "pixi.js";
+import { FIXED_TIMESTEP_MS } from "./Timing";
 export type SceneTimestep = "fixed" | "continuous";
 
 export type SceneUiConfig = {
@@ -97,7 +98,7 @@ export class Scene extends Container {
   }
 
   timestep: SceneTimestep = "fixed";
-  dt = 16.666666666666668;
+  dt = FIXED_TIMESTEP_MS;
 
   // eslint-disable-next-line @typescript-eslint/no-empty-function
   initialize: (args: unknown[]) => void | Promise<void> = () => {};

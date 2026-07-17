@@ -15,6 +15,7 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
   private static viewports: Map<string, Viewport> = new Map();
   private static instanceCount = 0;
   private static activeRoomId = "";
+  private static drawLogCount = 0;
 
   // Instance properties
   private roomId: string;
@@ -41,6 +42,7 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
   }
 
   private initializeSharedPixi = () => {
+    console.info("[yage-pixi] initialize start");
     document.querySelectorAll(".pixi-canvas").forEach((el) => el.remove());
 
     PixiViewportSystem.pixiApp = new PIXI.Application({ autoStart: false });
@@ -57,6 +59,19 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
 
     // @ts-ignore
     document.body.appendChild(PixiViewportSystem.pixiApp.view);
+    console.info("[yage-pixi] initialized", {
+      canvasCount: document.querySelectorAll("canvas").length,
+      width: PixiViewportSystem.pixiApp.renderer.width,
+      height: PixiViewportSystem.pixiApp.renderer.height,
+      resolution: PixiViewportSystem.pixiApp.renderer.resolution,
+      contextLost: Boolean((PixiViewportSystem.pixiApp.renderer as any).gl?.isContextLost?.()),
+    });
+    canvas.addEventListener("webglcontextlost", (event) => {
+      console.error("[yage-pixi] webglcontextlost", { defaultPrevented: event.defaultPrevented });
+    });
+    canvas.addEventListener("webglcontextrestored", () => {
+      console.warn("[yage-pixi] webglcontextrestored");
+    });
 
     // Setup PIXI Inspector if available
     (window as any).__PIXI_INSPECTOR_GLOBAL_HOOK__?.register({ PIXI: PIXI });
@@ -103,6 +118,18 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
 
     // Initial viewport update
     this.updatePixiViewport(viewport);
+    console.info("[yage-pixi] viewport initialized", {
+      roomId: this.roomId,
+      entity,
+      frame: gameModel.frame,
+      players: gameModel.players,
+      localNetIds: gameModel.localNetIds,
+      viewportVisible: viewport.visible,
+      canvas: {
+        width: (PixiViewportSystem.pixiApp.renderer.view as HTMLCanvasElement).width,
+        height: (PixiViewportSystem.pixiApp.renderer.view as HTMLCanvasElement).height,
+      },
+    });
   };
 
   private updatePixiViewport = (viewport: Viewport) => {
@@ -154,6 +181,18 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
     const viewport = PixiViewportSystem.viewports.get(this.roomId);
 
     if (viewport) {
+      if (PixiViewportSystem.drawLogCount < 3) {
+        PixiViewportSystem.drawLogCount += 1;
+        console.info("[yage-pixi] draw", {
+          roomId: this.roomId,
+          frame: gameModel.frame,
+          players: gameModel.players,
+          localNetIds: gameModel.localNetIds,
+          viewportVisible: viewport.visible,
+          stageChildren: PixiViewportSystem.pixiApp.stage.children.length,
+          contextLost: Boolean((PixiViewportSystem.pixiApp.renderer as any).gl?.isContextLost?.()),
+        });
+      }
       PixiViewportSystem.activeRoomId = this.roomId;
       PixiViewportSystem.viewports.forEach((candidate, roomId) => {
         candidate.visible = roomId === PixiViewportSystem.activeRoomId;
@@ -187,9 +226,15 @@ export class PixiViewportCleanupSystem extends DrawSystemImpl<ReadOnlyGameModel>
   static depth = -1;
 
   run = (gameModel: ReadOnlyGameModel) => {
-    if (gameModel.players.length > 0) {
+    if (gameModel.localNetIds.length > 0) {
       return;
     }
+    console.warn("[yage-pixi] hiding viewport: no local players", {
+      roomId: gameModel.roomId,
+      frame: gameModel.frame,
+      players: gameModel.players,
+      localNetIds: gameModel.localNetIds,
+    });
     const pixiSystem = gameModel.getSystem(PixiViewportSystem);
 
     const viewport = pixiSystem.viewport;

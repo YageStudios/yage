@@ -1,9 +1,10 @@
-import type { GameModel } from "yage/game/GameModel";
+import type { GameModel, GameModelState } from "yage/game/GameModel";
 import type { RequireAtLeastOne } from "yage/utils/typehelpers";
 import type { InputEventType, InputManager, KeyMap } from "yage/inputs/InputManager";
 import type { TouchListener } from "yage/inputs/TouchListener";
 import type { PlayerEventManager } from "yage/inputs/PlayerEventManager";
 import type { GameInstance } from "yage/game/GameInstance";
+import type { Vector2d } from "yage/utils/vector";
 
 export type PlayerConnection<T> = {
   netId: string;
@@ -35,6 +36,9 @@ export const isPlayerConnect = <T>(player: any): player is PlayerConnect<T> => {
 
 export type Frame = {
   keys: KeyMap | { [key: string]: boolean };
+  mousePosition?: Vector2d;
+  buttons?: number;
+  mouseActive?: boolean;
   frame: number;
   events: string[];
   playerId: string;
@@ -66,6 +70,37 @@ export type Room = {
 export type RoomState = {
   gameModel: GameModel;
   frameStack: FrameStack;
+  lastFrame: { [playerId: string]: number };
+};
+
+export type SerializedRoomFrame = {
+  keys: { [key: string]: boolean };
+  mousePosition?: Vector2d;
+  buttons?: number;
+  mouseActive?: boolean;
+  frame: number;
+  events: string[];
+  roomId?: string;
+};
+
+export type SerializedRoomFrameStack = {
+  [playerId: string]: SerializedRoomFrame[];
+};
+
+export type QueueRoomEventOptions = {
+  /** Exact deterministic frame requested by the caller. Past/already-published frames are clamped forward. */
+  targetFrame?: number;
+};
+
+/**
+ * An authority snapshot used to recover a lockstep room after a state-hash
+ * mismatch. Only unconsumed frames are included, so restoring this value and
+ * replaying the queued frames converges the recipient on the authority state.
+ */
+export type RoomRecoveryState = {
+  roomId: string;
+  state: GameModelState;
+  frameStack: SerializedRoomFrameStack;
   lastFrame: { [playerId: string]: number };
 };
 
@@ -169,8 +204,31 @@ export abstract class ConnectionInstance<T> {
   onStepRequested?(cb: () => void): () => void;
 
   abstract sendMessage(message: string, includeSelf?: boolean): void;
-  abstract onReceiveMessage(cb: (message: string) => void): () => void;
+  abstract onReceiveMessage(cb: (message: string, time: number, playerId: string) => void): () => void;
 
   abstract onPlayerConnect(cb: (player: PlayerConnect<T>) => void): () => void;
   abstract onPlayerDisconnect(cb: (playerId: string) => void): () => void;
+
+  /**
+   * Schedule a serialized player event on one exact room frame. Implementations
+   * that do not own a live lockstep queue may return null.
+   */
+  queueRoomEvent(
+    _roomId: string,
+    _playerId: string,
+    _event: string,
+    _data: unknown,
+    _options: QueueRoomEventOptions = {},
+  ): number | null {
+    return null;
+  }
+  /** Optional recovery hook for transports that maintain a live lockstep room. */
+  captureRoomRecoveryState(_roomId: string): RoomRecoveryState | null {
+    return null;
+  }
+
+  /** Optional recovery hook for transports that maintain a live lockstep room. */
+  async restoreRoomRecoveryState(_recovery: RoomRecoveryState): Promise<boolean> {
+    return false;
+  }
 }

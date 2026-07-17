@@ -14,6 +14,7 @@ import { DEPTHS } from "yage/constants/enums";
 import { flags } from "yage/console/flags";
 import { PixiViewportSystem } from "../render/PixiViewport";
 import * as PIXI from "pixi.js";
+import { FIXED_TIMESTEP_SECONDS } from "yage/game/Timing";
 
 export type PhysicsSaveState = {
   bodies: {
@@ -277,7 +278,7 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
       const physics = gameModel.getTypedUnsafe(Physics, this.coreEntity);
 
       this.world = new RAPIER.World({ x: physics.gravityX, y: physics.gravityY });
-      this.world.timestep = 0.016;
+      this.world.timestep = FIXED_TIMESTEP_SECONDS;
       this.eventQueue = new RAPIER.EventQueue(false);
     }
     return this.world;
@@ -286,7 +287,7 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
   resetWorld(gameModel: GameModel) {
     const physics = gameModel.getTypedUnsafe(Physics, this.coreEntity);
     this.world = new RAPIER.World({ x: physics.gravityX, y: physics.gravityY });
-    this.world.timestep = 0.016;
+    this.world.timestep = FIXED_TIMESTEP_SECONDS;
     this.eventQueue = new RAPIER.EventQueue(false);
     this.bodies = {};
     this.colliders = {};

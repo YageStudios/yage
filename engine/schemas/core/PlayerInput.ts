@@ -13,6 +13,9 @@ export class PlayerInput extends Schema {
   @type("number")
   buttons: number;
 
+  @type("boolean")
+  mouseActive: boolean;
+
   @type("object")
   prevKeyMap: KeyMap;
 

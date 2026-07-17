@@ -9,6 +9,7 @@ import { Transform } from "yage/schemas/entity/Transform";
 import { RigidCircleResolver, RigidCircle } from "yage/schemas/physics/RigidCircle";
 import { System, SystemImpl } from "minecs";
 import { MapIsometric } from "yage/schemas/map/Map";
+import { FIXED_TIMESTEP_MS } from "yage/game/Timing";
 
 @System(RigidCircle, Transform)
 export class RigidCircleSystem extends SystemImpl<GameModel> {
@@ -155,7 +156,7 @@ export class RigidCircleSystem extends SystemImpl<GameModel> {
           decayY = decayingVelocityY;
         }
 
-        locomotionStore.decayingVelocityTime[entity] -= 16; //gameModel.dt<number>(entity);
+        locomotionStore.decayingVelocityTime[entity] -= gameModel.frameDt ?? FIXED_TIMESTEP_MS;
       } else {
         locomotionStore.decayingVelocityX[entity] = 0;
         locomotionStore.decayingVelocityY[entity] = 0;

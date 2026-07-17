@@ -38,6 +38,7 @@ type BackgroundFrameFlowHost = {
   publishedFrames: { [roomId: string]: { [playerId: string]: { [frame: number]: Frame } } };
   emit: (event: string, ...args: any[]) => void;
   requestStep: () => boolean;
+  scheduledRoomEventsForFrame: (roomId: string, playerId: string, frame: number) => string[];
 };
 
 type BackgroundCursor = {
@@ -130,21 +131,18 @@ export class BackgroundFrameFlow {
       playerId: frame.playerId,
       roomId,
     };
-    if (!isStepMode) {
-      const lastFrame = room.lastFrame[frame.playerId] ?? -1;
-      if (lastFrame >= frame.frame) {
-        return false;
-      }
-      room.frameStack[frame.playerId].push(queuedFrame);
-    } else {
-      const existingIndex = room.frameStack[frame.playerId].findIndex((queued) => queued.frame === frame.frame);
-      if (existingIndex !== -1) {
-        room.frameStack[frame.playerId][existingIndex] = queuedFrame;
-      } else {
-        room.frameStack[frame.playerId].push(queuedFrame);
-        room.frameStack[frame.playerId].sort((a, b) => a.frame - b.frame);
-      }
+    // Realtime delivery is not ordered: a requested repair for frame N can arrive
+    // after N + 1. The high-water mark is diagnostic only and must never reject a
+    // still-unconsumed frame. Keep one canonical frame per index in sorted order.
+    const stack = room.frameStack[frame.playerId];
+    const existingIndex = stack.findIndex((queued) => queued.frame === frame.frame);
+    if (existingIndex === -1) {
+      const insertionIndex = stack.findIndex((queued) => queued.frame > frame.frame);
+      if (insertionIndex === -1) stack.push(queuedFrame);
+      else stack.splice(insertionIndex, 0, queuedFrame);
     }
+    // Frames are immutable after admission. Duplicate repairs may confirm a
+    // queued frame, but packet arrival order must never rewrite its payload.
     room.lastFrame[frame.playerId] = Math.max(room.lastFrame[frame.playerId] ?? -1, frame.frame);
 
     if (this.host.pendingMissedFrames[roomId]?.[frame.playerId] === frame.frame) {
@@ -373,13 +371,19 @@ export class BackgroundFrameFlow {
     keyMap: KeyMap,
     events: string[]
   ): Frame[] {
-    return new Array(count).fill(null).map((_, index) => ({
-      keys: new Map(keyMap),
-      frame: startFrame + index,
-      events: index === 0 ? events : [],
-      playerId,
-      roomId,
-    }));
+    return new Array(count).fill(null).map((_, index) => {
+      const frame = startFrame + index;
+      return {
+        keys: new Map(keyMap),
+        frame,
+        events: [
+          ...(index === 0 ? events : []),
+          ...this.host.scheduledRoomEventsForFrame(roomId, playerId, frame),
+        ],
+        playerId,
+        roomId,
+      };
+    });
   }
 
   private publishBatch(roomId: string, frames: Frame[], background: boolean, replaceFromFrame?: number): void {

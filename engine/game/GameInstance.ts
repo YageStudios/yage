@@ -6,6 +6,9 @@ import type { AchievementService } from "yage/achievements/AchievementService";
 import Ticker from "./Ticker";
 import type { SceneTimestep } from "./Scene";
 import type { BackgroundFrameFlow } from "yage/connection/BackgroundFrameFlow";
+import { FIXED_TIMESTEP_HZ, FIXED_TIMESTEP_MS } from "./Timing";
+
+let yageLoopLogCount = 0;
 
 export type GameInstanceOptions<T> = {
   connection: ConnectionInstance<T>;
@@ -20,11 +23,11 @@ export type GameInstanceOptions<T> = {
 
 export class GameInstance<T> {
   public achievementService: AchievementService;
-  protected dt = 16;
+  protected dt = FIXED_TIMESTEP_MS;
 
   protected ticker: Ticker;
   protected timestep: Readonly<SceneTimestep> = "fixed";
-  protected targetFPS: number = 60;
+  protected targetFPS: number = FIXED_TIMESTEP_HZ;
 
   render30Fps: boolean;
 
@@ -135,6 +138,15 @@ export class GameInstance<T> {
     ticker.start();
     this.ticker = ticker;
     this.bindBackgroundFrameFlow();
+    console.info("[yage-loop] ticker started", {
+      executionMode,
+      localPlayers: this.options.connection.localPlayers.map((player) => ({
+        netId: player.netId,
+        currentRoomId: player.currentRoomId,
+        connected: player.connected,
+      })),
+      roomStates: Object.keys(this.options.connection.roomStates),
+    });
   }
 
   async preloadRoom(
@@ -213,9 +225,35 @@ export class GameInstance<T> {
       for (const roomId of activeRooms) {
         const gameModel = roomId ? this.options.connection.roomStates[roomId]?.gameModel : null;
         if (gameModel && !gameModel.destroyed) {
+          if (yageLoopLogCount < 8) {
+            console.info("[yage-loop] run", {
+              roomId,
+              frame: gameModel.frame,
+              draw: drawableRooms.has(roomId),
+              paused: gameModel.paused,
+              localNetIds: gameModel.localNetIds,
+              playerInputs: gameModel.getComponentActives("PlayerInput"),
+              frameStack: Object.fromEntries(
+                Object.entries(this.options.connection.roomStates[roomId]?.frameStack ?? {}).map(([playerId, frames]) => [
+                  playerId,
+                  { count: frames.length, first: frames[0]?.frame, last: frames[frames.length - 1]?.frame },
+                ]),
+              ),
+            });
+          }
           this.runGameLoop(gameModel, drawableRooms.has(roomId));
+          yageLoopLogCount += 1;
         }
       }
+    } else if (yageLoopLogCount < 8) {
+      console.warn("[yage-loop] no active rooms", {
+        localPlayers: this.options.connection.localPlayers.map((player) => ({
+          netId: player.netId,
+          currentRoomId: player.currentRoomId,
+          connected: player.connected,
+        })),
+        preloadedRooms: [...this.options.connection.preloadedRoomIds],
+      });
     }
 
     // if (this.options.connection.localPlayers[0].currentRoomId) {
@@ -295,11 +333,19 @@ export class GameInstance<T> {
   }
 
   runGameLoop(gameModel: GameModel, draw = true): boolean {
-    if (!gameModel) {
+    if (!gameModel || gameModel.paused) {
       return false;
     }
     try {
       if (this.options.connection.startFrame(gameModel) === false) {
+        if (yageLoopLogCount < 8) {
+          console.warn("[yage-loop] startFrame blocked", {
+            roomId: gameModel.roomId,
+            frame: gameModel.frame,
+            localNetIds: gameModel.localNetIds,
+            playerInputs: gameModel.getComponentActives("PlayerInput"),
+          });
+        }
         return false;
       }
 
@@ -312,6 +358,9 @@ export class GameInstance<T> {
 
       if (draw && !gameModel.preloadOnly && (!flags.FPS_30 || gameModel.frame % 2 === 0)) {
         gameModel.stepDraw();
+        if (yageLoopLogCount < 8) {
+          console.info("[yage-loop] draw complete", { roomId: gameModel.roomId, frame: gameModel.frame });
+        }
       }
 
       this.options.connection.endFrame(gameModel);

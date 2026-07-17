@@ -33,6 +33,7 @@ export enum MappedKeys {
 }
 
 export type KeyMap = Map<string, boolean>;
+export type PointerState = { mousePosition: { x: number; y: number }; buttons: number; active: boolean };
 
 export type EventRecord = { playerId: string; key: MappedKeys; value: boolean };
 
@@ -55,6 +56,7 @@ export class KeyMapInput {
 }
 export class InputManager {
   public keyMap: KeyMap;
+  private pointerState: PointerState = { mousePosition: { x: 0, y: 0 }, buttons: 0, active: false };
 
   private keyMapsByType: { [key: string]: KeyMap[] } = {};
 
@@ -64,6 +66,21 @@ export class InputManager {
 
   public getKeyMap(type?: InputEventType, typeIndex: number = 0): KeyMap {
     return this.clone(type, typeIndex);
+  }
+
+  public setPointerState(x: number, y: number, buttons: number): void {
+    this.pointerState.mousePosition.x = x;
+    this.pointerState.mousePosition.y = y;
+    this.pointerState.buttons = buttons;
+    this.pointerState.active = true;
+  }
+
+  public getPointerState(): PointerState {
+    return {
+      mousePosition: { ...this.pointerState.mousePosition },
+      buttons: this.pointerState.buttons,
+      active: this.pointerState.active,
+    };
   }
 
   constructor(public combineKeyMaps = true) {
