@@ -6,10 +6,8 @@
  */
 
 import type { LayoutResult } from "./LayoutEngine";
-import { computeLayout } from "./LayoutEngine";
 import type { LayoutNodeConfig, LayoutSize } from "./LayoutTypes";
-import type { UIElement } from "../UIElement";
-import { getViewportScale, scaleFont } from "../utils";
+import { scaleFont } from "../utils";
 
 /**
  * Apply computed layout bounds to an HTML element.

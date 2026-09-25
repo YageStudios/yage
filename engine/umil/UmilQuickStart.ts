@@ -6,6 +6,8 @@ import { InputManager } from "yage/inputs/InputManager";
 import { KeyboardListener } from "yage/inputs/KeyboardListener";
 import type { PlayerConnect } from "yage/connection/ConnectionInstance";
 import { SingleplayerConnectionInstance } from "yage/connection/SingleplayerConnectionInstance";
+import { E2EConnectionInstance } from "yage/connection/E2EConnectionInstance";
+import { E2EBridge } from "yage/testing/E2EBridge";
 import { CoopConnectionInstance } from "yage/connection/CoopConnectionInstance";
 import { PeerMultiplayerInstance, type PeerMultiplayerInstanceOptions } from "yage/connection/PeerMultiplayerInstance";
 import {
@@ -57,12 +59,18 @@ export async function UmilQuickStart<T = null>({
   const isE2E = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("e2e") === "true";
 
   if (isE2E) {
+    // The e2e branch must not skip preload: games configure their entity
+    // factory there, and GameModel construction crashes without it.
+    await preload(UIService.getInstance());
+
     // Run standard flow in E2E mode
     const inputManager = new InputManager();
     const keyboardListener = new KeyboardListener(inputManager);
     keyboardListener.init();
 
-    const connection = new SingleplayerConnectionInstance<T>(inputManager, playerConfig);
+    // E2E drives inputs and frame stepping through the bridge's connection;
+    // the E2EBridge casts options.connection to E2EConnectionInstance.
+    const connection = new E2EConnectionInstance<T>(inputManager);
     await connection.connect();
 
     const instance = new GameInstance<T>({
@@ -78,6 +86,20 @@ export async function UmilQuickStart<T = null>({
     if (executionMode === "step") {
       instance.stepManual();
     }
+
+    // Stop the ticker so the bridge's TICK command is the only frame driver.
+    // @ts-ignore - accessing protected ticker
+    if (instance.ticker) {
+      // @ts-ignore
+      instance.ticker.stop();
+    }
+
+    // Inject the E2EBridge as a global for Playwright RPC access
+    const bridge = new E2EBridge(instance, inputManager);
+    bridge.ready = true;
+    // @ts-ignore
+    window.__YAGE_E2E__ = bridge;
+
     ensureMobileFullscreenButton();
     return instance;
   }
@@ -143,7 +165,7 @@ export async function UmilQuickStart<T = null>({
   let connection = result.connectionInstance;
 
   switch (result.connection) {
-    case "COOP":
+    case "COOP": {
       if (connection) {
         break;
       }
@@ -169,6 +191,7 @@ export async function UmilQuickStart<T = null>({
       });
       connection = new CoopConnectionInstance<T>(inputManager, players);
       break;
+    }
 
     case "PEER":
       if (connection) {

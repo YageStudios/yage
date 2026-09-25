@@ -1,4 +1,5 @@
-import { DrawSystemImpl, QueryInstance, System } from "minecs";
+import type { QueryInstance} from "minecs";
+import { DrawSystemImpl, System } from "minecs";
 import { Viewport } from "pixi-viewport";
 import type { ReadOnlyGameModel } from "yage/game/GameModel";
 import { PixiViewport, PixiViewportCleanup } from "yage/schemas/render/PixiViewport";

@@ -12,9 +12,11 @@
  *   - Replay extraction
  *
  * Prerequisites:
- *   - The Vite examples dev server must be running on http://localhost:5173
- *     (run `npm run examples` in a separate terminal)
- *   - Playwright browsers must be installed (`npx playwright install chromium`)
+ *   - None: the suite boots its own dev server on port 5273 (see
+ *     test/e2e/dev-server.mjs). Set YAGE_E2E_BASE_URL to target a specific
+ *     server instead.
+ *   - Playwright browsers must be installed (`npx playwright install chromium`),
+ *     or pointed at via YAGE_E2E_BROWSER_PATH.
  */
 
 import { describe, it, expect, afterEach } from "vitest";

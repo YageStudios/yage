@@ -100,25 +100,8 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
     if (!this.world) {
       this.world = new RAPIER.World({ x: 0, y: 0 });
     }
-    state.history.slice(this.history.length).forEach(([action, handle]) => {
-      if (action === "addBody") {
-        const basicRigid = RAPIER.RigidBodyDesc.fixed();
-        this.world.createRigidBody(basicRigid);
-      } else if (action === "removeBody") {
-        const body = this.world.bodies.get(handle);
-        if (body) {
-          this.world.removeRigidBody(body);
-        }
-      } else if (action === "addCollider") {
-        const basicCollider = RAPIER.ColliderDesc.cuboid(1, 1);
-        this.world.createCollider(basicCollider, this.world.bodies.get(0)!);
-      } else if (action === "removeCollider") {
-        const collider = this.world.colliders.get(handle);
-        if (collider) {
-          this.world.removeCollider(collider, false);
-        }
-      }
-    });
+    // The snapshot below replaces the whole world, so the old one only needs
+    // freeing - replaying the history onto it first would be discarded work.
     this.world.free();
 
     this.history = cloneDeep(state.history);
@@ -126,6 +109,7 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
     const world = World.restoreSnapshot(Base64.toUint8Array(state.data));
     this.bodies = {};
     this.colliders = {};
+    this.colliderHandles = {};
     this.collisionCounts = {};
 
     world.bodies.forEach((body) => {
@@ -137,13 +121,15 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
       const body = collider.parent();
       if (!body) return;
       const entity = (body.userData as any)?.entity;
-      if (!entity) return;
+      if (entity === undefined) return;
       this.colliders[entity] = this.colliders[entity] || [];
       this.colliders[entity].push(collider);
       this.colliderHandles[collider.handle] = entity;
     });
     this.world = world;
-    this.eventQueue.free();
+    if (this.eventQueue) {
+      this.eventQueue.free();
+    }
     this.eventQueue = new RAPIER.EventQueue(false);
   }
 
@@ -180,7 +166,11 @@ export class PhysicsSystem extends SystemImpl<GameModel> {
     } else {
       this.history.push(["removeBody", bodyOrHandle.handle]);
       this.world.removeRigidBody(bodyOrHandle);
-      delete this.bodies[bodyOrHandle.handle];
+      // this.bodies is keyed by entity; the body knows its entity via userData.
+      const entity = (bodyOrHandle.userData as any)?.entity;
+      if (entity !== undefined) {
+        delete this.bodies[entity];
+      }
     }
   }
 

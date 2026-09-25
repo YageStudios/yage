@@ -3,6 +3,7 @@ import { test, expect } from "vitest";
 import { GameModel } from "yage/game/GameModel";
 import { InputManager } from "yage/inputs/InputManager";
 import { PlayerEventManager } from "yage/inputs/PlayerEventManager";
+import { FIXED_TIMESTEP_MS } from "yage/game/Timing";
 
 test("GameModel built in random", () => {
   const gameModel = GameModel({
@@ -18,7 +19,7 @@ test("GameModel built in random", () => {
   gameModel.step();
 
   expect(gameModel.frame).toBe(1);
-  expect(gameModel.timeElapsed).toBe(16);
+  expect(gameModel.timeElapsed).toBe(FIXED_TIMESTEP_MS);
   expect(gameModel.rand.int(10000)).toBe(8669);
 
   const gameModel2 = GameModel({

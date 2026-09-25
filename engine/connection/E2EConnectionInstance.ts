@@ -1,6 +1,6 @@
-import { InputManager, InputEventType } from "yage/inputs/InputManager";
+import type { InputManager} from "yage/inputs/InputManager";
+import { InputEventType } from "yage/inputs/InputManager";
 import { CoreConnectionInstance } from "./CoreConnectionInstance";
-import type { GameModel } from "yage/game/GameModel";
 import type { PlayerConnection } from "./ConnectionInstance";
 
 /**
@@ -95,8 +95,10 @@ export class E2EConnectionInstance<T> extends CoreConnectionInstance<T> {
       const roomState = this.roomStates[roomId];
       if (roomState && roomState.gameModel) {
         this.createPlayer(roomState.gameModel, pid, config, roomState.gameModel.frame);
+        // Keep join order: games route UI events by inputIndex via
+        // localNetIds[inputIndex], so re-sorting silently remaps players
+        // whenever netIds sort differently than they joined.
         roomState.gameModel.localNetIds.push(pid);
-        roomState.gameModel.localNetIds = roomState.gameModel.localNetIds.sort();
       }
     }
 

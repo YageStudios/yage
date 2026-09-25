@@ -4,7 +4,6 @@ import { getGlobalSingleton, setGlobalSingleton } from "yage/global";
 import type { InputManager } from "yage/inputs/InputManager";
 import { InputEventType } from "yage/inputs/InputManager";
 import type { PlaySoundOptions } from "yage/utils/playSound";
-import { playSound } from "yage/utils/playSound";
 import { flags } from "yage/console/flags";
 import { debounce } from "lodash";
 
@@ -805,6 +804,10 @@ export class UIService {
   }
 
   playSound(name: string, options?: PlaySoundOptions) {
-    playSound(name, options);
+    // Loaded lazily: a static import would create a module cycle
+    // UIElement -> UIService -> playSound -> AssetLoader -> UiLoader ->
+    // UiMap -> Box -> UIElement, and Box extends a not-yet-initialized
+    // UIElement when UI-land is imported first.
+    void import("yage/utils/playSound").then((module) => module.playSound(name, options));
   }
 }

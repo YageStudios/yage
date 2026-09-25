@@ -5,6 +5,7 @@
  */
 import { required, Schema, type } from "minecs";
 import type { Random } from "./rand";
+import { atan2, cos, sin } from "./deterministicMath";
 
 export type Circle2d = Vector2d & {
   radius: number;
@@ -50,9 +51,9 @@ export const BV2 = {
     return BV2.rotateVector2d(x, y, rad);
   },
   rotateVector2d(x: number, y: number, radians: number): [number, number] {
-    const cos = Math.cos(radians);
-    const sin = Math.sin(radians);
-    return [x * cos - y * sin, x * sin + y * cos];
+    const c = cos(radians);
+    const s = sin(radians);
+    return [x * c - y * s, x * s + y * c];
   },
   pointTowardsVector2d(x1: number, y1: number, x2: number, y2: number) {
     if (x1 === x2 && y1 === y2) {
@@ -71,7 +72,7 @@ export const BV2 = {
     return (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
   },
   angleBetweenVector2d(x1: number, y1: number, x2: number, y2: number): number {
-    const angle = Math.atan2(y2 - y1, x2 - x1);
+    const angle = atan2(y2 - y1, x2 - x1);
     return (angle * 180) / Math.PI;
   },
   multiply(x1: number, y1: number, x2: number, y2: number) {
@@ -149,7 +150,7 @@ export const rotationDegVector2d = (vector: Vector2d): number => {
 };
 
 export const rotationVector2d = (vector: Vector2d): number => {
-  return Math.atan2(vector.y, vector.x);
+  return atan2(vector.y, vector.x);
 };
 
 export const normalizeSafeVector2d = (vector: Vector2d): Vector2d => {
@@ -187,7 +188,7 @@ export const scaleVector2d = (a: Vector2d, scale: number): Vector2d => {
 };
 
 export const angleOfVector2d = (a: Vector2d): number => {
-  let angle = Math.atan2(a.y, a.x);
+  let angle = atan2(a.y, a.x);
   if (angle < 0) {
     angle += 2 * Math.PI;
   }
@@ -195,7 +196,7 @@ export const angleOfVector2d = (a: Vector2d): number => {
 };
 
 export const angleBetweenVector2d = (a: Vector2d, b: Vector2d): number => {
-  let angle = Math.atan2(b.y, b.x) - Math.atan2(a.y, a.x);
+  let angle = atan2(b.y, b.x) - atan2(a.y, a.x);
   if (angle < 0) {
     angle += 2 * Math.PI;
   }
@@ -203,7 +204,7 @@ export const angleBetweenVector2d = (a: Vector2d, b: Vector2d): number => {
 };
 
 export const degreesFromVector2d = (a: Vector2d): number => {
-  return (Math.atan2(a.y, a.x) * 180) / Math.PI;
+  return (atan2(a.y, a.x) * 180) / Math.PI;
 };
 
 export const rotateDegVector2d = (a: Vector2d, degrees: number): Vector2d => {
@@ -231,9 +232,9 @@ export const crossProductVector2d = (v1: Vector2d, v2: Vector2d): number => {
 };
 
 export const rotateVector2d = (a: Vector2d, radians: number): Vector2d => {
-  const cos = Math.cos(radians);
-  const sin = Math.sin(radians);
-  return w(trunc2d(a.x * cos - a.y * sin, a.x * sin + a.y * cos));
+  const c = cos(radians);
+  const s = sin(radians);
+  return w(trunc2d(a.x * c - a.y * s, a.x * s + a.y * c));
 };
 
 export const pointingTowardsVector2d = (a: Vector2d, b: Vector2d): boolean => {

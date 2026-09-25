@@ -9,19 +9,20 @@ import AssetLoader from "../loader/AssetLoader";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import { UIService } from "../ui/UIService";
 import { HistoryConnectionInstance } from "yage/connection/HistoryConnectionInstance";
+import type {
+  PeerMultiplayerInstanceOptions} from "yage/connection/PeerMultiplayerInstance";
 import {
   isPeerMultiplayerInstanceOptions,
-  PeerMultiplayerInstance,
-  PeerMultiplayerInstanceOptions,
+  PeerMultiplayerInstance
 } from "yage/connection/PeerMultiplayerInstance";
+import type {
+  SocketIoMultiplayerInstanceOptions} from "yage/connection/SocketIoMultiplayerInstance";
 import {
   isSocketIoMultiplayerInstanceOptions,
-  SocketIoMultiplayerInstance,
-  SocketIoMultiplayerInstanceOptions,
+  SocketIoMultiplayerInstance
 } from "yage/connection/SocketIoMultiplayerInstance";
 import { E2EConnectionInstance } from "yage/connection/E2EConnectionInstance";
 import { E2EBridge } from "yage/testing/E2EBridge";
-import { CoopConnectionInstance } from "yage/connection/CoopConnectionInstance";
 import { ensureMobileFullscreenButton } from "./mobileFullscreen";
 
 type QuickStartMappedKeys = Record<string, string>;

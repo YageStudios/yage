@@ -2,6 +2,7 @@ import type { GameModel } from "yage/game/GameModel";
 import { ComponentCategory } from "yage/systems/types";
 import { PhysicsSystem } from "yage/systems/physics/Physics";
 import { angleOfVector2d } from "yage/utils/vector";
+import { cos, sin } from "yage/utils/deterministicMath";
 import { CollisionCategoryEnum, DEPTHS } from "yage/constants/enums";
 import RAPIER from "@dimforge/rapier2d-deterministic-compat";
 import { Locomotion } from "yage/schemas/entity/Locomotion";
@@ -165,8 +166,8 @@ export class RigidBoxResolverSystem extends SystemImpl<GameModel> {
       if (rigidBox.directionLock && gameModel.hasComponent(Locomotion, entity)) {
         const direction = box.rotation();
         const locomotion = gameModel.getTypedUnsafe(Locomotion, entity);
-        locomotion.directionX = Math.cos(direction);
-        locomotion.directionY = Math.sin(direction);
+        locomotion.directionX = cos(direction);
+        locomotion.directionY = sin(direction);
       }
     }
   };

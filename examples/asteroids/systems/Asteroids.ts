@@ -1,4 +1,6 @@
-import { Component, defaultValue, DrawSystemImpl, QueryInstance, Schema, System, SystemImpl, type } from "minecs";
+import { cos, sin } from "yage/utils/deterministicMath";
+import type { QueryInstance} from "minecs";
+import { Component, defaultValue, DrawSystemImpl, Schema, System, SystemImpl, type } from "minecs";
 import type { GameModel, ReadOnlyGameModel } from "yage/game/GameModel";
 import { UIService } from "yage/ui/UIService";
 import AssetLoader from "yage/loader/AssetLoader";
@@ -15,7 +17,8 @@ import { Collisions } from "yage/schemas/physics/Collisions";
 import { RigidCircle } from "yage/schemas/physics/RigidCircle";
 import { Health } from "yage/schemas/core/Health";
 import { Owner } from "yage/schemas/core/Owner";
-import { Damageable, Damage, DamageStats } from "yage/schemas/damage/DamageStats";
+import type { Damage} from "yage/schemas/damage/DamageStats";
+import { Damageable, DamageStats } from "yage/schemas/damage/DamageStats";
 import { ComponentCategory, DamageCategoryEnum, DamageTypeEnum } from "yage/constants/enums";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -211,7 +214,7 @@ function spawnAsteroidWave(count: number, gameModel: GameModel, avoidX: number, 
 
     const angle = gameModel.rand.float(0, Math.PI * 2);
     const speed = gameModel.rand.float(0.5, 2);
-    createAsteroid(gameModel, x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 3);
+    createAsteroid(gameModel, x, y, cos(angle) * speed, sin(angle) * speed, 3);
   }
 }
 
@@ -307,8 +310,8 @@ export class AsteroidsShipSystem extends SystemImpl<GameModel> {
 
     // Thrust
     if (thrusting) {
-      loco.x += Math.cos(state.angle) * THRUST;
-      loco.y += Math.sin(state.angle) * THRUST;
+      loco.x += cos(state.angle) * THRUST;
+      loco.y += sin(state.angle) * THRUST;
       const speed = Math.sqrt(loco.x * loco.x + loco.y * loco.y);
       if (speed > MAX_SPEED) {
         loco.x = (loco.x / speed) * MAX_SPEED;
@@ -342,10 +345,10 @@ export class AsteroidsShipSystem extends SystemImpl<GameModel> {
     state.fireCooldown = Math.max(0, state.fireCooldown - 1);
     if (firing && state.fireCooldown === 0) {
       state.fireCooldown = FIRE_COOLDOWN;
-      const bx = transform.x + Math.cos(state.angle) * 12;
-      const by = transform.y + Math.sin(state.angle) * 12;
-      const bvx = Math.cos(state.angle) * BULLET_SPEED + loco.x * 0.3;
-      const bvy = Math.sin(state.angle) * BULLET_SPEED + loco.y * 0.3;
+      const bx = transform.x + cos(state.angle) * 12;
+      const by = transform.y + sin(state.angle) * 12;
+      const bvx = cos(state.angle) * BULLET_SPEED + loco.x * 0.3;
+      const bvy = sin(state.angle) * BULLET_SPEED + loco.y * 0.3;
       createBullet(gameModel, entity, bx, by, bvx, bvy);
     }
   };
@@ -412,7 +415,7 @@ export class AsteroidsAsteroidSplitOnDeathSystem extends SystemImpl<GameModel> {
     for (let s = 0; s < 2; s++) {
       const angle = gameModel.rand.float(0, Math.PI * 2);
       const speed = gameModel.rand.float(1, 2.5);
-      createAsteroid(gameModel, at.x, at.y, Math.cos(angle) * speed, Math.sin(angle) * speed, size - 1);
+      createAsteroid(gameModel, at.x, at.y, cos(angle) * speed, sin(angle) * speed, size - 1);
     }
   };
 }

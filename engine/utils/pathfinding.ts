@@ -1,9 +1,10 @@
-import { Pathfinder } from "l1-path-finder";
-import { GameModel } from "yage/game/GameModel";
+import type { Pathfinder } from "l1-path-finder";
+import type { GameModel } from "yage/game/GameModel";
 import { MapSystem } from "yage/systems/map/Map";
 import { toWorldSpace, toMapSpace, toIsoWorldSpace } from "./map";
-import { Vector2d, addVector2d } from "./vector";
-import { Map, MapIsometric } from "yage/schemas/map/Map";
+import type { Vector2d} from "./vector";
+import { addVector2d } from "./vector";
+import { Map } from "yage/schemas/map/Map";
 import { MapId } from "yage/schemas/map/MapSpawn";
 import { Transform } from "yage/schemas/entity/Transform";
 import AssetLoader from "yage/loader/AssetLoader";

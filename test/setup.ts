@@ -112,6 +112,16 @@ class FakeClassList {
   contains(token: string) {
     return this.values.has(token);
   }
+
+  toggle(token: string, force?: boolean) {
+    const shouldAdd = force ?? !this.values.has(token);
+    if (shouldAdd) {
+      this.values.add(token);
+      return true;
+    }
+    this.values.delete(token);
+    return false;
+  }
 }
 
 class FakeElement {
@@ -136,6 +146,20 @@ class FakeElement {
   onmouseenter: ((e: any) => void) | null = null;
   onmouseleave: ((e: any) => void) | null = null;
   onscroll: ((e: any) => void) | null = null;
+
+  private attributes: Record<string, string> = {};
+
+  setAttribute(name: string, value: string) {
+    this.attributes[name] = String(value);
+  }
+
+  removeAttribute(name: string) {
+    delete this.attributes[name];
+  }
+
+  getAttribute(name: string) {
+    return name in this.attributes ? this.attributes[name] : null;
+  }
 
   appendChild(child: FakeElement) {
     child.parentElement = this;
@@ -227,7 +251,8 @@ const windowStub = {
   },
   __YAGE__: {
     EntityFactory: {
-      generateEntity: (gameModel: { coreEntity: number }) => gameModel.coreEntity,
+      // Stand-in for the real factory: allocate a bare entity in the world.
+      generateEntity: (gameModel: { addEntity: () => number }) => gameModel.addEntity(),
     },
   },
 };

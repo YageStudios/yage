@@ -1,5 +1,4 @@
 import { SystemImpl, System } from "minecs";
-import { ComponentCategory } from "yage/constants/enums";
 import type { GameModel } from "yage/game/GameModel";
 import { CameraFollowOnSpawn } from "yage/schemas/camera/CameraFollowOnSpawn";
 import { EntityCamera } from "yage/schemas/camera/EntityCamera";

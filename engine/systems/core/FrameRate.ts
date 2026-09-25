@@ -20,6 +20,8 @@ class FrameStartSystem extends SystemImpl<GameModel> {
     gameModel(Frame, entity).frame = gameModel.frame;
     const data = gameModel.getSystem(FrameRateSystem).get(entity);
 
+    // Wall-clock telemetry for the FPS readout only; never read by sim logic.
+    // eslint-disable-next-line no-restricted-properties
     const startFrameStamp = performance.now();
     data.frameRate = 1000 / (startFrameStamp - data.startFrameStamp);
     data.startFrameStamp = startFrameStamp;
@@ -33,6 +35,8 @@ class FrameEndSystem extends SystemImpl<GameModel> {
 
   run = (gameModel: GameModel, entity: number) => {
     const data = gameModel.getSystem(FrameRateSystem).get(entity);
+    // Wall-clock telemetry for the FPS readout only; never read by sim logic.
+    // eslint-disable-next-line no-restricted-properties
     data.stopFrameStamp = performance.now();
 
     data.averageFrameRate = data.averageFrameRate - data.averageFrameRate / 100 + data.frameRate / 100;
@@ -60,6 +64,8 @@ export class FrameRateSystem extends SystemImpl<GameModel> {
   } = {};
   init = (gameModel: GameModel, entity: number) => {
     this.entities[entity] = {
+      // Wall-clock telemetry for the FPS readout only; never read by sim logic.
+      // eslint-disable-next-line no-restricted-properties
       startFrameStamp: performance.now(),
       frameRate: 0,
       stopFrameStamp: 0,

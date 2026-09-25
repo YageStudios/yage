@@ -1,5 +1,6 @@
 import type { Vector2d } from "./vector";
 import { normalizeVector2d, scaleVector2d } from "./vector";
+import { cos, sin } from "./deterministicMath";
 import seedrandom from "seedrandom";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -44,7 +45,7 @@ export const generate = (seedNumber: number): Random => {
         max = min;
         min = 0;
       }
-      return rand.call() * (max - min + 1) + min;      
+      return rand.call() * (max - min) + min;
     }
   };
 };
@@ -98,8 +99,8 @@ export const randomPointInARectangle = (random: Random, width: number, height: n
 export const randomPointInACircle = (random: Random, radius: number): Vector2d => {
   const r = random.number() * radius;
   const theta = random.number() * Math.PI * 2;
-  const x = r * Math.cos(theta);
-  const y = r * Math.sin(theta);
+  const x = r * cos(theta);
+  const y = r * sin(theta);
   return {
     x,
     y,

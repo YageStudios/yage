@@ -1616,8 +1616,8 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
 
         const evaluateAndBuild = (ctx: any) => {
           const fn = compileExpression(conditionExpr);
-          let rawResult = fn(ctx);
-          let conditionResult = isUnless ? !rawResult : !!rawResult;
+          const rawResult = fn(ctx);
+          const conditionResult = isUnless ? !rawResult : !!rawResult;
 
           if (conditionResult === currentConditionResult) {
             // Condition hasn't changed, just update existing queries
@@ -1732,7 +1732,7 @@ export const buildUiMap = (json: any, boxPosition?: Position, boxConfig?: Partia
           let childQueries: BuildQuery[][] = [];
           let childRoots: UIElement<any>[][] = [];
           let alternateQueries: BuildQuery[] = [];
-          let alternateRoots: UIElement<any>[] = [];
+          const alternateRoots: UIElement<any>[] = [];
           let currentState: "items" | "empty" | "initial" = "initial";
 
           const buildParentFor = (roots: UIElement<any>[]) => ({

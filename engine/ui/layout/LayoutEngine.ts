@@ -12,15 +12,11 @@ import type {
   NinePoint,
   AlignItems,
   JustifyContent,
-  OverflowMode,
-  PaddingBox,
 } from "./LayoutTypes";
 import {
   resolveAnchor,
   resolvePivot,
   parsePadding,
-  clampSize,
-  UNCONSTRAINED,
 } from "./LayoutTypes";
 
 // ─── Layout Result ───────────────────────────────────────────────────────────

@@ -1,10 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import type { PhysicsSaveState } from "yage/systems/physics/Physics";
-import { GameModel, GameModelState } from "yage/game/GameModel";
+import type { GameModelState } from "yage/game/GameModel";
+import { GameModel } from "yage/game/GameModel";
 import type { KeyMap } from "yage/inputs/InputManager";
 import { InputManager } from "yage/inputs/InputManager";
 import type {
-  ConnectionInstance,
   Frame,
   FrameStack,
   PlayerConnect,
@@ -16,8 +15,8 @@ import type {
   RoomState,
   RoomRecoveryState,
   SerializedRoomFrameStack,
-  QueueRoomEventOptions,
 } from "./ConnectionInstance";
+import { ConnectionInstance } from "./ConnectionInstance";
 import { nanoid } from "nanoid";
 import type { RequireAtLeastOne } from "yage/utils/typehelpers";
 import { TouchListener } from "yage/inputs/TouchListener";
@@ -26,11 +25,12 @@ import type { GameInstance } from "yage/game/GameInstance";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import type { TouchRegion } from "yage/inputs/InputRegion";
 import { md5 } from "yage/utils/md5";
+import { hashWorldState } from "yage/game/StateHash";
 import { ComponentCategory } from "yage/constants/enums";
-import { SystemImpl } from "minecs";
-import { BackgroundFrameFlow, type BackgroundFrameFlowOptions } from "./BackgroundFrameFlow";
+import { BackgroundFrameFlow, type BackgroundFrameFlowOptions, type SerializedFrame } from "./BackgroundFrameFlow";
 import { HistoryPersistenceFlow, type HistoryPersistenceOptions } from "./HistoryPersistenceFlow";
 import { flags } from "yage/console/flags";
+import { FIXED_TIMESTEP_MS } from "yage/game/Timing";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export type CoreConnectionInstanceOptions<T> = {
@@ -40,13 +40,42 @@ export type CoreConnectionInstanceOptions<T> = {
   disconnectTimeoutMs?: number;
   backgroundFrameFlow?: BackgroundFrameFlowOptions | false;
   historyPersistence?: HistoryPersistenceOptions;
+  /**
+   * How often (in sim frames) clients hash their state and attach the hash to
+   * an outgoing frame for live desync detection. 0 disables detection.
+   * Defaults to 60 (~once per second).
+   */
+  desyncCheckInterval?: number;
+  /**
+   * Fixed per-game input delay in frames. When omitted (and
+   * adaptiveInputDelay is not disabled), the delay is derived from the
+   * measured RTT: ceil(RTT/2 / frame time) + 1, clamped.
+   */
+  frameOffset?: number;
+  /** Derive frameOffset from measured RTT instead of using the fixed default. Defaults to true. */
+  adaptiveInputDelay?: boolean;
 };
 
-export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
+/**
+ * Input delay in frames for a given round-trip time. One-way latency is
+ * RTT/2; +1 frame of headroom absorbs jitter. Clamped so LAN games are not
+ * stuck at the default delay while high-ping games still get enough lead.
+ */
+export const frameOffsetForRtt = (rttMs: number, fallbackOffset = 8): number => {
+  if (!Number.isFinite(rttMs) || rttMs <= 0) {
+    return fallbackOffset;
+  }
+  const frames = Math.ceil(rttMs / 2 / FIXED_TIMESTEP_MS) + 1;
+  return Math.max(2, Math.min(12, frames));
+};
+
+// Extends the base so the concrete helpers it defines (queueRoomEvent, room
+// recovery capture/restore) are inherited; `implements` would discard them.
+export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
   instanceId = nanoid();
 
   stateRequested: null | { roomId: string; playerId: string; playerConfig: any }[] = null;
-  frameOffset = 8;
+  frameOffset: number;
   disconnectingPlayers: [string, number][] = [];
   leavingPlayers: { [roomId: string]: [string, number][] } = {};
   pendingMissedFrames: { [roomId: string]: { [playerId: string]: number | undefined } } = {};
@@ -54,6 +83,20 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   publishedFrames: { [roomId: string]: { [playerId: string]: { [frame: number]: Frame } } } = {};
   scheduledRoomEvents: { [roomId: string]: { [playerId: string]: { [frame: number]: string[] } } } = {};
   historyPersistenceFlow: HistoryPersistenceFlow<T>;
+
+  /** Latest smoothed round-trip time to the connected peers, in ms. */
+  rttMs: number | undefined;
+
+  /** Local state hashes by room and frame, on desync-check interval frames. */
+  localStateHashes: { [roomId: string]: { [frame: number]: string } } = {};
+  /** Remote state hashes received before the local sim reached that frame. */
+  remoteStateHashes: { [roomId: string]: { [playerId: string]: { [frame: number]: string } } } = {};
+  private desyncReportedFrames: { [roomId: string]: Set<number> } = {};
+  private readonly desyncCheckInterval: number;
+  private readonly hashHistoryLength = 10;
+
+  private pingInterval: ReturnType<typeof setInterval> | null = null;
+  private pingSentAt = new Map<string, number>();
 
   roomSyncResolve: () => void = () => {};
   roomSyncPromise: Promise<void> = new Promise((resolve) => {
@@ -144,14 +187,19 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   backgroundFrameFlow: BackgroundFrameFlow;
 
   emit(event: string, ...args: any[]) {} // eslint-disable-line
-  async connect(): Promise<void> {} // eslint-disable-line
+  async connect(): Promise<void> {
+    this.startRttMeasurement();
+  } // eslint-disable-line
 
   constructor(
     player: PlayerConnect<T> | PlayerConnect<T>[],
     public inputManager: InputManager,
     protected options: CoreConnectionInstanceOptions<T>
   ) {
+    super();
     options.roomPersist = options.roomPersist ?? false;
+    this.frameOffset = options.frameOffset ?? 8;
+    this.desyncCheckInterval = options.desyncCheckInterval ?? 60;
     if (options.touchRegions) {
       this.touchListener = new TouchListener(this.inputManager);
     }
@@ -397,8 +445,188 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
         frame: frame.frame,
         events: frame.events,
         playerId: frame.playerId,
+        stateHash: frame.stateHash,
+        stateFrame: frame.stateFrame,
       });
     });
+
+    this.on("yagePing", (playerId: string, nonce: string) => {
+      if (!this.isRemotePlayer(playerId)) {
+        return;
+      }
+      this.emit("yagePong", nonce);
+    });
+
+    this.on("yagePong", (playerId: string, nonce: string) => {
+      if (!this.isRemotePlayer(playerId)) {
+        return;
+      }
+      const sentAt = this.pingSentAt.get(nonce);
+      if (sentAt === undefined) {
+        return;
+      }
+      this.pingSentAt.delete(nonce);
+      const sample = Date.now() - sentAt;
+      this.rttMs = this.rttMs === undefined ? sample : this.rttMs * 0.7 + sample * 0.3;
+      for (const roomState of Object.values(this.roomStates)) {
+        if (roomState.gameModel) {
+          roomState.gameModel.ping = Math.round(this.rttMs);
+        }
+      }
+      this.applyAdaptiveFrameOffset();
+    });
+  }
+
+  /**
+   * Regularly measures RTT to the connected peers via ping/pong messages over
+   * the existing event channel. The measurement feeds the adaptive input delay
+   * and the ping readout on the game model.
+   */
+  startRttMeasurement(intervalMs = 2000): void {
+    if (this.pingInterval !== null) {
+      return;
+    }
+    this.sendPing();
+    const timer = setInterval(() => this.sendPing(), intervalMs);
+    // In Node (tests, server-side hosts) don't hold the process open for this.
+    (timer as any)?.unref?.();
+    this.pingInterval = timer;
+  }
+
+  stopRttMeasurement(): void {
+    if (this.pingInterval !== null) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
+  }
+
+  private sendPing(): void {
+    if (this.pingSentAt.size > 32) {
+      // A peer that never answers would otherwise grow the map forever.
+      this.pingSentAt.clear();
+    }
+    const nonce = nanoid();
+    this.pingSentAt.set(nonce, Date.now());
+    this.emit("yagePing", nonce);
+  }
+
+  /**
+   * Input delay must not change once a room is publishing - lockstep peers
+   * schedule inputs at frame + offset, so a mid-game change desynchronizes
+   * the schedule. Adapt only between rooms.
+   */
+  private applyAdaptiveFrameOffset(): void {
+    if (this.options.frameOffset !== undefined || this.options.adaptiveInputDelay === false) {
+      return;
+    }
+    if (this.rttMs === undefined || this.localPlayers.some((player) => player.currentRoomId)) {
+      return;
+    }
+    this.frameOffset = frameOffsetForRtt(this.rttMs, this.frameOffset);
+  }
+
+  private pruneStateHashes(hashes: { [frame: number]: string }): void {
+    const frames = Object.keys(hashes)
+      .map(Number)
+      .sort((a, b) => a - b);
+    const cutoff = frames[frames.length - 1] - this.desyncCheckInterval * this.hashHistoryLength;
+    for (const frame of frames) {
+      if (frame <= cutoff) {
+        delete hashes[frame];
+      }
+    }
+  }
+
+  /**
+   * Computes and records the local state hash on desync-check interval frames.
+   * Returns the hash when one was computed for this frame, else undefined.
+   */
+  private maybeHashState(gameModel: GameModel): string | undefined {
+    if (this.desyncCheckInterval <= 0 || gameModel.frame <= 0 || gameModel.frame % this.desyncCheckInterval !== 0) {
+      return undefined;
+    }
+    let roomHashes = this.localStateHashes[gameModel.roomId];
+    if (!roomHashes) {
+      roomHashes = {};
+      this.localStateHashes[gameModel.roomId] = roomHashes;
+    } else if (roomHashes[gameModel.frame] !== undefined) {
+      return roomHashes[gameModel.frame];
+    }
+    const hash = hashWorldState(gameModel);
+    roomHashes[gameModel.frame] = hash;
+    this.pruneStateHashes(roomHashes);
+
+    const history = this.history[gameModel.roomId];
+    if (history) {
+      history.stateHashes[gameModel.frame] = hash;
+    }
+
+    // Compare against remote hashes that arrived before the local sim reached
+    // this frame.
+    const pending = this.remoteStateHashes[gameModel.roomId];
+    if (pending) {
+      for (const playerId of Object.keys(pending)) {
+        const remoteHash = pending[playerId][gameModel.frame];
+        if (remoteHash !== undefined) {
+          delete pending[playerId][gameModel.frame];
+          this.compareStateHashes(gameModel.roomId, playerId, gameModel.frame, hash, remoteHash);
+        }
+      }
+    }
+    return hash;
+  }
+
+  private checkRemoteStateHash(roomId: string, frame: Frame | SerializedFrame): void {
+    const { stateHash, stateFrame } = frame;
+    if (stateHash === undefined || stateFrame === undefined) {
+      return;
+    }
+    if (!this.isRemotePlayer(frame.playerId)) {
+      return;
+    }
+    const localHash = this.localStateHashes[roomId]?.[stateFrame];
+    if (localHash === undefined) {
+      const roomRemote = (this.remoteStateHashes[roomId] = this.remoteStateHashes[roomId] ?? {});
+      const playerRemote = (roomRemote[frame.playerId] = roomRemote[frame.playerId] ?? {});
+      playerRemote[stateFrame] = stateHash;
+      this.pruneStateHashes(playerRemote);
+      return;
+    }
+    this.compareStateHashes(roomId, frame.playerId, stateFrame, localHash, stateHash);
+  }
+
+  private compareStateHashes(
+    roomId: string,
+    playerId: string,
+    frame: number,
+    localHash: string,
+    remoteHash: string
+  ): void {
+    if (localHash === remoteHash) {
+      return;
+    }
+    const reported = (this.desyncReportedFrames[roomId] = this.desyncReportedFrames[roomId] ?? new Set<number>());
+    if (reported.has(frame)) {
+      return;
+    }
+    reported.add(frame);
+
+    const gameModel = this.roomStates[roomId]?.gameModel;
+    const localState = gameModel?.serializeState?.();
+    console.error(
+      `[yage] desync detected: room=${roomId} player=${playerId} frame=${frame} localHash=${localHash} remoteHash=${remoteHash}`
+    );
+    if (localState !== undefined) {
+      const history = this.history[roomId];
+      if (history) {
+        history.snapshots[frame] = localState;
+      }
+      const dump = JSON.stringify(localState);
+      console.error(
+        `[yage] desync local snapshot (frame ${frame}, ${dump.length} chars): ` +
+          `${dump.slice(0, 20000)}${dump.length > 20000 ? "…[truncated]" : ""}`
+      );
+    }
   }
 
   async roomHasPlayers(roomId: string): Promise<boolean> {
@@ -672,6 +900,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     this.roomSubs[roomId].push(
       this.on("frame", (_playerId, frame) => {
         this.backgroundFrameFlow.enqueueFrame(roomId, frame);
+        this.checkRemoteStateHash(roomId, frame);
       })
     );
     this.roomSubs[roomId].push(
@@ -1494,12 +1723,14 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     if (localPlayer) {
       const backgroundFrame = this.backgroundFrameFlow.localFrameOverride(localPlayer);
       const currentKeyMap = backgroundFrame?.keys ?? this.inputManager.getKeyMap(localPlayer.inputType, localPlayer.inputIndex);
+      const stateHash = this.maybeHashState(gameModel);
       const frame: Frame = {
         keys: this.inputManager.keyMapToJsonObject(currentKeyMap),
         frame: targetFrame,
         playerId: localPlayer.netId,
         roomId: gameModel.roomId,
         events: backgroundFrame?.events ?? this.playerEventManager.getEvents(localPlayer.netId),
+        ...(stateHash !== undefined ? { stateFrame: gameModel.frame, stateHash } : {}),
       };
       roomState.frameStack[netId] = roomState.frameStack[netId] ?? [];
       if (gameModel.executionMode !== "step") {

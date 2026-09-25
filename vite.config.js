@@ -11,7 +11,9 @@ export default defineConfig({
     environment: "node",
     setupFiles: ["./test/setup.ts"],
     alias: { yage: `${root}/engine` },
-    exclude: ["test/tooling/**", "node_modules/**", "dist/**"],
+    // e2e suites run under their own config (vitest.e2e.config.ts) with
+    // per-test timeouts and a single-fork pool.
+    exclude: ["test/tooling/**", "test/e2e/**", "node_modules/**", "dist/**"],
   },
   resolve: {
     conditions: ["yage-source", "module", "browser", "development|production"],

@@ -1,5 +1,5 @@
 import { Position } from "./Rectangle";
-import { UIElement } from "./UIElement";
+import type { UIElement } from "./UIElement";
 import { Text } from "./Text";
 import { createByType } from "./UiConfigs";
 import { Box } from "./Box";
@@ -71,13 +71,13 @@ export class UiMapNext {
   private extractVariablesFromExpression(expression: string): string[] {
     // First, let's replace the contents of string literals with placeholders
     const stringPlaceholders: string[] = [];
-    let sanitizedExpression = expression.replace(/(["'])((?:\\.|(?!\1)[^\\])*)\1/g, (match) => {
+    const sanitizedExpression = expression.replace(/(["'])((?:\\.|(?!\1)[^\\])*)\1/g, (match) => {
       stringPlaceholders.push(match);
       return "_STRING_PLACEHOLDER_" + (stringPlaceholders.length - 1);
     });
 
     // Original regex modified to ignore our placeholder pattern
-    const variableRegex = /\$?\b[a-zA-Z_\$][a-zA-Z0-9_\$]*(?:\.[a-zA-Z_\$][a-zA-Z0-9_\$]*)*\b(?!_PLACEHOLDER_)/g;
+    const variableRegex = /\$?\b[a-zA-Z_$][a-zA-Z0-9_$]*(?:\.[a-zA-Z_$][a-zA-Z0-9_$]*)*\b(?!_PLACEHOLDER_)/g;
 
     const excludedKeywords = new Set([
       // JavaScript reserved words and built-in objects/functions
@@ -199,7 +199,7 @@ export class UiMapNext {
           const variablePath = "context" + (fullPath ? "." + fullPath : "");
 
           // Escape special regex characters in variableName
-          let escapedVarName = variableName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const escapedVarName = variableName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
           // Replace variable name with variablePath in the expression
           const regex = new RegExp("\\b" + escapedVarName + "\\b", "g");
@@ -247,7 +247,7 @@ export class UiMapNext {
     let acc = context;
     for (const part of parts) {
       if (part === "this") {
-        acc = acc;
+        continue;
       } else if (part === "$index") {
         acc = acc["$index"];
       } else {
@@ -380,20 +380,20 @@ export class UiMapNext {
   }
 
   private parseCommand(tokens: string[]): ASTNode | null {
-    let partial = this.parsePartial(tokens);
+    const partial = this.parsePartial(tokens);
     if (partial) return partial;
     const isCommand = tokens[0].trim().startsWith("{{#");
     if (!isCommand) return null;
 
     // Try parsing each blocks
-    let eachBlock = this.parseEachBlock(tokens);
+    const eachBlock = this.parseEachBlock(tokens);
     if (eachBlock) return eachBlock;
 
     // Try parsing if and unless blocks
-    let blockNode = this.parseIfUnlessBlock(tokens);
+    const blockNode = this.parseIfUnlessBlock(tokens);
     if (blockNode) return blockNode;
 
-    let scopedBlock = this.parseScopedBlock(tokens);
+    const scopedBlock = this.parseScopedBlock(tokens);
     if (scopedBlock) return scopedBlock;
     return null;
   }
@@ -700,7 +700,7 @@ export class UiMapNext {
       }
     }
 
-    if (attrName && !attrs.hasOwnProperty(attrName)) {
+    if (attrName && !Object.prototype.hasOwnProperty.call(attrs, attrName)) {
       attrs[attrName] = null;
     }
 
@@ -790,7 +790,7 @@ export class UiMapNext {
       }
       this.functionPointers.get(container.id)!.set(fullPath, () => {
         // When condition variable changes, re-render the if block
-        let nextConditionResult = this.evaluateExpression(node.condition, this.context, contextPath);
+        const nextConditionResult = this.evaluateExpression(node.condition, this.context, contextPath);
         if (nextConditionResult !== conditionResult) {
           container.removeAllChildren();
 
@@ -834,7 +834,7 @@ export class UiMapNext {
         this.functionPointers.set(container.id, new Map());
       }
       this.functionPointers.get(container.id)!.set(fullPath, () => {
-        let nextConditionResult = this.evaluateExpression(node.condition, this.context, contextPath);
+        const nextConditionResult = this.evaluateExpression(node.condition, this.context, contextPath);
         if (nextConditionResult !== conditionResult) {
           container.removeAllChildren();
           conditionResult = nextConditionResult;
@@ -1041,12 +1041,13 @@ export class UiMapNext {
     switch (node.type) {
       case "Text":
         return node.content;
-      case "Element":
+      case "Element": {
         const attrs = Object.entries(node.attributes)
           .map(([key, value]) => `${key}="${value}"`)
           .join(" ");
         const children = node.children.map((child) => this.nodeToString(child)).join("");
         return `<${node.tag} ${attrs}>${children}</${node.tag}>`;
+      }
       case "Partial":
         return `{{> ${node.name} }}`;
       case "Program":
@@ -1057,19 +1058,22 @@ export class UiMapNext {
           .join("")}}{{/inline}}`;
       case "ScopedBlock":
         return node.body.map((child) => this.nodeToString(child)).join("");
-      case "IfBlock":
+      case "IfBlock": {
         const consequent = node.consequent.map((child) => this.nodeToString(child)).join("");
         const alternate = node.alternate ? node.alternate.map((child) => this.nodeToString(child)).join("") : "";
         return `{{#if ${node.condition}}}${consequent}${node.alternate ? `{{else}}${alternate}` : ""}{{/if}}`;
-      case "UnlessBlock":
+      }
+      case "UnlessBlock": {
         const body = node.body.map((child) => this.nodeToString(child)).join("");
         return `{{#unless ${node.condition}}}${body}{{/unless}}`;
-      case "EachBlock":
+      }
+      case "EachBlock": {
         const eachBody = node.body.map((child) => this.nodeToString(child)).join("");
         const eachAlternate = node.alternate
           ? node.alternate.map((child) => this.nodeToString(child)).join("")
           : "";
         return `{{#each ${node.arrayPath}}}${eachBody}${node.alternate ? `{{else}}${eachAlternate}` : ""}{{/each}}`;
+      }
       default:
         return "";
     }
@@ -1228,7 +1232,7 @@ export class UiMapNext {
     if (node.content.trim() === "") return;
     contextPath = [...contextPath];
 
-    let variablesInExpression: string[] = [];
+    const variablesInExpression: string[] = [];
     const processedContent = this.processTemplateString(
       node.content,
       (variableName, fullPath) => {
@@ -1444,8 +1448,8 @@ export class UiMapNext {
 
     let stylesGenerated = false;
 
-    let variablesToWatch: [string[], string, string, string[]][] = [];
-    let positionVariablesToWatch: [string[], string, string, string[]][] = [];
+    const variablesToWatch: [string[], string, string, string[]][] = [];
+    const positionVariablesToWatch: [string[], string, string, string[]][] = [];
 
     Object.entries(attributes).forEach(([attrKey, value]) => {
       if (value === null || value === undefined) return;
@@ -1464,7 +1468,7 @@ export class UiMapNext {
         !["anchor", "pivot", "offset-x", "offset-y", "spacing", "alignItems", "justifyContent", "overflow", "columns", "flex", "padding"].includes(attrKey)
       ) {
         const originalValue = value;
-        let variablesInExpression: string[] = [];
+        const variablesInExpression: string[] = [];
         const processedValue = this.processTemplateString(
           value,
           (variableName, fullPath) => {
@@ -1477,7 +1481,7 @@ export class UiMapNext {
         config[attrKey] = processedValue;
       } else if (positionAttributes.includes(attrKey)) {
         const originalValue = value;
-        let variablesInExpression: string[] = [];
+        const variablesInExpression: string[] = [];
         const processedValue = this.processTemplateString(
           value,
           (variableName, fullPath) => {
@@ -1779,8 +1783,8 @@ export class UiMapNext {
       }
     });
 
-    let variablesToWatch: [string[], string, string, string[]][] = [];
-    let positionVariablesToWatch: [string[], string, string, string[]][] = [];
+    const variablesToWatch: [string[], string, string, string[]][] = [];
+    const positionVariablesToWatch: [string[], string, string, string[]][] = [];
 
     const positionAttributes = ["x", "y", "width", "height", "maxHeight", "maxWidth", "minHeight", "minWidth"];
     const styleAttributes = ["style", "styles", "focusStyle", "hoverStyle", "activeStyle", "disabledStyle"];
@@ -1806,7 +1810,7 @@ export class UiMapNext {
         };
       } else if (!positionAttributes.includes(attrKey)) {
         const originalValue = value;
-        let variablesInExpression: string[] = [];
+        const variablesInExpression: string[] = [];
         const processedValue = this.processTemplateString(
           value,
           (variableName, fullPath) => {
@@ -1819,7 +1823,7 @@ export class UiMapNext {
         uiElement.config[attrKey] = processedValue;
       } else {
         const originalValue = value;
-        let variablesInExpression: string[] = [];
+        const variablesInExpression: string[] = [];
         const processedValue = this.processTemplateString(
           value,
           (variableName, fullPath) => {

@@ -1,6 +1,6 @@
 import { EntityFactory } from "yage/entity/EntityFactory";
-import { GameModel } from "yage/game/GameModel";
-import { Spawn } from "yage/schemas/entity/Spawn";
+import type { GameModel } from "yage/game/GameModel";
+import type { Spawn } from "yage/schemas/entity/Spawn";
 
 export const spawnEntity = (gameModel: GameModel, spawn: Spawn, overrides: any = {}) => {
   const inherited: any = [];

@@ -122,7 +122,7 @@ if (flags.PERFORMANCE_LOGS || flags.DRAW_PERFORMANCE_LOGS) {
     ["share", "48px"],
   ];
 
-  function renderHeader() {
+  const renderHeader = () => {
     header.replaceChildren();
     for (const [label, width] of columnsForActiveChannel()) {
       const th = document.createElement("th");
@@ -139,7 +139,7 @@ if (flags.PERFORMANCE_LOGS || flags.DRAW_PERFORMANCE_LOGS) {
     }
   }
 
-  function cell(text: string, align: "left" | "right" = "right"): HTMLTableCellElement {
+  const cell = (text: string, align: "left" | "right" = "right"): HTMLTableCellElement => {
     const td = document.createElement("td");
     td.textContent = text;
     td.style.padding = "2px 4px";
@@ -151,7 +151,7 @@ if (flags.PERFORMANCE_LOGS || flags.DRAW_PERFORMANCE_LOGS) {
     return td;
   }
 
-  function drawToggleCell(row: Row): HTMLTableCellElement {
+  const drawToggleCell = (row: Row): HTMLTableCellElement => {
     const td = cell("");
     td.style.textAlign = "center";
     if (activeChannel !== "draw") {
@@ -184,7 +184,7 @@ if (flags.PERFORMANCE_LOGS || flags.DRAW_PERFORMANCE_LOGS) {
     return td;
   }
 
-  function createTab(channel: TimingChannel): HTMLButtonElement {
+  const createTab = (channel: TimingChannel): HTMLButtonElement => {
     const button = document.createElement("button");
     button.type = "button";
     button.style.border = "1px solid #94a3b8";
@@ -200,7 +200,7 @@ if (flags.PERFORMANCE_LOGS || flags.DRAW_PERFORMANCE_LOGS) {
     return button;
   }
 
-  function createSortButton(mode: SortMode, label: string): HTMLButtonElement {
+  const createSortButton = (mode: SortMode, label: string): HTMLButtonElement => {
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = label;
@@ -243,13 +243,13 @@ if (flags.PERFORMANCE_LOGS || flags.DRAW_PERFORMANCE_LOGS) {
     },
   };
 
-  function pushHistory(state: ChannelState, type: string, time: number): void {
+  const pushHistory = (state: ChannelState, type: string, time: number): void => {
     if (!state.history[type]) state.history[type] = [];
     state.history[type].push(time);
     if (state.history[type].length > HISTORY_LIMIT) state.history[type].shift();
   }
 
-  function rowForType(channel: TimingChannel, type: string, total: number): Row {
+  const rowForType = (channel: TimingChannel, type: string, total: number): Row => {
     const state = channels[channel];
     const bucket = state.history[type] ?? [];
     const live = state.live[type] ?? 0;
@@ -271,7 +271,7 @@ if (flags.PERFORMANCE_LOGS || flags.DRAW_PERFORMANCE_LOGS) {
     };
   }
 
-  function renderTabs() {
+  const renderTabs = () => {
     (Object.keys(channels) as TimingChannel[]).forEach((channel) => {
       const state = channels[channel];
       state.button.textContent = `${channelLabels[channel]} ${round(state.total).toFixed(3)}ms`;
@@ -288,7 +288,7 @@ if (flags.PERFORMANCE_LOGS || flags.DRAW_PERFORMANCE_LOGS) {
     });
   }
 
-  function sortRows(a: Row, b: Row): number {
+  const sortRows = (a: Row, b: Row): number => {
     const disabled = Number(a.disabled) - Number(b.disabled);
     if (disabled !== 0) return disabled;
     if (sortMode === "live") {
@@ -297,7 +297,7 @@ if (flags.PERFORMANCE_LOGS || flags.DRAW_PERFORMANCE_LOGS) {
     return b.avg - a.avg || b.p95 - a.p95 || b.max - a.max || b.live - a.live;
   }
 
-  function render() {
+  const render = () => {
     const state = channels[activeChannel];
     const rows = [...state.knownTypes]
       .map((type) => rowForType(activeChannel, type, state.total))

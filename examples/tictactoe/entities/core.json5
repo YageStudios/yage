@@ -1,7 +1,6 @@
 {
   name: "core",
   components: [
-    "Sounds",
     {
       type: "FrameRate",
       uiMap: "core/FrameRate",

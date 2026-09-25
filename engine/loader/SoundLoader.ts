@@ -7,6 +7,9 @@ export type SoundOptions = {
 
 export class PixiSoundLoader {
   pixiSoundLibrary = new Map<string, [Sound, SoundOptions]>();
+  // The sound namespace is only exported as a value by the typings, so the
+  // lazy import type cannot be expressed as a plain type-only import.
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
   private pixiSoundPromise?: Promise<typeof import("@pixi/sound")["sound"]>;
 
   static getInstance(): PixiSoundLoader {

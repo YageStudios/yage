@@ -9,6 +9,7 @@ import type { GameModel, ReadOnlyGameModel } from "yage/game/GameModel";
 import AssetLoader from "yage/loader/AssetLoader";
 import type { TiledObjectLayer, TiledTileLayer } from "yage/types/Tiled";
 import { addVector2d, scaleVector2d } from "yage/utils/vector";
+import { cos, sin } from "yage/utils/deterministicMath";
 import { cloneDeep } from "lodash";
 import overview from "./overview";
 import { flags } from "yage/console/flags";
@@ -33,7 +34,7 @@ import { GlobalKillStatsTrigger } from "yage/schemas/triggers/GlobalKillStatsTri
 import { KillStatsTrigger } from "yage/schemas/triggers/KillStatsTrigger";
 import { TimeTrigger } from "yage/schemas/triggers/TimeTrigger";
 import { TriggerEvent } from "yage/schemas/triggers/TriggerEvent";
-import { toWorldSpace, fromWorldSpace, toMapSpace } from "yage/utils/map";
+import { toWorldSpace, toMapSpace } from "yage/utils/map";
 import { TriggerEventSystem } from "yage/systems/triggers/TriggerEvent";
 import { MapId } from "yage/schemas/map/MapSpawn";
 import { WORLD_WIDTH } from "yage/constants";
@@ -94,8 +95,8 @@ export class MapSystem extends SystemImpl<GameModel> {
     let spawnPosition;
     if (skinData.floor.isometric) {
       // For isometric layout
-      const isoX = (spawnTrigger.x - spawnTrigger.y) * Math.cos(Math.PI / 4) * Math.SQRT2;
-      const isoY = (spawnTrigger.x + spawnTrigger.y) * Math.sin(Math.PI / 4) * 0.5 * Math.SQRT2;
+      const isoX = (spawnTrigger.x - spawnTrigger.y) * cos(Math.PI / 4) * Math.SQRT2;
+      const isoY = (spawnTrigger.x + spawnTrigger.y) * sin(Math.PI / 4) * 0.5 * Math.SQRT2;
       spawnPosition = { x: isoX, y: isoY };
     } else {
       // For non-isometric layout
@@ -130,8 +131,8 @@ export class MapSystem extends SystemImpl<GameModel> {
       let triggerPosition;
       if (skinData.floor.isometric) {
         // For isometric layout
-        const isoX = (trigger.x - trigger.y) * Math.cos(Math.PI / 4) * Math.SQRT2;
-        const isoY = (trigger.x + trigger.y) * Math.sin(Math.PI / 4) * 0.5 * Math.SQRT2;
+        const isoX = (trigger.x - trigger.y) * cos(Math.PI / 4) * Math.SQRT2;
+        const isoY = (trigger.x + trigger.y) * sin(Math.PI / 4) * 0.5 * Math.SQRT2;
         triggerPosition = { x: isoX, y: isoY };
       } else {
         // For non-isometric layout
@@ -312,8 +313,8 @@ export class MapSystem extends SystemImpl<GameModel> {
 
               if (skinData.floor.isometric) {
                 vertices = vertices.map((v) => ({
-                  x: (v.x - v.y) * Math.cos(Math.PI / 4) * Math.SQRT2,
-                  y: (v.x + v.y) * Math.sin(Math.PI / 4) * 0.5 * Math.SQRT2,
+                  x: (v.x - v.y) * cos(Math.PI / 4) * Math.SQRT2,
+                  y: (v.x + v.y) * sin(Math.PI / 4) * 0.5 * Math.SQRT2,
                 }));
               }
 
@@ -332,16 +333,16 @@ export class MapSystem extends SystemImpl<GameModel> {
               });
             } else if (object.ellipse) {
               // Handle ellipse
-              let radiusX = (object.width / 2) * map.scale;
-              let radiusY = (object.height / 2) * map.scale;
+              const radiusX = (object.width / 2) * map.scale;
+              const radiusY = (object.height / 2) * map.scale;
               let position = { x: object.x + radiusX, y: object.y + radiusY };
 
               // Transform the center position for isometric view
               if (skinData.floor.isometric) {
                 position = toWorldSpace(position, map.scale);
                 position = {
-                  x: (position.x - position.y) * Math.cos(Math.PI / 4) * Math.SQRT2,
-                  y: (position.x + position.y) * Math.sin(Math.PI / 4) * 0.5 * Math.SQRT2,
+                  x: (position.x - position.y) * cos(Math.PI / 4) * Math.SQRT2,
+                  y: (position.x + position.y) * sin(Math.PI / 4) * 0.5 * Math.SQRT2,
                 };
               } else {
                 position = toWorldSpace(position, map.scale);
@@ -353,13 +354,13 @@ export class MapSystem extends SystemImpl<GameModel> {
 
               for (let i = 0; i < numPoints; i++) {
                 const angle = (i / numPoints) * 2 * Math.PI;
-                let x = radiusX * Math.cos(angle);
-                let y = radiusY * Math.sin(angle);
+                let x = radiusX * cos(angle);
+                let y = radiusY * sin(angle);
 
                 if (skinData.floor.isometric) {
                   // Apply isometric transformation to each point
-                  const isoX = (x - y) * Math.cos(Math.PI / 4) * Math.SQRT2;
-                  const isoY = (x + y) * Math.sin(Math.PI / 4) * 0.5 * Math.SQRT2;
+                  const isoX = (x - y) * cos(Math.PI / 4) * Math.SQRT2;
+                  const isoY = (x + y) * sin(Math.PI / 4) * 0.5 * Math.SQRT2;
                   x = isoX;
                   y = isoY;
                 }
@@ -386,8 +387,8 @@ export class MapSystem extends SystemImpl<GameModel> {
 
               if (skinData.floor.isometric) {
                 vertices = vertices.map((v) => ({
-                  x: (v.x - v.y) * Math.cos(Math.PI / 4) * Math.SQRT2,
-                  y: (v.x + v.y) * Math.sin(Math.PI / 4) * 0.5 * Math.SQRT2,
+                  x: (v.x - v.y) * cos(Math.PI / 4) * Math.SQRT2,
+                  y: (v.x + v.y) * sin(Math.PI / 4) * 0.5 * Math.SQRT2,
                 }));
               }
 

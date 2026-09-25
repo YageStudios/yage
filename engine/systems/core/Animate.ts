@@ -4,6 +4,7 @@ import { Child } from "yage/schemas/entity/Child";
 import type { Animation } from "yage/schemas/core/Animate";
 import { Animate } from "yage/schemas/core/Animate";
 import { AnimationEase, DEPTHS } from "yage/constants/enums";
+import { cos, pow, sin } from "yage/utils/deterministicMath";
 import { System, SystemImpl } from "minecs";
 
 @System(Animate)
@@ -97,13 +98,13 @@ export class AnimateSystem extends SystemImpl<GameModel> {
       case AnimationEase.QUINTIC:
         return progress * progress * progress * progress * progress;
       case AnimationEase.SINUSOIDAL:
-        return 1 - Math.cos((progress * Math.PI) / 2);
+        return 1 - cos((progress * Math.PI) / 2);
       case AnimationEase.EXPONENTIAL:
-        return progress === 0 ? 0 : Math.pow(2, 10 * (progress - 1));
+        return progress === 0 ? 0 : pow(2, 10 * (progress - 1));
       case AnimationEase.CIRCULAR:
         return 1 - Math.sqrt(1 - progress * progress);
       case AnimationEase.ELASTIC:
-        return -1 * Math.pow(2, -10 * progress) * Math.sin(((progress - 0.075) * (2 * Math.PI)) / 0.3);
+        return -1 * pow(2, -10 * progress) * sin(((progress - 0.075) * (2 * Math.PI)) / 0.3);
       case AnimationEase.BACK:
         return progress * progress * (2.70158 * progress - 1.70158);
       case AnimationEase.BOUNCE:

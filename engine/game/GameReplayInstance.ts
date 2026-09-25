@@ -3,7 +3,7 @@ import { GameInstance } from "./GameInstance";
 import type { ReplayStack } from "yage/connection/ConnectionInstance";
 import { HistoryConnectionInstance } from "yage/connection/HistoryConnectionInstance";
 import Ticker from "./Ticker";
-import { GameModel } from "./GameModel";
+import type { GameModel } from "./GameModel";
 
 // TODO HANDLE MULTILE GAME MODELS
 

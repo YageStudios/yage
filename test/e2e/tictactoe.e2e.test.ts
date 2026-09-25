@@ -114,10 +114,21 @@ describe("TicTacToe E2E", () => {
     await env.waitForUI({ type: "text", textIncludes: "X Wins!" });
     await env.waitForUI({ type: "button", textIncludes: "Restart Game" });
 
-    await xPlayer.keyDown("space");
-    await env.tick(1);
-    await xPlayer.keyUp("space");
-    await env.tick(2);
+    // The restart button grabs focus through a debounced autofocus, so a
+    // keypress dispatched immediately after the button appears can land
+    // before focus is assigned. Retry with real time for the debounce.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+      await xPlayer.keyDown("space");
+      await env.tick(1);
+      await xPlayer.keyUp("space");
+      await env.tick(2);
+      if ((await env.queryUI({ type: "text", textIncludes: "Turn: X" })).length > 0) {
+        break;
+      }
+    }
 
     await env.waitForUI({ type: "text", textIncludes: "Turn: X" });
     expect(await env.queryUI({ type: "button", textIncludes: "Restart Game" })).toHaveLength(0);

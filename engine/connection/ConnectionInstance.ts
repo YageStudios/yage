@@ -43,6 +43,13 @@ export type Frame = {
   events: string[];
   playerId: string;
   roomId?: string;
+  /**
+   * Digest of the publisher's simulation state after `stateFrame` steps.
+   * Attached on desync-check interval frames; receivers compare it against
+   * their own hash for the same frame to detect desyncs live.
+   */
+  stateHash?: string;
+  stateFrame?: number;
 };
 
 export type FrameStack = { [playerId: string]: Frame[] };

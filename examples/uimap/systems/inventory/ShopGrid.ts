@@ -1,12 +1,11 @@
-import { Component, defaultValue, QueryInstance, Schema, System, SystemImpl, type } from "minecs";
-import { GameModel, ReadOnlyGameModel } from "yage/game/GameModel";
+import type { QueryInstance} from "minecs";
+import { Component, defaultValue, Schema, System, SystemImpl, type } from "minecs";
+import type { GameModel, ReadOnlyGameModel } from "yage/game/GameModel";
 import { ComponentCategory } from "yage/constants/enums";
-import { UIElement } from "yage/ui/UIElement";
+import type { UIElement } from "yage/ui/UIElement";
 import { UiMapNext } from "yage/ui/UiMapNext";
 import { UIService } from "yage/ui/UIService";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
-import { keyPressed } from "yage/utils/keys";
-import { MappedKeys } from "yage/inputs/InputManager";
 import AssetLoader from "yage/loader/AssetLoader";
 import { EntityFactory } from "yage/entity/EntityFactory";
 

@@ -1,4 +1,3 @@
-import { ComponentCategory } from "yage/systems/types";
 import type { GameModel } from "yage/game/GameModel";
 import { TriggerEventSystem } from "./TriggerEvent";
 import { Transform } from "yage/schemas/entity/Transform";

@@ -14,5 +14,194 @@
     "unused-imports/no-unused-imports": "error",
     "@typescript-eslint/consistent-type-imports": "error",
     "@typescript-eslint/no-inferrable-types": "off"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["engine/systems/**/*.ts"],
+      "excludedFiles": ["engine/systems/render/**"],
+      "rules": {
+        "no-restricted-properties": [
+          "error",
+          {
+            "object": "Math",
+            "property": "random",
+            "message": "Math.random desyncs lockstep sims. Use the seeded gameModel.rand."
+          },
+          {
+            "object": "Math",
+            "property": "sin",
+            "message": "Not engine-consistent. Import sin from yage/utils/deterministicMath."
+          },
+          {
+            "object": "Math",
+            "property": "cos",
+            "message": "Not engine-consistent. Import cos from yage/utils/deterministicMath."
+          },
+          {
+            "object": "Math",
+            "property": "tan",
+            "message": "Not engine-consistent. Import tan from yage/utils/deterministicMath."
+          },
+          {
+            "object": "Math",
+            "property": "asin",
+            "message": "Not engine-consistent."
+          },
+          {
+            "object": "Math",
+            "property": "acos",
+            "message": "Not engine-consistent."
+          },
+          {
+            "object": "Math",
+            "property": "atan",
+            "message": "Not engine-consistent. Import atan from yage/utils/deterministicMath."
+          },
+          {
+            "object": "Math",
+            "property": "atan2",
+            "message": "Not engine-consistent. Import atan2 from yage/utils/deterministicMath."
+          },
+          {
+            "object": "Math",
+            "property": "sinh",
+            "message": "Not engine-consistent."
+          },
+          {
+            "object": "Math",
+            "property": "cosh",
+            "message": "Not engine-consistent."
+          },
+          {
+            "object": "Math",
+            "property": "tanh",
+            "message": "Not engine-consistent."
+          },
+          {
+            "object": "Math",
+            "property": "exp",
+            "message": "Not engine-consistent. Import exp from yage/utils/deterministicMath."
+          },
+          {
+            "object": "Math",
+            "property": "expm1",
+            "message": "Not engine-consistent."
+          },
+          {
+            "object": "Math",
+            "property": "log",
+            "message": "Not engine-consistent. Import log from yage/utils/deterministicMath."
+          },
+          {
+            "object": "Math",
+            "property": "log2",
+            "message": "Not engine-consistent."
+          },
+          {
+            "object": "Math",
+            "property": "log10",
+            "message": "Not engine-consistent."
+          },
+          {
+            "object": "Math",
+            "property": "log1p",
+            "message": "Not engine-consistent."
+          },
+          {
+            "object": "Math",
+            "property": "pow",
+            "message": "Not engine-consistent. Import pow from yage/utils/deterministicMath."
+          },
+          {
+            "object": "Math",
+            "property": "cbrt",
+            "message": "Not engine-consistent."
+          },
+          {
+            "object": "Math",
+            "property": "hypot",
+            "message": "Not engine-consistent. Import hypot from yage/utils/deterministicMath."
+          },
+          {
+            "object": "Date",
+            "property": "now",
+            "message": "Wall-clock time desyncs lockstep sims. Use the sim clock (gameModel.frame / timeElapsed)."
+          },
+          {
+            "object": "performance",
+            "property": "now",
+            "message": "Wall-clock time desyncs lockstep sims. Use the sim clock (gameModel.frame / timeElapsed)."
+          }
+        ]
+      }
+    },
+    {
+      "files": ["examples/*/systems/**/*.ts"],
+      "rules": {
+        "no-restricted-properties": [
+          "error",
+          {
+            "object": "Math",
+            "property": "random",
+            "message": "Math.random desyncs lockstep sims. Use the seeded gameModel.rand."
+          },
+          {
+            "object": "Math",
+            "property": "sin",
+            "message": "Not engine-consistent. Import sin from yage/utils/deterministicMath."
+          },
+          {
+            "object": "Math",
+            "property": "cos",
+            "message": "Not engine-consistent. Import cos from yage/utils/deterministicMath."
+          },
+          {
+            "object": "Math",
+            "property": "tan",
+            "message": "Not engine-consistent. Import tan from yage/utils/deterministicMath."
+          },
+          {
+            "object": "Math",
+            "property": "atan",
+            "message": "Not engine-consistent. Import atan from yage/utils/deterministicMath."
+          },
+          {
+            "object": "Math",
+            "property": "atan2",
+            "message": "Not engine-consistent. Import atan2 from yage/utils/deterministicMath."
+          },
+          {
+            "object": "Math",
+            "property": "exp",
+            "message": "Not engine-consistent. Import exp from yage/utils/deterministicMath."
+          },
+          {
+            "object": "Math",
+            "property": "log",
+            "message": "Not engine-consistent. Import log from yage/utils/deterministicMath."
+          },
+          {
+            "object": "Math",
+            "property": "pow",
+            "message": "Not engine-consistent. Import pow from yage/utils/deterministicMath."
+          },
+          {
+            "object": "Math",
+            "property": "hypot",
+            "message": "Not engine-consistent. Import hypot from yage/utils/deterministicMath."
+          },
+          {
+            "object": "Date",
+            "property": "now",
+            "message": "Wall-clock time desyncs lockstep sims. Use the sim clock (gameModel.frame / timeElapsed)."
+          },
+          {
+            "object": "performance",
+            "property": "now",
+            "message": "Wall-clock time desyncs lockstep sims. Use the sim clock (gameModel.frame / timeElapsed)."
+          }
+        ]
+      }
+    }
+  ]
 }

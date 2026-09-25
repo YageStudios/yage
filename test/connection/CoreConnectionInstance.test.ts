@@ -537,6 +537,7 @@ describe("CoreConnectionInstance", () => {
         keys: { left: true },
         events: ["jump"],
         playerId: "player-2",
+        roomId,
       });
     });
   });

@@ -4,7 +4,6 @@ import type { PlayerConnect } from "./ConnectionInstance";
 import type { InputManager } from "yage/inputs/InputManager";
 import type { CoreConnectionInstanceOptions } from "./CoreConnectionInstance";
 import { CoreConnectionInstance } from "./CoreConnectionInstance";
-import { isEqual } from "lodash";
 
 export type SocketIoMultiplayerInstanceOptions<T> = CoreConnectionInstanceOptions<T> & {
   address: string;

@@ -9,6 +9,8 @@ export type SerializedFrame = {
   events?: string[];
   playerId: string;
   roomId?: string;
+  stateHash?: string;
+  stateFrame?: number;
 };
 
 export type FrameBatchMessage = {

@@ -18,6 +18,8 @@ vi.mock("yage/ui/UIService", () => ({
     getInstance: () => ({
       root: { addChild: vi.fn() },
       playerInputs: [],
+      enableKeyCapture: vi.fn(),
+      disableKeyCapture: vi.fn(),
     }),
   },
 }));

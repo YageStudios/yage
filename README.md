@@ -152,7 +152,11 @@ Entities are defined in `.json5` files. The `EntityFactory` automatically regist
 
 ### Multiplayer & Networking
 
-YAGE uses a deterministic lockstep/rollback-inspired approach. Game state is tied to frames, and inputs are synced across the network. 
+YAGE uses **delay-based deterministic lockstep**. Game state is tied to frames, and each client's inputs are scheduled a fixed number of frames into the future (the input delay) so every peer has the input before the simulation reaches that frame. There is **no rollback**: if an input has not arrived in time, the simulation stalls until it does.
+
+- The input delay defaults to 8 frames and adapts to the measured RTT (`ceil(RTT/2 / frameTime) + 1`, clamped), so LAN games get roughly 2 frames of delay instead of the default. Pass an explicit `frameOffset` in the connection options to pin it per game, and `adaptiveInputDelay: false` to disable adaptation.
+- Sim code must stay deterministic. Sim systems are linted against `Math.random`, `Date.now`, `performance.now`, and the transcendental `Math.*` functions; use the seeded `gameModel.rand` and the deterministic implementations in `yage/utils/deterministicMath` instead.
+- Each client hashes its full simulation state every ~60 frames and attaches the hash to an outgoing frame; when a peer's hash for a frame differs from the local one, YAGE logs a desync report with both hashes and a local state snapshot.
 
 Supported connection types:
 - **`SINGLEPLAYER`**: Local loop, no networking.

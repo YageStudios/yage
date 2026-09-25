@@ -1,5 +1,4 @@
 import type { ConnectionInstance } from "yage/connection/ConnectionInstance";
-import type { InputEventType } from "yage/inputs/InputManager";
 
 export type UmilStep = "MAIN_MENU" | "PROFILE_SETUP" | "ROOM_BROWSER" | "INPUT_SETUP" | "LOBBY" | "COMPLETE";
 

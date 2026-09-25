@@ -29,7 +29,11 @@ const getGameFromPath = () => {
   const basePath = normalizeBasePath(import.meta.env.BASE_URL);
   const pathname = window.location.pathname;
   const relativePath = pathname.startsWith(basePath) ? pathname.slice(basePath.length) : pathname.replace(/^\/+/, "");
-  const [firstSegment = ""] = relativePath.split("/").filter(Boolean);
+  const segments = relativePath.split("/").filter(Boolean);
+  // Hash routes (e.g. #/tictactoe) keep deep links working on static hosts
+  // that lack history fallback; path segments stay primary.
+  segments.push(...window.location.hash.replace(/^#\/?/, "").split("/").filter(Boolean));
+  const [firstSegment = ""] = segments;
   return GAME_NAMES.has(firstSegment as (typeof games)[number][0]) ? firstSegment : null;
 };
 

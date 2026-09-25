@@ -1,11 +1,11 @@
 import type { GameInstance } from "yage/game/GameInstance";
 import type { GameModel } from "yage/game/GameModel";
-import { InputManager, InputEventType } from "yage/inputs/InputManager";
+import type { InputManager} from "yage/inputs/InputManager";
+import { InputEventType } from "yage/inputs/InputManager";
 import type { E2EConnectionInstance } from "yage/connection/E2EConnectionInstance";
 import { GameCoordinator } from "yage/game/GameCoordinator";
 import { UIService } from "yage/ui/UIService";
 import type { UIElement } from "yage/ui/UIElement";
-import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import { componentList, hasComponent } from "minecs";
 
 /**

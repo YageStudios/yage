@@ -1,4 +1,5 @@
-import { Component, defaultValue, DrawSystemImpl, QueryInstance, Schema, System, SystemImpl, type } from "minecs";
+import type { QueryInstance} from "minecs";
+import { Component, defaultValue, DrawSystemImpl, Schema, System, SystemImpl, type } from "minecs";
 import type { GameModel, ReadOnlyGameModel } from "yage/game/GameModel";
 import { UIService } from "yage/ui/UIService";
 import AssetLoader from "yage/loader/AssetLoader";

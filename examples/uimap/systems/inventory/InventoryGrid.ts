@@ -1,7 +1,8 @@
-import { UIElement } from "yage/ui/UIElement";
+import type { UIElement } from "yage/ui/UIElement";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
-import { Component, defaultValue, DrawSystemImpl, QueryInstance, Schema, System, type } from "minecs";
-import { ReadOnlyGameModel } from "yage/game/GameModel";
+import type { QueryInstance} from "minecs";
+import { Component, defaultValue, DrawSystemImpl, Schema, System, type } from "minecs";
+import type { ReadOnlyGameModel } from "yage/game/GameModel";
 import { UIService } from "yage/ui/UIService";
 import AssetLoader from "yage/loader/AssetLoader";
 import { UiMapNext } from "yage/ui/UiMapNext";

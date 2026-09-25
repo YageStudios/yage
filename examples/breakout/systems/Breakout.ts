@@ -1,4 +1,6 @@
-import { Component, defaultValue, DrawSystemImpl, QueryInstance, Schema, System, SystemImpl, type } from "minecs";
+import { atan2, cos, sin } from "yage/utils/deterministicMath";
+import type { QueryInstance} from "minecs";
+import { Component, defaultValue, DrawSystemImpl, Schema, System, SystemImpl, type } from "minecs";
 import type { GameModel, ReadOnlyGameModel } from "yage/game/GameModel";
 import { UIService } from "yage/ui/UIService";
 import AssetLoader from "yage/loader/AssetLoader";
@@ -13,7 +15,6 @@ import { Locomotion } from "yage/schemas/entity/Locomotion";
 import { PixiGraphic } from "yage/schemas/render/PixiGraphic";
 import { Collisions } from "yage/schemas/physics/Collisions";
 import { RigidBox } from "yage/schemas/physics/RigidBox";
-import { RigidCircle } from "yage/schemas/physics/RigidCircle";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -244,7 +245,7 @@ function spawnMultiball(gameModel: GameModel, board: BreakoutBoard, powerups: Br
   const ballLoco = gameModel.getTypedUnsafe(Locomotion, mainBallEntity);
 
   const baseSpeed = Math.sqrt(ballLoco.x * ballLoco.x + ballLoco.y * ballLoco.y);
-  const angle = Math.atan2(ballLoco.y, ballLoco.x);
+  const angle = atan2(ballLoco.y, ballLoco.x);
 
   const numBalls = 2 + powerups.multiballCount;
   const spreadAngle = Math.PI / 4;
@@ -252,8 +253,8 @@ function spawnMultiball(gameModel: GameModel, board: BreakoutBoard, powerups: Br
   for (let i = 0; i < numBalls; i++) {
     const offsetAngle = -spreadAngle / 2 + (spreadAngle / (numBalls - 1 || 1)) * i;
     const newAngle = angle + offsetAngle;
-    const newVx = Math.cos(newAngle) * baseSpeed;
-    const newVy = Math.sin(newAngle) * baseSpeed;
+    const newVx = cos(newAngle) * baseSpeed;
+    const newVy = sin(newAngle) * baseSpeed;
 
     if (i === 0) {
       ballLoco.x = newVx;
@@ -325,10 +326,10 @@ function updatePowerupTimers(gameModel: GameModel, powerups: BreakoutPowerups): 
 }
 
 function spawnPowerup(gameModel: GameModel, board: BreakoutBoard, brickX: number, brickY: number): void {
-  if (Math.random() > POWERUP_DROP_CHANCE) return;
+  if (gameModel.rand.number() > POWERUP_DROP_CHANCE) return;
 
   const powerupTypes = ["MULTIBALL", "BIGGER_PADDLE", "SLOW_BALL", "BIG_BALL", "PIERCE_BALL"];
-  const powerupType = powerupTypes[Math.floor(Math.random() * powerupTypes.length)];
+  const powerupType = powerupTypes[gameModel.rand.int(0, powerupTypes.length - 1)];
 
   const powerupEntity = EntityFactory.getInstance().generateEntity(gameModel, "BreakoutPowerup");
   const transform = gameModel.getTypedUnsafe(Transform, powerupEntity);
@@ -555,8 +556,8 @@ export class BreakoutSystem extends SystemImpl<GameModel> {
         const maxAngle = Math.PI / 3;
         const angle = hitPos * maxAngle;
         const speed = Math.sqrt(ballLoco.x * ballLoco.x + ballLoco.y * ballLoco.y);
-        ballLoco.x = Math.sin(angle) * speed;
-        ballLoco.y = -Math.cos(angle) * speed;
+        ballLoco.x = sin(angle) * speed;
+        ballLoco.y = -cos(angle) * speed;
         ballTransform.y = paddleTransform.y - paddleHalfHeight - BALL_RADIUS - 1;
       }
 

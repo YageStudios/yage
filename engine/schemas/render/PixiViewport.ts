@@ -1,4 +1,3 @@
-import { SchemaEnv } from "ajv/dist/compile";
 import { Component, Schema, defaultValue, type } from "minecs";
 import { ComponentCategory } from "yage/constants/enums";
 

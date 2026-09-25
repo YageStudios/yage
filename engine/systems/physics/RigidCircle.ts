@@ -10,6 +10,7 @@ import { RigidCircleResolver, RigidCircle } from "yage/schemas/physics/RigidCirc
 import { System, SystemImpl } from "minecs";
 import { MapIsometric } from "yage/schemas/map/Map";
 import { FIXED_TIMESTEP_MS } from "yage/game/Timing";
+import { cos, pow, sin } from "yage/utils/deterministicMath";
 
 @System(RigidCircle, Transform)
 export class RigidCircleSystem extends SystemImpl<GameModel> {
@@ -48,12 +49,12 @@ export class RigidCircleSystem extends SystemImpl<GameModel> {
 
       for (let i = 0; i < numPoints; i++) {
         const angle = (i / numPoints) * 2 * Math.PI;
-        let x = radius * Math.cos(angle);
-        let y = radius * Math.sin(angle);
+        const x = radius * cos(angle);
+        const y = radius * sin(angle);
 
         // Apply isometric transformation
-        const isoX = (x - y) * Math.cos(Math.PI / 4) * Math.SQRT2;
-        const isoY = (x + y) * Math.sin(Math.PI / 4) * 0.5 * Math.SQRT2;
+        const isoX = (x - y) * cos(Math.PI / 4) * Math.SQRT2;
+        const isoY = (x + y) * sin(Math.PI / 4) * 0.5 * Math.SQRT2;
 
         vertices.push(isoX, isoY);
       }
@@ -146,7 +147,7 @@ export class RigidCircleSystem extends SystemImpl<GameModel> {
         const decayingVelocityScale = locomotionStore.decayingVelocityScale[entity];
 
         if (decayingVelocityTime < decayTime) {
-          const expDecay = Math.pow(1 - decayFactor, decayTime - decayingVelocityTime);
+          const expDecay = pow(1 - decayFactor, decayTime - decayingVelocityTime);
           const baseScale = (1 - expDecay) * decayingVelocityScale;
           decayX = decayingVelocityX * baseScale;
           decayY = decayingVelocityY * baseScale;
@@ -212,8 +213,8 @@ export class RigidCircleResolverSystem extends SystemImpl<GameModel> {
 
       if (rigidCircleStore.directionLock[entity] && gameModel.hasComponent(Locomotion, entity)) {
         const direction = circle.rotation();
-        locomotionStore.directionX[entity] = Math.cos(direction);
-        locomotionStore.directionY[entity] = Math.sin(direction);
+        locomotionStore.directionX[entity] = cos(direction);
+        locomotionStore.directionY[entity] = sin(direction);
       }
     }
   };

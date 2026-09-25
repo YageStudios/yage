@@ -1,5 +1,5 @@
 import { System, DrawSystemImpl } from "minecs";
-import { ReadOnlyGameModel } from "yage/game/GameModel";
+import type { ReadOnlyGameModel } from "yage/game/GameModel";
 import { UIService } from "yage/ui/UIService";
 import { UiCleanupOnLeave } from "yage/schemas/render/UiCleanupOnLeave";
 

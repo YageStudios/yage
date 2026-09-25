@@ -79,74 +79,64 @@ export class Position {
     this.yOffset = yOffset || this._yOffset;
   }
 
-  // Getters
+  // Getters/setters kept in adjacent pairs
   get x() {
     return this._x;
+  }
+  set x(value: number | "left" | "center" | "right" | "full") {
+    this._x = value;
   }
   get y() {
     return this._y;
   }
+  set y(value: number | "top" | "center" | "bottom" | "full") {
+    this._y = value;
+  }
   get xOffset(): number {
     return this._xOffset;
+  }
+  set xOffset(size: Size) {
+    [this._xOffset, this.xOffsetPercentage] = sizeToPixels(size);
   }
   get yOffset(): number {
     return this._yOffset;
   }
+  set yOffset(size: Size) {
+    [this._yOffset, this.yOffsetPercentage] = sizeToPixels(size);
+  }
   get width(): number {
     return this._width;
+  }
+  set width(size: Size) {
+    [this._width, this.widthPercentage] = sizeToPixels(size);
   }
   get height(): number {
     return this._height;
   }
+  set height(size: Size) {
+    [this._height, this.heightPercentage] = sizeToPixels(size);
+  }
   get minWidth(): number {
     return this._minWidth;
+  }
+  set minWidth(size: Size) {
+    [this._minWidth, this.minWidthPercentage] = sizeToPixels(size);
   }
   get minHeight(): number {
     return this._minHeight;
   }
+  set minHeight(size: Size) {
+    [this._minHeight, this.minHeightPercentage] = sizeToPixels(size);
+  }
   get maxWidth(): number {
     return this._maxWidth;
+  }
+  set maxWidth(size: Size) {
+    [this._maxWidth, this.maxWidthPercentage] = sizeToPixels(size);
   }
   get maxHeight(): number {
     return this._maxHeight;
   }
-
-  // Setters
-  set x(value: number | "left" | "center" | "right" | "full") {
-    this._x = value;
-  }
-  set y(value: number | "top" | "center" | "bottom" | "full") {
-    this._y = value;
-  }
-
-  set width(size: Size) {
-    [this._width, this.widthPercentage] = sizeToPixels(size);
-  }
-
-  set height(size: Size) {
-    [this._height, this.heightPercentage] = sizeToPixels(size);
-  }
-
-  set xOffset(size: Size) {
-    [this._xOffset, this.xOffsetPercentage] = sizeToPixels(size);
-  }
-
-  set yOffset(size: Size) {
-    [this._yOffset, this.yOffsetPercentage] = sizeToPixels(size);
-  }
-
-  set minWidth(size: Size) {
-    [this._minWidth, this.minWidthPercentage] = sizeToPixels(size);
-  }
-
-  set minHeight(size: Size) {
-    [this._minHeight, this.minHeightPercentage] = sizeToPixels(size);
-  }
-
-  set maxWidth(size: Size) {
-    [this._maxWidth, this.maxWidthPercentage] = sizeToPixels(size);
-  }
-
   set maxHeight(size: Size) {
     [this._maxHeight, this.maxHeightPercentage] = sizeToPixels(size);
   }

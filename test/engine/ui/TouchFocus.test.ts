@@ -30,11 +30,14 @@ describe("UI touch focus", () => {
     const service = UIService.getInstance();
 
     service.playerInputs = [[InputEventType.TOUCH, 0]];
+    service.addToUI(button);
     service.uiDiv.querySelectorAll = vi.fn(() => [button.element] as unknown as NodeListOf<Element>) as unknown as typeof service.uiDiv.querySelectorAll;
     service.uiDiv.querySelector = vi.fn(() => null) as typeof service.uiDiv.querySelector;
 
     const setFocusSpy = vi.spyOn(service, "setFocusedElementByPlayerIndex");
 
+    // Real touches classify the following click as touch via the pointerdown.
+    (button.element as any).onpointerdown?.({ pointerType: "touch" });
     button.element.onclick?.({
       stopPropagation: vi.fn(),
     } as any);
@@ -52,7 +55,9 @@ describe("UI touch focus", () => {
     const button = new Button(new Position(0, 0), { label: "Late button" });
     const onClick = vi.fn();
     button.config.onClick = onClick;
+    service.addToUI(button);
 
+    (button.element as any).onpointerdown?.({ pointerType: "touch" });
     button.element.onclick?.({
       stopPropagation: vi.fn(),
     } as any);

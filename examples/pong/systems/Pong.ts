@@ -1,4 +1,6 @@
-import { Component, defaultValue, DrawSystemImpl, QueryInstance, Schema, System, SystemImpl, type } from "minecs";
+import { cos, sin } from "yage/utils/deterministicMath";
+import type { QueryInstance} from "minecs";
+import { Component, defaultValue, DrawSystemImpl, Schema, System, SystemImpl, type } from "minecs";
 import type { GameModel, ReadOnlyGameModel } from "yage/game/GameModel";
 import { UIService } from "yage/ui/UIService";
 import AssetLoader from "yage/loader/AssetLoader";
@@ -222,8 +224,8 @@ export class PongSystem extends SystemImpl<GameModel> {
       const hitPos = (board.ballY + BALL_SIZE / 2 - board.leftPaddleY) / PADDLE_H;
       const angle = (hitPos - 0.5) * 2.5;
       const speed = Math.sqrt(board.ballVx * board.ballVx + board.ballVy * board.ballVy) + 0.15;
-      board.ballVx = Math.abs(speed * Math.cos(angle));
-      board.ballVy = speed * Math.sin(angle);
+      board.ballVx = Math.abs(speed * cos(angle));
+      board.ballVy = speed * sin(angle);
     }
 
     // Right paddle collision
@@ -237,8 +239,8 @@ export class PongSystem extends SystemImpl<GameModel> {
       const hitPos = (board.ballY + BALL_SIZE / 2 - board.rightPaddleY) / PADDLE_H;
       const angle = (hitPos - 0.5) * 2.5;
       const speed = Math.sqrt(board.ballVx * board.ballVx + board.ballVy * board.ballVy) + 0.15;
-      board.ballVx = -Math.abs(speed * Math.cos(angle));
-      board.ballVy = speed * Math.sin(angle);
+      board.ballVx = -Math.abs(speed * cos(angle));
+      board.ballVy = speed * sin(angle);
     }
 
     // Scoring

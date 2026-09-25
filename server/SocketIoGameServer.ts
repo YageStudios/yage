@@ -215,10 +215,10 @@ class SocketIoGameServer {
 
       // Handle all other messages
       socket.onAny((event, ...args) => {
-        if (event !== "frame") {
-          console.log(event, args);
-        } else {
+        if (event === "frame") {
           this.clientLastFrame.set(socket.id, args[0].frame);
+        } else if (event !== "yagePing" && event !== "yagePong") {
+          console.log(event, args);
         }
         if (["joinGroup", "leaveGroup", "joinRoom", "leaveRoom", "requestPreloadState", "preloadState"].includes(event)) return;
         this.handleMessage(socket, event, args);
@@ -340,17 +340,29 @@ class SocketIoGameServer {
 
   private handleMessage(socket: any, event: string, args: any[]) {
     const groupId = this.clientGroups.get(socket.id);
+    const netId = this.clientNetIds.get(socket.id);
+    if (!groupId || !netId) {
+      return;
+    }
+
+    // RTT probes must work before clients have joined a room: the input
+    // delay is derived from the RTT at handshake time, before any room join.
+    if (event === "yagePing" || event === "yagePong") {
+      const group = this.groups.get(groupId)!;
+      group.clients.forEach((clientId) => {
+        if (clientId !== socket.id) {
+          this.io.to(clientId).emit(event, netId, ...args);
+        }
+      });
+      return;
+    }
+
     const roomId = this.clientRooms.get(socket.id);
-    if (!groupId || !roomId) return;
+    if (!roomId) return;
 
     const group = this.groups.get(groupId)!;
     const room = group.rooms.get(roomId)!;
-    const netId = this.clientNetIds.get(socket.id);
 
-    if (!netId) {
-      console.error("Client tried to send message without valid netId");
-      return;
-    }
     if (event === "frame" && args[0] && typeof args[0] === "object") {
       args[0] = { ...args[0], roomId };
     }

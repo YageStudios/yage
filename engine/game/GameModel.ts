@@ -35,8 +35,8 @@ import { ComponentCategory } from "yage/constants/enums";
 import type { ComponentData } from "yage/systems/types";
 import { EntityType } from "yage/schemas/entity/Types";
 import { Parent } from "yage/schemas/entity/Parent";
-import { InputManager } from "yage/inputs/InputManager";
-import { PlayerEventManager } from "yage/inputs/PlayerEventManager";
+import type { InputManager } from "yage/inputs/InputManager";
+import type { PlayerEventManager } from "yage/inputs/PlayerEventManager";
 import { ShareOnEject } from "yage/schemas/share/ShareOnEject";
 import { DoNotEject } from "yage/schemas/entity/DoNotEject";
 import { UiCleanupOnLeave } from "yage/schemas/render/UiCleanupOnLeave";
@@ -783,68 +783,52 @@ export const GameModel = ({
         isLast: boolean
       ) => void | boolean
     ) => {
-      const systemsSet = sortedSystemsByCategory[category];
-      if (!systemsSet) {
-        return;
-      }
-      if (entity === undefined) {
+      const systemGroups = sortedSystemsByCategory[category];
+      if (!systemGroups || entity === undefined) {
         return;
       }
       overrides = overrides || {};
-      let entities = Array.isArray(entity) ? entity : [entity];
-      if (!entities.length) {
+      const targets = [...new Set(Array.isArray(entity) ? entity : [entity])];
+      if (!targets.length) {
         return;
-      } else {
-        entities = entities.filter((eid) => entities.indexOf(eid) <= entities.lastIndexOf(eid));
       }
       const overrideKeys = Object.keys(overrides);
-      for (let i = 0; i < systemsSet.length; i++) {
-        const systems = systemsSet[i] as unknown as SystemImpl<GameModel>[];
-        for (let j = 0; j < systems.length; j++) {
-          const system = systems[j];
-          if ((system.constructor as typeof SystemImpl).depth >= 0) {
-            break;
-          }
-          for (let k = 0; k < entities.length; k++) {
-            const components: Schema[] = [];
-            const entity = entities[k];
-            if (overrideKeys.length > 0) {
-              const systemComponents = componentsBySystem[system.constructor.name];
-              for (let m = 0; m < systemComponents.length; m++) {
-                const type = systemComponents[m];
-                const schema = getComponentByType(type);
-                if (schema && !gameModel.hasComponent(schema, entity)) {
-                  k++;
-                  break;
-                }
+      // Manual (negative-depth) systems only, depth-ordered. Per-frame systems
+      // run through stepWorld instead.
+      const systems = [...new Set(systemGroups.flat())]
+        .filter((system) => (system.constructor as typeof SystemImpl).depth < 0)
+        .sort((a, b) => (a.constructor as typeof SystemImpl).depth - (b.constructor as typeof SystemImpl).depth);
 
-                if (schema?.category === category) {
-                  const component = gameModel.getComponent(schema, entity) as any;
-                  components.push(component);
-
-                  if (component) {
-                    for (const key of overrideKeys) {
-                      if (component[key] !== undefined) {
-                        component[key] = overrides[key];
-                      }
+      for (let i = 0; i < systems.length; i++) {
+        const system = systems[i];
+        let entities = targets;
+        entityLoop: for (let k = 0; k < entities.length; k++) {
+          const target = entities[k];
+          const components: Schema[] = [];
+          if (overrideKeys.length > 0) {
+            const systemComponents = componentsBySystem[system.constructor.name];
+            for (const type of systemComponents) {
+              const schema = getComponentByType(type);
+              if (schema && !gameModel.hasComponent(schema, target)) {
+                continue entityLoop;
+              }
+              if (schema?.category === category) {
+                const component = gameModel.getComponent(schema, target) as any;
+                components.push(component);
+                if (component) {
+                  for (const key of overrideKeys) {
+                    if (component[key] !== undefined) {
+                      component[key] = overrides[key];
                     }
                   }
                 }
               }
             }
-            system.run?.(gameModel, entities[k]);
-            if (after) {
-              let shouldContinue = after(
-                system,
-                components,
-                overrides,
-                i === systemsSet.length - 1 && k === entities.length - 1
-              );
-              if (shouldContinue === false) {
-                entities = entities.slice(k + 1);
-                k = 0;
-              }
-            }
+          }
+          system.run?.(gameModel, target);
+          if (after?.(system, components, overrides, i === systems.length - 1 && k === entities.length - 1) === false) {
+            entities = entities.slice(k + 1);
+            k = -1;
           }
         }
       }

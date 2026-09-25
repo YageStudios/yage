@@ -1,5 +1,5 @@
 import type { GameModel } from "yage/game/GameModel";
-import { Rectangle } from "./Rectangle";
+import type { Rectangle } from "./Rectangle";
 import { Position } from "./Rectangle";
 import type { UIElementConfig } from "./UIElement";
 import { UIElement } from "./UIElement";

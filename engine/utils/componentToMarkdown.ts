@@ -1,4 +1,4 @@
-import { Schema } from "minecs";
+import type { Schema } from "minecs";
 interface AjvSchema {
   type: string | string[];
   properties?: Record<string, AjvSchema>;

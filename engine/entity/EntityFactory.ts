@@ -9,7 +9,6 @@ import type { EntityAsset } from "./EntityAssets";
 import { getGlobalSingleton, setGlobalSingleton } from "yage/global";
 import { cloneDeep } from "lodash";
 import { hexToRgbNumber } from "yage/utils/colors";
-import { Parent } from "yage/schemas/entity/Parent";
 import { ListenEntityCreationSystem } from "yage/systems/core/ListenEntityCreation";
 import { ListenEntityCreation } from "yage/schemas/core/ListenEntityCreation";
 import { componentList } from "minecs";

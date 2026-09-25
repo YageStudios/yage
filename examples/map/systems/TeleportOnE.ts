@@ -1,7 +1,7 @@
 import { Component, Schema, System, SystemImpl, type } from "minecs";
 import { DEPTHS } from "yage/constants/enums";
-import { GameInstance } from "yage/game/GameInstance";
-import { GameModel } from "yage/game/GameModel";
+import type { GameInstance } from "yage/game/GameInstance";
+import type { GameModel } from "yage/game/GameModel";
 import { MappedKeys } from "yage/inputs/InputManager";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import { MapId } from "yage/schemas/map/MapSpawn";

@@ -1,5 +1,4 @@
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
-import { ComponentCategory } from "yage/systems/types";
 import type { GameModel } from "yage/game/GameModel";
 import { distanceSquaredVector2d } from "yage/utils/vector";
 import { keyPressed } from "yage/utils/keys";
@@ -8,7 +7,7 @@ import { BaseTriggerSystem } from "./BaseTrigger";
 import { Transform } from "yage/schemas/entity/Transform";
 import { PixiSprite } from "yage/schemas/render/PixiSprite";
 import { AtLocationTrigger } from "yage/schemas/triggers/AtLocationTrigger";
-import { System, getSystem } from "minecs";
+import { System } from "minecs";
 import type { BaseTrigger } from "yage/schemas/triggers/BaseTrigger";
 import { DEPTHS } from "yage/constants/enums";
 import { Child } from "yage/schemas/entity/Child";
