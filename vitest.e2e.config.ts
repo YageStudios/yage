@@ -1,9 +1,10 @@
-import { resolve } from "path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
     environment: "node",
+    alias: { yage: fileURLToPath(new URL("./engine", import.meta.url)) },
     include: ["test/e2e/**/*.e2e.test.ts"],
     testTimeout: 60_000,
     hookTimeout: 30_000,
@@ -11,9 +12,7 @@ export default defineConfig({
     singleFork: true,
   },
   resolve: {
-    alias: {
-      yage: resolve(__dirname, "./engine"),
-    },
-    extensions: [".ts", ".tsx", ".js"],
+    conditions: ["yage-source", "node", "development|production"],
+    preserveSymlinks: false,
   },
 });

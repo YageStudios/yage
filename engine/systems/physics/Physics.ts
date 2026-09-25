@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import type { GameModel, ReadOnlyGameModel } from "yage/game/GameModel";
 import { ComponentCategory } from "yage/systems/types";
-import type { RigidBodyDesc } from "@dimforge/rapier2d-compat";
-import RAPIER, { World } from "@dimforge/rapier2d-compat";
+import type { RigidBodyDesc } from "@dimforge/rapier2d-deterministic-compat";
+import RAPIER, { World } from "@dimforge/rapier2d-deterministic-compat";
 import { FrameRate } from "yage/schemas/core/FrameRate";
 import { Collisions } from "yage/schemas/physics/Collisions";
 import { Physics } from "yage/schemas/physics/Physics";

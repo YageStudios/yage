@@ -11,7 +11,7 @@ enum AssetType {
   SOUND,
   UI,
 }
-import RAPIER from "@dimforge/rapier2d-compat";
+import RAPIER from "@dimforge/rapier2d-deterministic-compat";
 import { PixiSpineLoader } from "./PixiSpineLoader";
 import type { UIConfig } from "yage/ui/UiConfigs";
 import { assignGlobalSingleton, setGlobalSingleton } from "yage/global";

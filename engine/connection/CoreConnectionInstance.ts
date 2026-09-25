@@ -1321,6 +1321,7 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
     }
 
     await this.firstFrame(roomState.gameModel, players[0].config);
+    roomState.gameModel.paused = false;
 
     this.rooms[roomId] = {
       rebalanceOnLeave: options.rebalanceOnLeave ?? false,
@@ -1353,6 +1354,10 @@ export class CoreConnectionInstance<T> implements ConnectionInstance<T> {
   private resetHistory(roomId: string, stack: ReplayStack<T>): void {
     this.history[roomId] = stack;
     this.historyPersistenceFlow.resetRoom(roomId, stack);
+  }
+
+  scheduledRoomEventsForFrame(roomId: string, playerId: string, frame: number): string[] {
+    return this.scheduledRoomEvents[roomId]?.[playerId]?.[frame] ?? [];
   }
 
   firstFrame(gameModel: GameModel, _firstPlayerConfig: any): void | Promise<void> {

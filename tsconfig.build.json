@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.source.json",
+  "compilerOptions": {
+    "rootDir": "./engine",
+    "outDir": "./dist",
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "noCheck": true,
+    "allowJs": true,
+    "checkJs": false
+  },
+  "include": ["engine/**/*.ts", "engine/**/*.js"],
+  "exclude": ["engine/**/*.test.ts", "engine/**/*.spec.ts"]
+}

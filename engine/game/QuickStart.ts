@@ -3,6 +3,7 @@ import { SingleplayerConnectionInstance } from "../connection/SingleplayerConnec
 import { GameInstance } from "./GameInstance";
 import type { GameModel } from "./GameModel";
 import { InputManager, MappedKeys } from "../inputs/InputManager";
+import { MouseManager } from "../inputs/MouseManager";
 import { KeyboardListener } from "../inputs/KeyboardListener";
 import AssetLoader from "../loader/AssetLoader";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
@@ -29,7 +30,7 @@ const keyboardKeysFromMappedKeys = (mappedKeys: QuickStartMappedKeys): string[] 
   return [...new Set(Object.values(mappedKeys))];
 };
 
-type QuickStartOptions<T> = {
+export type QuickStartOptions<T> = {
   gameName: string;
   connection?: "SOCKET" | "PEER" | "SINGLEPLAYER" | "COOP" | "REPLAY" | ConnectionInstance<T>;
   buildWorld?: (gameModel: GameModel, firstPlayerConfig: T) => void;
@@ -38,7 +39,7 @@ type QuickStartOptions<T> = {
   dt?: number;
   roomId?: string;
   seed?: string;
-  preload: (uiService: UIService) => Promise<void>;
+  preload?: (uiService: UIService) => Promise<void>;
   executionMode?: "realtime" | "step";
   mappedKeys?: QuickStartMappedKeys;
 };
@@ -95,6 +96,9 @@ export async function QuickStart<T = null>(
     const keyboardListener = new KeyboardListener(inputManager);
     keyboardListener.init(keyboardKeysFromMappedKeys(mappedKeys));
     unsubscribes.push(() => keyboardListener.destroy());
+    // Bridge cursor position/buttons into input state so systems can read
+    // it via getPointerState (PlayerInput carries the mouse fields).
+    new MouseManager(inputManager);
   };
 
   const initializeConnection = (
@@ -157,7 +161,7 @@ export async function QuickStart<T = null>(
     const e2eConnection = new E2EConnectionInstance<T>(inputManager!);
     await e2eConnection.connect();
     const instance: GameInstance<T> = initializeGameInstance(e2eConnection);
-    instance.initializeRoom(roomId, seed);
+    await instance.initializeRoom(roomId, seed);
 
     // Stop the ticker to allow manual frame stepping
     // @ts-ignore - accessing protected ticker
@@ -180,7 +184,7 @@ export async function QuickStart<T = null>(
   }
   await connection.connect();
   const instance: GameInstance<T> = initializeGameInstance(connection);
-  instance.initializeRoom(roomId, seed);
+  await instance.initializeRoom(roomId, seed);
   ensureMobileFullscreenButton();
 
   return instance;

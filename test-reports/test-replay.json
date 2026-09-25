@@ -1,192 +1,216 @@
 {
-  "QuickStart": {
+  "example": {
     "frames": {
       "e2e_host": [
         {
           "frame": 0,
           "keys": {},
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "frame": 1,
           "keys": {},
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "frame": 2,
           "keys": {},
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "frame": 3,
           "keys": {},
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "frame": 4,
           "keys": {},
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "frame": 5,
           "keys": {},
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "frame": 6,
           "keys": {},
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "frame": 7,
           "keys": {},
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 8,
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 9,
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 10,
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 11,
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 12,
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 13,
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 14,
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 15,
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 16,
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 17,
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 18,
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 19,
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 20,
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 21,
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 22,
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 23,
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 24,
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 25,
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 26,
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 27,
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 28,
           "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 29,
           "events": [],
-          "playerId": "e2e_host"
-        },
-        {
-          "keys": {},
-          "frame": 30,
-          "events": [],
-          "playerId": "e2e_host"
+          "playerId": "e2e_host",
+          "roomId": "example"
         }
       ],
       "replay_player": [
@@ -194,198 +218,222 @@
           "frame": 0,
           "keys": {},
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "frame": 1,
           "keys": {},
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "frame": 2,
           "keys": {},
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "frame": 3,
           "keys": {},
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "frame": 4,
           "keys": {},
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "frame": 5,
           "keys": {},
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "frame": 6,
           "keys": {},
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "frame": 7,
           "keys": {},
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 8,
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 9,
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 10,
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 11,
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 12,
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 13,
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 14,
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 15,
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 16,
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 17,
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 18,
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 19,
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 20,
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 21,
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 22,
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 23,
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 24,
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 25,
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 26,
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 27,
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 28,
           "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         },
         {
           "keys": {},
           "frame": 29,
           "events": [],
-          "playerId": "replay_player"
-        },
-        {
-          "keys": {},
-          "frame": 30,
-          "events": [],
-          "playerId": "replay_player"
+          "playerId": "replay_player",
+          "roomId": "example"
         }
       ]
     },
-    "seed": "QuickStart",
-    "startTimestamp": 1775690450619,
+    "seed": "linked-example",
+    "startTimestamp": 1790177006158,
     "stateHashes": {
-      "0": "71f10348cb2a39d4f6896e9d04f7200b"
+      "0": "9e2fc086176be31d2244c2b42869640a"
     },
     "snapshots": {
       "0": {
-        "core": 1,
+        "core": 0,
         "timeElapsed": 0,
         "frame": 0,
         "world": {
@@ -395,131 +443,88 @@
               0,
               1,
               2,
-              3
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
             ],
             "sparse": [
               0,
               1,
               2,
-              3
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
             ]
           },
           "removed": [],
           "entities": [
             {
               "entityId": 0,
-              "components": {}
-            },
-            {
-              "entityId": 1,
               "components": {
-                "Collisions": {
-                  "collisionMap": {}
-                },
                 "Description": {
                   "description": "core"
                 },
                 "EntityType": {
                   "entityType": 0
                 },
-                "Frame": {
-                  "frame": 0
+                "GameState": {
+                  "score": 0
                 },
-                "FrameEnd": {},
-                "FrameRate": {
-                  "uiMap": "core/FrameRate"
-                },
-                "FrameStart": {},
-                "Physics": {
-                  "gravityX": 0,
-                  "gravityY": 0
-                },
-                "PixiViewport": {
-                  "minWidth": 1089,
-                  "minHeight": 1080,
-                  "fillScreen": false
-                },
-                "PixiViewportCleanup": {},
                 "Random": {
-                  "random": -632932715,
-                  "seedNumber": -632932715,
-                  "seed": "QuickStart"
+                  "random": -425102922,
+                  "seedNumber": -425102922,
+                  "seed": "linked-example"
                 },
                 "UiCleanupOnLeave": {}
               }
             },
             {
-              "entityId": 2,
+              "entityId": 1,
               "components": {
-                "AllyType": {},
                 "Description": {
-                  "description": "ball"
+                  "description": "Spark"
                 },
                 "EntityType": {
-                  "entityType": 5
+                  "entityType": 0
                 },
-                "Locomotion": {
-                  "x": 0,
-                  "y": 0,
-                  "speed": 10,
-                  "directionX": 0,
-                  "directionY": 1,
-                  "decayingVelocityX": 0,
-                  "decayingVelocityY": 0,
-                  "decayingVelocityTime": 0,
-                  "decayingVelocityScale": 1,
-                  "fixedDirection": 0
+                "Spark": {
+                  "radius": 8
                 },
-                "PixiGraphic": {
-                  "scale": 1,
-                  "initialScale": 1,
-                  "rotation": 0,
-                  "xoffset": 0,
-                  "yoffset": 0,
-                  "zIndex": 0,
-                  "inheritParentZIndex": true,
-                  "relativeZIndex": true,
-                  "opacity": 1,
-                  "anchorX": 0.5,
-                  "anchorY": 0.5,
-                  "lineWidth": 0,
-                  "fillColor": "#ff0000",
-                  "circle": {
-                    "x": 5,
-                    "y": 5,
-                    "radius": 5
-                  }
-                },
-                "PlayerInput": {
-                  "buttons": 0,
-                  "keyMap": {},
-                  "pid": "e2e_host"
-                },
-                "PlayerMovement": {},
-                "PlayerType": {},
-                "Radius": {
-                  "radius": 5
-                },
-                "RigidCircle": {
-                  "radius": 0,
-                  "isStatic": false,
-                  "isSensor": false,
-                  "mass": 200,
-                  "disabled": false,
-                  "directionLock": false,
-                  "velocityLock": false,
-                  "collisionEvents": true,
-                  "isometric": false,
-                  "restitution": 0,
-                  "collisionCategory": 2,
-                  "collisionMask": [
-                    65535
-                  ]
-                },
-                "RigidCircleResolver": {},
                 "Transform": {
-                  "x": 0,
-                  "y": 0,
+                  "x": 775,
+                  "y": 30,
+                  "z": 0,
+                  "previousX": 0,
+                  "previousY": 0,
+                  "previousZ": 0
+                }
+              }
+            },
+            {
+              "entityId": 2,
+              "components": {
+                "Description": {
+                  "description": "Spark"
+                },
+                "EntityType": {
+                  "entityType": 0
+                },
+                "Spark": {
+                  "radius": 8
+                },
+                "Transform": {
+                  "x": 903,
+                  "y": 131,
                   "z": 0,
                   "previousX": 0,
                   "previousY": 0,
@@ -531,17 +536,189 @@
               "entityId": 3,
               "components": {
                 "Description": {
-                  "description": "blue-ball"
+                  "description": "Spark"
                 },
                 "EntityType": {
                   "entityType": 0
+                },
+                "Spark": {
+                  "radius": 8
+                },
+                "Transform": {
+                  "x": 862,
+                  "y": 315,
+                  "z": 0,
+                  "previousX": 0,
+                  "previousY": 0,
+                  "previousZ": 0
+                }
+              }
+            },
+            {
+              "entityId": 4,
+              "components": {
+                "Description": {
+                  "description": "Spark"
+                },
+                "EntityType": {
+                  "entityType": 0
+                },
+                "Spark": {
+                  "radius": 8
+                },
+                "Transform": {
+                  "x": 536,
+                  "y": 176,
+                  "z": 0,
+                  "previousX": 0,
+                  "previousY": 0,
+                  "previousZ": 0
+                }
+              }
+            },
+            {
+              "entityId": 5,
+              "components": {
+                "Description": {
+                  "description": "Spark"
+                },
+                "EntityType": {
+                  "entityType": 0
+                },
+                "Spark": {
+                  "radius": 8
+                },
+                "Transform": {
+                  "x": 439,
+                  "y": 494,
+                  "z": 0,
+                  "previousX": 0,
+                  "previousY": 0,
+                  "previousZ": 0
+                }
+              }
+            },
+            {
+              "entityId": 6,
+              "components": {
+                "Description": {
+                  "description": "Spark"
+                },
+                "EntityType": {
+                  "entityType": 0
+                },
+                "Spark": {
+                  "radius": 8
+                },
+                "Transform": {
+                  "x": 75,
+                  "y": 280,
+                  "z": 0,
+                  "previousX": 0,
+                  "previousY": 0,
+                  "previousZ": 0
+                }
+              }
+            },
+            {
+              "entityId": 7,
+              "components": {
+                "Description": {
+                  "description": "Spark"
+                },
+                "EntityType": {
+                  "entityType": 0
+                },
+                "Spark": {
+                  "radius": 8
+                },
+                "Transform": {
+                  "x": 909,
+                  "y": 349,
+                  "z": 0,
+                  "previousX": 0,
+                  "previousY": 0,
+                  "previousZ": 0
+                }
+              }
+            },
+            {
+              "entityId": 8,
+              "components": {
+                "Description": {
+                  "description": "Spark"
+                },
+                "EntityType": {
+                  "entityType": 0
+                },
+                "Spark": {
+                  "radius": 8
+                },
+                "Transform": {
+                  "x": 218,
+                  "y": 212,
+                  "z": 0,
+                  "previousX": 0,
+                  "previousY": 0,
+                  "previousZ": 0
+                }
+              }
+            },
+            {
+              "entityId": 9,
+              "components": {
+                "Description": {
+                  "description": "Spark"
+                },
+                "EntityType": {
+                  "entityType": 0
+                },
+                "Spark": {
+                  "radius": 8
+                },
+                "Transform": {
+                  "x": 132,
+                  "y": 38,
+                  "z": 0,
+                  "previousX": 0,
+                  "previousY": 0,
+                  "previousZ": 0
+                }
+              }
+            },
+            {
+              "entityId": 10,
+              "components": {
+                "Collector": {
+                  "speed": 260,
+                  "radius": 14
+                },
+                "Description": {
+                  "description": "Player"
+                },
+                "EntityType": {
+                  "entityType": 0
+                },
+                "PlayerInput": {
+                  "buttons": 0,
+                  "mouseActive": false,
+                  "keyMap": {},
+                  "pid": "e2e_host"
+                },
+                "Transform": {
+                  "x": 480,
+                  "y": 270,
+                  "z": 0,
+                  "previousX": 0,
+                  "previousY": 0,
+                  "previousZ": 0
                 }
               }
             }
           ],
-          "entityCursor": 4,
+          "entityCursor": 11,
           "size": 10000,
-          "bitflag": 16777216,
+          "bitflag": 67108864,
           "componentMap": [
             [
               "AllyType",
@@ -635,514 +812,528 @@
               }
             ],
             [
-              "CollisionFilters",
+              "Collector",
               {
                 "generationId": 0,
                 "bitflag": 8192
+              }
+            ],
+            [
+              "CollisionFilters",
+              {
+                "generationId": 0,
+                "bitflag": 16384
               }
             ],
             [
               "Collisions",
               {
                 "generationId": 0,
-                "bitflag": 16384
+                "bitflag": 32768
               }
             ],
             [
               "Damage",
               {
                 "generationId": 0,
-                "bitflag": 32768
+                "bitflag": 65536
               }
             ],
             [
               "Damageable",
               {
                 "generationId": 0,
-                "bitflag": 65536
+                "bitflag": 131072
               }
             ],
             [
               "DamageStats",
               {
                 "generationId": 0,
-                "bitflag": 131072
+                "bitflag": 262144
               }
             ],
             [
               "DeathTrigger",
               {
                 "generationId": 0,
-                "bitflag": 262144
+                "bitflag": 524288
               }
             ],
             [
               "Description",
               {
                 "generationId": 0,
-                "bitflag": 524288
+                "bitflag": 1048576
               }
             ],
             [
               "DoNotEject",
               {
                 "generationId": 0,
-                "bitflag": 1048576
+                "bitflag": 2097152
               }
             ],
             [
               "DoorType",
               {
                 "generationId": 0,
-                "bitflag": 2097152
+                "bitflag": 4194304
               }
             ],
             [
               "EnemyType",
               {
                 "generationId": 0,
-                "bitflag": 4194304
+                "bitflag": 8388608
               }
             ],
             [
               "EntityCamera",
               {
                 "generationId": 0,
-                "bitflag": 8388608
+                "bitflag": 16777216
               }
             ],
             [
               "EntityType",
               {
                 "generationId": 0,
-                "bitflag": 16777216
+                "bitflag": 33554432
               }
             ],
             [
               "Events",
               {
                 "generationId": 0,
-                "bitflag": 33554432
+                "bitflag": 67108864
               }
             ],
             [
               "Frame",
               {
                 "generationId": 0,
-                "bitflag": 67108864
+                "bitflag": 134217728
               }
             ],
             [
               "FrameEnd",
               {
                 "generationId": 0,
-                "bitflag": 134217728
+                "bitflag": 268435456
               }
             ],
             [
               "FrameRate",
               {
                 "generationId": 0,
-                "bitflag": 268435456
+                "bitflag": 536870912
               }
             ],
             [
               "FrameStart",
               {
                 "generationId": 0,
-                "bitflag": 536870912
+                "bitflag": 1073741824
+              }
+            ],
+            [
+              "GameState",
+              {
+                "generationId": 1,
+                "bitflag": 1
               }
             ],
             [
               "GlobalKillStats",
               {
-                "generationId": 0,
-                "bitflag": 1073741824
+                "generationId": 1,
+                "bitflag": 2
               }
             ],
             [
               "GlobalKillStatsTrigger",
               {
                 "generationId": 1,
-                "bitflag": 1
+                "bitflag": 4
               }
             ],
             [
               "Health",
               {
                 "generationId": 1,
-                "bitflag": 2
+                "bitflag": 8
               }
             ],
             [
               "InteractableType",
               {
                 "generationId": 1,
-                "bitflag": 4
+                "bitflag": 16
               }
             ],
             [
               "IsMovingTrigger",
               {
                 "generationId": 1,
-                "bitflag": 8
+                "bitflag": 32
               }
             ],
             [
               "IsStandingTrigger",
               {
                 "generationId": 1,
-                "bitflag": 16
+                "bitflag": 64
               }
             ],
             [
               "KillFrame",
               {
                 "generationId": 1,
-                "bitflag": 32
+                "bitflag": 128
               }
             ],
             [
               "KillStats",
               {
                 "generationId": 1,
-                "bitflag": 64
+                "bitflag": 256
               }
             ],
             [
               "KillStatsTrigger",
               {
                 "generationId": 1,
-                "bitflag": 128
+                "bitflag": 512
               }
             ],
             [
               "ListenEntityCreation",
               {
                 "generationId": 1,
-                "bitflag": 256
+                "bitflag": 1024
               }
             ],
             [
               "Locomotion",
               {
                 "generationId": 1,
-                "bitflag": 512
+                "bitflag": 2048
               }
             ],
             [
               "Map",
               {
                 "generationId": 1,
-                "bitflag": 1024
+                "bitflag": 4096
               }
             ],
             [
               "MapEntityType",
               {
                 "generationId": 1,
-                "bitflag": 2048
+                "bitflag": 8192
               }
             ],
             [
               "MapId",
               {
                 "generationId": 1,
-                "bitflag": 4096
+                "bitflag": 16384
               }
             ],
             [
               "MapIsometric",
               {
                 "generationId": 1,
-                "bitflag": 8192
+                "bitflag": 32768
               }
             ],
             [
               "MapSession",
               {
                 "generationId": 1,
-                "bitflag": 16384
+                "bitflag": 65536
               }
             ],
             [
               "MapSpawn",
               {
                 "generationId": 1,
-                "bitflag": 32768
+                "bitflag": 131072
               }
             ],
             [
               "NoLocomotion",
               {
                 "generationId": 1,
-                "bitflag": 65536
+                "bitflag": 262144
               }
             ],
             [
               "Owned",
               {
                 "generationId": 1,
-                "bitflag": 131072
+                "bitflag": 524288
               }
             ],
             [
               "Owner",
               {
                 "generationId": 1,
-                "bitflag": 262144
+                "bitflag": 1048576
               }
             ],
             [
               "Parent",
               {
                 "generationId": 1,
-                "bitflag": 524288
+                "bitflag": 2097152
               }
             ],
             [
               "Physics",
               {
                 "generationId": 1,
-                "bitflag": 1048576
+                "bitflag": 4194304
               }
             ],
             [
               "PickupType",
               {
                 "generationId": 1,
-                "bitflag": 2097152
+                "bitflag": 8388608
               }
             ],
             [
               "PixiGraphic",
               {
                 "generationId": 1,
-                "bitflag": 4194304
+                "bitflag": 16777216
               }
             ],
             [
               "PixiSprite",
               {
                 "generationId": 1,
-                "bitflag": 8388608
+                "bitflag": 33554432
               }
             ],
             [
               "PixiViewport",
               {
                 "generationId": 1,
-                "bitflag": 16777216
+                "bitflag": 67108864
               }
             ],
             [
               "PixiViewportCleanup",
               {
                 "generationId": 1,
-                "bitflag": 33554432
+                "bitflag": 134217728
               }
             ],
             [
               "PlayerInput",
               {
                 "generationId": 1,
-                "bitflag": 67108864
-              }
-            ],
-            [
-              "PlayerMovement",
-              {
-                "generationId": 1,
-                "bitflag": 134217728
+                "bitflag": 268435456
               }
             ],
             [
               "PlayerType",
               {
                 "generationId": 1,
-                "bitflag": 268435456
+                "bitflag": 536870912
               }
             ],
             [
               "Portal",
               {
                 "generationId": 1,
-                "bitflag": 536870912
-              }
-            ],
-            [
-              "PreviousKills",
-              {
-                "generationId": 1,
                 "bitflag": 1073741824
               }
             ],
             [
-              "ProjectileType",
+              "PreviousKills",
               {
                 "generationId": 2,
                 "bitflag": 1
               }
             ],
             [
-              "Radius",
+              "ProjectileType",
               {
                 "generationId": 2,
                 "bitflag": 2
               }
             ],
             [
-              "Random",
+              "Radius",
               {
                 "generationId": 2,
                 "bitflag": 4
               }
             ],
             [
-              "RigidBox",
+              "Random",
               {
                 "generationId": 2,
                 "bitflag": 8
               }
             ],
             [
-              "RigidBoxResolver",
+              "RigidBox",
               {
                 "generationId": 2,
                 "bitflag": 16
               }
             ],
             [
-              "RigidCircle",
+              "RigidBoxResolver",
               {
                 "generationId": 2,
                 "bitflag": 32
               }
             ],
             [
-              "RigidCircleResolver",
+              "RigidCircle",
               {
                 "generationId": 2,
                 "bitflag": 64
               }
             ],
             [
-              "RigidPoly",
+              "RigidCircleResolver",
               {
                 "generationId": 2,
                 "bitflag": 128
               }
             ],
             [
-              "RigidPolyResolver",
+              "RigidPoly",
               {
                 "generationId": 2,
                 "bitflag": 256
               }
             ],
             [
-              "SelfCamera",
+              "RigidPolyResolver",
               {
                 "generationId": 2,
                 "bitflag": 512
               }
             ],
             [
-              "ShareOnDeath",
+              "SelfCamera",
               {
                 "generationId": 2,
                 "bitflag": 1024
               }
             ],
             [
-              "ShareOnEject",
+              "ShareOnDeath",
               {
                 "generationId": 2,
                 "bitflag": 2048
               }
             ],
             [
-              "ShareOnHeal",
+              "ShareOnEject",
               {
                 "generationId": 2,
                 "bitflag": 4096
               }
             ],
             [
-              "ShareOnKill",
+              "ShareOnHeal",
               {
                 "generationId": 2,
                 "bitflag": 8192
               }
             ],
             [
-              "Spawn",
+              "ShareOnKill",
               {
                 "generationId": 2,
                 "bitflag": 16384
               }
             ],
             [
-              "SpawnTrigger",
+              "Spark",
               {
                 "generationId": 2,
                 "bitflag": 32768
               }
             ],
             [
-              "SwapComponents",
+              "Spawn",
               {
                 "generationId": 2,
                 "bitflag": 65536
               }
             ],
             [
-              "Teleport",
+              "SpawnTrigger",
               {
                 "generationId": 2,
                 "bitflag": 131072
               }
             ],
             [
-              "TimeTrigger",
+              "SwapComponents",
               {
                 "generationId": 2,
                 "bitflag": 262144
               }
             ],
             [
-              "Transform",
+              "Teleport",
               {
                 "generationId": 2,
                 "bitflag": 524288
               }
             ],
             [
-              "TriggerEvent",
+              "TimeTrigger",
               {
                 "generationId": 2,
                 "bitflag": 1048576
               }
             ],
             [
-              "UiCleanupOnLeave",
+              "Transform",
               {
                 "generationId": 2,
                 "bitflag": 2097152
               }
             ],
             [
-              "WallType",
+              "TriggerEvent",
               {
                 "generationId": 2,
                 "bitflag": 4194304
               }
             ],
             [
-              "WeaponType",
+              "UiCleanupOnLeave",
               {
                 "generationId": 2,
                 "bitflag": 8388608
+              }
+            ],
+            [
+              "WallType",
+              {
+                "generationId": 2,
+                "bitflag": 16777216
+              }
+            ],
+            [
+              "WeaponType",
+              {
+                "generationId": 2,
+                "bitflag": 33554432
               }
             ]
           ],
@@ -1153,7 +1344,7 @@
                 1
               ],
               "masks": {
-                "1": 4096
+                "1": 16384
               },
               "dense": [],
               "sparse": [],
@@ -1173,8 +1364,8 @@
                 2
               ],
               "masks": {
-                "1": 32768,
-                "2": 524288
+                "1": 131072,
+                "2": 2097152
               },
               "dense": [],
               "sparse": [],
@@ -1193,7 +1384,7 @@
                 1
               ],
               "masks": {
-                "1": 262144
+                "1": 1048576
               },
               "dense": [],
               "sparse": [],
@@ -1212,27 +1403,17 @@
                 1
               ],
               "masks": {
-                "1": 33554432
+                "1": 134217728
               },
-              "dense": [
-                1
-              ],
-              "sparse": [
-                -1,
-                0
-              ],
+              "dense": [],
+              "sparse": [],
               "toRemove": {
                 "dense": [],
                 "sparse": []
               },
               "entered": {
-                "dense": [
-                  1
-                ],
-                "sparse": [
-                  -1,
-                  0
-                ]
+                "dense": [],
+                "sparse": []
               }
             },
             "SwapComponents": {
@@ -1241,7 +1422,7 @@
                 2
               ],
               "masks": {
-                "2": 65536
+                "2": 262144
               },
               "dense": [],
               "sparse": [],
@@ -1260,7 +1441,7 @@
                 2
               ],
               "masks": {
-                "2": 1048576
+                "2": 4194304
               },
               "dense": [],
               "sparse": [],
@@ -1279,13 +1460,12 @@
                 2
               ],
               "masks": {
-                "2": 2097152
+                "2": 8388608
               },
               "dense": [
-                1
+                0
               ],
               "sparse": [
-                -1,
                 0
               ],
               "toRemove": {
@@ -1294,10 +1474,9 @@
               },
               "entered": {
                 "dense": [
-                  1
+                  0
                 ],
                 "sparse": [
-                  -1,
                   0
                 ]
               }
@@ -1329,7 +1508,7 @@
               ],
               "masks": {
                 "0": 4096,
-                "1": 256
+                "1": 1024
               },
               "dense": [],
               "sparse": [],
@@ -1342,18 +1521,31 @@
                 "sparse": []
               }
             },
-            "Frame|FrameRate": {
-              "queryKey": "Frame|FrameRate",
+            "Collector|PlayerInput|Transform": {
+              "queryKey": "Collector|PlayerInput|Transform",
               "generations": [
-                0
-              ],
-              "masks": {
-                "0": 335544320
-              },
-              "dense": [
+                0,
+                2,
                 1
               ],
+              "masks": {
+                "0": 8192,
+                "1": 268435456,
+                "2": 2097152
+              },
+              "dense": [
+                10
+              ],
               "sparse": [
+                -1,
+                -1,
+                -1,
+                -1,
+                -1,
+                -1,
+                -1,
+                -1,
+                -1,
                 -1,
                 0
               ],
@@ -1363,12 +1555,40 @@
               },
               "entered": {
                 "dense": [
-                  1
+                  10
                 ],
                 "sparse": [
                   -1,
+                  -1,
+                  -1,
+                  -1,
+                  -1,
+                  -1,
+                  -1,
+                  -1,
+                  -1,
+                  -1,
                   0
                 ]
+              }
+            },
+            "Frame|FrameRate": {
+              "queryKey": "Frame|FrameRate",
+              "generations": [
+                0
+              ],
+              "masks": {
+                "0": 671088640
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
               }
             },
             "FrameRate": {
@@ -1377,27 +1597,17 @@
                 0
               ],
               "masks": {
-                "0": 268435456
+                "0": 536870912
               },
-              "dense": [
-                1
-              ],
-              "sparse": [
-                -1,
-                0
-              ],
+              "dense": [],
+              "sparse": [],
               "toRemove": {
                 "dense": [],
                 "sparse": []
               },
               "entered": {
-                "dense": [
-                  1
-                ],
-                "sparse": [
-                  -1,
-                  0
-                ]
+                "dense": [],
+                "sparse": []
               }
             },
             "Owned": {
@@ -1406,7 +1616,7 @@
                 1
               ],
               "masks": {
-                "1": 131072
+                "1": 524288
               },
               "dense": [],
               "sparse": [],
@@ -1425,13 +1635,12 @@
                 2
               ],
               "masks": {
-                "2": 4
+                "2": 8
               },
               "dense": [
-                1
+                0
               ],
               "sparse": [
-                -1,
                 0
               ],
               "toRemove": {
@@ -1440,10 +1649,9 @@
               },
               "entered": {
                 "dense": [
-                  1
+                  0
                 ],
                 "sparse": [
-                  -1,
                   0
                 ]
               }
@@ -1454,7 +1662,7 @@
                 1
               ],
               "masks": {
-                "1": 1024
+                "1": 4096
               },
               "dense": [],
               "sparse": [],
@@ -1473,7 +1681,7 @@
                 1
               ],
               "masks": {
-                "1": 2
+                "1": 8
               },
               "dense": [],
               "sparse": [],
@@ -1492,7 +1700,7 @@
                 1
               ],
               "masks": {
-                "1": 1
+                "1": 4
               },
               "dense": [],
               "sparse": [],
@@ -1511,7 +1719,7 @@
                 1
               ],
               "masks": {
-                "1": 128
+                "1": 512
               },
               "dense": [],
               "sparse": [],
@@ -1524,37 +1732,6 @@
                 "sparse": []
               }
             },
-            "PlayerMovement": {
-              "queryKey": "PlayerMovement",
-              "generations": [
-                1
-              ],
-              "masks": {
-                "1": 134217728
-              },
-              "dense": [
-                2
-              ],
-              "sparse": [
-                -1,
-                -1,
-                0
-              ],
-              "toRemove": {
-                "dense": [],
-                "sparse": []
-              },
-              "entered": {
-                "dense": [
-                  2
-                ],
-                "sparse": [
-                  -1,
-                  -1,
-                  0
-                ]
-              }
-            },
             "Attach|Transform": {
               "queryKey": "Attach|Transform",
               "generations": [
@@ -1563,7 +1740,7 @@
               ],
               "masks": {
                 "0": 64,
-                "2": 524288
+                "2": 2097152
               },
               "dense": [],
               "sparse": [],
@@ -1584,7 +1761,7 @@
               ],
               "masks": {
                 "0": 4096,
-                "2": 524288
+                "2": 2097152
               },
               "dense": [],
               "sparse": [],
@@ -1603,7 +1780,7 @@
                 2
               ],
               "masks": {
-                "2": 524296
+                "2": 2097168
               },
               "dense": [],
               "sparse": [],
@@ -1622,29 +1799,17 @@
                 2
               ],
               "masks": {
-                "2": 524320
+                "2": 2097216
               },
-              "dense": [
-                2
-              ],
-              "sparse": [
-                -1,
-                -1,
-                0
-              ],
+              "dense": [],
+              "sparse": [],
               "toRemove": {
                 "dense": [],
                 "sparse": []
               },
               "entered": {
-                "dense": [
-                  2
-                ],
-                "sparse": [
-                  -1,
-                  -1,
-                  0
-                ]
+                "dense": [],
+                "sparse": []
               }
             },
             "Physics": {
@@ -1653,27 +1818,17 @@
                 1
               ],
               "masks": {
-                "1": 1048576
+                "1": 4194304
               },
-              "dense": [
-                1
-              ],
-              "sparse": [
-                -1,
-                0
-              ],
+              "dense": [],
+              "sparse": [],
               "toRemove": {
                 "dense": [],
                 "sparse": []
               },
               "entered": {
-                "dense": [
-                  1
-                ],
-                "sparse": [
-                  -1,
-                  0
-                ]
+                "dense": [],
+                "sparse": []
               }
             },
             "RigidBoxResolver": {
@@ -1682,7 +1837,7 @@
                 2
               ],
               "masks": {
-                "2": 16
+                "2": 32
               },
               "dense": [],
               "sparse": [],
@@ -1701,29 +1856,17 @@
                 2
               ],
               "masks": {
-                "2": 64
+                "2": 128
               },
-              "dense": [
-                2
-              ],
-              "sparse": [
-                -1,
-                -1,
-                0
-              ],
+              "dense": [],
+              "sparse": [],
               "toRemove": {
                 "dense": [],
                 "sparse": []
               },
               "entered": {
-                "dense": [
-                  2
-                ],
-                "sparse": [
-                  -1,
-                  -1,
-                  0
-                ]
+                "dense": [],
+                "sparse": []
               }
             },
             "AtLocationTrigger": {
@@ -1752,8 +1895,8 @@
                 2
               ],
               "masks": {
-                "0": 262144,
-                "2": 524288
+                "0": 524288,
+                "2": 2097152
               },
               "dense": [],
               "sparse": [],
@@ -1772,7 +1915,7 @@
                 2
               ],
               "masks": {
-                "2": 557056
+                "2": 2228224
               },
               "dense": [],
               "sparse": [],
@@ -1810,7 +1953,7 @@
                 1
               ],
               "masks": {
-                "1": 8
+                "1": 32
               },
               "dense": [],
               "sparse": [],
@@ -1829,7 +1972,7 @@
                 1
               ],
               "masks": {
-                "1": 16
+                "1": 64
               },
               "dense": [],
               "sparse": [],
@@ -1848,7 +1991,7 @@
                 2
               ],
               "masks": {
-                "2": 262144
+                "2": 1048576
               },
               "dense": [],
               "sparse": [],
@@ -1886,27 +2029,17 @@
                 0
               ],
               "masks": {
-                "0": 201326592
+                "0": 402653184
               },
-              "dense": [
-                1
-              ],
-              "sparse": [
-                -1,
-                0
-              ],
+              "dense": [],
+              "sparse": [],
               "toRemove": {
                 "dense": [],
                 "sparse": []
               },
               "entered": {
-                "dense": [
-                  1
-                ],
-                "sparse": [
-                  -1,
-                  0
-                ]
+                "dense": [],
+                "sparse": []
               }
             },
             "PixiSprite|Transform": {
@@ -1916,8 +2049,8 @@
                 1
               ],
               "masks": {
-                "1": 8388608,
-                "2": 524288
+                "1": 33554432,
+                "2": 2097152
               },
               "dense": [],
               "sparse": [],
@@ -1936,14 +2069,31 @@
                 1
               ],
               "masks": {
-                "1": 4194304
+                "1": 16777216
+              },
+              "dense": [],
+              "sparse": [],
+              "toRemove": {
+                "dense": [],
+                "sparse": []
+              },
+              "entered": {
+                "dense": [],
+                "sparse": []
+              }
+            },
+            "GameState": {
+              "queryKey": "GameState",
+              "generations": [
+                1
+              ],
+              "masks": {
+                "1": 1
               },
               "dense": [
-                2
+                0
               ],
               "sparse": [
-                -1,
-                -1,
                 0
               ],
               "toRemove": {
@@ -1952,11 +2102,9 @@
               },
               "entered": {
                 "dense": [
-                  2
+                  0
                 ],
                 "sparse": [
-                  -1,
-                  -1,
                   0
                 ]
               }
@@ -1967,7 +2115,7 @@
                 0
               ],
               "masks": {
-                "0": 8388608
+                "0": 16777216
               },
               "dense": [],
               "sparse": [],
@@ -1986,7 +2134,7 @@
                 2
               ],
               "masks": {
-                "2": 512
+                "2": 1024
               },
               "dense": [],
               "sparse": [],
@@ -2005,50 +2153,21 @@
                 1
               ],
               "masks": {
-                "1": 16777216
+                "1": 67108864
               },
-              "dense": [
-                1
-              ],
-              "sparse": [
-                -1,
-                0
-              ],
+              "dense": [],
+              "sparse": [],
               "toRemove": {
                 "dense": [],
                 "sparse": []
               },
               "entered": {
-                "dense": [
-                  1
-                ],
-                "sparse": [
-                  -1,
-                  0
-                ]
+                "dense": [],
+                "sparse": []
               }
             }
           },
           "dirtyQueries": []
-        },
-        "physics": {
-          "bodies": {
-            "0": 2
-          },
-          "colliders": {
-            "0": 2
-          },
-          "data": "AAAAAAAAAABvEoM8P8MuOQAAoEAAAPBBACR0SQAAgD8AAIA/AACAP28SgzoAACBBbxIDOwQAAAAAAAAAAQAAAAAAAAABAAAAAAAAAIAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAQAAAAAAAAD/////AAAAAP////8AAAAA/////wAAAAAAAIA/AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAAAAAAAAACtejOwrXozsXt9E5AAAAAAAAAAAK16M7F7fROQAAAAAAAAAAAAAAAAAAAACgQAAAoEAAAAAAAAABAAAAAAAAAAAAAAAAAAAAzczMPgAAAD8AAABAAAAAAAD/AAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAECAAAAAAAAAAEDAAAAAAAAAAAAAAAAAQEAAAABAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAKBAAQAAAAAASEP/AQAAAQAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAAAAAAAA/AAAAAAAAAAAAAAAADwACAAAA//8AAP//AAD//wAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAECAAAAAAAAAAEDAAAAAAAAAAAAAAAAAQEAAAABAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAQEAAAAAAAAAAQIAAAAAAAAAAQMAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAQEAAAAAAAAAAQIAAAAAAAAAAQMAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-          "history": [
-            [
-              "addBody",
-              0
-            ],
-            [
-              "addCollider",
-              0
-            ]
-          ]
         }
       }
     },

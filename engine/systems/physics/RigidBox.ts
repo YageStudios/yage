@@ -3,7 +3,7 @@ import { ComponentCategory } from "yage/systems/types";
 import { PhysicsSystem } from "yage/systems/physics/Physics";
 import { angleOfVector2d } from "yage/utils/vector";
 import { CollisionCategoryEnum, DEPTHS } from "yage/constants/enums";
-import RAPIER from "@dimforge/rapier2d-compat";
+import RAPIER from "@dimforge/rapier2d-deterministic-compat";
 import { Locomotion } from "yage/schemas/entity/Locomotion";
 import { Transform } from "yage/schemas/entity/Transform";
 import { RigidBoxResolver, RigidBox } from "yage/schemas/physics/RigidBox";

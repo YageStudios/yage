@@ -2,7 +2,7 @@ import type { GameModel } from "yage/game/GameModel";
 import { ComponentCategory } from "../../systems/types";
 import { PhysicsSystem } from "yage/systems/physics/Physics";
 import { CollisionCategoryEnum, DEPTHS } from "yage/constants/enums";
-import RAPIER from "@dimforge/rapier2d-compat";
+import RAPIER from "@dimforge/rapier2d-deterministic-compat";
 import { Locomotion } from "yage/schemas/entity/Locomotion";
 import { Radius } from "yage/schemas/entity/Radius";
 import { Transform } from "yage/schemas/entity/Transform";

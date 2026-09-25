@@ -212,6 +212,7 @@ export enum FaceDirectionEnum {
   HORIZONTAL,
   VERTICAL,
   HORIZONTAL_ROTATE,
+  ROTATE_FLIP,
 }
 
 export enum PickupStateEnum {

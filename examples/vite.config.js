@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
-import json5Plugin from "../vite-plugin-json5";
+import { yage } from "../tooling/vite.mjs";
 
 const examplesRoot = fileURLToPath(new URL(".", import.meta.url));
 
@@ -16,11 +16,5 @@ export default defineConfig({
     port: 5173,
     allowedHosts: [".sprkt.xyz"],
   },
-  resolve: {
-    alias: {
-      yage: path.resolve(examplesRoot, "../engine/"),
-    },
-    extensions: [".ts", ".tsx", ".js", ".mjs"],
-  },
-  plugins: [json5Plugin()],
+  plugins: [yage()],
 });

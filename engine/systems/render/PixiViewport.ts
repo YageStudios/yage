@@ -34,18 +34,13 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
   constructor(query: QueryInstance<ReadOnlyGameModel>) {
     super(query);
     PixiViewportSystem.instanceCount++;
-
-    // Initialize shared PIXI application if this is the first instance
-    if (!PixiViewportSystem.pixiApp && typeof window !== "undefined") {
-      this.initializeSharedPixi();
-    }
   }
 
   private initializeSharedPixi = () => {
     console.info("[yage-pixi] initialize start");
     document.querySelectorAll(".pixi-canvas").forEach((el) => el.remove());
 
-    PixiViewportSystem.pixiApp = new PIXI.Application({ autoStart: false });
+    PixiViewportSystem.pixiApp = new PIXI.Application({ autoStart: false, preserveDrawingBuffer: true });
     PixiViewportSystem.pixiApp.stop();
     const canvas = PixiViewportSystem.pixiApp.renderer.view as HTMLCanvasElement;
     canvas.className = "pixi-canvas";
@@ -86,6 +81,10 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
   };
 
   init = (gameModel: ReadOnlyGameModel, entity: number) => {
+    if (!PixiViewportSystem.pixiApp && typeof window !== "undefined") {
+      this.initializeSharedPixi();
+    }
+
     const schema = gameModel.getTypedUnsafe(PixiViewport, entity);
     if (!gameModel.hasComponent(PixiViewportCleanup, entity)) {
       gameModel.addComponent(PixiViewportCleanup, entity);

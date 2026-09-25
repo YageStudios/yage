@@ -30,11 +30,32 @@ YAGE is a fast, data-driven 2D game engine built on top of an Entity Component S
 
 ## Quick Start
 
-### Installation
+### Developing the engine and a separate game
 
-```bash
-npm install
+Use Node 22.13+ (22.x) or Node 24+. In the engine, run `npm ci` and `npm link`.
+In the separate Vite game, run `npm ci`, `npm link yage`, and `npm run dev`.
+The accompanying sibling `example/` project is a complete source-level example
+with no external art requirements.
+
+```ts
+// Game's vite.config.ts
+import { defineConfig } from "vite";
+import { yage } from "yage/vite";
+export default defineConfig({ plugins: [yage()] });
 ```
+
+```jsonc
+// Game's tsconfig.json
+{ "extends": "yage/tsconfig.source.json", "include": ["src", "vite.config.ts"] }
+```
+
+The engine-owned plugin uses package source exports, shares the ECS/Pixi runtimes,
+handles JSON5, and reloads the page after engine source changes. No vendoring,
+path aliases or engine build watcher is needed for this development loop.
+
+See [linked development](docs/linked-development.md) for peer versions, package
+exports, build/typecheck separation and packed-consumer validation. Engine library
+builds are `npm run build`; full semantic checks are `npm run typecheck`.
 
 ### Running Examples
 
@@ -43,7 +64,7 @@ YAGE comes with several examples demonstrating its features (Networking, UI, Map
 ```bash
 npm run examples
 ```
-Navigate to `http://localhost:3000` to see the examples list.
+Navigate to `http://localhost:5173` to see the examples list.
 
 ### Basic Game Setup
 

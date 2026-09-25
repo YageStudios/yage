@@ -107,6 +107,22 @@ export class SpriteComponentPixi extends DrawSystemImpl<ReadOnlyGameModel> {
         }
         pixiData.lastFlip = renderModel.timeElapsed;
       }
+    } else if (data.faceDirection === FaceDirectionEnum.ROTATE_FLIP) {
+      // Held-weapon aiming (Brotato style): rotate to the direction and
+      // mirror VERTICALLY when it crosses to the other side. A vertical
+      // flip never moves horizontal features, so the muzzle keeps pointing
+      // along the direction while the art stays upright — an x flip here
+      // would point the sprite back the way it came.
+      const angle = data.rotation
+        ? rotationVector2d(rotateDegVector2d(direction, data.rotation))
+        : rotationVector2d(direction);
+
+      sprite.rotation = angle;
+
+      if (!data.antiJitterTime || renderModel.timeElapsed - pixiData.lastFlip > data.antiJitterTime) {
+        sprite.scale.y = direction.x < 0 ? -1 : 1;
+        pixiData.lastFlip = renderModel.timeElapsed;
+      }
     } else if (data.rotation) {
       const angle = (data.rotation * Math.PI) / 180;
 

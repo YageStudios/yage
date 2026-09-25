@@ -350,6 +350,18 @@ describe("CoreConnectionInstance", () => {
     });
   });
 
+  describe("Scheduled room events", () => {
+    it("returns only the events scheduled for the requested player and frame", () => {
+      instance.scheduledRoomEvents["test-room"] = {
+        "player-1": { 4: ["move", "collect"] },
+      };
+
+      expect(instance.scheduledRoomEventsForFrame("test-room", "player-1", 4)).toEqual(["move", "collect"]);
+      expect(instance.scheduledRoomEventsForFrame("test-room", "player-1", 5)).toEqual([]);
+      expect(instance.scheduledRoomEventsForFrame("test-room", "player-2", 4)).toEqual([]);
+    });
+  });
+
   describe("Room Hosting", () => {
     it("should successfully host a room", async () => {
       const roomId = "test-room";

@@ -1,74 +1,35 @@
-// const path = require("path");
-import { resolve } from "path";
-import dts from "vite-plugin-dts";
-
-// vite.config.js
+import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 import { defineConfig } from "vite";
-import glob from "fast-glob";
-const files = glob
-  .sync([
-    "./engine/{achievements,systems,connection,console,constants,decorators,entity,game,inputs,loader,persist,schemas,testing,types,ui,utils,vendor}/**/*.{ts,js}",
-    "./engine/umil/**/*.{ts,js}",
-  ])
-  .map((file) => {
-    const key = file.match(/(?<=\.\/engine\/).*(?=\.ts|\.js)/);
-    return [key[0], file];
-  });
-const entries = Object.fromEntries(files);
+import { libraryEntries, externalPredicate } from "./scripts/package-layout.mjs";
+
+const root = fileURLToPath(new URL(".", import.meta.url));
+const manifest = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
 
 export default defineConfig({
   test: {
     environment: "node",
     setupFiles: ["./test/setup.ts"],
+    alias: { yage: `${root}/engine` },
+    exclude: ["test/tooling/**", "node_modules/**", "dist/**"],
+  },
+  resolve: {
+    conditions: ["yage-source", "module", "browser", "development|production"],
+    preserveSymlinks: false,
+    dedupe: ["minecs", "pixi.js"],
   },
   build: {
     minify: false,
-
     sourcemap: true,
     lib: {
-      name: "YAGE",
-      // the proper extensions will be added
-      entry: entries,
+      entry: libraryEntries(root),
       formats: ["es"],
-
-      // entry: {
-      //   "constants/enums": "./engine/constants/enums.ts",
-      // },
+      fileName: (_format, name) => `${name}.js`,
+      cssFileName: "style",
     },
-
     rollupOptions: {
-      external: [
-        "pixi.js",
-        "pixi-spine",
-        "pixi-viewport",
-        "@dimforge/rapier2d-compat",
-        "ajv",
-        "minecs",
-        "l1-path-finder",
-        "lodash",
-        "nanoid",
-        "ndarray",
-        "peerjs",
-        "playwright-core",
-        "seedrandom",
-        "socket.io-client",
-        "toposort",
-        "url",
-        "fs",
-        "path",
-      ],
+      external: externalPredicate(manifest),
+      treeshake: { moduleSideEffects: true },
     },
-  },
-  plugins: [
-    dts({
-      entryRoot: "./engine",
-      outDir: "./dist",
-    }),
-  ],
-  resolve: {
-    alias: {
-      yage: resolve(__dirname, "./engine"),
-    },
-    extensions: [".ts", ".tsx", ".js"],
   },
 });

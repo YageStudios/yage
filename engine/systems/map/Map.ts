@@ -22,7 +22,7 @@ import type { Pathfinder } from "l1-path-finder";
 import pathFinder from "l1-path-finder";
 import { StringToEnum } from "yage/utils/typehelpers";
 import { DEPTHS, EnemyTypeEnum } from "yage/constants/enums";
-import RAPIER from "@dimforge/rapier2d-compat";
+import RAPIER from "@dimforge/rapier2d-deterministic-compat";
 // @ts-ignore
 import polyDecomp from "poly-decomp";
 import MapLoader from "yage/loader/MapLoader";
