@@ -9,3 +9,6 @@ export { EntityFactory, type EntityDefinition, type FlexibleEntityDefinition } f
 export { default as AssetLoader } from "./loader/AssetLoader";
 export { InputManager, InputEventType, MappedKeys } from "./inputs/InputManager";
 export { ComponentCategory } from "./constants/enums";
+
+/** Fine-grained retained UI; authoring primitives are exported from `yage/ui/final`. */
+export { UIFinal, type UIFinalOptions } from "./ui/final/runtime";

@@ -62,6 +62,7 @@ export class InputManager {
 
   private changes: { [key: string]: boolean } = {};
   private keyListeners: Function[] = [];
+  private keyListenerPriorities = new WeakMap<Function, number>();
   private inputStateChangedListeners: ((keys: KeyMap, events: string[]) => void)[] = [];
 
   public getKeyMap(type?: InputEventType, typeIndex: number = 0): KeyMap {
@@ -122,9 +123,13 @@ export class InputManager {
   }
 
   public addKeyListener(
-    listener: (key: string, keyPressed: boolean, eventType: InputEventType, typeIndex: number, e?: Event) => void
+    listener: (key: string, keyPressed: boolean, eventType: InputEventType, typeIndex: number, e?: Event) => void | boolean,
+    priority = 0
   ): () => void {
-    this.keyListeners.unshift(listener);
+    if (!Number.isFinite(priority)) throw new Error("Input listener priority must be finite");
+    this.keyListenerPriorities.set(listener, priority);
+    const index = this.keyListeners.findIndex(existing => (this.keyListenerPriorities.get(existing) ?? 0) <= priority);
+    this.keyListeners.splice(index < 0 ? this.keyListeners.length : index, 0, listener);
     return () => {
       this.keyListeners = this.keyListeners.filter((l) => l !== listener);
     };

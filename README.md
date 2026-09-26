@@ -12,8 +12,30 @@ YAGE is a fast, data-driven 2D game engine built on top of an Entity Component S
 - **Tiled Map Support:** Load maps created in [Tiled](https://www.mapeditor.org/), with full support for both Orthogonal and Isometric perspectives, complete with collision extraction and dynamic Z-sorting.
 - **Pathfinding:** Built-in fast 2D pathfinding using `l1-path-finder`.
 - **Data-Driven Entities:** Define your entities, components, and assets completely in `JSON5`.
-- **Dynamic UI Engine:** A custom UI engine supporting Handlebars (`.hbs`) templates, data-binding, flex-box-like grid layouts, and automatic scaling.
+- **UI Final:** Scene-owned retained UI with fine-grained signals, CSS layouts, validated declarative assets, keyed/virtualized lists, native controls and player-aware focus. Legacy UI/HBS systems remain available during migration.
 - **Input Management:** Out-of-the-box support for Keyboard, Mouse, Gamepad, and on-screen Touch Controls (joysticks, buttons).
+
+---
+
+## UI Final
+
+```ts
+import { UIFinal, signal, Column, Text, Button } from "yage/ui/final";
+const ui = new UIFinal();
+const count = signal(0);
+ui.mount(Column({ style: { padding: 24, gap: 12 } },
+  Text(() => `Equipment selected: ${count.get()}`),
+  Button({ on: { activate: () => { count.update(value => value + 1); } } }, "Select")
+));
+// Dispose when the owning screen ends: ui.dispose().
+// Scenes can use this.mountUIFinal(...) for owned presentation ticking/teardown.
+```
+
+[Specification](docs/ui-final/UI_FINAL_SPEC.md) · [Migration](docs/ui-final/MIGRATION.md) · [Validation](docs/ui-final/VALIDATION.md)
+
+`npm run test:ui-final` runs the isolated tests. `npm run test:ui-final:browser` runs Chromium interaction tests. `npm run demo:ui-final:offline` generates `.ui-final-build/ui-final-demo.html`, a standalone responsive equipment showcase without remote assets. The normal examples app also exposes `ui-final`.
+
+This backend uses browser CSS, text and native editing; it does not claim a native console or 3D UI renderer. Existing UI screens are migrated explicitly rather than broken by a silent format replacement.
 
 ---
 

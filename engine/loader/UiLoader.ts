@@ -1,11 +1,13 @@
 import { assignGlobalSingleton } from "yage/global";
 import { getUiMapTemplate, registerTemplate } from "yage/ui/UiMap";
 import sharedFetch from "yage/utils/sharedFetch";
+import { parseDocument, type UIDocument } from "../ui/final/document";
 import JSON5 from "json5";
 import { cloneDeep, get } from "lodash";
 import { bundledUiAssets, type BundledUiAsset } from "./BundledUiAssets";
 
 export class UiLoader {
+  readonly finalLibrary = new Map<string, UIDocument>();
   uiLibrary = new Map<string, any>();
   hbsLibrary = new Map<string, string>();
   private uiOverrides = new Map<string, BundledUiAsset>();
@@ -256,6 +258,21 @@ export class UiLoader {
 
     this.resolvedUiAssetCache.set(normalizedAssetPath, pending);
     return cloneDeep(await pending);
+  }
+
+  /** Load a versioned UI Final document through the existing asset/override/$ref pipeline.
+   * Legacy template registration is intentionally not invoked. Failed validation preserves the last good asset.
+   */
+  async loadFinal(name: string, assetPath: string): Promise<UIDocument> {
+    const parsed = parseDocument(await this.resolveUiAsset(this.normalizeAssetPath(assetPath)));
+    this.finalLibrary.set(name, parsed);
+    return parsed;
+  }
+
+  getFinal(name: string): UIDocument {
+    const document = this.finalLibrary.get(name);
+    if (!document) throw new Error(`UIF_ASSET_MISSING: ${name}`);
+    return document;
   }
 
   async loadUi(name: string, assetPath: string): Promise<void> {

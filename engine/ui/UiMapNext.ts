@@ -1,3 +1,5 @@
+/** Legacy compatibility runtime. New game screens should use `yage/ui/final`.
+ * See docs/ui-final/MIGRATION.md; legacy assets are not silently reinterpreted. */
 import { Position } from "./Rectangle";
 import type { UIElement } from "./UIElement";
 import { Text } from "./Text";

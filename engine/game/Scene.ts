@@ -13,6 +13,9 @@ import { UIService } from "yage/ui/UIService";
 import type { IDestroyOptions } from "pixi.js";
 import { Container } from "pixi.js";
 import { FIXED_TIMESTEP_MS } from "./Timing";
+import Ticker from "./Ticker";
+import { UIFinal, type UIFinalOptions } from "../ui/final/runtime";
+import type { Child } from "../ui/final/nodes";
 export type SceneTimestep = "fixed" | "continuous";
 
 export type SceneUiConfig = {
@@ -50,6 +53,22 @@ export class Scene extends Container {
   uiElements: { [key: string]: Box | TextInput | Text | Button | AnimatedImageBox } = {};
 
   static uiConfig: SceneUiConfig = {};
+
+  /** Scene-owned presentation UI. Never included in deterministic GameModel state. */
+  uiFinal?: UIFinal;
+
+  /** Mount once; later calls reconcile into the same root. Options apply only on creation. */
+  mountUIFinal(content: Child, options: UIFinalOptions = {}): UIFinal {
+    if (!this.uiFinal) {
+      const ui = this.uiFinal = new UIFinal({ scheduling: "manual", ...options });
+      // Presentation input repeat must not run once per simulation catch-up step.
+      const presentation = new Ticker("continuous");
+      presentation.add(dt => ui.frame(dt));
+      ui.scope.add(() => { presentation.stop(); if (this.uiFinal === ui) this.uiFinal = undefined; });
+      presentation.start();
+    }
+    return this.uiFinal.mount(content);
+  }
 
   ui: { [key: string]: Box | Text | TextInput | Button | AnimatedImageBox | any } = new Proxy(this.uiElements, {
     get: (target, prop) => {
@@ -105,8 +124,13 @@ export class Scene extends Container {
   run?: (dt: number) => void;
 
   destroy(options?: boolean | IDestroyOptions | undefined): void {
-    super.destroy(options);
-    this.uiElements = {};
-    UIService.getInstance().clearUI();
+    try {
+      this.uiFinal?.dispose();
+    } finally {
+      this.uiFinal = undefined;
+      super.destroy(options);
+      this.uiElements = {};
+      UIService.getInstance().clearUI();
+    }
   }
 }

@@ -3,6 +3,7 @@ const games = [
   ["ball", () => import("./ball")],
   ["reba", () => import("./reball")],
   ["ui", () => import("./uimap")],
+  ["ui-final", () => import("./ui-final")],
   ["peer", () => import("./peer")],
   ["socket", () => import("./socket")],
   ["tictactoe", () => import("./tictactoe")],

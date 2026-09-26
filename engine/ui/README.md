@@ -1,3 +1,13 @@
+# Game UI: UI Final and legacy compatibility
+
+**New player-facing screens should use `yage/ui/final`.** UI Final is a scene-owned retained runtime with fine-grained signals, validated assets, keyed/virtualized lists, native controls, local-player focus and lifecycle-owned resources.
+
+See [the coding specification](../../docs/ui-final/UI_FINAL_SPEC.md), [migration guide](../../docs/ui-final/MIGRATION.md), and [validation report](../../docs/ui-final/VALIDATION.md). Run `npm run demo:ui-final:offline` for the standalone 100,000-item equipment showcase.
+
+The systems documented below remain available for unconverted screens. Their assets are **not** automatically treated as UI Final documents.
+
+---
+
 # engine/ui/ - UI Mapping Systems
 
 This directory contains two parallel UI mapping systems for building reactive user interfaces from declarative definitions. Both systems ultimately produce trees of `UIElement` instances (`Box`, `Text`, `Button`, `TextInput`, `ImageBox`) and support data binding with automatic updates when context changes.

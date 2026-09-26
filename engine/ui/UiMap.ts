@@ -1,3 +1,5 @@
+/** Legacy compatibility runtime. New game screens should use `yage/ui/final`.
+ * See docs/ui-final/MIGRATION.md; legacy assets are not silently reinterpreted. */
 import type { BoxConfig } from "yage/ui/Box";
 import { Box } from "yage/ui/Box";
 import { Position } from "yage/ui/Rectangle";

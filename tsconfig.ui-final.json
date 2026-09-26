@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2021", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "strictPropertyInitialization": false,
+    "skipLibCheck": true,
+    "types": [],
+    "declaration": true,
+    "sourceMap": true,
+    "rootDir": ".",
+    "outDir": ".ui-final-build"
+  },
+  "include": ["engine/ui/final/**/*.ts", "examples/ui-final/demo.ts"]
+}

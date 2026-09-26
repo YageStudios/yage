@@ -99,6 +99,12 @@
       "types": "./dist/systems/camera/index.d.ts",
       "import": "./dist/systems/camera/index.js",
       "default": "./dist/systems/camera/index.js"
+    },
+    "./ui/final": {
+      "yage-source": "./engine/ui/final/index.ts",
+      "types": "./dist/ui/final/index.d.ts",
+      "import": "./dist/ui/final/index.js",
+      "default": "./dist/ui/final/index.js"
     }
   },
   "scripts": {
@@ -118,7 +124,11 @@
     "build:watch": "node scripts/watch.mjs",
     "check:package": "node scripts/check-package.mjs",
     "test:tooling": "node --experimental-vm-modules --test test/tooling/*.test.mjs",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "build:ui-final": "node scripts/build-ui-final.mjs",
+    "test:ui-final": "node scripts/test-ui-final.mjs",
+    "test:ui-final:browser": "node scripts/test-ui-final-browser.mjs",
+    "demo:ui-final:offline": "node scripts/build-ui-final-demo.mjs"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",

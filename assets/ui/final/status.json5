@@ -1,0 +1,16 @@
+{
+  // Load through UiLoader.loadFinal("status", "final/status.json5").
+  // Bindings are paths, never JavaScript expressions. Formatters/actions are registered code.
+  schema: "ui-final/1",
+  root: {
+    type: "column",
+    props: { id: "status", label: "Player status", style: { padding: 20, gap: 12, background: "var(--uif-surface)", borderRadius: 8 } },
+    children: [
+      { type: "text", props: { text: { $bind: "player.name" }, style: { fontSize: 24, fontWeight: 650 } } },
+      { type: "progress", props: { label: "Health", value: { $bind: "player.health" }, max: { $bind: "player.maxHealth" } } },
+      { type: "text", props: { text: { $bind: "player.credits", format: "credits" } } },
+      { type: "button", props: { id: "inventory", text: "Open inventory" }, on: { activate: "openInventory" } },
+      { when: { $bind: "connection.pending" }, then: { type: "text", props: { text: "Synchronizing…", attrs: { "aria-live": "polite" } } } },
+    ],
+  },
+}
