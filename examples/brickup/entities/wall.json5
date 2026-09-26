@@ -1,0 +1,11 @@
+{
+  "name": "BrickUpWall",
+  "components": [
+    "Transform",
+    {
+      "type": "PixiGraphic",
+      "fillColor": "#4a5468",
+      "rectangle": { "x": 0, "y": 0, "width": 220, "height": 12 },
+    },
+  ],
+}

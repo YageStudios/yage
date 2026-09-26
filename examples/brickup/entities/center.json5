@@ -1,0 +1,14 @@
+{
+  "name": "BrickUpCenter",
+  "components": [
+    "Transform",
+    {
+      "type": "PixiGraphic",
+      "fillColor": "#151b28",
+      "strokeColor": "#26324a",
+      "lineWidth": 3,
+      "zIndex": -10000,
+      "circle": { "x": 170, "y": 170, "radius": 170 },
+    },
+  ],
+}

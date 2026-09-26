@@ -40,6 +40,9 @@ export const BV2 = {
     return [x1 + (x2 - x1) * t, y1 + (y2 - y1) * t];
   },
   normalizeVector2d: (x: number, y: number): [number, number] => {
+    if (x === 0 && y === 0) {
+      return [0, 0];
+    }
     const length = Math.sqrt(x * x + y * y);
     return [x / length, y / length];
   },
@@ -63,8 +66,15 @@ export const BV2 = {
   },
   normalizeOrRandomizeVector2d(x: number, y: number, rand: Random): [number, number] {
     if (x === 0 && y === 0) {
+      // Exactly one RNG draw; the raw draw can land on exactly (0, 0), so
+      // fall back to a fixed unit direction instead of normalizing NaN.
       const random = rand.int(0, 100) / 100;
-      return BV2.normalizeVector2d(random - 0.5, 1 - random - 0.5);
+      const vx = random - 0.5;
+      const vy = 0.5 - random;
+      if (vx === 0 && vy === 0) {
+        return [0, 1];
+      }
+      return BV2.normalizeVector2d(vx, vy);
     }
     return BV2.normalizeVector2d(x, y);
   },
@@ -135,8 +145,15 @@ export const inDistanceFastVector2d = (ox: number, oy: number, sx: number, sy: n
 
 export const normalizeOrRandomizeVector2d = (vector: Vector2d, rand: Random): Vector2d => {
   if (vector.x === 0 && vector.y === 0) {
+    // Exactly one RNG draw; the raw draw can land on exactly (0, 0), so
+    // fall back to a fixed unit direction instead of normalizing NaN.
     const random = rand.int(0, 100) / 100;
-    return normalizeVector2d(w({ x: random - 0.5, y: 1 - random - 0.5 }));
+    const x = random - 0.5;
+    const y = 0.5 - random;
+    if (x === 0 && y === 0) {
+      return { x: 0, y: 1 };
+    }
+    return normalizeVector2d(w({ x, y }));
   }
   return normalizeVector2d(vector);
 };
@@ -161,6 +178,9 @@ export const normalizeSafeVector2d = (vector: Vector2d): Vector2d => {
 };
 
 export const normalizeVector2d = (a: Vector2d): Vector2d => {
+  if (a.x === 0 && a.y === 0) {
+    return w({ x: 0, y: 0 });
+  }
   const length = Math.sqrt(a.x * a.x + a.y * a.y);
   const nx = a.x / length;
   const ny = a.y / length;

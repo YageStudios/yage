@@ -7,6 +7,17 @@ import type { Room } from "../../engine/connection/ConnectionInstance";
 import type { GameInstance } from "../../engine/game/GameInstance";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
 
+// Wire-level tests flag their mocked game models to opt into a deterministic
+// stub hash; the mocked GameModel factory below cannot feed the real
+// hashWorldState, which needs a live minecs world.
+vi.mock("yage/game/StateHash", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("yage/game/StateHash")>();
+  return {
+    hashWorldState: (world: any) =>
+      world?.useStubHash ? `stub-${world.roomId}-${world.frame}` : actual.hashWorldState(world),
+  };
+});
+
 // Mock dependencies
 vi.mock("../../engine/inputs/InputManager");
 vi.mock("../../engine/inputs/TouchListener");
@@ -18,6 +29,7 @@ vi.mock("../../engine/game/GameModel", () => ({
     frame: 0,
     paused: false,
     localNetIds: [],
+    useStubHash: true,
     destroy: vi.fn(),
     deserializeState: vi.fn(),
     serializeState: vi.fn(),
@@ -74,6 +86,76 @@ class TestCoreConnectionInstance<T> extends CoreConnectionInstance<T> {
   }
 }
 
+describe("consumePlayerFrame join boundary", () => {
+  const buildHarness = () => {
+    const instance = new TestCoreConnectionInstance<any>(
+      { netId: "p1", uniqueId: "p1", token: "t", config: {} } as any,
+      {
+        buildKeyMap: () => new Map(),
+        getKeyMap: () => new Map(),
+        keyMapToJsonObject: () => ({}),
+        toKeyMap: (keys: any) => keys,
+      } as any,
+      {},
+    );
+    instance.history["test-room"] = {
+      seed: "s",
+      startTimestamp: 0,
+      frames: {},
+      configs: {},
+      stateHashes: {},
+      snapshots: {},
+    };
+    const playerInput = {
+      keyMap: new Map(),
+      prevKeyMap: new Map(),
+      events: ["stale"],
+      pid: "p2",
+    };
+    const roomState: any = { frameStack: { p2: [] }, lastFrame: {} };
+    const gameModel: any = { frame: 100, executionMode: "realtime", roomId: "test-room" };
+    return { instance, playerInput, roomState, gameModel };
+  };
+
+  it("skips gracefully when the joiner's frame stack is empty (no frames yet)", () => {
+    const { instance, playerInput, roomState, gameModel } = buildHarness();
+    gameModel.frame = 120;
+
+    expect(() =>
+      (instance as any).consumePlayerFrame(roomState, "p2", playerInput, gameModel),
+    ).not.toThrow();
+    // No frame consumed, but the prev-key chain keeps advancing so
+    // keyPressed stays consistent on every peer.
+    expect(playerInput.events).toEqual([]);
+  });
+
+  it("skips gracefully when the joiner's first published frame is ahead of the local frame", () => {
+    const { instance, playerInput, roomState, gameModel } = buildHarness();
+    // Joiner synced at host frame 130: its publishes start ahead of us.
+    roomState.frameStack.p2 = [
+      { frame: 130, keys: new Map([["right", true]]), events: [], playerId: "p2" },
+    ];
+
+    expect(() =>
+      (instance as any).consumePlayerFrame(roomState, "p2", playerInput, gameModel),
+    ).not.toThrow();
+    expect(roomState.frameStack.p2).toHaveLength(1);
+  });
+
+  it("consumes normally when the head matches the local frame", () => {
+    const { instance, playerInput, roomState, gameModel } = buildHarness();
+    roomState.frameStack.p2 = [
+      { frame: 100, keys: new Map([["right", true]]), events: ["hit"], playerId: "p2" },
+    ];
+
+    (instance as any).consumePlayerFrame(roomState, "p2", playerInput, gameModel);
+
+    expect(playerInput.keyMap.get("right")).toBe(true);
+    expect(playerInput.events).toEqual(["hit"]);
+    expect(roomState.frameStack.p2).toHaveLength(0);
+  });
+});
+
 describe("CoreConnectionInstance", () => {
   let instance: TestCoreConnectionInstance<any>;
   let inputManager: InputManager;
@@ -92,6 +174,7 @@ describe("CoreConnectionInstance", () => {
       frame: 0,
       paused: false,
       localNetIds: [],
+      useStubHash: true,
       destroy: vi.fn(),
       deserializeState: vi.fn(),
       serializeState: vi.fn(),
@@ -465,7 +548,13 @@ describe("CoreConnectionInstance", () => {
 
       instance.endFrame(gameModel);
 
-      expect(instance.emit).toHaveBeenCalledWith("state", expect.any(String), expect.any(Object), expect.any(Number));
+      expect(instance.emit).toHaveBeenCalledWith(
+        "state",
+        expect.any(String),
+        expect.any(Object),
+        expect.any(Number),
+        expect.any(Object)
+      );
     });
   });
 
@@ -924,5 +1013,262 @@ describe("CoreConnectionInstance", () => {
       expect(instance.emit).toHaveBeenCalledWith("message", message, expect.any(Number));
       expect(listener).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("deterministic join start frame", () => {
+  const buildHarness = () => {
+    const instance = new TestCoreConnectionInstance<any>(
+      { netId: "p1", uniqueId: "p1", token: "t", config: {} } as any,
+      {
+        buildKeyMap: () => new Map(),
+        getKeyMap: () => new Map(),
+        keyMapToJsonObject: (keys: any) => Object.fromEntries(keys ?? []),
+        toKeyMap: (keys: any) => new Map(Object.entries(keys ?? {})),
+      } as any,
+      {},
+    );
+    if (!instance.localPlayers.some((player) => player.netId === "p1")) {
+      instance.localPlayers.push({
+        netId: "p1",
+        inputType: "keyboard",
+        inputIndex: 0,
+      } as any);
+    }
+    return instance;
+  };
+
+  const buildGameModel = (frame: number, pid: string) =>
+    ({
+      roomId: "test-room",
+      frame,
+      executionMode: "realtime",
+      getComponentActives: vi.fn().mockReturnValue([1]),
+      hasComponent: vi.fn().mockReturnValue(true),
+      runGlobalMods: vi.fn(),
+      getTypedUnsafe: vi.fn().mockReturnValue({
+        pid,
+        keyMap: new Map(),
+        prevKeyMap: new Map(),
+        events: [],
+      }),
+    }) as unknown as GameModel;
+
+  it("advances with no joiner entity below the joiner's start frame", () => {
+    const instance = buildHarness();
+    const gameModel = buildGameModel(100, "p1");
+    (gameModel as any).getComponentActives = vi.fn().mockReturnValue([]);
+    instance.roomStates["test-room"] = {
+      gameModel,
+      frameStack: {},
+      lastFrame: {},
+      joinStartFrames: { "late-joiner": 220 },
+    } as any;
+
+    // No entity exists below the start frame, so frameSkipCheck has nothing
+    // to wait on and the room keeps stepping.
+    expect(instance.frameSkipCheck(gameModel)).toBe(false);
+  });
+
+  it("materializes a pending joiner at its deterministic start frame", () => {
+    const instance = buildHarness();
+    const gameModel = buildGameModel(220, "p1");
+    (gameModel as any).getComponentActives = vi.fn().mockReturnValue([]);
+    instance.players.push({ netId: "late-joiner", connected: true } as any);
+    instance._onPlayerJoin = vi.fn().mockReturnValue(7) as any;
+    instance.roomStates["test-room"] = {
+      gameModel,
+      frameStack: {},
+      lastFrame: {},
+      joinStartFrames: { "late-joiner": 220 },
+      joinConfigs: { "late-joiner": { side: 2 } },
+    } as any;
+
+    instance.startFrame(gameModel);
+
+    expect(instance._onPlayerJoin).toHaveBeenCalledWith(gameModel, "late-joiner", { side: 2 });
+    const seeded = instance.roomStates["test-room"].frameStack["late-joiner"];
+    expect(seeded.map((frame: any) => frame.frame)).toEqual([220, 221, 222, 223, 224, 225, 226, 227]);
+    expect(instance.roomStates["test-room"].joinStartFrames).toEqual({});
+  });
+
+  it("does not materialize a pending joiner before its start frame", () => {
+    const instance = buildHarness();
+    const gameModel = buildGameModel(219, "p1");
+    instance._onPlayerJoin = vi.fn().mockReturnValue(7) as any;
+    instance.roomStates["test-room"] = {
+      gameModel,
+      frameStack: {},
+      lastFrame: {},
+      joinStartFrames: { "late-joiner": 220 },
+      joinConfigs: { "late-joiner": { side: 2 } },
+    } as any;
+
+    instance.startFrame(gameModel);
+
+    expect(instance._onPlayerJoin).not.toHaveBeenCalled();
+    expect(instance.roomStates["test-room"].joinStartFrames).toEqual({ "late-joiner": 220 });
+  });
+
+  it("skips materialization for a joiner that left before its start frame", () => {
+    const instance = buildHarness();
+    const gameModel = buildGameModel(220, "p1");
+    instance._onPlayerJoin = vi.fn().mockReturnValue(7) as any;
+    instance.rooms["test-room"] = { roomId: "test-room", host: "p1", players: ["p1"], rebalanceOnLeave: false };
+    instance.roomStates["test-room"] = {
+      gameModel,
+      frameStack: {},
+      lastFrame: {},
+      joinStartFrames: { "gone-joiner": 220 },
+      joinConfigs: { "gone-joiner": {} },
+    } as any;
+
+    instance.startFrame(gameModel);
+
+    expect(instance._onPlayerJoin).not.toHaveBeenCalled();
+    expect(instance.roomStates["test-room"].joinStartFrames).toEqual({});
+  });
+
+  it("keeps a local player in the roster when a peer reaps it", () => {
+    const instance = buildHarness();
+    const gameModel = buildGameModel(100, "p1");
+    instance.roomStates["test-room"] = {
+      gameModel,
+      frameStack: { p1: [] },
+      lastFrame: { p1: 100 },
+    } as any;
+    const disconnectListener = vi.fn();
+    instance.disconnectListeners.push(disconnectListener);
+
+    instance.emit("userDisconnect", "p1");
+
+    expect(instance.localPlayers.some((player) => player.netId === "p1")).toBe(true);
+    expect(instance.players.some((player) => player.netId === "p1")).toBe(true);
+    expect(disconnectListener).toHaveBeenCalledWith("p1");
+    // The empty-input fill still covers the dropped frames so every peer
+    // consumes the same inputs through the disconnect frame.
+    const filled = instance.roomStates["test-room"].frameStack.p1;
+    expect(filled.length).toBeGreaterThan(0);
+  });
+
+  it("starts RTT pinging only when the first frame begins", () => {
+    const instance = buildHarness();
+    const gameModel = buildGameModel(0, "p1");
+    (gameModel as any).getComponentActives = vi.fn().mockReturnValue([]);
+    instance.roomStates["test-room"] = {
+      gameModel,
+      frameStack: {},
+      lastFrame: {},
+    } as any;
+
+    expect((instance as any).pingInterval).toBeNull();
+    instance.startFrame(gameModel);
+    expect((instance as any).pingInterval).not.toBeNull();
+
+    instance.stopRttMeasurement();
+  });
+
+  it("adopts the served join start frame over a locally recorded provisional one", () => {
+    const instance = buildHarness();
+    instance.roomStates["test-room"] = {
+      gameModel: buildGameModel(500, "p1"),
+      frameStack: {},
+      lastFrame: {},
+      joinStartFrames: { p2: 999 },
+    } as any;
+    instance.testSubscribeFrame("test-room");
+
+    instance.subscriptions["state"]?.forEach((cb) =>
+      cb("p1", "{}", {}, Date.now(), { p2: 620 })
+    );
+
+    expect(instance.roomStates["test-room"].joinStartFrames).toEqual({ p2: 620 });
+  });
+
+  it("serves a deterministic join start frame to the group with the state payload", () => {    const instance = buildHarness();
+    const gameModel = buildGameModel(300, "p1");
+    (gameModel as any).serializeState = vi.fn().mockReturnValue({});
+    (gameModel as any).localNetIds = ["p1"];
+    instance._onPlayerJoin = vi.fn().mockReturnValue(7) as any;
+    instance.rooms["test-room"] = { roomId: "test-room", host: "p1", players: ["p1", "p2"], rebalanceOnLeave: false };
+    instance.roomStates["test-room"] = {
+      gameModel,
+      frameStack: {},
+      lastFrame: {},
+    } as any;
+    (instance as any).stateRequested = [{ roomId: "test-room", playerId: "p2", playerConfig: {} }];
+    const emitSpy = vi.spyOn(instance, "emit");
+
+    instance.endFrame(gameModel);
+
+    const stateCall = emitSpy.mock.calls.find(([event]: any[]) => event === "state");
+    expect(stateCall?.[4]).toEqual({ p2: 300 + 120 });
+    expect(instance.roomStates["test-room"].joinStartFrames).toEqual({ p2: 300 + 120 });
+    // Canonical flow: the joiner's entity is NOT created while serving the
+    // state — it materializes on every peer at the deterministic frame.
+    expect(instance._onPlayerJoin).not.toHaveBeenCalled();
+    expect(instance.roomStates["test-room"].joinConfigs).toEqual({ p2: {} });
+  });
+});
+
+describe("stall detector vs hidden document", () => {
+  const buildStalledModel = () =>
+    ({
+      roomId: "test-room",
+      frame: 10,
+      getComponentActives: vi.fn().mockReturnValue([1]),
+      hasComponent: vi.fn().mockReturnValue(true),
+      getTypedUnsafe: vi.fn().mockReturnValue({ pid: "remote-1" }),
+    }) as unknown as GameModel;
+
+  const setup = () => {
+    const instance = new TestCoreConnectionInstance<any>(
+      { netId: "p1", uniqueId: "p1", token: "t", config: {} } as any,
+      {
+        buildKeyMap: () => new Map(),
+        getKeyMap: () => new Map(),
+        keyMapToJsonObject: () => ({}),
+        toKeyMap: () => new Map(),
+      } as any,
+      {},
+    );
+    const gameModel = buildStalledModel();
+    instance.roomStates["test-room"] = {
+      gameModel,
+      frameStack: { "remote-1": [] },
+      lastFrame: {},
+    } as any;
+    return { instance, gameModel };
+  };
+
+  it("does not reap a stalled peer while the local document is hidden", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const { instance, gameModel } = setup();
+    (instance as any).isDocumentHidden = () => true;
+    const emitSpy = vi.spyOn(instance, "emit");
+
+    // A suspended rAF retries the same blocked frame for a minute of wall time.
+    for (let tick = 0; tick <= 60_000; tick += 1_000) {
+      vi.setSystemTime(tick);
+      expect(instance.frameSkipCheck(gameModel)).toBe(true);
+    }
+    expect(emitSpy).not.toHaveBeenCalledWith("userDisconnect", "remote-1");
+    vi.useRealTimers();
+  });
+
+  it("still reaps a stalled peer after the timeout once the document is visible", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const { instance, gameModel } = setup();
+    (instance as any).isDocumentHidden = () => false;
+    const emitSpy = vi.spyOn(instance, "emit");
+
+    for (let tick = 0; tick <= 4_000; tick += 1_000) {
+      vi.setSystemTime(tick);
+      instance.frameSkipCheck(gameModel);
+    }
+    expect(emitSpy).toHaveBeenCalledWith("userDisconnect", "remote-1");
+    vi.useRealTimers();
   });
 });

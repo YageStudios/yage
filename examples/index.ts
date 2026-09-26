@@ -13,6 +13,8 @@ const games = [
   ["asteroids", () => import("./asteroids")],
   ["platformer", () => import("./platformer")],
   ["sokoban", () => import("./sokoban")],
+  ["brickup", () => import("./brickup")],
+  ["arena", () => import("./arena")]
 ] as const;
 
 const GAME_NAMES = new Set(games.map(([name]) => name));
@@ -50,7 +52,7 @@ if (selectedGame) {
     ${games
       .map(([name]) => `<br/><a href="${basePath}${name}?t=${buildStamp}">${name}</a>`)
       .join("")}
-  </div> 
+  </div>
   `;
 }
 

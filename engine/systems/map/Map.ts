@@ -70,9 +70,7 @@ export class MapSystem extends SystemImpl<GameModel> {
   static depth = DEPTHS.CORE + 1;
 
   pathfinders: { [entity: number]: Pathfinder } = {};
-  collisionBodies: { [entity: number]: RAPIER.RigidBody[] } = {};
-
-  static previousPathfinders: { [entity: number]: Pathfinder } = {};
+  collisionBodies: { [entity: number]: { world: RAPIER.World; bodies: RAPIER.RigidBody[] } } = {};
 
   getPathfinders(gameModel: GameModel, entity: number) {
     if (!this.pathfinders[entity]) {
@@ -275,7 +273,8 @@ export class MapSystem extends SystemImpl<GameModel> {
     const worldOffset = gameModel.currentWorld * WORLD_WIDTH;
     const size = 640 * map.scale;
 
-    this.collisionBodies[entity] = [];
+    this.releaseMapCaches(gameModel, entity);
+    this.collisionBodies[entity] = { world: engine, bodies: [] };
 
     for (let j = 0; j < height; ++j) {
       for (let i = 0; i < width; ++i) {
@@ -400,7 +399,7 @@ export class MapSystem extends SystemImpl<GameModel> {
               physicsSystem.createCollider(-1, colliderDesc, body);
             }
           });
-          this.collisionBodies[entity].push(body);
+          this.collisionBodies[entity].bodies.push(body);
 
           const wallData = wall.layers.find((layer) => layer.name === "walls") as TiledTileLayer;
           if (wallData) {
@@ -473,6 +472,8 @@ export class MapSystem extends SystemImpl<GameModel> {
             }
           });
 
+          this.collisionBodies[entity].bodies.push(body);
+
           const wallData = wall.layers.find((layer) => layer.name === "wall") as TiledTileLayer;
           if (wallData) {
             const xOffset = i * 20;
@@ -521,8 +522,25 @@ export class MapSystem extends SystemImpl<GameModel> {
         mapString += "\n";
       }
     }
-    MapSystem.previousPathfinders[entity] = this.pathfinders[entity];
   }
+
+  // Drops the pathfinder and cached collision bodies for a map. Bodies are
+  // only removed from the physics world while they still belong to it: after
+  // a physics restore the cache points into a freed Rapier world and must be
+  // discarded without touching it.
+  private releaseMapCaches = (gameModel: GameModel, entity: number) => {
+    const cached = this.collisionBodies[entity];
+    if (cached) {
+      const physicsSystem = gameModel.getSystem(PhysicsSystem);
+      if (physicsSystem.world && physicsSystem.world === cached.world) {
+        for (const body of cached.bodies) {
+          physicsSystem.world.removeRigidBody(body);
+        }
+      }
+      delete this.collisionBodies[entity];
+    }
+    delete this.pathfinders[entity];
+  };
 
   run = (gameModel: GameModel, entity: number) => {
     const data = gameModel.getTypedUnsafe(Map, entity);
@@ -533,6 +551,7 @@ export class MapSystem extends SystemImpl<GameModel> {
   };
 
   cleanup = (gameModel: GameModel, entity: number) => {
+    this.releaseMapCaches(gameModel, entity);
     const entitiesInMap = gameModel.getComponentActives("MapId").filter((activeEntity) => {
       const mapId = gameModel.getTypedUnsafe(MapId, activeEntity).mapId;
       return mapId === entity;

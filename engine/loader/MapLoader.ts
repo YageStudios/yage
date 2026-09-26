@@ -1,5 +1,6 @@
 import type { TiledMap, TiledObject, TiledObjectLayer, TiledTileLayer, TiledTileset } from "yage/types/Tiled";
 import { hexToRgb } from "yage/utils/colors";
+import { generate } from "yage/utils/rand";
 import sharedFetch from "yage/utils/sharedFetch";
 import type { ImageObj } from "./ImageLoader";
 import ImageLoader from "./ImageLoader";
@@ -8,6 +9,16 @@ import noise from "yage/vendor/noise";
 import type { ComponentData } from "yage/systems/types";
 import * as url from "url";
 import { assignGlobalSingleton } from "yage/global";
+
+// Floor textures are generated per skin and must be identical on every peer:
+// the seed is derived from the skin name, never from Math.random.
+export const floorSeedNumber = (name: string, index: number): number => {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < name.length; i++) {
+    hash = Math.imul(hash ^ name.charCodeAt(i), 0x01000193);
+  }
+  return (hash >>> 0) + index;
+};
 
 export type MapDefinition = {
   mapType: string;
@@ -747,7 +758,7 @@ export default class MapLoader {
     for (let i = 0; i < 5; i++) {
       const [imageData] = this.generateFloor({
         stamp: image,
-        seed: Math.random() * 100,
+        seed: floorSeedNumber(name, i),
         density,
         stampColor,
         isometric,
@@ -775,6 +786,9 @@ export default class MapLoader {
     stampColor: string;
     isometric?: boolean;
   }): [HTMLImageElement, number, number] {
+    // Every random draw comes from the seed so both peers render the same
+    // floor; nothing here may touch Math.random.
+    const rand = generate(seed);
     if (isometric) {
       this.canvas.width = 968;
       this.canvas.height = 516;
@@ -817,11 +831,11 @@ export default class MapLoader {
         let out = noise.simplex2(dx / 180 + seed * 3, dy / 180 + seed * 2);
         out = out * 0.15 + 0.85;
 
-        const cx = dx + Math.random() * size,
-          cy = dy + Math.random() * size,
+        const cx = dx + rand.number() * size,
+          cy = dy + rand.number() * size,
           // Radii of the white glow.
-          innerRadius = size * Math.random() * 0.25,
-          outerRadius = size * (Math.random() * 0.5 + 0.5);
+          innerRadius = size * rand.number() * 0.25,
+          outerRadius = size * (rand.number() * 0.5 + 0.5);
 
         const gradient = ctx.createRadialGradient(cx, cy, innerRadius, cx, cy, outerRadius);
         gradient.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.65)`);
@@ -839,7 +853,7 @@ export default class MapLoader {
     }
     // randomize array
     for (let i = positions.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(rand.number() * (i + 1));
       [positions[i], positions[j]] = [positions[j], positions[i]];
     }
 

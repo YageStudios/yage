@@ -129,6 +129,26 @@ describe("UiMap — Legacy Baseline", () => {
       expect(elements.box).toBeInstanceOf(Box);
     });
 
+    it("full-screen posspec hosts stay click-through so game input reaches the canvas", () => {
+      const map = buildUiMap({
+        hud: {
+          type: "VStack",
+          children: [
+            {
+              type: "text",
+              rect: { x: 0, y: 0, width: 200, height: 30 },
+              config: { label: "HUD" },
+            },
+          ],
+        },
+      });
+      const elements = map.build({}, vi.fn());
+      const host = elements.hud as unknown as { _config?: { style?: { pointerEvents?: string } } };
+      // The host spans the whole viewport; if it captured pointer events it
+      // would swallow every click aimed at the game beneath the UI layer.
+      expect(host._config?.style?.pointerEvents).toBe("none");
+    });
+
     it("throws when top-level value has no type", () => {
       const map = buildUiMap({
         bad: { config: {} },

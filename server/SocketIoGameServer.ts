@@ -13,6 +13,9 @@ interface Room {
   id: string;
   messages: Message[];
   clients: Set<string>;
+  // Net ids of the room's clients: lockstep clients read this list to decide
+  // host-vs-join, so it must track membership the same way `clients` does.
+  players: string[];
   lastSequence: number;
 }
 
@@ -216,7 +219,10 @@ class SocketIoGameServer {
       // Handle all other messages
       socket.onAny((event, ...args) => {
         if (event === "frame") {
-          this.clientLastFrame.set(socket.id, args[0].frame);
+          // Per-frame traffic: track, never log (60fps x players floods stdout).
+          if (args[0] && typeof args[0] === "object") {
+            this.clientLastFrame.set(socket.id, args[0].frame);
+          }
         } else if (event !== "yagePing" && event !== "yagePong") {
           console.log(event, args);
         }
@@ -284,12 +290,17 @@ class SocketIoGameServer {
         id: roomId,
         messages: [],
         clients: new Set(),
+        players: [],
         lastSequence: 0,
       });
     }
 
     const room = group.rooms.get(roomId)!;
     room.clients.add(socket.id);
+    const joinerNetId = this.clientNetIds.get(socket.id);
+    if (joinerNetId && !room.players.includes(joinerNetId)) {
+      room.players.push(joinerNetId);
+    }
     this.clientRooms.set(socket.id, roomId);
     this.clientPreloadRooms.get(socket.id)?.delete(roomId);
 
@@ -375,8 +386,12 @@ class SocketIoGameServer {
       sequence: ++this.messageCounter,
     };
 
-    // Store message
+    // Store message, capped: this history only exists for late-join catch-up
+    // and unbounded growth OOMs a long-lived server.
     room.messages.push(message);
+    if (room.messages.length > 200) {
+      room.messages.splice(0, room.messages.length - 200);
+    }
     room.lastSequence = message.sequence;
 
     // Relay to room with the stored netId prepended
@@ -384,6 +399,21 @@ class SocketIoGameServer {
   }
 
   private handleDisconnect(socket: any) {
+    const groupId = this.clientGroups.get(socket.id);
+    const roomId = this.clientRooms.get(socket.id);
+    const netId = this.clientNetIds.get(socket.id);
+    if (groupId && roomId && netId) {
+      const room = this.groups.get(groupId)?.rooms.get(roomId);
+      if (room) {
+        room.players = room.players.filter((id) => id !== netId);
+        // The replay buffer only serves late joiners of a live timeline. Once
+        // the room empties there is no live timeline left — keeping the old
+        // messages would poison the next session with stale frames.
+        if (room.players.length === 0) {
+          room.messages = [];
+        }
+      }
+    }
     this.handleLeaveGroup(socket);
     this.clientNetIds.delete(socket.id);
     console.log(`Client disconnected: ${socket.id}`);

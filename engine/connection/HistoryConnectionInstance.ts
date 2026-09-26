@@ -2,7 +2,7 @@ import { InputManager } from "yage/inputs/InputManager";
 import { CoreConnectionInstance } from "./CoreConnectionInstance";
 import type { GameModel } from "yage/game/GameModel";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
-import { md5 } from "yage/utils/md5";
+import { hashWorldState } from "yage/game/StateHash";
 import { detailedDiff } from "deep-object-diff";
 import { cloneDeep } from "lodash";
 import type { PlayerConnect, ReplayStack } from "./ConnectionInstance";
@@ -148,59 +148,25 @@ export class HistoryConnectionInstance<T> extends CoreConnectionInstance<T> {
     return buildWorld(gameModel, firstPlayerConfig);
   }
 
-  // firstFrame = async (gameModel: GameModel, firstPlayerConfig: any) => {
-  //   console.log(cloneDeep(this.replayHistory.snapshots[300]));
-  //   const snapshot = this.replayHistory.snapshots[300];
-  //   // const serializedState = gameModel.linearSerializeState();
-  //   await gameModel.deserializeState(snapshot);
-  //   const serializedState = md5(JSON.stringify(snapshot));
-  //   this.stacked = false;
-
-  //   console.log(serializedState);
-  // };
-
   endFrame(gameModel: GameModel) {
-    // const stateHistoryHash = this.replayHistory.stateHashes.shift()!;
     if (this.replayHistory.stateHashes[gameModel.frame]) {
       const perf = performance.now();
-      const state = gameModel.serializeState();
-      const serializedState = md5(JSON.stringify(state));
+      // The hash must be computed the same way it was recorded during live
+      // play (hashWorldState on interval frames); any other format reports a
+      // false State mismatch on every healthy replay.
+      const hash = hashWorldState(gameModel);
 
-      if (serializedState !== this.replayHistory.stateHashes[gameModel.frame]) {
-        console.log(detailedDiff(this.replayHistory.snapshots[gameModel.frame], state));
-        console.log(state);
+      if (hash !== this.replayHistory.stateHashes[gameModel.frame]) {
+        const snapshot = this.replayHistory.snapshots[gameModel.frame];
+        if (snapshot) {
+          console.log(detailedDiff(snapshot, gameModel.serializeState()));
+        }
 
-        console.error(
-          "State mismatch",
-          gameModel.frame,
-          this.replayHistory.stateHashes[gameModel.frame],
-          serializedState
-        );
+        console.error("State mismatch", gameModel.frame, this.replayHistory.stateHashes[gameModel.frame], hash);
         throw new Error("State mismatch");
       } else {
         console.log("State match", gameModel.frame, performance.now() - perf);
       }
     }
-
-    // if (stateHistoryHash !== serializedState) {
-    //   console.log(gameModel.frame, stateHistoryHash === serializedState, stateHistoryHash, serializedState);
-
-    //   if (this.replayHistory.snapshots[gameModel.frame]) {
-    //     const snapshot = { ...this.replayHistory.snapshots[gameModel.frame] };
-    //     // const serializedState = gameModel.linearSerializeState();
-    //     const clonedState = cloneDeep(gameModel.state);
-
-    //     const serializedState = gameModel.linearSerializeState();
-    //     console.log(serializedState);
-    //     gameModel.linearLoadState(snapshot);
-    //     // @ts-ignore
-    //     delete serializedState.physics; // @ts-ignore
-    //     delete snapshot.physics;
-
-    //     console.log(detailedDiff(serializedState, snapshot));
-    //     stateDiff(gameModel, gameModel.state, clonedState);
-    //   }
-    //   throw new Error("State mismatch");
-    // }
   }
 }

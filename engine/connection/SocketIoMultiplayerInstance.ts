@@ -78,9 +78,6 @@ export class SocketIoMultiplayerInstance<T> extends CoreConnectionInstance<T> {
         console.log("Disconnected from server");
         this.player.connected = false;
         this.player.connectionTime = 0;
-        // if (this.player.currentRoomId) {
-        //   super.leaveRoom(this.player.currentRoomId);
-        // }
       });
     });
   }

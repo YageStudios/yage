@@ -83,7 +83,7 @@ vi.mock("@dimforge/rapier2d-deterministic-compat", () => {
       World: FakeWorld,
       EventQueue: h.FakeEventQueue,
       RigidBodyDesc: { fixed: () => ({}) },
-      ColliderDesc: { cuboid: () => ({}) },
+      ColliderDesc: { cuboid: () => ({ setFriction: () => {} }), ball: () => ({ setFriction: () => {} }) },
     },
     World: FakeWorld,
     init: vi.fn(),

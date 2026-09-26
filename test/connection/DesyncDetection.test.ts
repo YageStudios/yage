@@ -49,6 +49,17 @@ describe("hashWorldState", () => {
 
     expect(hashWorldState(a)).not.toBe(hashWorldState(b));
   });
+
+  it("ignores lazily-created query state (asymmetric component reads)", () => {
+    const a = buildRealModel();
+    const b = buildRealModel();
+
+    // Only one peer runs a code path that defines a new query (a debug
+    // overlay, a host-only system, ...). The digest must not move.
+    b.getComponentActives("Description");
+
+    expect(hashWorldState(a)).toBe(hashWorldState(b));
+  });
 });
 
 class TestConnection<T> extends CoreConnectionInstance<T> {

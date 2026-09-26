@@ -127,6 +127,8 @@ export class E2EBridge {
       switch (command) {
         case "JOIN_PLAYER":
           return this.joinPlayer(args[0], args[1]);
+        case "LEAVE_PLAYER":
+          return this.leavePlayer(args[0]);
         case "TICK":
           return this.executeTicks(args[0]);
         case "QUERY_UI":
@@ -158,6 +160,20 @@ export class E2EBridge {
    */
   private joinPlayer(pid: string, config: any): number {
     return this.connection.joinSimulatedPlayer(pid, config);
+  }
+
+  /**
+   * Remove a simulated player: runs the game's onPlayerLeave (which hands
+   * the paddle back to the AI) and drops the connection bookkeeping.
+   */
+  private leavePlayer(pid: string): boolean {
+    const gameModel = this.getActiveGameModel();
+    if (!gameModel) {
+      return false;
+    }
+    this.gameInstance.options.onPlayerLeave(gameModel, pid);
+    this.connection.removeSimulatedPlayer(pid);
+    return true;
   }
 
   /**

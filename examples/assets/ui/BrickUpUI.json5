@@ -1,0 +1,121 @@
+{
+  root: {
+    type: "Canvas",
+    styles: {
+      background: "none",
+      border: "none",
+      pointerEvents: "none"
+    },
+    children: [
+      // ── Game title / round ────────────────────────────────────────────────
+      {
+        id: "titleGroup",
+        type: "VStack",
+        anchor: "TopLeft",
+        offset: { x: 15, y: 12 },
+        spacing: 4,
+        children: [
+          {
+            id: "title",
+            type: "Text",
+            width: 300,
+            text: "BRICKUP",
+            styles: {
+              fontSize: 26,
+              color: "#dfe6f3",
+              fontFamily: "monospace",
+              textShadow: "0 0 4px #000000"
+            }
+          },
+          {
+            id: "round",
+            type: "Text",
+            width: 300,
+            text: "ROUND $$round · $$mode",
+            styles: {
+              fontSize: 14,
+              color: "#8a94a8",
+              fontFamily: "monospace"
+            }
+          }
+        ]
+      },
+
+      // ── Per-side score/lives panels ───────────────────────────────────────
+      {
+        id: "side0",
+        type: "Text",
+        anchor: "BottomCenter",
+        offset: { y: -18 },
+        width: 420,
+        text: "$$p0",
+        styles: {
+          fontSize: 18,
+          color: "#66ccff",
+          textAlign: "center",
+          fontFamily: "monospace",
+          textShadow: "0 0 4px #000000"
+        }
+      },
+      {
+        id: "side1",
+        type: "Text",
+        anchor: "TopCenter",
+        offset: { y: 42 },
+        width: 420,
+        text: "$$p1",
+        styles: {
+          fontSize: 18,
+          color: "#ffcc66",
+          textAlign: "center",
+          fontFamily: "monospace",
+          textShadow: "0 0 4px #000000"
+        }
+      },
+      {
+        id: "side2",
+        type: "Text",
+        anchor: "MiddleLeft",
+        offset: { x: 12 },
+        width: 300,
+        text: "$$p2",
+        styles: {
+          fontSize: 18,
+          color: "#88ff88",
+          fontFamily: "monospace",
+          textShadow: "0 0 4px #000000"
+        }
+      },
+      {
+        id: "side3",
+        type: "Text",
+        anchor: "MiddleRight",
+        offset: { x: -12 },
+        width: 300,
+        text: "$$p3",
+        styles: {
+          fontSize: 18,
+          color: "#ff88aa",
+          textAlign: "right",
+          fontFamily: "monospace",
+          textShadow: "0 0 4px #000000"
+        }
+      },
+
+      // ── Controls hint ─────────────────────────────────────────────────────
+      {
+        id: "controls",
+        type: "Text",
+        anchor: "BottomLeft",
+        offset: { x: 15, y: -12 },
+        width: 460,
+        text: "$$controls",
+        styles: {
+          fontSize: 13,
+          color: "#77839a",
+          fontFamily: "monospace"
+        }
+      }
+    ]
+  }
+}

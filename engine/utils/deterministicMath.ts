@@ -119,20 +119,28 @@ export const atan = (t: number): number => {
 };
 
 export const atan2 = (y: number, x: number): number => {
+  if (x !== x || y !== y) {
+    return NaN;
+  }
   if (x > 0) {
     return atan(y / x);
   }
   if (x < 0) {
-    return y >= 0 ? atan(y / x) + PI : atan(y / x) - PI;
+    const base = atan(y / x);
+    return y < 0 || Object.is(y, -0) ? base - PI : base + PI;
   }
-  // x is 0 or -0
+  // x is +0 or -0; the sign of a zero x never changes the quadrant.
   if (y > 0) {
     return PI / 2;
   }
   if (y < 0) {
     return -PI / 2;
   }
-  return y === 0 ? (Object.is(y, -0) && Object.is(x, -0) ? -PI : 0) : NaN;
+  // y is +0 or -0: the result depends on the sign of both zeros (IEEE 754).
+  if (Object.is(x, -0)) {
+    return Object.is(y, -0) ? -PI : PI;
+  }
+  return Object.is(y, -0) ? -0 : 0;
 };
 
 const scaleByPow2 = (value: number, k: number): number => {

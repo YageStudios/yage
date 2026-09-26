@@ -308,6 +308,16 @@ export class YageTestEnv {
    * Each frame is 16.6666ms (60fps). If screenshotInterval is configured,
    * screenshots will be captured at the specified intervals.
    */
+  async leavePlayer(pid: string): Promise<void> {
+    await this.page.evaluate(
+      ({ pid }) => {
+        return (window as any).__YAGE_E2E__.executeCommand("LEAVE_PLAYER", [pid]);
+      },
+      { pid },
+    );
+    this.players.delete(pid);
+  }
+
   async tick(frames: number): Promise<void> {
     if (frames <= 0) {
       throw new Error("ERR_INVALID_ARGUMENT: tick() requires frames > 0");

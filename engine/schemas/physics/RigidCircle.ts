@@ -49,6 +49,12 @@ export class RigidCircle extends Schema {
   @type("number")
   @defaultValue(0)
   restitution: number;
+
+  // Collider friction; 0.5 is Rapier's own default. Serialized with the
+  // world so component-only rebuilds re-apply the same policy.
+  @type("number")
+  @defaultValue(0.5)
+  friction: number;
 }
 
 @Component()

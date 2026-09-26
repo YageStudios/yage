@@ -17,6 +17,10 @@ export class GameReplayInstance<T> extends GameInstance<T> {
 
   protected scrubRequest: number | null = null;
 
+  // Room boot completes asynchronously; callers must await this before
+  // driving playback or scrubbing.
+  public ready: Promise<void>;
+
   constructor(
     public replayStack: { [key: string]: ReplayStack<T> },
     options: Omit<GameInstanceOptions<T>, "connection" | "seed" | "achievementService">
@@ -28,7 +32,7 @@ export class GameReplayInstance<T> extends GameInstance<T> {
     });
     this.connection = this.options.connection as HistoryConnectionInstance<T>;
     const roomId = Object.keys(replayStack)[0];
-    this.initializeRoom(roomId, replayStack[roomId].seed);
+    this.ready = this.initializeRoom(roomId, replayStack[roomId].seed);
   }
 
   async initializeRoom(
@@ -51,6 +55,7 @@ export class GameReplayInstance<T> extends GameInstance<T> {
     }
     const ticker = new Ticker(this.timestep, this.targetFPS);
     ticker.add(() => this.run());
+    this.ticker = ticker;
 
     ticker.start();
   }
@@ -137,19 +142,30 @@ export class GameReplayInstance<T> extends GameInstance<T> {
     return true;
   }
 
+  // Scrub-UI surface: play state, playhead position, tape length.
+  get playing(): boolean {
+    return this.playSpeed > 0;
+  }
+
+  get currentFrame(): number {
+    return Math.floor(this.nextFrame);
+  }
+
+  get totalFrames(): number {
+    const stack = this.replayStack[Object.keys(this.replayStack)[0]];
+    const netId = Object.keys(stack.frames)[0] ?? this.options.connection.players[0]?.netId;
+    const frames = stack.frames[netId];
+    return frames ? frames.length - 1 : 0;
+  }
+
   pausePlayback() {
     this.playSpeed = 0;
   }
 
   resumePlayback() {
+    // Continue from wherever the tape is; rewinding here would restart the
+    // recording from frame 0 mid-view.
     this.playSpeed = this.currentPlaySpeed;
-    const activeRooms = new Set(this.options.connection.players.map((p) => p.currentRoomId));
-
-    for (const roomId of activeRooms) {
-      if (roomId) {
-        this.connection.loadClosestFrame(this.options.connection.roomStates[roomId].gameModel, 0);
-      }
-    }
   }
 
   onScrub(frame: number) {

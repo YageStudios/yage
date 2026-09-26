@@ -1,0 +1,12 @@
+{
+  "name": "BrickUpBall",
+  "components": [
+    "Transform",
+    "BrickUpBall",
+    {
+      "type": "PixiGraphic",
+      "fillColor": "#ffe066",
+      "circle": { "x": 9, "y": 9, "radius": 9 },
+    },
+  ],
+}

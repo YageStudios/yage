@@ -22,6 +22,13 @@ export class RigidBox extends Schema {
   @defaultValue(0)
   restitution: number;
 
+  // Collider friction; 0.5 is Rapier's own default, so leaving it untouched
+  // preserves pre-existing behavior. Serialized with the world, which is
+  // what lets a component-only physics rebuild re-apply the same policy.
+  @type("number")
+  @defaultValue(0.5)
+  friction: number;
+
   @type("number")
   @defaultValue(0)
   mass: number;

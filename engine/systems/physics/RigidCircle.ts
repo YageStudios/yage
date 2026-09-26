@@ -74,6 +74,7 @@ export class RigidCircleSystem extends SystemImpl<GameModel> {
     if (rigidCircle.restitution) {
       colliderDesc.setRestitution(rigidCircle.restitution);
     }
+    colliderDesc.setFriction(rigidCircle.friction);
 
     let filterMask = CollisionCategoryEnum.ALL as number;
     if (rigidCircle.collisionMask) {

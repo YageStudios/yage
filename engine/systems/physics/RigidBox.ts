@@ -41,6 +41,7 @@ export class RigidBoxSystem extends SystemImpl<GameModel> {
     if (rigidBox.restitution) {
       colliderDesc.setRestitution(rigidBox.restitution);
     }
+    colliderDesc.setFriction(rigidBox.friction);
 
     let filterMask = CollisionCategoryEnum.ALL as number;
     if (rigidBox.collisionMask) {
@@ -60,6 +61,15 @@ export class RigidBoxSystem extends SystemImpl<GameModel> {
     const collider = physicsSystem.createCollider(entity, colliderDesc, rigidBody);
 
     collider.setTranslationWrtParent(rigidBox.point);
+
+    if (!rigidBox.isStatic && !gameModel.hasComponent(Locomotion, entity)) {
+      // A box with no Locomotion of its own is a pure physics prop: the
+      // physics step owns its velocity. Lock it so the resolver mirrors
+      // linvel into Locomotion every frame and a component-only rebuild can
+      // resume the body instead of restarting it at rest.
+      gameModel.addComponent(Locomotion, entity);
+      rigidBox.velocityLock = true;
+    }
 
     if (!gameModel.hasComponent("RigidBoxResolver", entity)) {
       gameModel.addComponent("RigidBoxResolver", entity);
@@ -156,11 +166,13 @@ export class RigidBoxResolverSystem extends SystemImpl<GameModel> {
       }
 
       if (rigidBox.velocityLock && gameModel.hasComponent(Locomotion, entity)) {
+        // Mirror the rigid body velocity as-is: restitution applies at
+        // collision time through the collider, never as per-frame damping.
         const velocity = box.linvel();
         const locomotion = gameModel.getTypedUnsafe(Locomotion, entity);
 
-        locomotion.x = (velocity.x / 60) * (rigidBox.restitution || 1);
-        locomotion.y = (velocity.y / 60) * (rigidBox.restitution || 1);
+        locomotion.x = velocity.x / 60;
+        locomotion.y = velocity.y / 60;
       }
 
       if (rigidBox.directionLock && gameModel.hasComponent(Locomotion, entity)) {

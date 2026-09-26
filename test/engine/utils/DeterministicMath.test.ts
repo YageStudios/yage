@@ -71,6 +71,22 @@ describe("deterministic atan/atan2", () => {
     closeTo(atan2(0, -1), Math.PI, 1e-12);
     closeTo(atan2(0, 1), 0, 1e-12);
   });
+
+  // Signed zeros are part of the atan2 spec (IEEE 754 / ECMA-262 give exact
+  // values, not engine approximations), so these must match native exactly.
+  it("atan2 matches Math.atan2 exactly on signed zeros and NaN", () => {
+    expect(atan2(-0, -1)).toBe(Math.atan2(-0, -1)); // -PI, not +PI
+    expect(atan2(0, -0)).toBe(Math.atan2(0, -0)); // PI, not PI/2
+    expect(atan2(-0, -0)).toBe(Math.atan2(-0, -0)); // -PI
+    expect(atan2(0, -0)).toBe(Math.PI);
+    expect(atan2(-0, 1)).toBe(Math.atan2(-0, 1)); // -0
+    expect(atan2(1, -0)).toBe(Math.atan2(1, -0)); // PI/2
+    expect(atan2(-1, -0)).toBe(Math.atan2(-1, -0)); // -PI/2
+    expect(Object.is(atan2(-0, 0), Math.atan2(-0, 0))).toBe(true); // -0
+    expect(atan2(NaN, 1)).toBeNaN();
+    expect(atan2(1, NaN)).toBeNaN();
+    expect(atan2(0, NaN)).toBeNaN();
+  });
 });
 
 describe("deterministic exp/log/pow", () => {

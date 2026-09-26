@@ -184,8 +184,14 @@ export async function QuickStart<T = null>(
     connection = initializeConnection(connection, playerConfig);
   }
   await connection.connect();
+
+  // A replay connection carries the seed the world was originally built
+  // with; rebuilding with any other seed desyncs the replay from frame 1.
+  const replayHistory =
+    connection instanceof HistoryConnectionInstance ? connection.replayHistory : undefined;
+
   const instance: GameInstance<T> = initializeGameInstance(connection);
-  await instance.initializeRoom(roomId, seed);
+  await instance.initializeRoom(roomId, replayHistory?.seed ?? seed);
   ensureMobileFullscreenButton();
 
   return instance;

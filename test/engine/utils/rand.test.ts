@@ -1,5 +1,5 @@
 import { test, expect } from "vitest";
-import { generate } from "yage/utils/rand";
+import { generate, randomPointOnACircle } from "yage/utils/rand";
 
 test("float stays within [min, max]", () => {
   const rand = generate(42);
@@ -38,4 +38,10 @@ test("generated sequences are reproducible for the same seed", () => {
   for (let i = 0; i < 100; i++) {
     expect(a.number()).toBe(b.number());
   }
+});
+
+test("randomPointOnACircle with radius 0 stays finite", () => {
+  const point = randomPointOnACircle(generate(7), 0);
+  expect(Number.isFinite(point.x)).toBe(true);
+  expect(Number.isFinite(point.y)).toBe(true);
 });

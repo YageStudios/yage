@@ -27,6 +27,7 @@ import type { Random as RandomType } from "yage/utils/rand";
 import "yage/systems";
 import type { PhysicsSaveState } from "yage/systems/physics/Physics";
 import { PhysicsSystem } from "yage/systems/physics/Physics";
+import { MapSystem } from "yage/systems/map/Map";
 import Description from "yage/schemas/core/Description";
 import { flags } from "yage/console/flags";
 import { EntityFactory } from "yage/entity/EntityFactory";
@@ -159,6 +160,20 @@ const incrementGroup = <T extends { count: number; examples: string[] }>(
 };
 
 const sortedRows = <T extends { count: number }>(rows: T[]) => rows.sort((a, b) => b.count - a.count);
+
+// Lockstep peers must serialize the same event data to the same string:
+// plain JSON.stringify depends on object key insertion order, which is an
+// implementation detail of whichever code built the object.
+const canonicalStringify = (value: any): string => {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalStringify).join(",")}]`;
+  }
+  const keys = Object.keys(value).sort();
+  return `{${keys.map((key) => `${JSON.stringify(key)}:${canonicalStringify(value[key])}`).join(",")}}`;
+};
 
 const tableOrLog = (label: string, rows: Record<string, unknown>[]) => {
   console.error(label);
@@ -519,7 +534,7 @@ export const GameModel = ({
       return null;
     },
     event: (netId: string, event: string, data: any) => {
-      playerEventManager.addEvent(netId, `${event}::${JSON.stringify(data)}`);
+      playerEventManager.addEvent(netId, `${event}::${canonicalStringify(data)}`);
     },
     injectEntity: (entity: EjectedEntity, entityIdMap: { [eid: number]: number } = {}) => {
       const { entityType, description, components, entities } = entity;
@@ -878,6 +893,9 @@ export const GameModel = ({
         (gameModel.hasComponent("RigidCircle", entity) || gameModel.hasComponent("RigidBox", entity))
       ) {
         gameModel.getSystem(PhysicsSystem).removeEntity(gameModel, entity);
+      }
+      if (entityExists(world, entity) && gameModel.hasComponent("Map", entity)) {
+        gameModel.getSystem(MapSystem).cleanup(gameModel, entity);
       }
       removeEntity(world, entity);
     },

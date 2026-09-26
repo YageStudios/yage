@@ -24,7 +24,6 @@ import { PlayerEventManager } from "yage/inputs/PlayerEventManager";
 import type { GameInstance } from "yage/game/GameInstance";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import type { TouchRegion } from "yage/inputs/InputRegion";
-import { md5 } from "yage/utils/md5";
 import { hashWorldState } from "yage/game/StateHash";
 import { ComponentCategory } from "yage/constants/enums";
 import { BackgroundFrameFlow, type BackgroundFrameFlowOptions, type SerializedFrame } from "./BackgroundFrameFlow";
@@ -38,6 +37,12 @@ export type CoreConnectionInstanceOptions<T> = {
   roomTimeout?: number;
   roomPersist?: boolean | number;
   disconnectTimeoutMs?: number;
+  /**
+   * How many frames after its state snapshot a late joiner materializes.
+   * The frame is decided by the serving peer, travels with the state payload,
+   * and every peer fires the joiner's onJoin on that same frame.
+   */
+  joinGraceFrames?: number;
   backgroundFrameFlow?: BackgroundFrameFlowOptions | false;
   historyPersistence?: HistoryPersistenceOptions;
   /**
@@ -94,6 +99,7 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
   private desyncReportedFrames: { [roomId: string]: Set<number> } = {};
   private readonly desyncCheckInterval: number;
   private readonly hashHistoryLength = 10;
+  private readonly joinGraceFrames: number;
 
   private pingInterval: ReturnType<typeof setInterval> | null = null;
   private pingSentAt = new Map<string, number>();
@@ -187,9 +193,7 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
   backgroundFrameFlow: BackgroundFrameFlow;
 
   emit(event: string, ...args: any[]) {} // eslint-disable-line
-  async connect(): Promise<void> {
-    this.startRttMeasurement();
-  } // eslint-disable-line
+  async connect(): Promise<void> {} // eslint-disable-line
 
   constructor(
     player: PlayerConnect<T> | PlayerConnect<T>[],
@@ -200,6 +204,7 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
     options.roomPersist = options.roomPersist ?? false;
     this.frameOffset = options.frameOffset ?? 8;
     this.desyncCheckInterval = options.desyncCheckInterval ?? 60;
+    this.joinGraceFrames = options.joinGraceFrames ?? 120;
     if (options.touchRegions) {
       this.touchListener = new TouchListener(this.inputManager);
     }
@@ -353,8 +358,15 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
         player.connected = false;
       }
       const wasDisconnecting = this.disconnectingPlayers.some(([disconnectingPlayerId]) => disconnectingPlayerId === playerId);
-      this.players = this.players.filter((player) => player.netId !== playerId);
-      this.localPlayers = this.localPlayers.filter((player) => player.netId !== playerId);
+      // A reap broadcast for a LOCAL player is the room dropping its inputs,
+      // not the client ceasing to exist: it stays in the roster (as a passive
+      // player) and keeps publishing, otherwise its own connection turns into
+      // a zombie whose ping/emit paths crash on a missing local player.
+      const isLocalPlayer = this.localPlayers.some((player) => player.netId === playerId);
+      if (!isLocalPlayer) {
+        this.players = this.players.filter((player) => player.netId !== playerId);
+        this.localPlayers = this.localPlayers.filter((player) => player.netId !== playerId);
+      }
       if (!wasDisconnecting) {
         this.disconnectListeners.forEach((listener) => listener(playerId));
       }
@@ -441,7 +453,9 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
         return;
       }
       this.emit("frame", {
-        keys: this.inputManager.keyMapToJsonObject(frame.keys as KeyMap),
+        // publishState stores JSON-ready keys; the background flow stores
+        // live Maps. Only the latter still needs serializing.
+        keys: frame.keys instanceof Map ? this.inputManager.keyMapToJsonObject(frame.keys as KeyMap) : frame.keys,
         frame: frame.frame,
         events: frame.events,
         playerId: frame.playerId,
@@ -757,6 +771,10 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
     }
   }
 
+  private isDocumentHidden(): boolean {
+    return typeof document !== "undefined" && document.visibilityState === "hidden";
+  }
+
   private recordMissingFrameStall(
     gameModel: GameModel,
     playerId: string
@@ -769,6 +787,13 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
     if (firstMiss) {
       roomStalls[playerId] = { frame: gameModel.frame, since: now };
       return { firstMiss: true, timedOut: false };
+    }
+    // A hidden document suspends rAF, so the local sim cannot step no matter
+    // how healthy the remote peers are. Keep the stall timer pinned to now
+    // while hidden: peers must not reap each other for local suspension.
+    if (this.isDocumentHidden()) {
+      current.since = now;
+      return { firstMiss: false, timedOut: false };
     }
     return {
       firstMiss: false,
@@ -805,7 +830,6 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
     if (!frameStack) {
       console.error("no room frame stack", gameModel.roomId, this.roomStates, this.instanceId);
       throw new Error("no room frame stack");
-      return true;
     }
     for (let i = 0; i < players.length; ++i) {
       const player = players[i];
@@ -901,6 +925,21 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
       this.on("frame", (_playerId, frame) => {
         this.backgroundFrameFlow.enqueueFrame(roomId, frame);
         this.checkRemoteStateHash(roomId, frame);
+      })
+    );
+    // State payloads carry the deterministic join start frames for any joiner
+    // they serve; every room participant must adopt the same value so the
+    // joiner materializes on one agreed frame everywhere.
+    this.roomSubs[roomId].push(
+      this.on("state", (_playerId, _stateJson, _frameStack, _timestamp, joinStartFrames) => {
+        if (!joinStartFrames || typeof joinStartFrames !== "object") {
+          return;
+        }
+        const roomState = this.roomStates[roomId];
+        if (!roomState) {
+          return;
+        }
+        roomState.joinStartFrames = { ...roomState.joinStartFrames, ...joinStartFrames };
       })
     );
     this.roomSubs[roomId].push(
@@ -1320,7 +1359,8 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
             stateJson: string,
             frameStack: {
               [playerId: number]: { keys: any; frame: number; events: string[] }[];
-            }
+            },
+            joinStartFrames?: { [playerId: string]: number }
             // timestamp: number
           ) => {
             if (playerId === localPlayer.netId) {
@@ -1330,6 +1370,12 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
 
             localPlayer.currentRoomId = roomId;
             const state: GameModelState = JSON.parse(stateJson);
+            // The serving peer picked a deterministic frame for the joiner to
+            // materialize on; peers hold the same value via the state payload.
+            roomState.joinStartFrames = { ...roomState.joinStartFrames, ...joinStartFrames };
+            roomState.joinConfigs = { ...roomState.joinConfigs, [localPlayer.netId]: localPlayer.config };
+            roomState.joinStartFrames[localPlayer.netId] =
+              roomState.joinStartFrames[localPlayer.netId] ?? state.frame + this.joinGraceFrames;
 
             if (!Object.keys(roomState.frameStack)) {
               roomState.frameStack = Object.entries(frameStack).reduce(
@@ -1392,6 +1438,30 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
                 playerEventManager: this.playerEventManager,
               }); // GameModel(GameCoordinator.GetInstance(), gameInstance, seed, coreOverrides);
               await roomState.gameModel.deserializeState(state);
+            }
+            // Converge to the live timeline: the served snapshot is stale by
+            // the request handshake, and a joiner that stays behind has its
+            // published frames eaten as "old" until the stall detector drops
+            // it from the room. Replay the received queue and step forward
+            // to the newest frame the room has published.
+            const queuedFrames = Object.values(frameStack)
+              .flat()
+              .map((queued) => queued.frame);
+            const liveFrame = queuedFrames.length ? Math.max(...queuedFrames) : state.frame;
+            const frameStackByPlayer = roomState.frameStack;
+            while (roomState.gameModel.frame < liveFrame) {
+              for (const queuedNetId of Object.keys(frameStackByPlayer)) {
+                const queuedEntity = this.findPlayerEntity(roomState.gameModel, queuedNetId);
+                if (queuedEntity !== undefined && roomState.gameModel.hasComponent(PlayerInput, queuedEntity)) {
+                  this.consumePlayerFrame(
+                    roomState,
+                    queuedNetId,
+                    roomState.gameModel.getTypedUnsafe(PlayerInput, queuedEntity),
+                    roomState.gameModel,
+                  );
+                }
+              }
+              roomState.gameModel.step();
             }
             this.resetHistory(roomState.gameModel.roomId, {
               frames: {},
@@ -1591,11 +1661,11 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
 
   firstFrame(gameModel: GameModel, _firstPlayerConfig: any): void | Promise<void> {
     const state = gameModel.serializeState();
-    const serializedState = md5(JSON.stringify(state));
+    const hash = hashWorldState(gameModel);
 
-    this.history[gameModel.roomId].stateHashes[gameModel.frame] = serializedState;
+    this.history[gameModel.roomId].stateHashes[gameModel.frame] = hash;
     this.history[gameModel.roomId].snapshots[gameModel.frame] = state;
-    this.historyPersistenceFlow.recordSnapshot(gameModel.roomId, gameModel.frame, serializedState, state);
+    this.historyPersistenceFlow.recordSnapshot(gameModel.roomId, gameModel.frame, hash, state);
 
     return;
   }
@@ -1701,19 +1771,16 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
   }
 
   generateFrameStack = (gameModel: GameModel, playerId: string, frame: number) => {
-    const initalFrameOffset = this.frameOffset;
     const roomState = this.roomStates[gameModel.roomId];
 
-    roomState.frameStack[playerId] = new Array(initalFrameOffset).fill({ keys: {} as any, frame: 0 }).map((_, ind) => {
-      return {
-        frame: frame + ind,
-        keys: InputManager.buildKeyMap(),
-        events: [],
-        playerId: playerId,
-        roomId: gameModel.roomId,
-      };
-    });
-    roomState.lastFrame[playerId] = frame + initalFrameOffset - 1;
+    roomState.frameStack[playerId] = new Array(this.frameOffset).fill(null).map((_, ind) => ({
+      frame: frame + ind,
+      keys: InputManager.buildKeyMap(),
+      events: [],
+      playerId: playerId,
+      roomId: gameModel.roomId,
+    }));
+    roomState.lastFrame[playerId] = frame + this.frameOffset - 1;
   };
 
   publishState(roomState: RoomState, netId: string, gameModel: GameModel) {
@@ -1781,47 +1848,93 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
   }
 
   updateHistory(netId: string, frame: Frame, gameModel: GameModel) {
-    this.history[gameModel.roomId].frames[netId] = this.history[gameModel.roomId].frames[netId] ?? [];
+    // A joiner's convergence replays frames before its own history begins —
+    // its replay stack is reset right after the fast-forward, so there is
+    // nothing to record yet.
+    const history = this.history[gameModel.roomId];
+    if (!history) {
+      return;
+    }
+    history.frames[netId] = history.frames[netId] ?? [];
     const historyFrame = {
       ...frame,
       keys: this.inputManager.keyMapToJsonObject(frame.keys as KeyMap),
     };
-    this.history[gameModel.roomId].frames[netId].push(historyFrame);
+    history.frames[netId].push(historyFrame);
     this.historyPersistenceFlow.recordFrame(gameModel.roomId, netId, historyFrame);
     this.historyPersistenceFlow.persistIfDue(gameModel.frame);
   }
 
   consumePlayerFrame(roomState: RoomState, netId: string, playerInput: PlayerInput, gameModel: GameModel) {
-    while ((roomState.frameStack[netId]?.[0]?.frame ?? Infinity) < gameModel.frame) {
-      roomState.frameStack[netId].shift();
+    const stack = roomState.frameStack[netId] ?? [];
+    while ((stack[0]?.frame ?? Infinity) < gameModel.frame) {
+      stack.shift();
     }
 
-    if (gameModel.executionMode === "step" && roomState.frameStack[netId]?.[0]?.frame !== gameModel.frame) {
+    const head = stack[0];
+    if (gameModel.executionMode !== "step" && head?.frame !== gameModel.frame) {
+      // No input scheduled for this frame (network gap or a peer that is
+      // ahead). Skipping is deterministic on every peer and the interval
+      // state-hash checks are the desync safety net — this must never throw:
+      // an exception here kills the peer's whole simulation loop.
       playerInput.prevKeyMap = playerInput.keyMap;
       playerInput.events = [];
       return;
     }
 
-    if (roomState.frameStack[netId][0].frame === gameModel.frame) {
-      const prevKeyMap = playerInput.keyMap;
-      const frame = roomState.frameStack[netId].shift()!;
-      const nextKeyMap = frame.keys as KeyMap;
+    const prevKeyMap = playerInput.keyMap;
+    const frame = stack.shift()!;
+    const nextKeyMap = frame.keys as KeyMap;
 
-      this.updateHistory(netId, frame, gameModel);
+    this.updateHistory(netId, frame, gameModel);
 
-      playerInput.prevKeyMap = prevKeyMap;
-      playerInput.keyMap = nextKeyMap;
-      playerInput.events = frame.events;
-    } else {
-      console.log(roomState.frameStack[netId][0].frame, gameModel.frame);
-      console.log(roomState.frameStack[netId]);
-      throw new Error("Frame mismatch");
+    playerInput.prevKeyMap = prevKeyMap;
+    playerInput.keyMap = nextKeyMap;
+    playerInput.events = frame.events;
+  }
+
+  /**
+   * Canonical join flow: a late joiner materializes on every peer at the same
+   * deterministic frame — onJoin fires there, its input frames are expected
+   * from there, and below it the joiner exists in no model at all.
+   */
+  private materializeJoiners(gameModel: GameModel, roomState: RoomState | undefined) {
+    const joinStarts = roomState?.joinStartFrames;
+    if (!joinStarts || gameModel.executionMode === "step") {
+      return;
+    }
+    for (const playerId of Object.keys(joinStarts).sort()) {
+      const startFrame = joinStarts[playerId];
+      if (gameModel.frame < startFrame) {
+        continue;
+      }
+      delete joinStarts[playerId];
+      // Room membership is the liveness source: remote joiners never enter
+      // the local roster, but a joiner that left the room must not materialize.
+      const room = this.rooms[gameModel.roomId];
+      if (room?.players.length && !room.players.includes(playerId)) {
+        continue;
+      }
+      if (this.findPlayerEntity(gameModel, playerId) !== undefined) {
+        continue;
+      }
+      const config =
+        roomState.joinConfigs?.[playerId] ??
+        this.localPlayers.find((player) => player.netId === playerId)?.config ??
+        ({} as T);
+      this.createPlayer(gameModel, playerId, config, gameModel.frame);
     }
   }
 
   startFrame(gameModel: GameModel) {
-    const players = gameModel.getComponentActives("PlayerInput");
     const roomState = this.roomStates[gameModel.roomId];
+    this.materializeJoiners(gameModel, roomState);
+
+    // RTT probes reference the local player, which only exists once the game
+    // loop is stepping — ping-ponging before the first frame is meaningless.
+    this.startRttMeasurement();
+
+    const players = gameModel.getComponentActives("PlayerInput");
 
     if (gameModel.executionMode === "step") {
       for (let i = 0; i < players.length; ++i) {
@@ -1858,10 +1971,23 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
       const remainingStateRequests = this.stateRequested?.filter((request) => request.roomId !== gameModel.roomId) ?? [];
       this.stateRequested = remainingStateRequests.length ? remainingStateRequests : null;
       const playerIds: string[] = [];
+      const joinStartFrames: { [playerId: string]: number } = {};
+      roomState.joinConfigs = roomState.joinConfigs ?? {};
       while (stateRequests.length) {
         const { playerId, playerConfig } = stateRequests.pop()!;
         playerIds.push(playerId);
-        this.createPlayer(gameModel, playerId, playerConfig, gameModel.frame);
+        // Canonical join flow: the joiner does not exist yet. Its onJoin fires
+        // on every peer at the deterministic start frame carried with the
+        // state payload — not while the request is being served.
+        roomState.joinConfigs[playerId] = playerConfig;
+        // Provisional value only: the serving peer's payload is the canonical
+        // start frame, so an adopted entry must never be overwritten here —
+        // peers recording different local frames would materialize the
+        // joiner on divergent frames.
+        joinStartFrames[playerId] = gameModel.frame + this.joinGraceFrames;
+        roomState.joinStartFrames = roomState.joinStartFrames ?? {};
+        roomState.joinStartFrames[playerId] =
+          roomState.joinStartFrames[playerId] ?? joinStartFrames[playerId];
       }
       const hostId = [...(this.rooms[gameModel.roomId]?.players ?? [])].sort().filter((pid) => !playerIds.includes(pid))[0];
       const localPlayerIds = new Set(this.localPlayers.map((player) => player.netId));
@@ -1884,20 +2010,13 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
           }
         );
         console.log("emitting state");
-        this.emit("state", JSON.stringify(state), frameStack, +new Date());
+        this.emit("state", JSON.stringify(state), frameStack, +new Date(), joinStartFrames);
       }
       // gameModel.loadStateObject(state);
     }
 
-    // const state = gameModel.linearSerializeState();
-
     if (gameModel.frame % 300 === 0 && flags.DEBUG) {
-      // const perf = performance.now();
-      // const state = gameModel.serializeState();
-      // const serializedState = md5(JSON.stringify(state));
-      // this.history.stateHashes[gameModel.frame] = serializedState;
-      // this.history.snapshots[gameModel.frame] = state;
-      console.log(gameModel.frame); //, state, serializedState, performance.now() - perf);
+      console.log(gameModel.frame);
     }
   }
 }

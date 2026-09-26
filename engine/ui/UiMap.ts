@@ -921,7 +921,10 @@ const createPosspecHost = (id: string) => {
       padding: "0",
       margin: "0",
       overflow: "visible",
-      pointerEvents: "auto",
+      // The host spans the whole viewport above the game. It must stay
+      // click-through: interactive children re-enable pointer events on
+      // themselves, while everything else reaches the game canvas below.
+      pointerEvents: "none",
     },
     pointerEventsOnOverflow: false,
   });

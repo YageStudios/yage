@@ -106,6 +106,17 @@ export class E2EConnectionInstance<T> extends CoreConnectionInstance<T> {
   }
 
   /**
+   * Remove a simulated player from the session: marks the connection
+   * disconnected and drops it from the room bookkeeping. The game's
+   * onPlayerLeave runs separately via the bridge.
+   */
+  public removeSimulatedPlayer(pid: string): void {
+    this.playerInputIndices.delete(pid);
+    this.localPlayers = this.localPlayers.filter((p) => p.netId !== pid);
+    this.players = this.players.filter((p) => p.netId !== pid);
+  }
+
+  /**
    * Get the input index for a specific player (used by the bridge for input dispatch).
    */
   public getPlayerInputIndex(pid: string): number {

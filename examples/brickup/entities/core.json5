@@ -1,0 +1,16 @@
+{
+  "name": "core",
+  "components": [
+    "Random",
+    "PixiViewport",
+    {
+      "type": "BrickUpBoard",
+      "score": 0,
+      "round": 1,
+      "respawnTimer": 1,
+      "slowTimer": 0,
+      "pierceTimer": 0,
+      "upgradesApplied": 0,
+    },
+  ],
+}

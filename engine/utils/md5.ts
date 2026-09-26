@@ -29,14 +29,14 @@ export function md5(inputString: string): string {
   function ii(a: number, b: number, c: number, d: number, x: number, s: number, t: number) {
     return cm(c ^ (b | ~d), a, b, x, s, t);
   }
-  function sb(x: string) {
+  function sb(bytes: Uint8Array) {
     let i;
-    const nblk = ((x.length + 8) >> 6) + 1;
+    const nblk = ((bytes.length + 8) >> 6) + 1;
     const blks = new Array(nblk * 16);
     for (i = 0; i < nblk * 16; i++) blks[i] = 0;
-    for (i = 0; i < x.length; i++) blks[i >> 2] |= x.charCodeAt(i) << ((i % 4) * 8);
+    for (i = 0; i < bytes.length; i++) blks[i >> 2] |= bytes[i] << ((i % 4) * 8);
     blks[i >> 2] |= 0x80 << ((i % 4) * 8);
-    blks[nblk * 16 - 2] = x.length * 8;
+    blks[nblk * 16 - 2] = bytes.length * 8;
     return blks;
   }
   let i,
@@ -48,7 +48,10 @@ export function md5(inputString: string): string {
     oldb,
     oldc,
     oldd;
-  const x = sb("" + inputString);
+  // Hash the UTF-8 bytes: charCodeAt hands out UTF-16 code units, and any
+  // non-ASCII state (player names, descriptions) would produce a digest
+  // that no standard MD5 implementation can reproduce.
+  const x = sb(new TextEncoder().encode("" + inputString));
   for (i = 0; i < x.length; i += 16) {
     olda = a;
     oldb = b;

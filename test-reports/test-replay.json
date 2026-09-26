@@ -427,9 +427,9 @@
       ]
     },
     "seed": "QuickStart",
-    "startTimestamp": 1790341503015,
+    "startTimestamp": 1790437982508,
     "stateHashes": {
-      "0": "85a57c7801f545e5860cc439a65ea912"
+      "0": "a7d9d7bbcc49897c"
     },
     "snapshots": {
       "0": {
@@ -554,6 +554,7 @@
                   "collisionEvents": true,
                   "isometric": false,
                   "restitution": 0,
+                  "friction": 0.5,
                   "collisionCategory": 2,
                   "collisionMask": [
                     65535

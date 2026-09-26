@@ -118,12 +118,6 @@ export class InputManager {
   }
 
   public static buildKeyMap(): KeyMap {
-    // const newKeymap = new Map<MappedKeys, boolean>();
-    // for (const x in MappedKeys) {
-    //   const mappedKey: MappedKeys = MappedKeys[x as keyof typeof MappedKeys];
-    //   newKeymap.set(mappedKey, false);
-    // }
-    // return newKeymap;
     return new Map<string, boolean>();
   }
 

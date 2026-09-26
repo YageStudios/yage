@@ -78,6 +78,14 @@ export type RoomState = {
   gameModel: GameModel;
   frameStack: FrameStack;
   lastFrame: { [playerId: string]: number };
+  /**
+   * Deterministic frame at which a late joiner materializes: onJoin fires for
+   * the joiner on every peer at that frame, its published inputs are expected
+   * from it, and it does not exist in any model below it.
+   */
+  joinStartFrames?: { [playerId: string]: number };
+  /** Player configs captured from join requests, used to materialize the joiner. */
+  joinConfigs?: { [playerId: string]: any };
 };
 
 export type SerializedRoomFrame = {

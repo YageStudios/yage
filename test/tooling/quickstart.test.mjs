@@ -12,17 +12,26 @@ const skip = !ts ? "Install engine devDependencies to run QuickStart execution t
 async function harness(e2e = false) {
   let resolveRoom, rejectRoom;
   const room = new Promise((resolve, reject) => { resolveRoom = resolve; rejectRoom = reject; });
-  const state = { roomStarted: false, stopped: false, instance: null };
+  const state = { roomStarted: false, stopped: false, instance: null, initializeRoomArgs: null };
   const context = vm.createContext({ window: { location: { search: e2e ? "?e2e=true" : "" } }, URLSearchParams });
   class GameInstance {
     constructor(options) { this.options = options; state.instance = this; }
-    async initializeRoom() {
+    async initializeRoom(roomId, seed) {
       state.roomStarted = true;
+      state.initializeRoomArgs = [roomId, seed];
       await room;
       this.ticker = { stop: () => { state.stopped = true; } };
     }
   }
   class Connection { async connect() {} }
+  // Mirrors the real class: in-memory history is applied in the constructor,
+  // so replayHistory is available right after construction.
+  class HistoryConnection extends Connection {
+    constructor(history) {
+      super();
+      this.replayHistory = history ? history[Object.keys(history)[0]] : undefined;
+    }
+  }
   class InputManager {}
   class KeyboardListener { init() {} destroy() {} }
   class MouseManager {}
@@ -37,7 +46,7 @@ async function harness(e2e = false) {
     AssetLoader: { default: { getInstance: () => ({ load: async () => {} }) } },
     PlayerInput: { PlayerInput: class {} },
     UIService: { UIService: { getInstance: () => ({}) } },
-    HistoryConnectionInstance: { HistoryConnectionInstance: Connection },
+    HistoryConnectionInstance: { HistoryConnectionInstance: HistoryConnection },
     PeerMultiplayerInstance: { PeerMultiplayerInstance: Connection, isPeerMultiplayerInstanceOptions: () => true },
     SocketIoMultiplayerInstance: { SocketIoMultiplayerInstance: Connection, isSocketIoMultiplayerInstanceOptions: () => true },
     E2EConnectionInstance: { E2EConnectionInstance: Connection },
@@ -61,7 +70,7 @@ async function harness(e2e = false) {
   const start = () => module.namespace.QuickStart({
     gameName: "test", connection: "SINGLEPLAYER", onPlayerJoin: () => 1, preload: async () => {},
   });
-  return { start, state, context, resolveRoom, rejectRoom };
+  return { start, quickStart: module.namespace.QuickStart, HistoryConnection, state, context, resolveRoom, rejectRoom };
 }
 
 async function flush() { for (let i = 0; i < 12; i++) await Promise.resolve(); }
@@ -92,4 +101,16 @@ test("room initialization errors reject QuickStart", { skip }, async () => {
   const failure = assert.rejects(startup, /initialization failed/);
   await flush(); h.rejectRoom(new Error("initialization failed"));
   await failure;
+});
+
+test("a replay connection bootstraps the recorded seed, not the default", { skip }, async () => {
+  const h = await harness();
+  const connection = new h.HistoryConnection({ "recorded-room": { seed: "recorded-seed" } });
+  const startup = h.quickStart({
+    gameName: "test", connection, onPlayerJoin: () => 1, preload: async () => {},
+  });
+  await flush();
+  assert.equal(h.state.initializeRoomArgs?.[1], "recorded-seed");
+  h.resolveRoom();
+  await startup;
 });
