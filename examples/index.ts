@@ -4,6 +4,7 @@ const games = [
   ["reba", () => import("./reball")],
   ["ui", () => import("./uimap")],
   ["ui-final", () => import("./ui-final")],
+  ["ui-final-airport", () => import("./ui-final-airport")],
   ["peer", () => import("./peer")],
   ["socket", () => import("./socket")],
   ["tictactoe", () => import("./tictactoe")],

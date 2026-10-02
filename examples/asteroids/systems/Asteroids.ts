@@ -1,12 +1,8 @@
 import { cos, sin } from "yage/utils/deterministicMath";
-import type { QueryInstance} from "minecs";
 import { Component, defaultValue, DrawSystemImpl, Schema, System, SystemImpl, type } from "minecs";
 import type { GameModel, ReadOnlyGameModel } from "yage/game/GameModel";
-import { UIService } from "yage/ui/UIService";
-import AssetLoader from "yage/loader/AssetLoader";
-import type { UiMap } from "yage/ui/UiMap";
-import { buildUiMap } from "yage/ui/UiMap";
-import type { UIElement } from "yage/ui/UIElement";
+import { Button, Column, CommandQueue, Model, Panel, Text, UIFinal, when } from "yage/ui/final";
+import type { Child } from "yage/ui/final";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import { keyDown } from "yage/utils/keys";
 import { EntityFactory } from "yage/entity/EntityFactory";
@@ -20,6 +16,7 @@ import { Owner } from "yage/schemas/core/Owner";
 import type { Damage} from "yage/schemas/damage/DamageStats";
 import { Damageable, DamageStats } from "yage/schemas/damage/DamageStats";
 import { ComponentCategory, DamageCategoryEnum, DamageTypeEnum } from "yage/constants/enums";
+import { canPresentUI } from "../../shared/uiFinal";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -99,10 +96,6 @@ export class AsteroidsBoard extends Schema {
   @type("number")
   @defaultValue(-1)
   shipEntity: number;
-
-  @type("string")
-  @defaultValue("AsteroidsUI")
-  uiMap: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -549,6 +542,12 @@ export class AsteroidsLevelSystem extends SystemImpl<GameModel> {
   static depth = 4;
 
   run = (gameModel: GameModel, entity: number) => {
+    // HUD restart commands are applied here — the authoritative gameplay input point.
+    gameModel.getSystem(AsteroidsUISystem)?.commands.drain(command => {
+      if (command.type !== "restart") return;
+      resetGame(gameModel.getTypedUnsafe(AsteroidsBoard, entity), gameModel);
+    });
+
     const board = gameModel.getTypedUnsafe(AsteroidsBoard, entity);
     if (board.status !== "PLAYING" || board.shipEntity === -1) return;
 
@@ -561,9 +560,9 @@ export class AsteroidsLevelSystem extends SystemImpl<GameModel> {
   };
 }
 
-// ── Format context ────────────────────────────────────────────────────────────
+// ── Presentation projection ───────────────────────────────────────────────────
 
-function formatContext(board: AsteroidsBoard, gameModel: ReadOnlyGameModel) {
+function statusMessage(board: AsteroidsBoard, gameModel: ReadOnlyGameModel): string {
   let score = 0;
   let lives = 0;
 
@@ -574,64 +573,83 @@ function formatContext(board: AsteroidsBoard, gameModel: ReadOnlyGameModel) {
     lives = shipHealth.health;
   }
 
-  let statusMessage = `Score: ${score}  Lives: ${lives}  Level: ${board.level}`;
-  if (board.status === "GAME_OVER") statusMessage = "Game Over!";
-
-  return {
-    statusMessage,
-    showGameOver: board.status !== "PLAYING",
-  };
+  if (board.status === "GAME_OVER") return "Game Over!";
+  return `Score: ${score}  Lives: ${lives}  Level: ${board.level}`;
 }
 
-// ── Draw / UI System ──────────────────────────────────────────────────────────
+interface AsteroidsHudState {
+  statusMessage: string;
+  showGameOver: boolean;
+}
+
+// ── UI Final HUD ──────────────────────────────────────────────────────────────
 
 @System(AsteroidsBoard)
 export class AsteroidsUISystem extends DrawSystemImpl<ReadOnlyGameModel> {
-  uiService: UIService;
-  uiMap: UiMap;
-  uiElements: UIElement[] = [];
+  /** Commands from the HUD; drained by AsteroidsLevelSystem at the gameplay input boundary. */
+  readonly commands = new CommandQueue();
+  private ui?: UIFinal;
+  private state?: Model<AsteroidsHudState>;
 
-  constructor(query: QueryInstance) {
-    super(query);
-    this.uiService = UIService.getInstance();
-  }
-
-  init = (gameModel: ReadOnlyGameModel, entity: number) => {
-    const board = gameModel.getTypedUnsafe(AsteroidsBoard, entity);
-    const uiAsset = AssetLoader.getInstance().getUi(board.uiMap);
-    this.uiMap = buildUiMap(uiAsset);
-
-    const initialContext = formatContext(board, gameModel);
-
-    const eventHandler = (_playerIndex: number, eventName: string, _eventType: string, _context: any) => {
-      if (eventName === "onRestartClick") {
-        const mutableGameModel = gameModel as any as GameModel;
-        const mutableBoard = mutableGameModel.getTypedUnsafe(AsteroidsBoard, entity);
-        resetGame(mutableBoard, mutableGameModel);
-      }
-    };
-
-    const built = this.uiMap.build(initialContext, eventHandler);
-    this.uiElements = Object.values(built);
-    for (const el of this.uiElements) {
-      this.uiService.addToUI(el);
-    }
+  init = (_gameModel: ReadOnlyGameModel, _entity: number) => {
+    // Headless runs (unit tests) have no real DOM; the HUD is presentation-only.
+    if (!canPresentUI() || this.ui) return;
+    const ui = (this.ui = new UIFinal());
+    const state = (this.state = new Model<AsteroidsHudState>({ statusMessage: "", showGameOver: false }));
+    ui.scope.add(() => { this.state = undefined; state.dispose(); });
+    ui.mount(this.hud(state));
   };
 
+  private hud(state: Model<AsteroidsHudState>): Child {
+    return [
+      Text(() => state.get<string>("statusMessage"), {
+        id: "statusText",
+        style: {
+          position: "absolute", top: 15, left: "50%", transform: "translateX(-50%)",
+          fontSize: 24, color: "#00ff00", textAlign: "center", fontFamily: "monospace",
+          textShadow: "0 0 4px #000000",
+        },
+      }),
+      Text("← → rotate  |  ↑ thrust  |  Space fire", {
+        style: {
+          position: "absolute", bottom: 15, left: "50%", transform: "translateX(-50%)",
+          fontSize: 14, color: "#aaaaaa", textAlign: "center",
+        },
+      }),
+      when(() => state.get<boolean>("showGameOver"), () =>
+        Panel({
+          id: "gameOver",
+          style: { position: "absolute", inset: 0, display: "grid", placeItems: "center" },
+        },
+          Column({ style: { alignItems: "center", gap: 24 } },
+            Text("GAME OVER", {
+              id: "gameOverText",
+              style: {
+                fontSize: 64, color: "#ff4444", textAlign: "center",
+                textShadow: "0 0 20px #ff0000",
+              },
+            }),
+            Button({
+              id: "restart",
+              autoFocus: true,
+              style: {
+                minWidth: 220, minHeight: 64, fontSize: 28,
+                backgroundColor: "#226622", color: "#ffffff", borderRadius: 8,
+              },
+              on: { activate: event => { this.commands.enqueue(event.player, "restart"); } },
+            }, "Play Again")))),
+    ];
+  }
+
   run = (gameModel: ReadOnlyGameModel, entity: number) => {
-    if (!this.uiElements.length) return;
-    if (this.uiElements.some((ui) => ui.destroyed)) {
-      this.init(gameModel, entity);
-      return;
-    }
+    if (!this.state) return;
     const board = gameModel.getTypedUnsafe(AsteroidsBoard, entity);
-    this.uiMap.update(formatContext(board, gameModel));
+    this.state.set("statusMessage", statusMessage(board, gameModel));
+    this.state.set("showGameOver", board.status !== "PLAYING");
   };
 
   cleanup = () => {
-    if (this.uiElements.length) {
-      this.uiService.removeFromUI(this.uiElements);
-      this.uiElements = [];
-    }
+    this.ui?.dispose();
+    this.ui = undefined;
   };
 }

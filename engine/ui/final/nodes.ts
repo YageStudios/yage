@@ -1,3 +1,4 @@
+import type { HTMLNode } from "./html";
 import { type Readable, type Signal, type Value } from "./reactive";
 
 export type Key = string | number;
@@ -92,7 +93,7 @@ export interface VirtualNode<T = unknown> {
   props?: Props;
   key?: Key;
 }
-export type VNode = ElementNode | TextNode | DynamicNode | EachNode<any> | VirtualNode<any>;
+export type VNode = HTMLNode | ElementNode | TextNode | DynamicNode | EachNode<any> | VirtualNode<any>;
 export type Child = VNode | string | number | boolean | null | undefined | readonly Child[];
 export function h(type: NodeType, props: Props = {}, ...children: Child[]): ElementNode {
   return { kind: "element", type, props, children, key: props.key };

@@ -3,10 +3,7 @@
   components: [
     "Random",
     "Sounds",
-    {
-      type: "FrameRate",
-      uiMap: "core/FrameRate",
-    },
+    "FrameRate",
     {
       type: "TetrisBoard",
       nextShape: "I",
@@ -17,19 +14,8 @@
       tickTimer: 48,
       dasTimer: 0,
       dasDirection: 0,
-      uiMap: "core/TetrisUI",
     },
   ],
   assets: [
-    {
-      type: "ui",
-      key: "core/FrameRate",
-      url: "core/FrameRate.json5",
-    },
-    {
-      type: "ui",
-      key: "core/TetrisUI",
-      url: "TetrisUI.json5",
-    },
   ],
 }

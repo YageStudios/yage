@@ -1,3 +1,5 @@
+import { HTMLInstance, type HTMLNode, type HTMLPolicy } from "./html";
+import { composedContains, deepActiveElement, eventElement, eventPlayer, composedClosest } from "./dom";
 import { computed, effect, read, Scope, signal, untrack, type Dispose, type Readable, type Scheduler, type Signal, type Value } from "./reactive";
 import type { Child, Direction, EachNode, ElementNode, EventHandlers, Key, Props, StyleValue, TextNode, UIEvent, UIEventType, VNode, VirtualNode } from "./nodes";
 import { FocusManager } from "./focus";
@@ -21,6 +23,10 @@ export interface RenderContext {
   lifetimes: WeakMap<HTMLElement, Scope>;
   nextId(): string;
   report(error: unknown): void;
+  reducedMotion: Readable<boolean>;
+  styleNonce?: string;
+  htmlPolicy?: HTMLPolicy;
+  addFrameTask(task: (dtMs: number) => void): Dispose;
 }
 interface Block {
   spec: VNode;
@@ -81,7 +87,8 @@ function normalize(children: readonly Child[], output: VNode[] = []): VNode[] {
 }
 function compatible(block: Block, spec: VNode): boolean {
   return block.spec.kind === spec.kind && block.spec.key === spec.key &&
-    (spec.kind !== "element" || (block.spec as ElementNode).type === spec.type);
+    (spec.kind !== "element" || (block.spec as ElementNode).type === spec.type) &&
+    (spec.kind !== "html" || (block.spec as HTMLNode).definition === spec.definition);
 }
 function moveBefore(block: Pick<Block, "first" | "last">, parent: Node, before: Node | null, stats: RenderStats): void {
   if (block.last.nextSibling === before && block.first.parentNode === parent) return;
@@ -132,7 +139,7 @@ export class View {
     this.blocks.forEach(block => { if (block.spec.key !== undefined) keyed.set(block.spec.key, block); });
     const used = new Set<Block>();
     const next: Block[] = [];
-    const active = this.context.document.activeElement as HTMLElement | null;
+    const active = deepActiveElement(this.context.document);
     // Validate all keys before the first mutation. A throwing application component is not a DOM transaction.
     try {
       specs.forEach((spec, index) => {
@@ -157,7 +164,7 @@ export class View {
       before = next[index].first;
     }
     this.blocks = next;
-    if (active && active.isConnected && this.context.document.activeElement !== active && this.parent.contains(active)) {
+    if (active && active.isConnected && deepActiveElement(this.context.document) !== active && composedContains(this.parent, active)) {
       active.focus({ preventScroll: true });
     }
   }
@@ -168,6 +175,7 @@ export class View {
   }
 }
 function createBlock(spec: VNode, parent: Node, before: Node, context: RenderContext, parentScope: Scope): Block {
+  if (spec.kind === "html") return new HTMLBlock(spec, parent, before, context, parentScope);
   if (spec.kind === "element") return new ElementBlock(spec, parent, before, context, parentScope);
   if (spec.kind === "text") return new TextBlock(spec, parent, before, context, parentScope);
   if (spec.kind === "dynamic") return new DynamicBlock(spec, parent, before, context, parentScope);
@@ -211,12 +219,11 @@ function safeImageURL(value: unknown): string {
   return string;
 }
 function eventContext(type: UIEventType, nativeEvent: Event, element: HTMLElement): UIEvent {
-  const control = nativeEvent.target as HTMLInputElement | null;
+  const control = eventElement(nativeEvent) as HTMLInputElement | null;
   const pointer = nativeEvent as PointerEvent;
-  const detail = (nativeEvent as CustomEvent<{ player?: number }>).detail;
   return {
-    type, nativeEvent, player: detail && typeof detail === "object" ? detail.player ?? 0 : 0,
-    target: nativeEvent.target, currentTarget: element,
+    type, nativeEvent, player: eventPlayer(nativeEvent),
+    target: control, currentTarget: element,
     value: control && "value" in control ? String(control.value) : "",
     checked: !!control && "checked" in control && !!control.checked,
     isComposing: !!(nativeEvent as InputEvent).isComposing || element.dataset.uifComposing === "true",
@@ -436,6 +443,37 @@ class ElementBlock implements Block {
   }
   dispose(): void { this.scope.dispose(); }
 }
+/** Reuse the normal prop/event/ID lifetime for the host; internal DOM belongs to HTMLInstance. */
+class HTMLBlock implements Block {
+  readonly first: HTMLElement;
+  readonly last: HTMLElement;
+  readonly scope: Scope;
+  private host: ElementBlock;
+  private instance: HTMLInstance;
+  private hostSpec(spec: HTMLNode): ElementNode {
+    return { kind: "element", type: "panel", props: { interactive: true, ...spec.props }, children: [], key: spec.key };
+  }
+  constructor(public spec: HTMLNode, parent: Node, before: Node, context: RenderContext, owner: Scope) {
+    this.host = new ElementBlock(this.hostSpec(spec), parent, before, context, owner);
+    this.first = this.last = this.host.first;
+    this.scope = this.host.scope;
+    this.first.dataset.uifNode = "html";
+    try {
+      this.instance = new HTMLInstance(spec, this.first, context, this.scope, (target, child) => {
+        const view = new View(target, null, context, this.scope);
+        try { view.scope.run(() => view.update(child)); } catch (error) { view.dispose(); throw error; }
+        return view;
+      });
+    } catch (error) { this.scope.dispose(); throw error; }
+  }
+  patch(spec: VNode): void {
+    if (spec === this.spec) return;
+    this.spec = spec as HTMLNode;
+    this.host.patch(this.hostSpec(this.spec));
+    this.instance.patch(this.spec);
+  }
+  dispose(): void { this.scope.dispose(); }
+}
 class DynamicBlock implements Block {
   first: Node;
   last: Node;
@@ -481,7 +519,7 @@ class EachBlock<T> implements Block {
     }, { scheduler: this.ctx.scheduler, scope: this.scope, priority: 0, name: "each" });
   }
   private updateRows(items: readonly T[], keys: Key[]): void {
-    const active = this.ctx.document.activeElement as HTMLElement | null;
+    const active = deepActiveElement(this.ctx.document);
     const next = new Map<Key, RowRecord<T>>();
     try {
       keys.forEach((key, index) => {
@@ -505,7 +543,7 @@ class EachBlock<T> implements Block {
       before = row.view.start;
     }
     this.rows = next;
-    if (active && active.isConnected && this.ctx.document.activeElement !== active) active.focus({ preventScroll: true });
+    if (active && active.isConnected && deepActiveElement(this.ctx.document) !== active) active.focus({ preventScroll: true });
   }
   patch(spec: VNode): void {
     if (spec === this.spec) return;
@@ -568,7 +606,7 @@ class VirtualBlock<T> implements Block {
   }
   private updateRows(start: number, end: number): void {
     const next = new Map<Key, RowRecord<T>>();
-    const previousFocused = this.ctx.focus.focusedElements().filter(([, element]) => this.first.contains(element));
+    const previousFocused = this.ctx.focus.focusedElements().filter(([, element]) => composedContains(this.first, element));
     try {
       for (let index = start; index < end; index++) {
         const key = this.keys[index];
@@ -608,12 +646,12 @@ class VirtualBlock<T> implements Block {
     }
     for (const [player, element] of previousFocused) {
       if (!element.isConnected) this.ctx.focus.first(player, this.first);
-      else if (player === 0 && this.ctx.document.activeElement !== element) element.focus({ preventScroll: true });
+      else if (player === 0 && deepActiveElement(this.ctx.document) !== element) element.focus({ preventScroll: true });
     }
   }
   private moveFrom(element: HTMLElement, direction: Direction, player: number): boolean {
     if (direction !== "up" && direction !== "down") return false;
-    const row = element.closest<HTMLElement>("[data-uif-virtual-index]");
+    const row = composedClosest(element, "[data-uif-virtual-index]");
     if (!row || !this.first.contains(row)) return false;
     const index = Number(row.dataset.uifVirtualIndex) + (direction === "down" ? 1 : -1);
     if (index < 0 || index >= this.content.length) return false;

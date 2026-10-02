@@ -1,12 +1,9 @@
-import type { QueryInstance} from "minecs";
 import { Component, defaultValue, DrawSystemImpl, Schema, System, SystemImpl, type } from "minecs";
 import type { GameModel, ReadOnlyGameModel } from "yage/game/GameModel";
-import { UIService } from "yage/ui/UIService";
-import AssetLoader from "yage/loader/AssetLoader";
-import type { UiMap } from "yage/ui/UiMap";
-import { buildUiMap } from "yage/ui/UiMap";
-import type { UIElement } from "yage/ui/UIElement";
+import { Button, Column, Grid, Model, Panel, Text, UIFinal, connectInput, each, when } from "yage/ui/final";
+import type { Child } from "yage/ui/final";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
+import { canPresentUI } from "../../shared/uiFinal";
 
 // ── Component ────────────────────────────────────────────────────────────────
 
@@ -31,10 +28,6 @@ export class TicTacToeState extends Schema {
   @type("string")
   @defaultValue("PLAYING")
   status: string;
-
-  @type("string")
-  @defaultValue("core/TicTacToeUI")
-  uiMap: string;
 
   @type("number")
   @defaultValue(-1)
@@ -62,6 +55,13 @@ const TIC_TAC_TOE_EVENTS = {
   PLACE_MARK: "ticTacToe:placeMark",
   RESTART: "ticTacToe:restart",
 } as const;
+
+/**
+ * Which captain this browser controls. Null for a shared screen (local
+ * hot-seat), where moves are attributed to the current turn instead. Set by
+ * the boot path for online games.
+ */
+export const tictactoeIdentity = { selfNetId: null as string | null };
 
 function resetState(state: TicTacToeState): void {
   state.cells = ["", "", "", "", "", "", "", "", ""];
@@ -97,7 +97,7 @@ function checkWinOrDraw(state: TicTacToeState): void {
   }
 }
 
-// ── Format helpers ───────────────────────────────────────────────────────────
+// ── Presentation projection ───────────────────────────────────────────────────
 
 function formatStatusMessage(state: TicTacToeState): string {
   switch (state.status) {
@@ -112,40 +112,25 @@ function formatStatusMessage(state: TicTacToeState): string {
   }
 }
 
-function formatContext(state: TicTacToeState) {
-  const isPlaying = state.status === "PLAYING";
-  return {
-    statusMessage: formatStatusMessage(state),
-    showReset: !isPlaying,
-    cells: state.cells.map((mark, i) => ({ mark, cellIndex: i })),
-    cursorIndex: state.cursorIndex,
-    currentPlayer: state.currentPlayer,
-    boardFocusable: isPlaying,
-    boardCaptureFocus: isPlaying ? state.currentPlayer : -1,
-    boardAutoFocus: isPlaying,
-    resetAutoFocus: !isPlaying,
-  };
+interface TicTacToeHudState {
+  statusMessage: string;
+  playerText: string;
+  showReset: boolean;
+  turn: string;
+  /** False while an online captain has not materialized in the shared world. */
+  ready: boolean;
+  cells: string[];
 }
 
-function getOrderedPlayerIds(gameModel: ReadOnlyGameModel): string[] {
+// These read only; the simulation passes its mutable model, draw passes the read-only one.
+function getOrderedPlayerIds(gameModel: GameModel | ReadOnlyGameModel): string[] {
   return gameModel
     .getComponentActives("PlayerInput")
     .map((entity) => gameModel.getTypedUnsafe(PlayerInput, entity).pid)
     .filter((pid, index, list) => !!pid && list.indexOf(pid) === index);
 }
 
-function getPlayerMark(gameModel: ReadOnlyGameModel, playerIndex: number): string {
-  if (gameModel.localNetIds.length > 1) {
-    return playerIndex === 0 ? "X" : "O";
-  }
-
-  const localNetId = gameModel.localNetIds[playerIndex] ?? gameModel.localNetIds[0];
-  const orderedPlayerIds = getOrderedPlayerIds(gameModel);
-  const playerOrder = orderedPlayerIds.indexOf(localNetId);
-  return playerOrder <= 0 ? "X" : "O";
-}
-
-function getPlayerMarkByNetId(gameModel: ReadOnlyGameModel, netId: string): string {
+function getPlayerMarkByNetId(gameModel: GameModel | ReadOnlyGameModel, netId: string): string {
   const orderedPlayerIds = getOrderedPlayerIds(gameModel);
   const playerOrder = orderedPlayerIds.indexOf(netId);
   return playerOrder <= 0 ? "X" : "O";
@@ -206,77 +191,138 @@ export class TicTacToeSystem extends SystemImpl<GameModel> {
   };
 }
 
-// ── Draw / UI System ─────────────────────────────────────────────────────────
+// ── UI Final board ────────────────────────────────────────────────────────────
 
 @System(TicTacToeState)
 export class TicTacToeUISystem extends DrawSystemImpl<ReadOnlyGameModel> {
-  uiService: UIService;
-  uiMap: UiMap;
-  uiElements: UIElement[] = [];
+  private ui?: UIFinal;
+  private state?: Model<TicTacToeHudState>;
 
-  constructor(query: QueryInstance) {
-    super(query);
-    this.uiService = UIService.getInstance();
-  }
-
-  init = (gameModel: ReadOnlyGameModel, entity: number) => {
-    const state = gameModel.getTypedUnsafe(TicTacToeState, entity);
-    const uiAsset = AssetLoader.getInstance().getUi(state.uiMap);
-    this.uiMap = buildUiMap(uiAsset);
-
-    const initialContext = formatContext(state);
-
-    const eventHandler = (playerIndex: number, eventName: string, _eventType: string, context: any) => {
-      if (eventName === "onCellClick") {
-        const cellIndex = context.$index ?? context.cellIndex;
-        const playerMark = getPlayerMark(gameModel, playerIndex);
-        const localState = gameModel.getTypedUnsafe(TicTacToeState, entity);
-        if (localState.status === "PLAYING" && localState.cells[cellIndex] === "" && localState.turn === playerMark) {
-          const mutableGameModel = gameModel as any as GameModel;
-          const playerNetId = mutableGameModel.localNetIds[playerIndex] ?? mutableGameModel.localNetIds[0];
-          if (playerNetId) {
-            mutableGameModel.event(playerNetId, TIC_TAC_TOE_EVENTS.PLACE_MARK, { cellIndex });
-          }
-        }
-      }
-
-      if (eventName === "onRestartClick") {
-        const mutableState = (gameModel as any as GameModel).getTypedUnsafe(TicTacToeState, entity);
-        resetState(mutableState);
-        const mutableGameModel = gameModel as any as GameModel;
-        const playerNetId = mutableGameModel.localNetIds[playerIndex] ?? mutableGameModel.localNetIds[0];
-        if (playerNetId) {
-          mutableGameModel.event(playerNetId, TIC_TAC_TOE_EVENTS.RESTART, {});
-        }
-      }
-    };
-
-    const built = this.uiMap.build(initialContext, eventHandler);
-    this.uiElements = Object.values(built);
-    for (const el of this.uiElements) {
-      this.uiService.addToUI(el);
-    }
-
-    // Enable keyboard capture for UI focus navigation (arrows + space to click)
-    this.uiService.enableKeyCapture(gameModel.inputManager);
+  init = (gameModel: ReadOnlyGameModel, _entity: number) => {
+    // Headless runs (unit tests) have no real DOM; the board is presentation-only.
+    if (!canPresentUI() || this.ui) return;
+    const ui = (this.ui = new UIFinal());
+    const state = (this.state = new Model<TicTacToeHudState>({
+      statusMessage: "Turn: X",
+      playerText: "current player 0",
+      showReset: false,
+      turn: "X",
+      ready: true,
+      cells: ["", "", "", "", "", "", "", "", ""],
+    }));
+    ui.scope.add(() => { this.state = undefined; state.dispose(); });
+    ui.mount(this.board(state, gameModel));
+    // The board is this scene's whole interaction surface, so the bridge owns
+    // menu keys (arrows move, space/enter places a mark) at all times.
+    // Key releases still reach gameplay so held keys never stick.
+    connectInput(gameModel.inputManager, ui, { active: () => true });
   };
 
+  private board(state: Model<TicTacToeHudState>, gameModel: ReadOnlyGameModel): Child {
+    const cellSize = "min(93px, 26vw)";
+    return Panel({
+      id: "mainColumn",
+      style: {
+        position: "absolute", inset: 0, display: "grid", placeItems: "center", gap: 32,
+      },
+    },
+      Column({ id: "topInfo", style: { alignItems: "center", gap: 10 } },
+        Text(() => state.get<string>("statusMessage"), {
+          id: "statusText",
+          style: { fontSize: 48, color: "#ffffff", textShadow: "2px 2px 4px #000000" },
+        }),
+        Text(() => state.get<string>("playerText"), {
+          id: "playerText",
+          style: { fontSize: 48, color: "#ffffff", textShadow: "2px 2px 4px #000000" },
+        })),
+      Grid({
+        id: "boardGrid",
+        focusScope: "board",
+        style: {
+          gridTemplateColumns: `repeat(3, ${cellSize})`, gridAutoRows: cellSize,
+          gap: 5, padding: 5, backgroundColor: "#222222", borderRadius: 8,
+        },
+      }, when(() => state.get<boolean>("ready"), () =>
+        each(state.select<readonly string[]>("cells"), (_, index) => index, (mark, index) =>
+          Button({
+            label: () => mark.get() || `Cell ${index.get() + 1}`,
+            style: {
+              fontSize: 64, backgroundColor: "#444444", color: "#ffffff",
+              borderRadius: 4, fontFamily: "inherit", padding: 0,
+              display: "grid", placeItems: "center",
+            },
+            on: {
+              activate: event => this.placeMark(gameModel, event.player, index.peek()),
+            },
+          }, Text(() => mark.get()))), () =>
+        Text("Waiting for the shared airport…", {
+          style: { fontSize: 16, color: "#9fb8d8" },
+        }))),
+      when(() => state.get<boolean>("showReset"), () =>
+        Button({
+          id: "resetButton",
+          autoFocus: true,
+          style: {
+            minWidth: 200, minHeight: 60, fontSize: 28,
+            backgroundColor: "#4CAF50", color: "#ffffff", borderRadius: 8,
+          },
+          on: { activate: event => this.restart(gameModel, event.player) },
+        }, "Restart Game")));
+  }
+
+  /**
+   * Marks move through the authoritative event stream; TicTacToeSystem validates them.
+   * Online, each browser owns one captain (selfNetId) and always acts as itself.
+   * Shared-keyboard hot-seat owns both captains and a click has no identity, so
+   * it acts as whoever the turn says. gameModel.localNetIds is sorted and holds
+   * every known player, so positional indexing would attribute moves to the
+   * wrong captain.
+   */
+  private placeMark(gameModel: ReadOnlyGameModel, playerIndex: number, cellIndex: number): void {
+    const netIds = gameModel.localNetIds;
+    const netId = tictactoeIdentity.selfNetId
+      ?? netIds.find(netId => getPlayerMarkByNetId(gameModel, netId) === this.state?.get<string>("turn"))
+      ?? netIds[playerIndex]
+      ?? netIds[0];
+    if (netId) {
+      gameModel.event(netId, TIC_TAC_TOE_EVENTS.PLACE_MARK, { cellIndex });
+    }
+  }
+
+  private restart(gameModel: ReadOnlyGameModel, playerIndex: number): void {
+    const netId = gameModel.localNetIds[playerIndex] ?? gameModel.localNetIds[0];
+    if (netId) {
+      gameModel.event(netId, TIC_TAC_TOE_EVENTS.RESTART, {});
+    }
+  }
+
   run = (gameModel: ReadOnlyGameModel, entity: number) => {
-    if (!this.uiElements.length) {
-      return;
-    }
-    if (this.uiElements.some((ui) => ui.destroyed)) {
-      this.init(gameModel, entity);
-      return;
-    }
+    if (!this.state) return;
     const state = gameModel.getTypedUnsafe(TicTacToeState, entity);
-    this.uiMap.update(formatContext(state));
+    this.state.set("statusMessage", formatStatusMessage(state));
+    this.state.set("playerText", `current player ${state.currentPlayer}`);
+    this.state.set("showReset", state.status !== "PLAYING");
+    this.state.set("turn", state.turn);
+    this.state.set("cells", [...state.cells]);
+    // Online: the board unlocks once this browser's captain materialized in
+    // the shared world (the join grace frame run); local boots are born ready.
+    const selfNet = tictactoeIdentity.selfNetId;
+    if (!selfNet) {
+      this.state.set("ready", true);
+      return;
+    }
+    let ready = false;
+    for (const playerEntity of gameModel.getComponentActives("PlayerInput")) {
+      if (gameModel.getTypedUnsafe(PlayerInput, playerEntity).pid === selfNet) {
+        ready = true;
+        break;
+      }
+    }
+    this.state.set("ready", ready);
   };
 
   cleanup = () => {
-    if (this.uiElements.length) {
-      this.uiService.removeFromUI(this.uiElements);
-      this.uiElements = [];
-    }
+    this.ui?.dispose();
+    this.ui = undefined;
   };
 }

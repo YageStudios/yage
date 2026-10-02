@@ -223,7 +223,8 @@ export class GameInstance<T> {
     ]);
     if (activeRooms.size > 0) {
       for (const roomId of activeRooms) {
-        const gameModel = roomId ? this.options.connection.roomStates[roomId]?.gameModel : null;
+        const roomState = roomId ? this.options.connection.roomStates[roomId] : undefined;
+        const gameModel = roomState?.gameModel;
         if (gameModel && !gameModel.destroyed) {
           if (yageLoopLogCount < 8) {
             console.info("[yage-loop] run", {
@@ -234,7 +235,7 @@ export class GameInstance<T> {
               localNetIds: gameModel.localNetIds,
               playerInputs: gameModel.getComponentActives("PlayerInput"),
               frameStack: Object.fromEntries(
-                Object.entries(this.options.connection.roomStates[roomId]?.frameStack ?? {}).map(([playerId, frames]) => [
+                Object.entries(roomState?.frameStack ?? {}).map(([playerId, frames]) => [
                   playerId,
                   { count: frames.length, first: frames[0]?.frame, last: frames[frames.length - 1]?.frame },
                 ]),

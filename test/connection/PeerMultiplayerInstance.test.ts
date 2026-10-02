@@ -3,14 +3,26 @@ import { PeerMultiplayerInstance } from "../../engine/connection/PeerMultiplayer
 import type { InputManager } from "../../engine/inputs/InputManager";
 
 const peerMock = vi.hoisted(() => {
+  let connectionOpenDelay = 0;
+  let collideNextPeerId = false;
+
   class MockPeer {
     id: string;
+    options: unknown;
     handlers: Record<string, ((...args: any[]) => void)[]> = {};
     destroyed = false;
 
-    constructor(id: string) {
+    constructor(id: string, options?: unknown) {
       this.id = id;
-      queueMicrotask(() => this.emitLocal("open", id));
+      this.options = options;
+      queueMicrotask(() => {
+        if (collideNextPeerId) {
+          collideNextPeerId = false;
+          this.emitLocal("error", { message: "ID is taken" });
+          return;
+        }
+        this.emitLocal("open", id);
+      });
     }
 
     on(event: string, cb: (...args: any[]) => void) {
@@ -29,7 +41,11 @@ const peerMock = vi.hoisted(() => {
     }
 
     connect(peerId: string) {
-      return makeConnection(peerId);
+      const connection = makeConnection(peerId);
+      if (connectionOpenDelay > 0) {
+        setTimeout(() => connection.emitLocal("open"), connectionOpenDelay);
+      }
+      return connection;
     }
 
     emitLocal(event: string, ...args: any[]) {
@@ -66,7 +82,16 @@ const peerMock = vi.hoisted(() => {
     return conn;
   };
 
-  return { MockPeer, makeConnection };
+  return {
+    MockPeer,
+    makeConnection,
+    setConnectionOpenDelay: (delay: number) => {
+      connectionOpenDelay = delay;
+    },
+    collideNextPeerId: () => {
+      collideNextPeerId = true;
+    },
+  };
 });
 
 vi.mock("peerjs", () => ({
@@ -74,6 +99,49 @@ vi.mock("peerjs", () => ({
 }));
 
 describe("PeerMultiplayerInstance", () => {
+  it("uses TLS for a public signaling server on port 443", async () => {
+    const instance = new PeerMultiplayerInstance({
+      netId: "player-1",
+      uniqueId: "player-1",
+      token: "token-1",
+      config: {},
+    }, {} as InputManager, {
+      prefix: "test-",
+      address: "host",
+      host: "peer.yage.games",
+    });
+    await instance.connectionPromise;
+
+    expect((instance.peer as unknown as { options: unknown }).options).toEqual({
+      host: "peer.yage.games",
+      port: 443,
+      path: "/",
+      secure: true,
+    });
+  });
+
+  it("waits for a slow peer data connection before timing out", async () => {
+    peerMock.setConnectionOpenDelay(1_200);
+    peerMock.collideNextPeerId();
+    const instance = new PeerMultiplayerInstance({
+      netId: "player-1",
+      uniqueId: "player-1",
+      token: "token-1",
+      config: {},
+    }, {} as InputManager, {
+      prefix: "test-",
+      address: "room",
+      host: "peer.yage.games",
+    });
+
+    try {
+      await expect(instance.connect()).resolves.toBeUndefined();
+      expect(instance.player.connected).toBe(true);
+    } finally {
+      peerMock.setConnectionOpenDelay(0);
+    }
+  });
+
   it("reports the closed peer as the disconnected player", async () => {
     const localPlayer = {
       netId: "player-1",

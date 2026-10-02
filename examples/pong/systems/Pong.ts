@@ -1,16 +1,13 @@
 import { cos, sin } from "yage/utils/deterministicMath";
-import type { QueryInstance} from "minecs";
 import { Component, defaultValue, DrawSystemImpl, Schema, System, SystemImpl, type } from "minecs";
 import type { GameModel, ReadOnlyGameModel } from "yage/game/GameModel";
-import { UIService } from "yage/ui/UIService";
-import AssetLoader from "yage/loader/AssetLoader";
-import type { UiMap } from "yage/ui/UiMap";
-import { buildUiMap } from "yage/ui/UiMap";
-import type { UIElement } from "yage/ui/UIElement";
+import { Button, Column, CommandQueue, Model, Panel, Text, UIFinal, when } from "yage/ui/final";
+import type { Child } from "yage/ui/final";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import { keyDown } from "yage/utils/keys";
 import { EntityFactory } from "yage/entity/EntityFactory";
 import { Transform } from "yage/schemas/entity/Transform";
+import { canPresentUI } from "../../shared/uiFinal";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -80,10 +77,6 @@ export class PongBoard extends Schema {
   @type(["number"])
   @defaultValue([])
   netEntities: number[];
-
-  @type("string")
-  @defaultValue("PongUI")
-  uiMap: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -161,6 +154,16 @@ export class PongSystem extends SystemImpl<GameModel> {
   static depth = 0;
 
   run = (gameModel: GameModel, entity: number) => {
+    // HUD restart commands are applied here — the authoritative gameplay input point.
+    gameModel.getSystem(PongUISystem)?.commands.drain(command => {
+      if (command.type !== "restart") return;
+      const board = gameModel.getTypedUnsafe(PongBoard, entity);
+      board.leftScore = 0;
+      board.rightScore = 0;
+      board.status = "PLAYING";
+      resetBall(board, gameModel);
+    });
+
     const board = gameModel.getTypedUnsafe(PongBoard, entity);
     if (board.status !== "PLAYING") return;
 
@@ -278,71 +281,87 @@ export class PongSystem extends SystemImpl<GameModel> {
   };
 }
 
-// ── Format context ───────────────────────────────────────────────────────────
+// ── Presentation projection ───────────────────────────────────────────────────
 
-function formatContext(board: PongBoard) {
-  let statusMessage = `${board.leftScore}  -  ${board.rightScore}`;
-  if (board.status === "LEFT_WINS") statusMessage = "Left Player Wins!";
-  if (board.status === "RIGHT_WINS") statusMessage = "Right Player Wins!";
-
-  return {
-    statusMessage,
-    showGameOver: board.status !== "PLAYING",
-  };
+function statusMessage(board: PongBoard): string {
+  if (board.status === "LEFT_WINS") return "Left Player Wins!";
+  if (board.status === "RIGHT_WINS") return "Right Player Wins!";
+  return `${board.leftScore}  -  ${board.rightScore}`;
 }
 
-// ── Draw / UI System ──────────────────────────────────────────────────────────
+interface PongHudState {
+  statusMessage: string;
+  showGameOver: boolean;
+}
+
+// ── UI Final HUD ──────────────────────────────────────────────────────────────
 
 @System(PongBoard)
 export class PongUISystem extends DrawSystemImpl<ReadOnlyGameModel> {
-  uiService: UIService;
-  uiMap: UiMap;
-  uiElements: UIElement[] = [];
+  /** Commands from the HUD; drained by PongSystem at the gameplay input boundary. */
+  readonly commands = new CommandQueue();
+  private ui?: UIFinal;
+  private state?: Model<PongHudState>;
 
-  constructor(query: QueryInstance) {
-    super(query);
-    this.uiService = UIService.getInstance();
-  }
-
-  init = (gameModel: ReadOnlyGameModel, entity: number) => {
-    const board = gameModel.getTypedUnsafe(PongBoard, entity);
-    const uiAsset = AssetLoader.getInstance().getUi(board.uiMap);
-    this.uiMap = buildUiMap(uiAsset);
-
-    const initialContext = formatContext(board);
-
-    const eventHandler = (playerIndex: number, eventName: string, _eventType: string, _context: any) => {
-      if (eventName === "onRestartClick") {
-        const mutableGameModel = gameModel as any as GameModel;
-        const mutableBoard = mutableGameModel.getTypedUnsafe(PongBoard, entity);
-        mutableBoard.leftScore = 0;
-        mutableBoard.rightScore = 0;
-        mutableBoard.status = "PLAYING";
-        resetBall(mutableBoard, mutableGameModel);
-      }
-    };
-
-    const built = this.uiMap.build(initialContext, eventHandler);
-    this.uiElements = Object.values(built);
-    for (const el of this.uiElements) {
-      this.uiService.addToUI(el);
-    }
+  init = (_gameModel: ReadOnlyGameModel, _entity: number) => {
+    // Headless runs (unit tests) have no real DOM; the HUD is presentation-only.
+    if (!canPresentUI() || this.ui) return;
+    const ui = (this.ui = new UIFinal());
+    const state = (this.state = new Model<PongHudState>({ statusMessage: "", showGameOver: false }));
+    ui.scope.add(() => { this.state = undefined; state.dispose(); });
+    ui.mount(this.hud(state));
   };
 
+  private hud(state: Model<PongHudState>): Child {
+    return [
+      Text(() => state.get<string>("statusMessage"), {
+        id: "scoreText",
+        style: {
+          position: "absolute", top: 20, left: "50%", transform: "translateX(-50%)",
+          fontSize: 48, color: "#ffffff", textAlign: "center", fontFamily: "monospace",
+          textShadow: "0 0 4px #000000",
+        },
+      }),
+      Text("P1: W/S  |  P2: ↑/↓  (single player: AI opponent)", {
+        style: {
+          position: "absolute", bottom: 20, left: "50%", transform: "translateX(-50%)",
+          fontSize: 14, color: "#aaaaaa", textAlign: "center",
+        },
+      }),
+      when(() => state.get<boolean>("showGameOver"), () =>
+        Panel({
+          id: "gameOver",
+          style: { position: "absolute", inset: 0, display: "grid", placeItems: "center" },
+        },
+          Column({ style: { alignItems: "center", gap: 24 } },
+            Text(() => state.get<string>("statusMessage"), {
+              id: "gameOverText",
+              style: {
+                fontSize: 48, color: "#44ff44", textAlign: "center",
+                textShadow: "0 0 20px #00ff00",
+              },
+            }),
+            Button({
+              id: "restart",
+              autoFocus: true,
+              style: {
+                minWidth: 220, minHeight: 64, fontSize: 28,
+                backgroundColor: "#4CAF50", color: "#ffffff", borderRadius: 8,
+              },
+              on: { activate: event => { this.commands.enqueue(event.player, "restart"); } },
+            }, "Play Again")))),
+    ];
+  }
+
   run = (gameModel: ReadOnlyGameModel, entity: number) => {
-    if (!this.uiElements.length) return;
-    if (this.uiElements.some((ui) => ui.destroyed)) {
-      this.init(gameModel, entity);
-      return;
-    }
+    if (!this.state) return;
     const board = gameModel.getTypedUnsafe(PongBoard, entity);
-    this.uiMap.update(formatContext(board));
+    this.state.set("statusMessage", statusMessage(board));
+    this.state.set("showGameOver", board.status !== "PLAYING");
   };
 
   cleanup = () => {
-    if (this.uiElements.length) {
-      this.uiService.removeFromUI(this.uiElements);
-      this.uiElements = [];
-    }
+    this.ui?.dispose();
+    this.ui = undefined;
   };
 }

@@ -1,95 +1,94 @@
-import type { UIElement } from "yage/ui/UIElement";
-import { PlayerInput } from "yage/schemas/core/PlayerInput";
-import type { QueryInstance} from "minecs";
-import { Component, defaultValue, DrawSystemImpl, Schema, System, type } from "minecs";
+import { Component, DrawSystemImpl, Schema, System } from "minecs";
 import type { ReadOnlyGameModel } from "yage/game/GameModel";
-import { UIService } from "yage/ui/UIService";
-import AssetLoader from "yage/loader/AssetLoader";
-import { UiMapNext } from "yage/ui/UiMapNext";
+import { Button, Grid, Panel, Text, UIFinal, signal, when } from "yage/ui/final";
+import type { Child } from "yage/ui/final";
+import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import { keyPressed } from "yage/utils/keys";
 import { MappedKeys } from "yage/inputs/InputManager";
+import { canPresentUI } from "../../../shared/uiFinal";
+
+// Local-player count this HUD can render panels for.
+const MAX_LOCAL_PLAYERS = 4;
+const INVENTORY_SLOTS = 25;
+const INVENTORY_COLUMNS = 5;
 
 @Component()
-class InventoryGrid extends Schema {
-  @type("string")
-  @defaultValue("core/InventoryGrid")
-  uiMap: string;
-}
+class InventoryGrid extends Schema {}
 
+// The TAB toggle lives on the system (presentation-side, like the legacy HUD);
+// the panel itself mounts through a UIFinal runtime and unmounts when closed.
 @System(InventoryGrid)
 export class InventoryGridDrawSystem extends DrawSystemImpl<ReadOnlyGameModel> {
-  uiService: UIService;
-  uiElements: UIElement[] = [];
-  uiMaps: UiMapNext[] = [];
   static depth = 1;
-  inventoryOpen: boolean[] = [false, false, false, false];
+  private ui?: UIFinal;
+  /** Per-local-player open state; index aligns with gameModel.localNetIds. */
+  private open = signal<readonly boolean[]>(Array.from({ length: MAX_LOCAL_PLAYERS }, () => false));
 
   constructor(query: QueryInstance) {
     super(query);
-    this.uiService = UIService.getInstance();
+  }
+
+  init = () => {
+    // Headless runs (unit tests) have no real DOM; the panel is presentation-only.
+    if (!canPresentUI() || this.ui) return;
+    this.ui = new UIFinal().mount(this.panels());
+  };
+
+  private panels(): Child {
+    return [0, 1, 2, 3].map(player =>
+      when(() => this.open.get()[player] === true, () => this.panel(player)));
+  }
+
+  // Slot content is fixed ("Empty"), so the panel descriptor is static; only
+  // the open state above is reactive.
+  private panel(player: number): Child {
+    const slots = Array.from({ length: INVENTORY_SLOTS }, (_, slot) =>
+      Button({
+        id: `inventory-${player}-${slot}`,
+        style: { width: 150, height: 150, fontSize: 18 },
+      }, Text("Empty")));
+    return Panel({
+      id: `inventory-${player}`,
+      label: `Player ${player + 1} inventory`,
+      style: {
+        position: "absolute", inset: 0, display: "grid", placeItems: "center",
+        background: "rgba(0,0,0,0.35)",
+      },
+    },
+      Grid({
+        style: {
+          gridTemplateColumns: `repeat(${INVENTORY_COLUMNS}, 150px)`, gap: 5, padding: 5,
+        },
+      }, slots));
   }
 
   run = (gameModel: ReadOnlyGameModel, runEntity: number) => {
     const selfId = gameModel.getTypedUnsafe(PlayerInput, runEntity)?.pid;
-    const inventoryGrid = gameModel.getTypedUnsafe(InventoryGrid, runEntity);
-
     if (selfId !== gameModel.localNetIds[0]) {
       return;
     }
 
     const players = gameModel.getEntityByDescription("Player") ?? [];
+    const nextOpen = [...this.open.peek()];
 
-    for (let i = 0; i < players.length; i++) {
-      const selfId = gameModel.getTypedUnsafe(PlayerInput, players[i])?.pid;
+    for (const entity of players) {
+      const selfId = gameModel.getTypedUnsafe(PlayerInput, entity)?.pid;
       const localNetIndex = gameModel.localNetIds.indexOf(selfId);
       if (localNetIndex === -1) {
         continue;
       }
-      const entity = players[i];
       const netData = gameModel.getTypedUnsafe(PlayerInput, entity);
 
       if (keyPressed([MappedKeys.TAB], netData.keyMap, netData.prevKeyMap)) {
-        console.log("TOGGLING");
-        this.inventoryOpen[localNetIndex] = !this.inventoryOpen[localNetIndex];
+        nextOpen[localNetIndex] = !nextOpen[localNetIndex];
       }
-
-      if (!this.inventoryOpen[localNetIndex]) {
-        if (this.uiElements[localNetIndex]) {
-          this.uiService.disableKeyCapture();
-          console.log("destroying");
-          this.uiService.removeFromUI(this.uiElements[localNetIndex]);
-          this.uiElements[localNetIndex].onDestroy();
-          delete this.uiElements[localNetIndex];
-        }
-        continue;
-      }
-
-      const items: any[] = [];
-
-      for (let i = 0; i < 25; ++i) {
-        items.push({
-          name: "Empty",
-          description: "This slot is empty",
-          quantity: 0,
-        });
-      }
-
-      if (!this.uiElements[localNetIndex]) {
-        if (!this.uiMaps[localNetIndex]) {
-          this.uiMaps[localNetIndex] = new UiMapNext(AssetLoader.getInstance().getHbs(inventoryGrid.uiMap));
-        }
-
-        this.uiElements[localNetIndex] = this.uiMaps[localNetIndex].build({
-          items,
-          localPlayer: localNetIndex,
-        });
-        this.uiService.addToUI(this.uiElements[localNetIndex]);
-        this.uiService.enableKeyCapture(gameModel.inputManager);
-      }
-
-      this.uiMaps[localNetIndex].update({
-        items,
-      });
     }
+
+    this.open.set(nextOpen);
+  };
+
+  cleanup = () => {
+    this.ui?.dispose();
+    this.ui = undefined;
   };
 }

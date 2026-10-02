@@ -1,12 +1,8 @@
 import { atan2, cos, sin } from "yage/utils/deterministicMath";
-import type { QueryInstance} from "minecs";
 import { Component, defaultValue, DrawSystemImpl, Schema, System, SystemImpl, type } from "minecs";
 import type { GameModel, ReadOnlyGameModel } from "yage/game/GameModel";
-import { UIService } from "yage/ui/UIService";
-import AssetLoader from "yage/loader/AssetLoader";
-import type { UiMap } from "yage/ui/UiMap";
-import { buildUiMap } from "yage/ui/UiMap";
-import type { UIElement } from "yage/ui/UIElement";
+import { Button, Column, CommandQueue, Model, Panel, Text, UIFinal, when } from "yage/ui/final";
+import type { Child } from "yage/ui/final";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import { keyDown, keyPressed } from "yage/utils/keys";
 import { EntityFactory } from "yage/entity/EntityFactory";
@@ -15,6 +11,7 @@ import { Locomotion } from "yage/schemas/entity/Locomotion";
 import { PixiGraphic } from "yage/schemas/render/PixiGraphic";
 import { Collisions } from "yage/schemas/physics/Collisions";
 import { RigidBox } from "yage/schemas/physics/RigidBox";
+import { canPresentUI } from "../../shared/uiFinal";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -96,10 +93,6 @@ export class BreakoutBoard extends Schema {
   @type(["number"])
   @defaultValue([])
   powerupEntities: number[];
-
-  @type("string")
-  @defaultValue("BreakoutUI")
-  uiMap: string;
 }
 
 @Component()
@@ -448,6 +441,14 @@ export class BreakoutSystem extends SystemImpl<GameModel> {
   run = (gameModel: GameModel, entity: number) => {
     const board = gameModel.getTypedUnsafe(BreakoutBoard, entity);
     const powerups = gameModel.getTypedUnsafe(BreakoutPowerups, entity);
+
+    // HUD restart commands are applied here — the authoritative gameplay input point.
+    gameModel.getSystem(BreakoutUISystem)?.commands.drain(command => {
+      if (command.type !== "restart") return;
+      restartGame(gameModel, gameModel.getTypedUnsafe(BreakoutBoard, entity),
+        gameModel.getTypedUnsafe(BreakoutPowerups, entity));
+    });
+
     if (board.status !== "PLAYING") return;
 
     const paddleEntity = board.paddleEntity;
@@ -648,69 +649,87 @@ export class BreakoutSystem extends SystemImpl<GameModel> {
   };
 }
 
-// ── Format context ────────────────────────────────────────────────────────────
+// ── Presentation projection ───────────────────────────────────────────────────
 
-function formatContext(board: BreakoutBoard) {
-  let statusMessage = `Score: ${board.score}  Lives: ${board.lives}`;
-  if (board.status === "GAME_OVER") statusMessage = "Game Over!";
-  if (board.status === "WIN") statusMessage = "You Win!";
-
-  return {
-    statusMessage,
-    showGameOver: board.status !== "PLAYING",
-  };
+function statusMessage(board: BreakoutBoard): string {
+  if (board.status === "GAME_OVER") return "Game Over!";
+  if (board.status === "WIN") return "You Win!";
+  return `Score: ${board.score}  Lives: ${board.lives}`;
 }
 
-// ── Draw / UI System ──────────────────────────────────────────────────────────
+interface BreakoutHudState {
+  statusMessage: string;
+  showGameOver: boolean;
+}
+
+// ── UI Final HUD ──────────────────────────────────────────────────────────────
 
 @System(BreakoutBoard)
 export class BreakoutUISystem extends DrawSystemImpl<ReadOnlyGameModel> {
-  uiService: UIService;
-  uiMap: UiMap;
-  uiElements: UIElement[] = [];
+  /** Commands from the HUD; drained by BreakoutSystem at the gameplay input boundary. */
+  readonly commands = new CommandQueue();
+  private ui?: UIFinal;
+  private state?: Model<BreakoutHudState>;
 
-  constructor(query: QueryInstance) {
-    super(query);
-    this.uiService = UIService.getInstance();
-  }
-
-  init = (gameModel: ReadOnlyGameModel, entity: number) => {
-    const board = gameModel.getTypedUnsafe(BreakoutBoard, entity);
-    const uiAsset = AssetLoader.getInstance().getUi(board.uiMap);
-    this.uiMap = buildUiMap(uiAsset);
-
-    const initialContext = formatContext(board);
-
-    const eventHandler = (_playerIndex: number, eventName: string, _eventType: string, _context: any) => {
-      if (eventName === "onRestartClick") {
-        const mutableGameModel = gameModel as any as GameModel;
-        const mutableBoard = mutableGameModel.getTypedUnsafe(BreakoutBoard, entity);
-        const mutablePowerups = mutableGameModel.getTypedUnsafe(BreakoutPowerups, entity);
-        restartGame(mutableGameModel, mutableBoard, mutablePowerups);
-      }
-    };
-
-    const built = this.uiMap.build(initialContext, eventHandler);
-    this.uiElements = Object.values(built);
-    for (const el of this.uiElements) {
-      this.uiService.addToUI(el);
-    }
+  init = (_gameModel: ReadOnlyGameModel, _entity: number) => {
+    // Headless runs (unit tests) have no real DOM; the HUD is presentation-only.
+    if (!canPresentUI() || this.ui) return;
+    const ui = (this.ui = new UIFinal());
+    const state = (this.state = new Model<BreakoutHudState>({ statusMessage: "", showGameOver: false }));
+    ui.scope.add(() => { this.state = undefined; state.dispose(); });
+    ui.mount(this.hud(state));
   };
 
+  private hud(state: Model<BreakoutHudState>): Child {
+    return [
+      Text(() => state.get<string>("statusMessage"), {
+        id: "statusText",
+        style: {
+          position: "absolute", top: 15, left: "50%", transform: "translateX(-50%)",
+          fontSize: 28, color: "#ffffff", textAlign: "center", fontFamily: "monospace",
+          textShadow: "0 0 4px #000000",
+        },
+      }),
+      Text("← → move paddle  |  Space launch ball", {
+        style: {
+          position: "absolute", bottom: 15, left: "50%", transform: "translateX(-50%)",
+          fontSize: 14, color: "#aaaaaa", textAlign: "center",
+        },
+      }),
+      when(() => state.get<boolean>("showGameOver"), () =>
+        Panel({
+          id: "gameOver",
+          style: { position: "absolute", inset: 0, display: "grid", placeItems: "center" },
+        },
+          Column({ style: { alignItems: "center", gap: 24 } },
+            Text(() => state.get<string>("statusMessage"), {
+              id: "gameOverText",
+              style: {
+                fontSize: 56, color: "#ff4444", textAlign: "center",
+                textShadow: "0 0 20px #ff0000",
+              },
+            }),
+            Button({
+              id: "restart",
+              autoFocus: true,
+              style: {
+                minWidth: 220, minHeight: 64, fontSize: 28,
+                backgroundColor: "#4444CC", color: "#ffffff", borderRadius: 8,
+              },
+              on: { activate: event => { this.commands.enqueue(event.player, "restart"); } },
+            }, "Play Again")))),
+    ];
+  }
+
   run = (gameModel: ReadOnlyGameModel, entity: number) => {
-    if (!this.uiElements.length) return;
-    if (this.uiElements.some((ui) => ui.destroyed)) {
-      this.init(gameModel, entity);
-      return;
-    }
+    if (!this.state) return;
     const board = gameModel.getTypedUnsafe(BreakoutBoard, entity);
-    this.uiMap.update(formatContext(board));
+    this.state.set("statusMessage", statusMessage(board));
+    this.state.set("showGameOver", board.status !== "PLAYING");
   };
 
   cleanup = () => {
-    if (this.uiElements.length) {
-      this.uiService.removeFromUI(this.uiElements);
-      this.uiElements = [];
-    }
+    this.ui?.dispose();
+    this.ui = undefined;
   };
 }

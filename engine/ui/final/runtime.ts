@@ -1,3 +1,5 @@
+import { composedContains, composedParent, eventElement } from "./dom";
+import type { HTMLPolicy } from "./html";
 import { FocusManager, isEditable } from "./focus";
 import { Scope, Scheduler, signal, effect, type Dispose, type SchedulerOptions } from "./reactive";
 import { View, type RenderContext, type RenderStats } from "./render";
@@ -16,6 +18,8 @@ export interface UIFinalOptions {
   theme?: Theme;
   /** CSP nonce for the engine-owned stylesheet. Style attributes still require an appropriate style policy. */
   styleNonce?: string;
+  /** Optional application-owned Trusted Types policy for project HTML component templates. */
+  htmlPolicy?: HTMLPolicy;
   keyboard?: boolean;
   onError?: (error: unknown) => void;
 }
@@ -93,16 +97,18 @@ export class UIFinal {
       if (top) top.handle.close();
     });
     this.context = { document, scheduler: this.scheduler, focus: this.focus, stats: this.stats, ids: this.ids, lifetimes: this.lifetimes,
-      nextId: () => `uif-${this.root.dataset.uifRoot}-${++this.sequence}`, report: error => this.report(error) };
+      nextId: () => `uif-${this.root.dataset.uifRoot}-${++this.sequence}`, report: error => this.report(error),
+      reducedMotion: this.reducedMotion, styleNonce: options.styleNonce, htmlPolicy: options.htmlPolicy,
+      addFrameTask: task => this.addFrameTask(task) };
     this.view = new View(this.content, null, this.context, this.scope);
     this.setTheme(options.theme ?? {});
     this.listen(this.root, "focusin", event => {
-      const target = event.target as HTMLElement;
+      const target = eventElement(event) ?? this.root;
       if (this.focus.allows(target)) this.focus.adopt(target);
       else if (this.focus.currentModal) this.focus.first(0, this.focus.currentModal);
     });
     this.listen(this.root, "pointerdown", event => {
-      const target = event.target as HTMLElement;
+      const target = eventElement(event) ?? this.root;
       if (!this.focus.allows(target)) { event.preventDefault(); event.stopImmediatePropagation(); }
       else this.focus.adopt(target);
     }, true);
@@ -128,7 +134,7 @@ export class UIFinal {
     // Keep typing/IME out of the game's keyboard listener, without cancelling native editing.
     event.stopPropagation();
     if (event.isComposing || event.key === "Process" || event.keyCode === 229) return;
-    const target = event.target as HTMLElement;
+    const target = eventElement(event) ?? this.root;
     if (event.key === "Escape") {
       if (this.focus.navigate("cancel")) event.preventDefault();
       return;
@@ -161,6 +167,8 @@ export class UIFinal {
     this.flush();
   }
   addFrameTask(task: (dtMs: number) => void): Dispose { this.check(); this.frames.add(task); return () => this.frames.delete(task); }
+  /** Includes game-input repeat and currently-active component animations. */
+  get frameTaskCount(): number { return this.frames.size; }
   element(id: string): HTMLElement | undefined { return this.ids.get(id); }
   setTheme(theme: Theme): void {
     this.check();
@@ -186,9 +194,11 @@ export class UIFinal {
   animate(target: string | HTMLElement, keyframes: Keyframe[] | PropertyIndexedKeyframes, options: KeyframeAnimationOptions = { duration: 160 }): Animation {
     this.check();
     const element = typeof target === "string" ? this.element(target) : target;
-    if (!element || !this.root.contains(element)) throw new Error("UIF_ANIMATION_TARGET: target must belong to this runtime");
+    if (!element || !composedContains(this.root, element)) throw new Error("UIF_ANIMATION_TARGET: target must belong to this runtime");
     const animation = element.animate(keyframes, { ...options, ...(this.reducedMotion.peek() ? { duration: 0, delay: 0 } : {}) });
-    const lifetime = new Scope(this.lifetimes.get(element) ?? this.scope);
+    let owner: Scope | undefined;
+    for (let target: HTMLElement | null = element; target && !owner; target = composedParent(target)) owner = this.lifetimes.get(target);
+    const lifetime = new Scope(owner ?? this.scope);
     lifetime.add(() => animation.cancel());
     effect(() => { if (this.reducedMotion.get() && animation.playState !== "idle" && animation.playState !== "finished") animation.finish(); }, { scope: lifetime, scheduler: this.scheduler });
     const finish = () => { try { lifetime.dispose(); } catch (error) { this.report(error); } };

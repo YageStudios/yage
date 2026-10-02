@@ -22,7 +22,6 @@ const preload = async () => {
   await import("./systems");
   const entityDefinitions = (await import("./entities")).default;
   EntityFactory.configureEntityFactory(entityDefinitions);
-  await AssetLoader.getInstance().loadUi("BrickUpUI", "BrickUpUI.json5");
   await AssetLoader.getInstance().load();
 };
 

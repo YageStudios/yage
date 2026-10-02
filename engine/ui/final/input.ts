@@ -1,3 +1,4 @@
+import { composedContains, deepActiveElement, eventElement } from "./dom";
 import { InputEventType, type InputManager } from "../../inputs/InputManager";
 import { isEditable } from "./focus";
 import type { UIFinal } from "./runtime";
@@ -22,7 +23,7 @@ export function connectInput(manager: InputManager, ui: UIFinal, options: InputB
   const delay = options.repeatDelayMs ?? 350, interval = options.repeatIntervalMs ?? 90;
   if (!Number.isFinite(delay) || delay < 0 || !Number.isFinite(interval) || interval <= 0) throw new Error("UIF_INPUT_REPEAT: invalid repeat timing");
   const map = options.keys ?? defaults;
-  const active = options.active ?? (() => !!ui.focus.currentModal || ui.root.contains(ui.root.ownerDocument.activeElement));
+  const active = options.active ?? (() => !!ui.focus.currentModal || composedContains(ui.root, deepActiveElement(ui.root.ownerDocument)));
   const held = new Map<string, { action?: NavigationAction; player: number; remaining: number }>();
   const unlisten = manager.addKeyListener((key, pressed, type, device, native) => {
     if (type !== InputEventType.GAMEPAD && type !== InputEventType.KEYBOARD) return;
@@ -33,7 +34,7 @@ export function connectInput(manager: InputManager, ui: UIFinal, options: InputB
     if (player === undefined) return;
     if (!Number.isInteger(player) || player < 0) throw new Error("UIF_INPUT_PLAYER: player mapping must return a non-negative integer or undefined");
     const keyboard = native as KeyboardEvent | undefined;
-    if (type === InputEventType.KEYBOARD && (keyboard?.isComposing || isEditable(keyboard?.target as Element | null))) return false;
+    if (type === InputEventType.KEYBOARD && (keyboard?.isComposing || isEditable(keyboard ? eventElement(keyboard) : deepActiveElement(ui.root.ownerDocument)))) return false;
     const action = map[key.toLowerCase()];
     if (!action) return options.captureUnmapped !== false ? false : undefined;
     if (!held.has(identity)) {

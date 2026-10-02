@@ -63,12 +63,6 @@
       "import": "./dist/testing/index.js",
       "default": "./dist/testing/index.js"
     },
-    "./umil": {
-      "yage-source": "./engine/umil/index.ts",
-      "types": "./dist/umil/index.d.ts",
-      "import": "./dist/umil/index.js",
-      "default": "./dist/umil/index.js"
-    },
     "./vendor/noise": {
       "yage-source": "./engine/vendor/noise/index.js",
       "types": "./dist/vendor/noise/index.d.ts",
@@ -128,7 +122,10 @@
     "build:ui-final": "node scripts/build-ui-final.mjs",
     "test:ui-final": "node scripts/test-ui-final.mjs",
     "test:ui-final:browser": "node scripts/test-ui-final-browser.mjs",
-    "demo:ui-final:offline": "node scripts/build-ui-final-demo.mjs"
+    "demo:ui-final:offline": "node scripts/build-ui-final-demo.mjs",
+    "demo:ui-final:airport": "node scripts/build-ui-final-airport-demo.mjs",
+    "test:ui-final:html": "node scripts/test-ui-final-html-browser.mjs",
+    "test:ui-final:flap-render": "node scripts/test-ui-final-flap-render.mjs"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",

@@ -253,7 +253,8 @@ export class E2EBridge {
   }
 
   /**
-   * Query UI elements matching the given query.
+   * Query UI elements matching the given query. Covers both the legacy
+   * UIService registry and UI Final runtimes mounted in the document.
    */
   private queryUI(query: UIQuery): SerializedUIElement[] {
     try {
@@ -266,10 +267,41 @@ export class E2EBridge {
         }
       }
 
+      for (const element of this.collectUIFinalElements()) {
+        if (this.matchesSerializedUIQuery(element, query)) {
+          results.push(element);
+        }
+      }
+
       return results;
     } catch {
       return [];
     }
+  }
+
+  /**
+   * Serialize every rendered UI Final node under a `[data-uif-root]`.
+   * Runs purely against the retained DOM, so it needs no runtime registry.
+   */
+  private collectUIFinalElements(): SerializedUIElement[] {
+    if (typeof document === "undefined") {
+      return [];
+    }
+
+    const results: SerializedUIElement[] = [];
+    for (const node of document.querySelectorAll("[data-uif-root] [data-uif-node]")) {
+      const element = node as HTMLElement;
+      const rect = element.getBoundingClientRect();
+      const visible = element.getClientRects().length > 0 && rect.width > 0 && rect.height > 0;
+      results.push({
+        id: element.getAttribute("data-uif-id") ?? "",
+        type: element.getAttribute("data-uif-node") ?? "unknown",
+        text: element.innerText ?? "",
+        visible,
+        bounds: [rect.left, rect.top, rect.width, rect.height],
+      });
+    }
+    return results;
   }
 
   private collectUIElements(elements: UIElement[]): UIElement[] {
@@ -297,29 +329,37 @@ export class E2EBridge {
    * Check if a UIElement matches the given query.
    */
   private matchesUIQuery(element: UIElement, query: UIQuery): boolean {
-    if (query.id && element._id !== query.id) {
+    return this.matchesSerializedUIQuery(
+      {
+        id: element._id,
+        type: element.constructor.name.toLowerCase(),
+        text: this.getElementText(element),
+      },
+      query,
+    );
+  }
+
+  /**
+   * Check a plain {id, type, text} triple (legacy element or UI Final node) against a query.
+   */
+  private matchesSerializedUIQuery(
+    element: { id: string; type: string; text: string },
+    query: UIQuery,
+  ): boolean {
+    if (query.id && element.id !== query.id) {
       return false;
     }
 
-    if (query.type) {
-      const elementType = element.constructor.name.toLowerCase();
-      if (elementType !== query.type.toLowerCase()) {
-        return false;
-      }
+    if (query.type && element.type !== query.type.toLowerCase()) {
+      return false;
     }
 
-    if (query.text) {
-      const textContent = this.getElementText(element);
-      if (textContent !== query.text) {
-        return false;
-      }
+    if (query.text && element.text !== query.text) {
+      return false;
     }
 
-    if (query.textIncludes) {
-      const textContent = this.getElementText(element);
-      if (!textContent.includes(query.textIncludes)) {
-        return false;
-      }
+    if (query.textIncludes && !element.text.includes(query.textIncludes)) {
+      return false;
     }
 
     return true;

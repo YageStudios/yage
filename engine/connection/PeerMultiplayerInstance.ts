@@ -80,18 +80,18 @@ export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
   async handshake(address: string, hostUrl?: string) {
     this.selfAddress = address;
 
-    console.error("handshake", address, hostUrl);
-
     if (hostUrl) {
       const host = hostUrl.split(":")[0];
       const port = parseInt((hostUrl.split(":")[1] || "443").split("/")[0]);
       const path = hostUrl.split("/")[1] || "/";
+      // Public signaling on port 443 needs TLS even when the game page was opened over HTTP.
+      const secure = port === 443 || (typeof location !== "undefined" && location.protocol === "https:");
 
       this.peer = new Peer(address, {
         host,
         port,
         path,
-        secure: true,
+        secure,
       });
     } else {
       this.peer = new Peer(address);
@@ -237,10 +237,11 @@ export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
     const conn = this.peer.connect(address);
 
     return new Promise((resolve, reject) => {
+      // ICE negotiation can exceed a second on mobile networks after signaling opens.
       const failTimeout = setTimeout(() => {
         conn.close();
         reject("Connection timed out");
-      }, 1000);
+      }, 10000);
       console.log(address, "connecting to host");
 
       this.handleConnection(conn);

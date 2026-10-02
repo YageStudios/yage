@@ -3,10 +3,7 @@
   components: [
     "Random",
     "Sounds",
-    {
-      type: "FrameRate",
-      uiMap: "core/FrameRate",
-    },
+    "FrameRate",
     "PixiViewport",
     {
       type: "PongBoard",
@@ -19,19 +16,8 @@
       ballY: 300,
       leftPaddleY: 250,
       rightPaddleY: 250,
-      uiMap: "PongUI",
     },
   ],
   assets: [
-    {
-      type: "ui",
-      key: "core/FrameRate",
-      url: "core/FrameRate.json5",
-    },
-    {
-      type: "ui",
-      key: "PongUI",
-      url: "PongUI.json5",
-    },
   ],
 }

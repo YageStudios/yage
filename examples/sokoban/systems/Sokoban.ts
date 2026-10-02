@@ -1,13 +1,10 @@
-import type { QueryInstance} from "minecs";
 import { Component, defaultValue, DrawSystemImpl, Schema, System, SystemImpl, type } from "minecs";
 import type { GameModel, ReadOnlyGameModel } from "yage/game/GameModel";
-import { UIService } from "yage/ui/UIService";
-import AssetLoader from "yage/loader/AssetLoader";
-import type { UiMap } from "yage/ui/UiMap";
-import { buildUiMap } from "yage/ui/UiMap";
-import type { UIElement } from "yage/ui/UIElement";
+import { Button, Column, CommandQueue, Grid, Model, Panel, Text, UIFinal, connectInput, each, when } from "yage/ui/final";
+import type { Child } from "yage/ui/final";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import { keyPressed } from "yage/utils/keys";
+import { canPresentUI } from "../../shared/uiFinal";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -86,10 +83,6 @@ export class SokobanBoard extends Schema {
   @type("number")
   @defaultValue(0)
   undoStackSize: number;
-
-  @type("string")
-  @defaultValue("SokobanUI")
-  uiMap: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -225,6 +218,19 @@ export class SokobanSystem extends SystemImpl<GameModel> {
 
   run = (gameModel: GameModel, entity: number) => {
     const board = gameModel.getTypedUnsafe(SokobanBoard, entity);
+
+    // HUD commands are applied here — the authoritative gameplay input point.
+    // Drained before the status check so restart/next-level also work after a win.
+    gameModel.getSystem(SokobanUISystem)?.commands.drain(command => {
+      const mutableBoard = gameModel.getTypedUnsafe(SokobanBoard, entity);
+      if (command.type === "restart") {
+        loadLevel(mutableBoard, mutableBoard.currentLevel);
+      } else if (command.type === "next-level") {
+        mutableBoard.currentLevel = (mutableBoard.currentLevel + 1) % LEVELS.length;
+        loadLevel(mutableBoard, mutableBoard.currentLevel);
+      }
+    });
+
     if (board.status !== "PLAYING") return;
 
     const playerEntities = gameModel.getComponentActives("PlayerInput");
@@ -258,96 +264,144 @@ export class SokobanSystem extends SystemImpl<GameModel> {
   };
 }
 
-// ── Format context ────────────────────────────────────────────────────────────
+// ── Presentation projection ───────────────────────────────────────────────────
 
-function formatContext(board: SokobanBoard) {
-  const WALL_COLOR = "#333333";
-  const FLOOR_COLOR = "#1a1a2e";
-  const PLAYER_COLOR = "#4488ff";
-  const BOX_COLOR = "#cc8833";
-  const BOX_ON_TARGET = "#44cc44";
-  const TARGET_COLOR = "#663333";
+const CELL_COLORS = {
+  WALL: "#333333", FLOOR: "#1a1a2e", PLAYER: "#4488ff",
+  BOX: "#cc8833", BOX_ON_TARGET: "#44cc44", TARGET: "#663333",
+};
 
+function boardCells(board: SokobanBoard): string[] {
   const totalCells = board.levelWidth * board.levelHeight;
-  const cells = Array.from({ length: totalCells }, (_, i) => {
-    const x = i % board.levelWidth;
-    const y = Math.floor(i / board.levelWidth);
-
-    if (board.walls[i] === 1) return { color: WALL_COLOR };
-    if (board.boxes[i] === 1) {
-      return { color: board.targets[i] === 1 ? BOX_ON_TARGET : BOX_COLOR };
+  const cells = new Array<string>(totalCells);
+  for (let i = 0; i < totalCells; i++) {
+    if (board.walls[i] === 1) {
+      cells[i] = CELL_COLORS.WALL;
+    } else if (board.boxes[i] === 1) {
+      cells[i] = board.targets[i] === 1 ? CELL_COLORS.BOX_ON_TARGET : CELL_COLORS.BOX;
+    } else if (i === board.playerY * board.levelWidth + board.playerX) {
+      cells[i] = CELL_COLORS.PLAYER;
+    } else if (board.targets[i] === 1) {
+      cells[i] = CELL_COLORS.TARGET;
+    } else {
+      cells[i] = CELL_COLORS.FLOOR;
     }
-    if (x === board.playerX && y === board.playerY) return { color: PLAYER_COLOR };
-    if (board.targets[i] === 1) return { color: TARGET_COLOR };
-    return { color: FLOOR_COLOR };
-  });
-
-  let statusMessage = `Level ${board.currentLevel + 1}  Moves: ${board.moves}`;
-  if (board.status === "WIN") statusMessage = `Level Complete! Moves: ${board.moves}`;
-
-  return {
-    cells,
-    statusMessage,
-    showWin: board.status === "WIN",
-    gridWidth: board.levelWidth,
-    gridHeight: board.levelHeight,
-  };
+  }
+  return cells;
 }
 
-// ── Draw / UI System ──────────────────────────────────────────────────────────
+function statusMessage(board: SokobanBoard): string {
+  if (board.status === "WIN") return `Level Complete! Moves: ${board.moves}`;
+  return `Level ${board.currentLevel + 1}  Moves: ${board.moves}`;
+}
+
+interface SokobanHudState {
+  statusMessage: string;
+  showWin: boolean;
+  cells: string[];
+  gridWidth: number;
+  gridHeight: number;
+}
+
+// ── UI Final HUD ──────────────────────────────────────────────────────────────
 
 @System(SokobanBoard)
 export class SokobanUISystem extends DrawSystemImpl<ReadOnlyGameModel> {
-  uiService: UIService;
-  uiMap: UiMap;
-  uiElements: UIElement[] = [];
+  /** Commands from the HUD; drained by SokobanSystem at the gameplay input boundary. */
+  readonly commands = new CommandQueue();
+  private ui?: UIFinal;
+  private state?: Model<SokobanHudState>;
 
-  constructor(query: QueryInstance) {
-    super(query);
-    this.uiService = UIService.getInstance();
-  }
-
-  init = (gameModel: ReadOnlyGameModel, entity: number) => {
-    const board = gameModel.getTypedUnsafe(SokobanBoard, entity);
-    const uiAsset = AssetLoader.getInstance().getUi(board.uiMap);
-    this.uiMap = buildUiMap(uiAsset);
-
-    const initialContext = formatContext(board);
-
-    const eventHandler = (playerIndex: number, eventName: string, _eventType: string, _context: any) => {
-      const mutableGameModel = gameModel as any as GameModel;
-      const mutableBoard = mutableGameModel.getTypedUnsafe(SokobanBoard, entity);
-
-      if (eventName === "onRestartClick") {
-        loadLevel(mutableBoard, mutableBoard.currentLevel);
-      }
-      if (eventName === "onNextLevelClick") {
-        mutableBoard.currentLevel = (mutableBoard.currentLevel + 1) % LEVELS.length;
-        loadLevel(mutableBoard, mutableBoard.currentLevel);
-      }
-    };
-
-    const built = this.uiMap.build(initialContext, eventHandler);
-    this.uiElements = Object.values(built);
-    for (const el of this.uiElements) {
-      this.uiService.addToUI(el);
-    }
+  init = (gameModel: ReadOnlyGameModel, _entity: number) => {
+    // Headless runs (unit tests) have no real DOM; the HUD is presentation-only.
+    if (!canPresentUI() || this.ui) return;
+    const ui = (this.ui = new UIFinal());
+    const state = (this.state = new Model<SokobanHudState>({
+      statusMessage: "", showWin: false, cells: [], gridWidth: 0, gridHeight: 0,
+    }));
+    ui.scope.add(() => { this.state = undefined; state.dispose(); });
+    ui.mount(this.hud(state));
+    // The bridge owns the keys only while the win overlay is up; gameplay
+    // keeps arrows/WASD/Q while playing. Releases always pass through.
+    connectInput(gameModel.inputManager, ui, {
+      active: () => state.select<boolean>("showWin").peek(),
+    });
   };
 
+  private hud(state: Model<SokobanHudState>): Child {
+    return [
+      Text(() => state.get<string>("statusMessage"), {
+        id: "statusText",
+        style: {
+          position: "absolute", top: 20, left: "50%", transform: "translateX(-50%)",
+          fontSize: 32, color: "#ffffff", textAlign: "center",
+        },
+      }),
+      Grid({
+        id: "fieldGrid",
+        style: {
+          position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)",
+          gridTemplateColumns: () => `repeat(${state.get<number>("gridWidth")}, 38px)`,
+          gridAutoRows: "38px", gap: 2, padding: 2,
+          backgroundColor: "#0a0a0a", border: "2px solid #333366", borderRadius: 6,
+        },
+      }, each(state.select<readonly string[]>("cells"), (_, index) => index, color =>
+        Panel({ style: { width: 38, height: 38, borderRadius: 4, background: () => color.get() } }))),
+      Column({
+        id: "bottomGroup",
+        style: {
+          position: "absolute", bottom: 25, left: "50%", transform: "translateX(-50%)",
+          alignItems: "center", gap: 10,
+        },
+      },
+        Button({
+          id: "restartButton",
+          style: { minWidth: 180, minHeight: 48, fontSize: 22, backgroundColor: "#cc4444", color: "#ffffff", borderRadius: 8 },
+          on: { activate: event => { this.commands.enqueue(event.player, "restart"); } },
+        }, "Restart Level"),
+        Text("WASD/Arrows move  |  Q undo", {
+          style: { fontSize: 14, color: "#555577", textAlign: "center" },
+        }),
+        Text("Blue=You  Brown=Box  DarkRed=Target  Green=Box on Target", {
+          style: { fontSize: 12, color: "#444455", textAlign: "center" },
+        })),
+      when(() => state.get<boolean>("showWin"), () =>
+        Panel({
+          id: "winGroup",
+          style: { position: "absolute", inset: 0, display: "grid", placeItems: "center" },
+        },
+          Column({ style: { alignItems: "center", gap: 24 } },
+            Text(() => state.get<string>("statusMessage"), {
+              id: "winText",
+              style: {
+                fontSize: 48, color: "#44ff44", textAlign: "center",
+                textShadow: "0 0 20px #00ff00",
+              },
+            }),
+            Button({
+              id: "nextLevelButton",
+              autoFocus: true,
+              style: {
+                minWidth: 220, minHeight: 64, fontSize: 28,
+                backgroundColor: "#4CAF50", color: "#ffffff", borderRadius: 8,
+              },
+              on: { activate: event => { this.commands.enqueue(event.player, "next-level"); } },
+            }, "Next Level")))),
+    ];
+  }
+
   run = (gameModel: ReadOnlyGameModel, entity: number) => {
-    if (!this.uiElements.length) return;
-    if (this.uiElements.some((ui) => ui.destroyed)) {
-      this.init(gameModel, entity);
-      return;
-    }
+    if (!this.state) return;
     const board = gameModel.getTypedUnsafe(SokobanBoard, entity);
-    this.uiMap.update(formatContext(board));
+    this.state.set("statusMessage", statusMessage(board));
+    this.state.set("showWin", board.status === "WIN");
+    this.state.set("cells", boardCells(board));
+    this.state.set("gridWidth", board.levelWidth);
+    this.state.set("gridHeight", board.levelHeight);
   };
 
   cleanup = () => {
-    if (this.uiElements.length) {
-      this.uiService.removeFromUI(this.uiElements);
-      this.uiElements = [];
-    }
+    this.ui?.dispose();
+    this.ui = undefined;
   };
 }

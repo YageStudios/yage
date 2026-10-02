@@ -807,8 +807,8 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
 
   private maybeDisconnectStalledPlayer(gameModel: GameModel, playerId: string): boolean {
     const stall = this.recordMissingFrameStall(gameModel, playerId);
-    if (stall.firstMiss) {
-      console.error("dropping slow frame", playerId, gameModel.frame);
+    if (stall.firstMiss && flags.DEBUG) {
+      console.debug("waiting for frame", playerId, gameModel.frame);
     }
     if (!stall.timedOut || !this.isRemotePlayer(playerId)) {
       return false;
@@ -1360,6 +1360,7 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
             frameStack: {
               [playerId: number]: { keys: any; frame: number; events: string[] }[];
             },
+            _timestamp?: number,
             joinStartFrames?: { [playerId: string]: number }
             // timestamp: number
           ) => {
@@ -1872,11 +1873,12 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
     }
 
     const head = stack[0];
-    if (gameModel.executionMode !== "step" && head?.frame !== gameModel.frame) {
-      // No input scheduled for this frame (network gap or a peer that is
-      // ahead). Skipping is deterministic on every peer and the interval
-      // state-hash checks are the desync safety net — this must never throw:
-      // an exception here kills the peer's whole simulation loop.
+    if (!head || (gameModel.executionMode !== "step" && head.frame !== gameModel.frame)) {
+      // No input scheduled for this frame (network gap, or a peer that is
+      // ahead — in step mode a player may legitimately have an empty stack).
+      // Skipping is deterministic on every peer and the interval state-hash
+      // checks are the desync safety net — this must never throw: an
+      // exception here kills the peer's whole simulation loop.
       playerInput.prevKeyMap = playerInput.keyMap;
       playerInput.events = [];
       return;
@@ -1900,7 +1902,7 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
    */
   private materializeJoiners(gameModel: GameModel, roomState: RoomState | undefined) {
     const joinStarts = roomState?.joinStartFrames;
-    if (!joinStarts || gameModel.executionMode === "step") {
+    if (!joinStarts) {
       return;
     }
     for (const playerId of Object.keys(joinStarts).sort()) {
@@ -1909,10 +1911,14 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
         continue;
       }
       delete joinStarts[playerId];
-      // Room membership is the liveness source: remote joiners never enter
-      // the local roster, but a joiner that left the room must not materialize.
+      // Room membership is the liveness source for REMOTE joiners: if the
+      // roster positively excludes them AND they are no longer connected,
+      // they left before their start frame. A connected joiner whose roster
+      // entry has not propagated yet (async updateRoom) must still
+      // materialize, or the host never sees the joining player.
       const room = this.rooms[gameModel.roomId];
-      if (room?.players.length && !room.players.includes(playerId)) {
+      const stillConnected = this.players.some((player) => player.netId === playerId);
+      if (room?.players.length && !stillConnected && !room.players.includes(playerId)) {
         continue;
       }
       if (this.findPlayerEntity(gameModel, playerId) !== undefined) {
@@ -1966,6 +1972,13 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
   endFrame(gameModel: GameModel) {
     const roomState = this.roomStates[gameModel.roomId];
     const stateRequests = this.stateRequested?.filter((request) => request.roomId === gameModel.roomId) ?? [];
+
+    // In step mode the frame clock is event-driven; keep requesting steps
+    // until a pending joiner reaches its materialization frame, otherwise
+    // the join never happens.
+    if (gameModel.executionMode === "step" && roomState?.joinStartFrames && Object.keys(roomState.joinStartFrames).length) {
+      this.requestStep();
+    }
 
     if (stateRequests.length) {
       const remainingStateRequests = this.stateRequested?.filter((request) => request.roomId !== gameModel.roomId) ?? [];

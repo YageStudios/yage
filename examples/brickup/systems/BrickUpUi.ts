@@ -1,13 +1,10 @@
-import type { QueryInstance } from "minecs";
 import { DrawSystemImpl, System } from "minecs";
 import type { GameModel, ReadOnlyGameModel } from "yage/game/GameModel";
-import { UIService } from "yage/ui/UIService";
-import AssetLoader from "yage/loader/AssetLoader";
-import type { UiMap } from "yage/ui/UiMap";
-import { buildUiMap } from "yage/ui/UiMap";
-import type { UIElement } from "yage/ui/UIElement";
+import { Column, Model, Text, UIFinal } from "yage/ui/final";
+import type { Style } from "yage/ui/final";
 import { BrickUpBoard, BrickUpPaddle } from "./BrickUpComponents";
 import { paddleForSide } from "./BrickUpPlayers";
+import { canPresentUI } from "../../shared/uiFinal";
 
 const LIVES_FULL = "❤";
 const LIVES_EMPTY = "·";
@@ -30,71 +27,75 @@ const sideStatus = (gameModel: ReadOnlyGameModel, side: number): string => {
   return `SIDE ${side} · ${owner} · ${paddle.score} PTS · ${lives}`;
 };
 
-const formatContext = (gameModel: ReadOnlyGameModel) => {
-  const board = gameModel.getTypedUnsafe(BrickUpBoard, gameModel.coreEntity);
-  return {
-    round: String(board.round),
-    mode: board.physicsMode === "rapier" ? "RAPIER" : "MANUAL",
-    p0: sideStatus(gameModel, 0),
-    p1: sideStatus(gameModel, 1),
-    p2: sideStatus(gameModel, 2),
-    p3: sideStatus(gameModel, 3),
-    controls: "A/D or ←/→ move horizontal paddles · W/S or ↑/↓ move vertical paddles",
-  };
-};
+interface BrickUpHudState {
+  round: string;
+  mode: string;
+  p0: string;
+  p1: string;
+  p2: string;
+  p3: string;
+}
 
-// The HUD. Registered on the board; renders in the browser only (draw step),
-// and degrades silently headless where the UI asset was never loaded.
+// The HUD. Presentation-only: a UIFinal root mounted on document.body in the
+// draw step, and skipped entirely headless where there is no DOM to mount on.
 @System(BrickUpBoard)
 export class BrickUpUISystem extends DrawSystemImpl<ReadOnlyGameModel> {
-  uiService: UIService;
-  uiMap: UiMap;
-  uiElements: UIElement[] = [];
+  private ui?: UIFinal;
+  private state?: Model<BrickUpHudState>;
 
-  constructor(query: QueryInstance) {
-    super(query);
-    this.uiService = UIService.getInstance();
-  }
-
-  init = (gameModel: ReadOnlyGameModel) => {
-    // The loader throws on unknown templates; headless runs (unit tests)
-    // never load the UI asset, so absence silently disables the HUD.
-    let uiAsset;
-    try {
-      uiAsset = AssetLoader.getInstance().getUi("BrickUpUI");
-    } catch {
-      return;
-    }
-    if (!uiAsset) {
-      return;
-    }
-    this.uiMap = buildUiMap(uiAsset);
-    const built = this.uiMap.build(formatContext(gameModel), () => {});
-    this.uiElements = Object.values(built);
-    for (const element of this.uiElements) {
-      this.uiService.addToUI(element);
-    }
+  init = (_gameModel: ReadOnlyGameModel) => {
+    if (!canPresentUI() || this.ui) return;
+    const ui = (this.ui = new UIFinal());
+    const state = (this.state = new Model<BrickUpHudState>({
+      round: "1", mode: "MANUAL", p0: "", p1: "", p2: "", p3: "",
+    }));
+    ui.scope.add(() => { this.state = undefined; state.dispose(); });
+    ui.mount(this.hud(state));
   };
 
+  private hud(state: Model<BrickUpHudState>) {
+    const side = (path: "p0" | "p1" | "p2" | "p3", style: Style) =>
+      Text(() => state.get<string>(path), {
+        id: path,
+        style: { position: "absolute", fontFamily: "monospace", fontSize: 18, textShadow: "0 0 4px #000000", ...style },
+      });
+
+    return [
+      Column({
+        id: "titleGroup",
+        style: { position: "absolute", top: 12, left: 15, gap: 4 },
+      },
+        Text("BRICKUP", {
+          style: { fontSize: 26, color: "#dfe6f3", fontFamily: "monospace", textShadow: "0 0 4px #000000" },
+        }),
+        Text(() => `ROUND ${state.get<string>("round")} · ${state.get<string>("mode")}`, {
+          id: "round",
+          style: { fontSize: 14, color: "#8a94a8", fontFamily: "monospace" },
+        })),
+      side("p0", { bottom: 18, left: "50%", transform: "translateX(-50%)", color: "#66ccff", textAlign: "center" }),
+      side("p1", { top: 42, left: "50%", transform: "translateX(-50%)", color: "#ffcc66", textAlign: "center" }),
+      side("p2", { left: 12, top: "50%", transform: "translateY(-50%)", color: "#88ff88" }),
+      side("p3", { right: 12, top: "50%", transform: "translateY(-50%)", color: "#ff88aa", textAlign: "right" }),
+      Text("A/D or ←/→ move horizontal paddles · W/S or ↑/↓ move vertical paddles", {
+        id: "controls",
+        style: { position: "absolute", bottom: 12, left: 15, fontSize: 13, color: "#77839a", fontFamily: "monospace" },
+      }),
+    ];
+  }
+
   run = (gameModel: ReadOnlyGameModel) => {
-    if (!this.uiElements.length || !this.uiMap) {
-      return;
-    }
-    if (this.uiElements.some((ui) => ui.destroyed)) {
-      this.init(gameModel);
-      return;
-    }
-    this.uiMap.update(formatContext(gameModel));
+    if (!this.state) return;
+    const board = gameModel.getTypedUnsafe(BrickUpBoard, gameModel.coreEntity);
+    this.state.set("round", String(board.round));
+    this.state.set("mode", board.physicsMode === "rapier" ? "RAPIER" : "MANUAL");
+    this.state.set("p0", sideStatus(gameModel, 0));
+    this.state.set("p1", sideStatus(gameModel, 1));
+    this.state.set("p2", sideStatus(gameModel, 2));
+    this.state.set("p3", sideStatus(gameModel, 3));
   };
 
   cleanup = () => {
-    // One element at a time: the array fast-path mis-splices after onDestroy
-    // already detached each element from the root.
-    for (const element of this.uiElements) {
-      if (!element.destroyed) {
-        this.uiService.removeFromUI(element);
-      }
-    }
-    this.uiElements = [];
+    this.ui?.dispose();
+    this.ui = undefined;
   };
 }

@@ -427,9 +427,9 @@
       ]
     },
     "seed": "QuickStart",
-    "startTimestamp": 1790437982508,
+    "startTimestamp": 1790505493007,
     "stateHashes": {
-      "0": "a7d9d7bbcc49897c"
+      "0": "7f64c852b5be6af9"
     },
     "snapshots": {
       "0": {
@@ -468,9 +468,7 @@
                   "frame": 0
                 },
                 "FrameEnd": {},
-                "FrameRate": {
-                  "uiMap": "core/FrameRate"
-                },
+                "FrameRate": {},
                 "FrameStart": {},
                 "Physics": {
                   "gravityX": 0,

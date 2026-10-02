@@ -1,13 +1,10 @@
-import type { QueryInstance} from "minecs";
 import { Component, defaultValue, DrawSystemImpl, Schema, System, SystemImpl, type } from "minecs";
 import type { GameModel, ReadOnlyGameModel } from "yage/game/GameModel";
-import { UIService } from "yage/ui/UIService";
-import AssetLoader from "yage/loader/AssetLoader";
-import type { UiMap } from "yage/ui/UiMap";
-import { buildUiMap } from "yage/ui/UiMap";
-import type { UIElement } from "yage/ui/UIElement";
+import { Button, Column, CommandQueue, Grid, Model, Panel, Text, UIFinal, each, when } from "yage/ui/final";
+import type { Child } from "yage/ui/final";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import { keyPressed } from "yage/utils/keys";
+import { canPresentUI } from "../../shared/uiFinal";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 // Flappy Bird style platformer
@@ -59,10 +56,6 @@ export class PlatformerBoard extends Schema {
   @type("number")
   @defaultValue(0)
   pipeTimer: number;
-
-  @type("string")
-  @defaultValue("PlatformerUI")
-  uiMap: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -105,6 +98,12 @@ export class PlatformerSystem extends SystemImpl<GameModel> {
 
   run = (gameModel: GameModel, entity: number) => {
     const board = gameModel.getTypedUnsafe(PlatformerBoard, entity);
+
+    // HUD restart commands are applied here — the authoritative gameplay input point.
+    gameModel.getSystem(PlatformerUISystem)?.commands.drain(command => {
+      if (command.type !== "restart") return;
+      resetGame(gameModel.getTypedUnsafe(PlatformerBoard, entity));
+    });
 
     // Read input
     const playerEntities = gameModel.getComponentActives("PlayerInput");
@@ -189,20 +188,16 @@ export class PlatformerSystem extends SystemImpl<GameModel> {
   };
 }
 
-// ── Format context ────────────────────────────────────────────────────────────
+// ── Presentation projection ───────────────────────────────────────────────────
 
-function formatContext(board: PlatformerBoard) {
-  const BG = "#87CEEB"; // sky blue
-  const BIRD_COLOR = "#FFD700";
-  const PIPE_COLOR = "#228B22";
-  const GROUND_COLOR = "#8B4513";
-  const GROUND_TOP = "#567d46";
+const CELL_COLORS = { BG: "#87CEEB", BIRD: "#FFD700", PIPE: "#228B22", GROUND: "#8B4513", GROUND_TOP: "#567d46" };
 
-  const cells = Array.from({ length: GRID_COLS * GRID_ROWS }, () => ({ color: BG }));
+function boardCells(board: PlatformerBoard): string[] {
+  const cells = Array.from({ length: GRID_COLS * GRID_ROWS }, () => CELL_COLORS.BG);
 
   const setCell = (cx: number, cy: number, color: string) => {
     if (cx >= 0 && cx < GRID_COLS && cy >= 0 && cy < GRID_ROWS) {
-      cells[cy * GRID_COLS + cx] = { color };
+      cells[cy * GRID_COLS + cx] = color;
     }
   };
 
@@ -212,9 +207,9 @@ function formatContext(board: PlatformerBoard) {
   // Draw ground
   const groundRow = Math.floor(GROUND_Y * yScale);
   for (let x = 0; x < GRID_COLS; x++) {
-    setCell(x, groundRow, GROUND_TOP);
+    setCell(x, groundRow, CELL_COLORS.GROUND_TOP);
     for (let y = groundRow + 1; y < GRID_ROWS; y++) {
-      setCell(x, y, GROUND_COLOR);
+      setCell(x, y, CELL_COLORS.GROUND);
     }
   }
 
@@ -231,11 +226,11 @@ function formatContext(board: PlatformerBoard) {
       if (c < 0) continue;
       // Top pipe
       for (let r = 0; r < gapTopRow; r++) {
-        setCell(c, r, PIPE_COLOR);
+        setCell(c, r, CELL_COLORS.PIPE);
       }
       // Bottom pipe
       for (let r = gapBottomRow; r < groundRow; r++) {
-        setCell(c, r, PIPE_COLOR);
+        setCell(c, r, CELL_COLORS.PIPE);
       }
     }
   }
@@ -243,73 +238,109 @@ function formatContext(board: PlatformerBoard) {
   // Draw bird
   const bx = Math.floor(BIRD_X * xScale);
   const by = Math.floor(board.birdY * yScale);
-  setCell(bx, by, BIRD_COLOR);
-  setCell(bx + 1, by, BIRD_COLOR);
+  setCell(bx, by, CELL_COLORS.BIRD);
+  setCell(bx + 1, by, CELL_COLORS.BIRD);
   if (by + 1 < GRID_ROWS) {
-    setCell(bx, by + 1, BIRD_COLOR);
-    setCell(bx + 1, by + 1, BIRD_COLOR);
+    setCell(bx, by + 1, CELL_COLORS.BIRD);
+    setCell(bx + 1, by + 1, CELL_COLORS.BIRD);
   }
-
-  let statusMessage = `Score: ${board.score}`;
-  if (board.status === "WAITING") statusMessage = "Press Space to Start";
-  if (board.status === "GAME_OVER") statusMessage = `Game Over! Score: ${board.score} Best: ${board.bestScore}`;
-
-  return {
-    cells,
-    statusMessage,
-    showGameOver: board.status === "GAME_OVER",
-  };
+  return cells;
 }
 
-// ── Draw / UI System ──────────────────────────────────────────────────────────
+function statusMessage(board: PlatformerBoard): string {
+  if (board.status === "WAITING") return "Press Space to Start";
+  if (board.status === "GAME_OVER") return `Game Over! Score: ${board.score} Best: ${board.bestScore}`;
+  return `Score: ${board.score}`;
+}
+
+interface PlatformerHudState {
+  statusMessage: string;
+  showGameOver: boolean;
+  cells: string[];
+}
+
+// ── UI Final HUD ──────────────────────────────────────────────────────────────
 
 @System(PlatformerBoard)
 export class PlatformerUISystem extends DrawSystemImpl<ReadOnlyGameModel> {
-  uiService: UIService;
-  uiMap: UiMap;
-  uiElements: UIElement[] = [];
+  /** Commands from the HUD; drained by PlatformerSystem at the gameplay input boundary. */
+  readonly commands = new CommandQueue();
+  private ui?: UIFinal;
+  private state?: Model<PlatformerHudState>;
 
-  constructor(query: QueryInstance) {
-    super(query);
-    this.uiService = UIService.getInstance();
-  }
-
-  init = (gameModel: ReadOnlyGameModel, entity: number) => {
-    const board = gameModel.getTypedUnsafe(PlatformerBoard, entity);
-    const uiAsset = AssetLoader.getInstance().getUi(board.uiMap);
-    this.uiMap = buildUiMap(uiAsset);
-
-    const initialContext = formatContext(board);
-
-    const eventHandler = (playerIndex: number, eventName: string, _eventType: string, _context: any) => {
-      if (eventName === "onRestartClick") {
-        const mutableGameModel = gameModel as any as GameModel;
-        const mutableBoard = mutableGameModel.getTypedUnsafe(PlatformerBoard, entity);
-        resetGame(mutableBoard);
-      }
-    };
-
-    const built = this.uiMap.build(initialContext, eventHandler);
-    this.uiElements = Object.values(built);
-    for (const el of this.uiElements) {
-      this.uiService.addToUI(el);
-    }
+  init = (_gameModel: ReadOnlyGameModel, _entity: number) => {
+    // Headless runs (unit tests) have no real DOM; the HUD is presentation-only.
+    if (!canPresentUI() || this.ui) return;
+    const ui = (this.ui = new UIFinal());
+    const state = (this.state = new Model<PlatformerHudState>({
+      statusMessage: "",
+      showGameOver: false,
+      cells: Array.from({ length: GRID_COLS * GRID_ROWS }, () => CELL_COLORS.BG),
+    }));
+    ui.scope.add(() => { this.state = undefined; state.dispose(); });
+    ui.mount(this.hud(state));
   };
 
+  private hud(state: Model<PlatformerHudState>): Child {
+    return [
+      Text(() => state.get<string>("statusMessage"), {
+        id: "statusText",
+        style: {
+          position: "absolute", top: 15, left: "50%", transform: "translateX(-50%)",
+          fontSize: 32, color: "#ffffff", textAlign: "center",
+          textShadow: "2px 2px 4px rgba(0,0,0,0.5)",
+        },
+      }),
+      Grid({
+        id: "fieldGrid",
+        style: {
+          position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)",
+          gridTemplateColumns: `repeat(${GRID_COLS}, 20px)`, gap: 0, padding: 1,
+          backgroundColor: "#87CEEB", border: "2px solid #4A90D9", borderRadius: 4,
+        },
+      }, each(state.select<readonly string[]>("cells"), (_, index) => index, color =>
+        Panel({ style: { width: 20, height: 20, background: () => color.get() } }))),
+      Text("Space / ↑ to flap", {
+        style: {
+          position: "absolute", bottom: 15, left: "50%", transform: "translateX(-50%)",
+          fontSize: 14, color: "#335577", textAlign: "center",
+        },
+      }),
+      when(() => state.get<boolean>("showGameOver"), () =>
+        Panel({
+          id: "gameOver",
+          style: { position: "absolute", inset: 0, display: "grid", placeItems: "center" },
+        },
+          Column({ style: { alignItems: "center", gap: 24 } },
+            Text(() => state.get<string>("statusMessage"), {
+              id: "gameOverText",
+              style: {
+                fontSize: 36, color: "#ff2222", textAlign: "center",
+                textShadow: "0 0 10px #ff0000",
+              },
+            }),
+            Button({
+              id: "restart",
+              autoFocus: true,
+              style: {
+                minWidth: 220, minHeight: 64, fontSize: 28,
+                backgroundColor: "#FFD700", color: "#333333", borderRadius: 8,
+              },
+              on: { activate: event => { this.commands.enqueue(event.player, "restart"); } },
+            }, "Play Again")))),
+    ];
+  }
+
   run = (gameModel: ReadOnlyGameModel, entity: number) => {
-    if (!this.uiElements.length) return;
-    if (this.uiElements.some((ui) => ui.destroyed)) {
-      this.init(gameModel, entity);
-      return;
-    }
+    if (!this.state) return;
     const board = gameModel.getTypedUnsafe(PlatformerBoard, entity);
-    this.uiMap.update(formatContext(board));
+    this.state.set("statusMessage", statusMessage(board));
+    this.state.set("showGameOver", board.status === "GAME_OVER");
+    this.state.set("cells", boardCells(board));
   };
 
   cleanup = () => {
-    if (this.uiElements.length) {
-      this.uiService.removeFromUI(this.uiElements);
-      this.uiElements = [];
-    }
+    this.ui?.dispose();
+    this.ui = undefined;
   };
 }

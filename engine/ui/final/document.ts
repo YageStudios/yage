@@ -1,3 +1,4 @@
+import type { HTMLComponent } from "./html";
 import { dynamic, each, h, virtualList, type Child, type EventHandlers, type NodeType, type Props, type UIEvent, type UIEventType } from "./nodes";
 import { getPath, pathSegments } from "./model";
 import { read, type Readable, type Value } from "./reactive";
@@ -26,12 +27,23 @@ export interface DocumentEach {
   key?: string | number;
   virtual?: { height: number; rowHeight: number; overscan?: number; label?: string };
 }
-export type DocumentNode = DocumentElement | DocumentWhen | DocumentEach | string | number;
+/** HTML code is registered in application TypeScript, never executed from a JSON asset. */
+export interface DocumentComponent {
+  component: string;
+  state: DocumentValue;
+  key?: string | number;
+  props?: Record<string, DocumentValue | Record<string, DocumentValue>>;
+  events?: Readonly<Record<string, string>>;
+}
+export type DocumentNode = DocumentElement | DocumentComponent | DocumentWhen | DocumentEach | string | number;
 export interface UIDocument { schema: "ui-final/1"; root: DocumentNode; }
 export interface DocumentBindings {
   model: { select<V = unknown>(path: string): Readable<V> };
   actions?: Readonly<Record<string, (event: UIEvent, args?: Readonly<Record<string, unknown>>) => void>>;
   formatters?: Readonly<Record<string, (value: unknown) => string | number | boolean>>;
+  components?: Readonly<Record<string, HTMLComponent<any, any>>>;
+  /** Typed components emit data, not synthetic UIEvent objects. Keep these actions separate. */
+  componentActions?: Readonly<Record<string, (detail: any) => void>>;
 }
 export class DocumentError extends Error {
   constructor(readonly code: string, readonly path: string, message: string) {
@@ -113,6 +125,21 @@ export function parseDocument(input: string | unknown): UIDocument {
     if (typeof node === "string" || typeof node === "number") return;
     const record = object(node, path);
     if (record.key !== undefined && typeof record.key !== "string" && typeof record.key !== "number") fail("UIF_DOCUMENT_KEY", path, "key must be string or number");
+    if ("component" in record) {
+      keys(record, ["component", "state", "props", "events", "key"], path);
+      if (typeof record.component !== "string" || !/^[A-Za-z][\w./-]*$/.test(record.component)) fail("UIF_DOCUMENT_COMPONENT", path, "expected a registered component name");
+      if (!("state" in record)) fail("UIF_DOCUMENT_COMPONENT", `${path}.state`, "state is required");
+      validateValue(record.state, `${path}.state`);
+      if (record.events !== undefined) for (const [event, action] of Object.entries(object(record.events, `${path}.events`))) {
+        if (!/^[A-Za-z][\w:-]*$/.test(event) || typeof action !== "string" || !action) fail("UIF_DOCUMENT_COMPONENT_EVENT", `${path}.events.${event}`, "expected an event-to-action name mapping");
+      }
+      if (record.props !== undefined) for (const name of Object.keys(object(record.props, `${path}.props`))) {
+        if (!["id", "class", "style", "attrs", "disabled", "hidden", "title", "label", "describedBy", "role", "lang", "dir", "focusable", "autoFocus", "players", "navigation", "focusScope", "interactive"].includes(name)) fail("UIF_DOCUMENT_PROP", `${path}.props.${name}`, "not a component host property");
+      }
+      // Reuse normal host property/ID validation rather than maintaining a weaker second parser.
+      visit({ type: "panel", ...(record.key !== undefined ? { key: record.key } : {}), ...(record.props !== undefined ? { props: record.props } : {}) }, path, depth + 1, repeated);
+      return;
+    }
     if ("when" in record) {
       keys(record, ["when", "then", "else", "key"], path);
       if (!binding(record.when)) fail("UIF_DOCUMENT_BINDING", `${path}.when`, "expected a binding");
@@ -208,17 +235,26 @@ type Locals = Readonly<Record<string, Readable<unknown>>>;
 export function compileDocument(input: UIDocument | unknown, bindings: DocumentBindings): Child {
   const document = parseDocument(input);
   // Validate all references, including inactive branches and repeated templates, before mounting any DOM.
-  const preflight = (value: unknown, path: string): void => {
+  const preflight = (value: unknown, path: string, nodePosition = false): void => {
     if (!value || typeof value !== "object") return;
     if (binding(value) && value.format && !Object.prototype.hasOwnProperty.call(bindings.formatters ?? {}, value.format)) fail("UIF_DOCUMENT_FORMAT", path, `unregistered formatter ${value.format}`);
     const record = value as Record<string, unknown>;
-    if (typeof record.type === "string" && record.on) for (const [event, definition] of Object.entries(record.on as object)) {
+    if (nodePosition && typeof record.component === "string") {
+      if (!Object.prototype.hasOwnProperty.call(bindings.components ?? {}, record.component)) fail("UIF_DOCUMENT_COMPONENT", path, `unregistered component ${record.component}`);
+      for (const [event, action] of Object.entries(record.events as Record<string, string> ?? {})) {
+        if (!Object.prototype.hasOwnProperty.call(bindings.componentActions ?? {}, action)) fail("UIF_DOCUMENT_COMPONENT_ACTION", `${path}.events.${event}`, `unregistered component action ${action}`);
+      }
+    }
+    if (nodePosition && typeof record.type === "string" && record.on) for (const [event, definition] of Object.entries(record.on as object)) {
       const name = typeof definition === "string" ? definition : (definition as { action: string }).action;
       if (!Object.prototype.hasOwnProperty.call(bindings.actions ?? {}, name)) fail("UIF_DOCUMENT_ACTION", `${path}.on.${event}`, `unregistered action ${name}`);
     }
-    for (const [key, child] of Object.entries(record)) preflight(child, `${path}.${key}`);
+    for (const [key, child] of Object.entries(record)) {
+      if (nodePosition && key === "children" && Array.isArray(child)) child.forEach((node, index) => preflight(node, `${path}.children.${index}`, true));
+      else preflight(child, `${path}.${key}`, nodePosition && ["then", "else", "template"].includes(key));
+    }
   };
-  preflight(document.root, "$.root");
+  preflight(document.root, "$.root", true);
   const value = (input: unknown, locals: Locals): unknown => {
     if (!binding(input)) return input;
     const parts = pathSegments(input.$bind);
@@ -250,6 +286,10 @@ export function compileDocument(input: UIDocument | unknown, bindings: DocumentB
     for (const [key, source] of Object.entries(node.props ?? {})) {
       if (["style", "attrs"].includes(key)) props[key] = Object.fromEntries(Object.entries(source as object).map(([name, source]) => [name, value(source, locals)]));
       else props[key] = value(source, locals);
+    }
+    if ("component" in node) {
+      const events = Object.fromEntries(Object.entries(node.events ?? {}).map(([event, action]) => [event, (detail: unknown) => bindings.componentActions![action](detail)]));
+      return bindings.components![node.component]({ ...props, key: node.key, state: value(node.state, locals), events });
     }
     const on: EventHandlers = {};
     for (const [event, definition] of Object.entries(node.on ?? {})) {

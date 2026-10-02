@@ -1,14 +1,11 @@
-import type { QueryInstance} from "minecs";
 import { Component, defaultValue, DrawSystemImpl, Schema, System, SystemImpl, type } from "minecs";
 import type { GameModel, ReadOnlyGameModel } from "yage/game/GameModel";
-import { UIService } from "yage/ui/UIService";
-import AssetLoader from "yage/loader/AssetLoader";
-import type { UiMap } from "yage/ui/UiMap";
-import { buildUiMap } from "yage/ui/UiMap";
-import type { UIElement } from "yage/ui/UIElement";
+import { Button, Column, CommandQueue, Grid, Model, Panel, Text, UIFinal, each, when } from "yage/ui/final";
+import type { Child } from "yage/ui/final";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import { keyDown, keyPressed } from "yage/utils/keys";
 import { EntityFactory } from "yage/entity/EntityFactory";
+import { canPresentUI } from "../../shared/uiFinal";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -135,10 +132,6 @@ export class TetrisBoard extends Schema {
   @type("number")
   @defaultValue(0)
   dasDirection: number;
-
-  @type("string")
-  @defaultValue("core/TetrisUI")
-  uiMap: string;
 }
 
 // ── Grid helpers ──────────────────────────────────────────────────────────────
@@ -467,9 +460,9 @@ function processInput(
   }
 }
 
-// ── Format helpers ────────────────────────────────────────────────────────────
+// ── Presentation projection ───────────────────────────────────────────────────
 
-function formatContext(gameModel: ReadOnlyGameModel, board: TetrisBoard, boardId: number) {
+function boardCells(gameModel: ReadOnlyGameModel, board: TetrisBoard, boardId: number): string[] {
   const cellEntities = gameModel.getComponentActives("TetrisCell");
   const cells = Array.from({ length: BOARD_COLS * BOARD_ROWS }, (_, i) => {
     const x = i % BOARD_COLS;
@@ -478,10 +471,10 @@ function formatContext(gameModel: ReadOnlyGameModel, board: TetrisBoard, boardId
     for (const cellId of cellEntities) {
       const cell = gameModel.getTypedUnsafe(TetrisCell, cellId);
       if (cell.x === x && cell.y === y) {
-        return { color: COLORS[cell.color] ?? COLORS[0] };
+        return COLORS[cell.color] ?? COLORS[0];
       }
     }
-    return { color: COLORS[0] };
+    return COLORS[0];
   });
 
   const activePieceId = findActivePiece(gameModel as GameModel, boardId);
@@ -497,8 +490,8 @@ function formatContext(gameModel: ReadOnlyGameModel, board: TetrisBoard, boardId
       for (const [row, col] of parseCellsFromGrid(ghostGrid, piece.x, ghostY)) {
         if (row >= 0 && row < BOARD_ROWS && col >= 0 && col < BOARD_COLS) {
           const index = row * BOARD_COLS + col;
-          if (cells[index].color === COLORS[0]) {
-            cells[index] = { color: COLORS[8] };
+          if (cells[index] === COLORS[0]) {
+            cells[index] = COLORS[8];
           }
         }
       }
@@ -508,30 +501,32 @@ function formatContext(gameModel: ReadOnlyGameModel, board: TetrisBoard, boardId
     const pieceGrid = getGridFromTetromino(tetromino, piece.rotation);
     for (const [row, col] of parseCellsFromGrid(pieceGrid, piece.x, piece.y)) {
       if (row >= 0 && row < BOARD_ROWS && col >= 0 && col < BOARD_COLS) {
-        cells[row * BOARD_COLS + col] = { color: COLORS[tetromino.colorIndex] };
+        cells[row * BOARD_COLS + col] = COLORS[tetromino.colorIndex];
       }
     }
   }
+  return cells;
+}
 
-  // Next piece preview (4x4 grid) — read shape data from entity definition
-  const nextShape = board.nextShape;
-  const nextColorIndex = getDefinitionField(nextShape, "colorIndex") ?? 1;
-  const nextGrid = getGridFromDefinition(nextShape, 0);
-  const nextCells: { color: string }[] = Array.from({ length: 16 }, () => ({ color: COLORS[0] }));
+function nextPieceCells(board: TetrisBoard): string[] {
+  const nextColorIndex = getDefinitionField(board.nextShape, "colorIndex") ?? 1;
+  const nextGrid = getGridFromDefinition(board.nextShape, 0);
+  const cells: string[] = Array.from({ length: 16 }, () => COLORS[0]);
   for (const [row, col] of parseCellsFromGrid(nextGrid, 0, 0)) {
     if (row >= 0 && row < 4 && col >= 0 && col < 4) {
-      nextCells[row * 4 + col] = { color: COLORS[nextColorIndex] };
+      cells[row * 4 + col] = COLORS[nextColorIndex];
     }
   }
+  return cells;
+}
 
-  return {
-    cells,
-    nextCells,
-    score: board.score.toString(),
-    level: board.level.toString(),
-    lines: board.lines.toString(),
-    showGameOver: board.status === "GAME_OVER",
-  };
+interface TetrisHudState {
+  score: string;
+  level: string;
+  lines: string;
+  cells: string[];
+  nextCells: string[];
+  showGameOver: boolean;
 }
 
 // ── Initialization System ────────────────────────────────────────────────────
@@ -588,6 +583,12 @@ export class TetrisSystem extends SystemImpl<GameModel> {
   static depth = 0;
 
   run = (gameModel: GameModel, entity: number) => {
+    // HUD restart commands are applied here — the authoritative gameplay input point.
+    gameModel.getSystem(TetrisUISystem)?.commands.drain(command => {
+      if (command.type !== "restart") return;
+      resetGame(gameModel, gameModel.getTypedUnsafe(TetrisBoard, entity), entity);
+    });
+
     const board = gameModel.getTypedUnsafe(TetrisBoard, entity);
     if (board.status !== "PLAYING") return;
 
@@ -638,55 +639,106 @@ export class TetrisSystem extends SystemImpl<GameModel> {
   };
 }
 
-// ── Draw / UI System ──────────────────────────────────────────────────────────
+// ── UI Final HUD ──────────────────────────────────────────────────────────────
 
 @System(TetrisBoard)
 export class TetrisUISystem extends DrawSystemImpl<ReadOnlyGameModel> {
-  uiService: UIService;
-  uiMap: UiMap;
-  uiElements: UIElement[] = [];
+  /** Commands from the HUD; drained by TetrisSystem at the gameplay input boundary. */
+  readonly commands = new CommandQueue();
+  private ui?: UIFinal;
+  private state?: Model<TetrisHudState>;
 
-  constructor(query: QueryInstance) {
-    super(query);
-    this.uiService = UIService.getInstance();
-  }
-
-  init = (gameModel: ReadOnlyGameModel, entity: number) => {
-    const board = gameModel.getTypedUnsafe(TetrisBoard, entity);
-    const uiAsset = AssetLoader.getInstance().getUi(board.uiMap);
-    this.uiMap = buildUiMap(uiAsset);
-
-    const initialContext = formatContext(gameModel, board, entity);
-
-    const eventHandler = (playerIndex: number, eventName: string, _eventType: string, _context: any) => {
-      if (eventName === "onRestartClick") {
-        const mutableGameModel = gameModel as any as GameModel;
-        const mutableBoard = mutableGameModel.getTypedUnsafe(TetrisBoard, entity);
-        resetGame(mutableGameModel, mutableBoard, entity);
-      }
-    };
-
-    const built = this.uiMap.build(initialContext, eventHandler);
-    this.uiElements = Object.values(built);
-    for (const el of this.uiElements) {
-      this.uiService.addToUI(el);
-    }
+  init = (_gameModel: ReadOnlyGameModel, _entity: number) => {
+    // Headless runs (unit tests) have no real DOM; the HUD is presentation-only.
+    if (!canPresentUI() || this.ui) return;
+    const ui = (this.ui = new UIFinal());
+    const state = (this.state = new Model<TetrisHudState>({
+      score: "0", level: "1", lines: "0",
+      cells: Array.from({ length: BOARD_COLS * BOARD_ROWS }, () => COLORS[0]),
+      nextCells: Array.from({ length: 16 }, () => COLORS[0]),
+      showGameOver: false,
+    }));
+    ui.scope.add(() => { this.state = undefined; state.dispose(); });
+    ui.mount(this.hud(state));
   };
 
+  private cellGrid(state: Model<TetrisHudState>, id: string, path: "cells" | "nextCells", columns: number, size: number): Child {
+    return Grid({
+      id,
+      style: {
+        gridTemplateColumns: `repeat(${columns}, ${size}px)`, gap: 1, padding: 1,
+        backgroundColor: path === "cells" ? "#222222" : "#1a1a1a", borderRadius: 4,
+      },
+    }, each(state.select<readonly string[]>(path), (_, index) => index, color =>
+      Panel({ style: { width: size, height: size, borderRadius: 2, background: () => color.get() } })));
+  }
+
+  private hud(state: Model<TetrisHudState>): Child {
+    const stat = (label: string, path: "score" | "level" | "lines"): Child =>
+      Column({ style: { gap: 8, alignItems: "center" } },
+        Text(label, { style: { fontSize: 18, color: "#aaaaaa" } }),
+        Text(() => state.get<string>(path), { style: { fontSize: 26, color: "#ffffff", fontWeight: "bold" } }));
+
+    return [
+      Panel({
+        id: "mainContent",
+        style: {
+          position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)",
+          display: "flex", alignItems: "center", gap: 40,
+        },
+      },
+        this.cellGrid(state, "boardGrid", "cells", BOARD_COLS, 26),
+        Column({ id: "sidePanel", style: { gap: 34 } },
+          stat("SCORE", "score"),
+          stat("LEVEL", "level"),
+          stat("LINES", "lines"),
+          Column({ style: { gap: 12, alignItems: "center" } },
+            Text("NEXT", { style: { fontSize: 18, color: "#aaaaaa" } }),
+            this.cellGrid(state, "nextGrid", "nextCells", 4, 26)))),
+      Text("← → move  ↑ rotate  ↓ soft drop  space hard drop", {
+        style: {
+          position: "absolute", bottom: 30, left: "50%", transform: "translateX(-50%)",
+          fontSize: 14, color: "#888888", textAlign: "center",
+        },
+      }),
+      when(() => state.get<boolean>("showGameOver"), () =>
+        Panel({
+          id: "gameOver",
+          style: { position: "absolute", inset: 0, display: "grid", placeItems: "center" },
+        },
+          Column({ style: { alignItems: "center", gap: 24 } },
+            Text("GAME OVER", {
+              id: "gameOverText",
+              style: {
+                fontSize: 56, color: "#ff4444", textAlign: "center",
+                textShadow: "0 0 20px #ff0000",
+              },
+            }),
+            Button({
+              id: "restart",
+              autoFocus: true,
+              style: {
+                minWidth: 220, minHeight: 64, fontSize: 28,
+                backgroundColor: "#4444CC", color: "#ffffff", borderRadius: 8,
+              },
+              on: { activate: event => { this.commands.enqueue(event.player, "restart"); } },
+            }, "Play Again")))),
+    ];
+  }
+
   run = (gameModel: ReadOnlyGameModel, entity: number) => {
-    if (!this.uiElements.length) return;
-    if (this.uiElements.some((ui) => ui.destroyed)) {
-      this.init(gameModel, entity);
-      return;
-    }
+    if (!this.state) return;
     const board = gameModel.getTypedUnsafe(TetrisBoard, entity);
-    this.uiMap.update(formatContext(gameModel, board, entity));
+    this.state.set("score", board.score.toString());
+    this.state.set("level", board.level.toString());
+    this.state.set("lines", board.lines.toString());
+    this.state.set("cells", boardCells(gameModel, board, entity));
+    this.state.set("nextCells", nextPieceCells(board));
+    this.state.set("showGameOver", board.status === "GAME_OVER");
   };
 
   cleanup = () => {
-    if (this.uiElements.length) {
-      this.uiService.removeFromUI(this.uiElements);
-      this.uiElements = [];
-    }
+    this.ui?.dispose();
+    this.ui = undefined;
   };
 }

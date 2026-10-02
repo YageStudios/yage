@@ -25,13 +25,19 @@ export class GameReplayInstance<T> extends GameInstance<T> {
     public replayStack: { [key: string]: ReplayStack<T> },
     options: Omit<GameInstanceOptions<T>, "connection" | "seed" | "achievementService">
   ) {
+    const firstRoomId = Object.keys(replayStack)[0];
+    if (!firstRoomId || !replayStack[firstRoomId]?.frames) {
+      throw new Error(
+        "GameReplayInstance: the replay stack is empty or malformed. Record a game first — history persists to IndexedDB while a game runs."
+      );
+    }
     super({
       ...options,
-      seed: replayStack[Object.keys(replayStack)[0]].seed,
+      seed: replayStack[firstRoomId].seed,
       connection: new HistoryConnectionInstance(replayStack),
     });
     this.connection = this.options.connection as HistoryConnectionInstance<T>;
-    const roomId = Object.keys(replayStack)[0];
+    const roomId = firstRoomId;
     this.ready = this.initializeRoom(roomId, replayStack[roomId].seed);
   }
 

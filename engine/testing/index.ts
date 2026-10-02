@@ -216,8 +216,20 @@ export class PlayerController {
           throw new Error(`UI element '${elementId}' not found`);
         }
         const element = elements[0];
-        const centerX = element.bounds[0] + element.bounds[2] / 2;
-        const centerY = element.bounds[1] + element.bounds[3] / 2;
+
+        // UI Final runtimes are plain DOM: a bubbling click with the player in
+        // `detail` drives the normal activate path (ownership checks included).
+        const finalTarget = document.querySelector(`[data-uif-id="${CSS.escape(elementId)}"]`);
+        if (finalTarget) {
+          finalTarget.dispatchEvent(
+            new CustomEvent("click", {
+              bubbles: true,
+              cancelable: true,
+              detail: { player: playerIndex },
+            }),
+          );
+          return;
+        }
 
         // Dispatch a synthetic mouse click via the UIService
         const uiService = (window as any).__YAGE__?.UIService;

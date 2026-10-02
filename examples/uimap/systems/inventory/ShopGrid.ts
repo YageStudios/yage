@@ -1,13 +1,12 @@
-import type { QueryInstance} from "minecs";
-import { Component, defaultValue, Schema, System, SystemImpl, type } from "minecs";
+import { Component, defaultValue, DrawSystemImpl, Schema, System, SystemImpl, type } from "minecs";
 import type { GameModel, ReadOnlyGameModel } from "yage/game/GameModel";
 import { ComponentCategory } from "yage/constants/enums";
-import type { UIElement } from "yage/ui/UIElement";
-import { UiMapNext } from "yage/ui/UiMapNext";
-import { UIService } from "yage/ui/UIService";
-import { PlayerInput } from "yage/schemas/core/PlayerInput";
+import { Column, Grid, Image, Panel, Text, UIFinal, signal, when } from "yage/ui/final";
+import type { Child } from "yage/ui/final";
 import AssetLoader from "yage/loader/AssetLoader";
 import { EntityFactory } from "yage/entity/EntityFactory";
+import { PlayerInput } from "yage/schemas/core/PlayerInput";
+import { canPresentUI } from "../../../shared/uiFinal";
 
 class ItemType extends Schema {
   @type("string")
@@ -37,10 +36,6 @@ export class Shop extends Schema {
   @type(["number"])
   @defaultValue([])
   playerIds: number[];
-
-  @type("string")
-  @defaultValue("core/ShopGrid")
-  uiMap: string;
 }
 
 @Component()
@@ -97,95 +92,86 @@ export class ShopSystem extends SystemImpl<GameModel> {
   private handleShop(gameModel: GameModel, entity: number): void {}
 }
 
-@System(Shop)
-export class ShopDrawSystem extends SystemImpl<ReadOnlyGameModel> {
-  private readonly uiService: UIService;
-  private readonly uiElements: UIElement[] = [];
-  private readonly uiMaps: UiMapNext[] = [];
-  private readonly selectedItems: (number | null)[] = [null, null, null, null];
-  static readonly depth = 1;
+// Shop panels are presentation-only: one UIFinal root, one reactive panel slot
+// per local player (null = closed). Items come from the sim's Shop inventory.
+interface ShopItemView { name: string; image: string; }
 
-  constructor(query: QueryInstance) {
-    super(query);
-    this.uiService = UIService.getInstance();
-  }
+@System(Shop)
+export class ShopDrawSystem extends DrawSystemImpl<ReadOnlyGameModel> {
+  static readonly depth = 1;
+  private ui?: UIFinal;
+  /** Per-local-player item list; null while that player's shop is closed. */
+  private panels = signal<readonly (readonly ShopItemView[] | null)[]>([null, null, null, null]);
 
   run(gameModel: ReadOnlyGameModel, runEntity: number): void {
+    if (!this.ui && canPresentUI()) {
+      this.ui = new UIFinal().mount(this.renderPanels());
+    }
+    if (!this.ui) return;
+
+    const shop = gameModel.getTypedUnsafe(Shop, runEntity);
     const players = gameModel.getEntityByDescription("Player") ?? [];
+    const next: (readonly ShopItemView[] | null)[] = this.panels.peek().map(() => null);
 
     for (const entity of players) {
       const selfId = gameModel.getTypedUnsafe(PlayerInput, entity)?.pid;
       const localNetIndex = gameModel.localNetIds.indexOf(selfId);
       if (localNetIndex === -1) continue;
+      if (localNetIndex >= next.length) continue;
 
-      if (!gameModel.hasComponent(ShopOpen, entity)) {
-        if (this.uiElements[localNetIndex]) {
-          this.uiService.removeFromUI(this.uiElements[localNetIndex]);
-          delete this.uiElements[localNetIndex];
-          delete this.uiMaps[localNetIndex];
-        }
-        continue;
-      }
+      if (!gameModel.hasComponent(ShopOpen, entity)) continue;
 
-      this.handleShopState(gameModel, runEntity, entity, localNetIndex);
+      const playerIndex = shop.playerIds.indexOf(entity);
+      const items = shop.inventories[playerIndex]?.items;
+      if (!items) continue;
+
+      next[localNetIndex] = items.map(item => ({
+        name: item.name,
+        image: AssetLoader.getInstance().getImage(item.data.imageKey).url,
+      }));
     }
+
+    this.panels.set(next);
   }
 
-  private handleShopState(
-    gameModel: ReadOnlyGameModel,
-    runEntity: number,
-    entity: number,
-    localNetIndex: number
-  ): void {
-    const shop = gameModel.getTypedUnsafe(Shop, runEntity);
+  private renderPanels(): Child {
+    // Closed panels render nothing; open panels rebuild from the replaced
+    // items array each publish (the retained DOM is patched, not remounted).
+    return [0, 1, 2, 3].map(player =>
+      when(() => this.panels.get()[player] !== null, () =>
+        this.shopPanel(player, this.panels.get()[player] as readonly ShopItemView[])));
+  }
 
-    const playerIndex = shop.playerIds.indexOf(entity);
-    const items = shop.inventories[playerIndex]?.items;
-    if (!items) return;
-
-    if (!this.uiElements[localNetIndex]) {
-      if (!this.uiMaps[localNetIndex]) {
-        this.uiMaps[localNetIndex] = new UiMapNext(AssetLoader.getInstance().getHbs(shop.uiMap));
-      }
-      this.uiElements[localNetIndex] = this.uiMaps[localNetIndex].build(
-        {
-          items,
-          localPlayer: localNetIndex,
+  private shopPanel(player: number, items: readonly ShopItemView[]): Child {
+    const cards = items.map((item, index) =>
+      Column({
+        key: index,
+        style: {
+          width: 230, height: 600, border: "2px solid magenta", borderRadius: 5,
+          alignItems: "center", gap: 10, padding: 10,
         },
-        (pIndex, eventName, eventType, context, contextPath) =>
-          this.handleEvent(gameModel, entity, pIndex, eventName, eventType, context, contextPath)
-      );
-
-      this.uiService.addToUI(this.uiElements[localNetIndex]);
-      this.uiService.enableKeyCapture(gameModel.inputManager);
-    } else {
-      this.uiMaps[localNetIndex].update({
-        items,
-      });
-    }
+      },
+        Image({ src: item.image, alt: item.name, style: { width: "60%", height: "auto" } }),
+        Text(item.name, { style: { fontSize: 22, color: "#ffffff" } })));
+    return Panel({
+      id: `shop-${player}`,
+      label: `Player ${player + 1} shop`,
+      style: {
+        position: "absolute", inset: 0, display: "grid", placeItems: "center",
+        background: "rgba(0,0,0,0.35)",
+      },
+    },
+      Grid({
+        style: {
+          gridTemplateColumns: "repeat(4, 230px)", gap: 5, padding: 5,
+          maxHeight: "90vh", overflow: "auto",
+        },
+      }, cards));
   }
 
-  private handleEvent(
-    gameModel: ReadOnlyGameModel,
-    entity: number,
-    playerIndex: number,
-    eventName: string,
-    eventType: string,
-    context: any,
-    contextPath: string[]
-  ): void {
-    const validEvents = [
-      "selectItem",
-      "selectAbility",
-      "selectAbilitySupport1",
-      "selectAbilitySupport2",
-      "selectDash",
-      "selectDashSupport1",
-      "selectDashSupport2",
-      "selectUltimate",
-      "selectUltimateSupport1",
-      "selectUltimateSupport2",
-    ];
+  cleanup(): void {
+    this.ui?.dispose();
+    this.ui = undefined;
   }
 }
 

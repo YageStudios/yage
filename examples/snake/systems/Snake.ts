@@ -1,13 +1,10 @@
-import type { QueryInstance} from "minecs";
 import { Component, defaultValue, DrawSystemImpl, Schema, System, SystemImpl, type } from "minecs";
 import type { GameModel, ReadOnlyGameModel } from "yage/game/GameModel";
-import { UIService } from "yage/ui/UIService";
-import AssetLoader from "yage/loader/AssetLoader";
-import type { UiMap } from "yage/ui/UiMap";
-import { buildUiMap } from "yage/ui/UiMap";
-import type { UIElement } from "yage/ui/UIElement";
+import { Button, Column, CommandQueue, Grid, Model, Panel, Text, UIFinal, each, when } from "yage/ui/final";
+import type { Child } from "yage/ui/final";
 import { PlayerInput } from "yage/schemas/core/PlayerInput";
 import { keyPressed } from "yage/utils/keys";
+import { canPresentUI } from "../../shared/uiFinal";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -53,10 +50,6 @@ export class SnakeBoard extends Schema {
   @type("number")
   @defaultValue(0)
   tickTimer: number;
-
-  @type("string")
-  @defaultValue("SnakeUI")
-  uiMap: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -120,6 +113,12 @@ export class SnakeSystem extends SystemImpl<GameModel> {
   static depth = 0;
 
   run = (gameModel: GameModel, entity: number) => {
+    // HUD restart commands are applied here — the authoritative gameplay input point.
+    gameModel.getSystem(SnakeUISystem)?.commands.drain(command => {
+      if (command.type !== "restart") return;
+      resetGame(gameModel.getTypedUnsafe(SnakeBoard, entity), gameModel);
+    });
+
     const board = gameModel.getTypedUnsafe(SnakeBoard, entity);
     if (board.status !== "PLAYING") return;
 
@@ -185,100 +184,128 @@ export class SnakeSystem extends SystemImpl<GameModel> {
   };
 }
 
-// ── Format context ────────────────────────────────────────────────────────────
+// ── Presentation projection ───────────────────────────────────────────────────
 
-function formatContext(board: SnakeBoard) {
-  const EMPTY = "#111111";
-  const SNAKE_HEAD = "#00ff00";
-  const SNAKE_BODY = "#00aa00";
-  const APPLE = "#ff2222";
+const CELL_COLORS = { EMPTY: "#111111", HEAD: "#00ff00", BODY: "#00aa00", APPLE: "#ff2222" };
 
-  const cells = Array.from({ length: GRID_COLS * GRID_ROWS }, () => ({ color: EMPTY }));
+function boardCells(board: SnakeBoard): string[] {
+  const cells = Array.from({ length: GRID_COLS * GRID_ROWS }, () => CELL_COLORS.EMPTY);
 
-  // Draw snake body (skip head)
   for (let i = 2; i < board.snakeBody.length; i += 2) {
     const x = board.snakeBody[i];
     const y = board.snakeBody[i + 1];
     if (x >= 0 && x < GRID_COLS && y >= 0 && y < GRID_ROWS) {
-      cells[y * GRID_COLS + x] = { color: SNAKE_BODY };
+      cells[y * GRID_COLS + x] = CELL_COLORS.BODY;
     }
   }
 
-  // Draw head
   if (board.snakeBody.length >= 2) {
     const hx = board.snakeBody[0];
     const hy = board.snakeBody[1];
     if (hx >= 0 && hx < GRID_COLS && hy >= 0 && hy < GRID_ROWS) {
-      cells[hy * GRID_COLS + hx] = { color: SNAKE_HEAD };
+      cells[hy * GRID_COLS + hx] = CELL_COLORS.HEAD;
     }
   }
 
-  // Draw apple
   if (board.appleX >= 0 && board.appleX < GRID_COLS && board.appleY >= 0 && board.appleY < GRID_ROWS) {
-    cells[board.appleY * GRID_COLS + board.appleX] = { color: APPLE };
+    cells[board.appleY * GRID_COLS + board.appleX] = CELL_COLORS.APPLE;
   }
-
-  let statusMessage = `Score: ${board.score}`;
-  if (board.status === "GAME_OVER") statusMessage = "Game Over!";
-  if (board.status === "WIN") statusMessage = "You Win!";
-
-  return {
-    cells,
-    statusMessage,
-    score: board.score.toString(),
-    showGameOver: board.status !== "PLAYING",
-  };
+  return cells;
 }
 
-// ── Draw / UI System ──────────────────────────────────────────────────────────
+function statusMessage(board: SnakeBoard): string {
+  if (board.status === "GAME_OVER") return "Game Over!";
+  if (board.status === "WIN") return "You Win!";
+  return `Score: ${board.score}`;
+}
+
+interface SnakeHudState {
+  statusMessage: string;
+  showGameOver: boolean;
+  cells: string[];
+}
+
+// ── UI Final HUD ──────────────────────────────────────────────────────────────
 
 @System(SnakeBoard)
 export class SnakeUISystem extends DrawSystemImpl<ReadOnlyGameModel> {
-  uiService: UIService;
-  uiMap: UiMap;
-  uiElements: UIElement[] = [];
+  /** Commands from the HUD; drained by SnakeSystem at the gameplay input boundary. */
+  readonly commands = new CommandQueue();
+  private ui?: UIFinal;
+  private state?: Model<SnakeHudState>;
 
-  constructor(query: QueryInstance) {
-    super(query);
-    this.uiService = UIService.getInstance();
-  }
-
-  init = (gameModel: ReadOnlyGameModel, entity: number) => {
-    const board = gameModel.getTypedUnsafe(SnakeBoard, entity);
-    const uiAsset = AssetLoader.getInstance().getUi(board.uiMap);
-    this.uiMap = buildUiMap(uiAsset);
-
-    const initialContext = formatContext(board);
-
-    const eventHandler = (playerIndex: number, eventName: string, _eventType: string, _context: any) => {
-      if (eventName === "onRestartClick") {
-        const mutableGameModel = gameModel as any as GameModel;
-        const mutableBoard = mutableGameModel.getTypedUnsafe(SnakeBoard, entity);
-        resetGame(mutableBoard, mutableGameModel);
-      }
-    };
-
-    const built = this.uiMap.build(initialContext, eventHandler);
-    this.uiElements = Object.values(built);
-    for (const el of this.uiElements) {
-      this.uiService.addToUI(el);
-    }
+  init = (_gameModel: ReadOnlyGameModel, _entity: number) => {
+    // Headless runs (unit tests) have no real DOM; the HUD is presentation-only.
+    if (!canPresentUI() || this.ui) return;
+    const ui = (this.ui = new UIFinal());
+    const state = (this.state = new Model<SnakeHudState>({
+      statusMessage: "",
+      showGameOver: false,
+      cells: Array.from({ length: GRID_COLS * GRID_ROWS }, () => CELL_COLORS.EMPTY),
+    }));
+    ui.scope.add(() => { this.state = undefined; state.dispose(); });
+    ui.mount(this.hud(state));
   };
 
+  private hud(state: Model<SnakeHudState>): Child {
+    return [
+      Text(() => state.get<string>("statusMessage"), {
+        id: "scoreText",
+        style: {
+          position: "absolute", top: 20, left: "50%", transform: "translateX(-50%)",
+          fontSize: 36, color: "#00ff00", textAlign: "center", fontFamily: "monospace",
+        },
+      }),
+      Grid({
+        id: "fieldGrid",
+        style: {
+          position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)",
+          gridTemplateColumns: `repeat(${GRID_COLS}, 24px)`, gap: 1, padding: 1,
+          backgroundColor: "#0a0a0a", border: "2px solid #003300", borderRadius: 4,
+        },
+      }, each(state.select<readonly string[]>("cells"), (_, index) => index, color =>
+        Panel({ style: { width: 24, height: 24, borderRadius: 2, background: () => color.get() } }))),
+      Text("WASD or Arrow Keys to move", {
+        style: {
+          position: "absolute", bottom: 20, left: "50%", transform: "translateX(-50%)",
+          fontSize: 14, color: "#335533", textAlign: "center",
+        },
+      }),
+      when(() => state.get<boolean>("showGameOver"), () =>
+        Panel({
+          id: "gameOver",
+          style: { position: "absolute", inset: 0, display: "grid", placeItems: "center" },
+        },
+          Column({ style: { alignItems: "center", gap: 24 } },
+            Text(() => state.get<string>("statusMessage"), {
+              id: "gameOverText",
+              style: {
+                fontSize: 48, color: "#44ff44", textAlign: "center",
+                textShadow: "0 0 20px #00ff00",
+              },
+            }),
+            Button({
+              id: "restart",
+              autoFocus: true,
+              style: {
+                minWidth: 220, minHeight: 64, fontSize: 28,
+                backgroundColor: "#4CAF50", color: "#ffffff", borderRadius: 8,
+              },
+              on: { activate: event => { this.commands.enqueue(event.player, "restart"); } },
+            }, "Play Again")))),
+    ];
+  }
+
   run = (gameModel: ReadOnlyGameModel, entity: number) => {
-    if (!this.uiElements.length) return;
-    if (this.uiElements.some((ui) => ui.destroyed)) {
-      this.init(gameModel, entity);
-      return;
-    }
+    if (!this.state) return;
     const board = gameModel.getTypedUnsafe(SnakeBoard, entity);
-    this.uiMap.update(formatContext(board));
+    this.state.set("statusMessage", statusMessage(board));
+    this.state.set("showGameOver", board.status !== "PLAYING");
+    this.state.set("cells", boardCells(board));
   };
 
   cleanup = () => {
-    if (this.uiElements.length) {
-      this.uiService.removeFromUI(this.uiElements);
-      this.uiElements = [];
-    }
+    this.ui?.dispose();
+    this.ui = undefined;
   };
 }

@@ -3,10 +3,7 @@
   components: [
     "Random",
     "Sounds",
-    {
-      type: "FrameRate",
-      uiMap: "core/FrameRate",
-    },
+    "FrameRate",
     "PixiViewport",
     "Collisions",
     {
@@ -19,19 +16,8 @@
       status: "PLAYING",
       score: 0,
       lives: 3,
-      uiMap: "BreakoutUI",
     },
   ],
   assets: [
-    {
-      type: "ui",
-      key: "core/FrameRate",
-      url: "core/FrameRate.json5",
-    },
-    {
-      type: "ui",
-      key: "BreakoutUI",
-      url: "BreakoutUI.json5",
-    },
   ],
 }

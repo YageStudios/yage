@@ -106,8 +106,11 @@ export class BackgroundFrameFlow {
     if (!this.enabled || !this.isHidden()) {
       return null;
     }
-    this.host.playerEventManager.getEvents(player.netId);
-    return { keys: emptyKeyMap(), events: [] };
+    // A hidden tab publishes idle keys, but events queued while hidden are
+    // deliberate user actions (UI clicks, commands) and must still be
+    // delivered — draining and dropping them silently loses input.
+    const events = this.host.playerEventManager.getEvents(player.netId);
+    return { keys: emptyKeyMap(), events };
   }
 
   enqueueFrame(roomId: string, frame: SerializedFrame | Frame): boolean {
@@ -142,6 +145,11 @@ export class BackgroundFrameFlow {
       const insertionIndex = stack.findIndex((queued) => queued.frame > frame.frame);
       if (insertionIndex === -1) stack.push(queuedFrame);
       else stack.splice(insertionIndex, 0, queuedFrame);
+    } else if ((stack[existingIndex].events || []).length === 0 && (frame.events || []).length) {
+      // In event-driven step mode a frame is published once empty (an idle
+      // tick) and re-published with events once the user acts; the queued
+      // frame must absorb them or the input is silently lost.
+      stack[existingIndex] = queuedFrame;
     }
     // Frames are immutable after admission. Duplicate repairs may confirm a
     // queued frame, but packet arrival order must never rewrite its payload.

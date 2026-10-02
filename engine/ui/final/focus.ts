@@ -1,3 +1,4 @@
+import { composedParent, composedContains, composedClosest, composedOrder } from "./dom";
 import type { Direction, NavigationAction } from "./nodes";
 import type { Dispose } from "./reactive";
 
@@ -27,18 +28,18 @@ export function spatialScore(from: Rect, to: Rect, direction: Direction): number
   return Math.max(0, near) + cross * 4 + crossCenter * 0.1 + (cross > 0 ? 10000 : 0);
 }
 function blocked(element: HTMLElement, host: HTMLElement): boolean {
-  if (!host.contains(element) || !element.isConnected) return true;
+  if (!composedContains(host, element) || !element.isConnected) return true;
   let current: HTMLElement | null = element;
   while (current) {
     if (current.hidden || current.inert || current.getAttribute("aria-disabled") === "true" ||
       ("disabled" in current && (current as HTMLButtonElement).disabled)) return true;
     if (current === host) break;
-    current = current.parentElement;
+    current = composedParent(current);
   }
   return false;
 }
 export function isEditable(element: Element | null): boolean {
-  return !!element && (element.matches("input,textarea,select,[contenteditable=true]") || !!element.closest("[contenteditable=true]"));
+  return !!element && (element.matches("input,textarea,select,[contenteditable=true]") || !!composedClosest(element, "[contenteditable=true]"));
 }
 function rendered(element: HTMLElement): boolean {
   const style = element.ownerDocument.defaultView!.getComputedStyle(element);
@@ -51,7 +52,7 @@ function visibleRect(element: HTMLElement, host: HTMLElement): Rect | null {
   const rect = element.getBoundingClientRect();
   if (rect.width <= 0 || rect.height <= 0) return null;
   let left = rect.left, top = rect.top, right = rect.right, bottom = rect.bottom;
-  let parent = element.parentElement;
+  let parent = composedParent(element);
   while (parent) {
     const css = view.getComputedStyle(parent);
     if (css.visibility === "hidden" || css.display === "none") return null;
@@ -63,7 +64,7 @@ function visibleRect(element: HTMLElement, host: HTMLElement): Rect | null {
       if (clipY) { top = Math.max(top, clip.top); bottom = Math.min(bottom, clip.bottom); }
     }
     if (parent === host) break;
-    parent = parent.parentElement;
+    parent = composedParent(parent);
   }
   left = Math.max(0, left); top = Math.max(0, top);
   right = Math.min(view.innerWidth, right); bottom = Math.min(view.innerHeight, bottom);
@@ -103,17 +104,17 @@ export class FocusManager {
       const allowed = ancestor.getAttribute("data-uif-allowed-players");
       if (allowed !== null && !allowed.split(" ").filter(Boolean).map(Number).includes(player)) return false;
       if (ancestor === this.host) break;
-      ancestor = ancestor.parentElement;
+      ancestor = composedParent(ancestor);
     }
     const modal = this.currentModal;
-    if (modal && !modal.contains(element)) return false;
+    if (modal && !composedContains(modal, element)) return false;
     const entry = this.entries.get(element.dataset.uifFocusId ?? "");
     const players = entry?.players();
     return !players || players.includes(player);
   }
   private candidates(player: number, scope?: HTMLElement | null): FocusEntry[] {
-    return [...this.entries.values()].filter(entry => this.allows(entry.element, player) && (!scope || scope.contains(entry.element)) && rendered(entry.element))
-      .sort((a, b) => a.element === b.element ? 0 : a.element.compareDocumentPosition(b.element) & 4 ? -1 : 1);
+    return [...this.entries.values()].filter(entry => this.allows(entry.element, player) && (!scope || composedContains(scope, entry.element)) && rendered(entry.element))
+      .sort((a, b) => composedOrder(a.element, b.element));
   }
   private setCurrent(player: number, id: string | undefined): void {
     this.pendingRepair.delete(player);
@@ -135,7 +136,7 @@ export class FocusManager {
     return true;
   }
   adopt(element: HTMLElement, player = 0): void {
-    const target = element.closest<HTMLElement>("[data-uif-focus-id]");
+    const target = composedClosest(element, "[data-uif-focus-id]");
     if (target && this.allows(target, player)) this.setCurrent(player, target.dataset.uifFocusId);
   }
   first(player = 0, scope?: HTMLElement): boolean {
@@ -164,13 +165,13 @@ export class FocusManager {
     if (input.tagName === "INPUT" && input.type === "range" && (action === "left" || action === "right")) {
       const min = Number(input.min || 0), max = Number(input.max || 100), step = input.step === "any" ? 1 : Number(input.step || 1);
       input.value = String(Math.max(min, Math.min(max, Number(input.value) + (action === "right" ? step : -step))));
-      input.dispatchEvent(new input.ownerDocument.defaultView!.CustomEvent("input", { bubbles: true, detail: { player } }));
-      input.dispatchEvent(new input.ownerDocument.defaultView!.CustomEvent("change", { bubbles: true, detail: { player } }));
+      input.dispatchEvent(new input.ownerDocument.defaultView!.CustomEvent("input", { bubbles: true, composed: true, detail: { player } }));
+      input.dispatchEvent(new input.ownerDocument.defaultView!.CustomEvent("change", { bubbles: true, composed: true, detail: { player } }));
       return true;
     }
     const override = current.navigation()[action];
     if (override && this.focus(override, player)) return true;
-    const scope = current.element.closest<HTMLElement>("[data-uif-focus-scope]");
+    const scope = composedClosest(current.element, "[data-uif-focus-scope]");
     const candidates = this.candidates(player, scope);
     if (action === "next" || action === "previous") {
       const index = candidates.indexOf(current);
@@ -181,7 +182,7 @@ export class FocusManager {
       return !!entry && this.focus(entry.id, player);
     }
     for (const virtual of this.virtuals) {
-      if (virtual.element.contains(current.element) && virtual.moveFrom(current.element, action, player)) return true;
+      if (composedContains(virtual.element, current.element) && virtual.moveFrom(current.element, action, player)) return true;
     }
     const from = visibleRect(current.element, this.host);
     if (!from) return this.first(player);
@@ -200,7 +201,7 @@ export class FocusManager {
     const target = this.currentElement(player);
     if (!target || !this.allows(target, player) || !rendered(target)) return false;
     const EventClass = target.ownerDocument.defaultView!.CustomEvent;
-    target.dispatchEvent(new EventClass(type, { bubbles: true, cancelable: true, detail: { player } }));
+    target.dispatchEvent(new EventClass(type, { bubbles: true, composed: true, cancelable: true, detail: { player } }));
     return true;
   }
   pushModal(element: HTMLElement, autoFocus = true): Dispose {

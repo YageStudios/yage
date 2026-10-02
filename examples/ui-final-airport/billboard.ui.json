@@ -1,0 +1,9 @@
+{
+  "schema": "ui-final/1",
+  "root": {
+    "component": "DepartureBoard",
+    "state": { "$bind": "airport.board" },
+    "props": { "id": "departure-board" },
+    "events": { "selectFlight": "selectAirportFlight" }
+  }
+}

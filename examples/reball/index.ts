@@ -11,6 +11,7 @@ import { QuickStart } from "yage/game/QuickStart";
 import { flags } from "yage/console/flags";
 import { Transform } from "yage/schemas/entity/Transform";
 import { GameReplayInstance } from "yage/game/GameReplayInstance";
+import { loadPersistedHistory } from "yage/connection/HistoryPersistenceFlow";
 import { createControls } from "./replay";
 
 const playerJoin = (gameModel: GameModel, playerId: string, playerConfig: any) => {
@@ -43,8 +44,26 @@ if (flags.HISTORY_RERUN) {
   (async () => {
     await preload();
 
-    const replayStack = JSON.parse(localStorage.getItem("history") ?? "{}") as any;
-    console.log(replayStack);
+    // Recordings persist to IndexedDB (HistoryPersistenceFlow, every 300
+    // frames of play); localStorage["history"] is the legacy location, kept
+    // as a fallback for old recordings.
+    let replayStack = await loadPersistedHistory();
+    if (Object.keys(replayStack).length === 0) {
+      replayStack = JSON.parse(localStorage.getItem("history") ?? "{}");
+    }
+
+    if (Object.keys(replayStack).length === 0) {
+      document.body.innerHTML = `
+        <div style="color:#fff;background:#111;height:100svh;display:flex;align-items:center;justify-content:center;font:18px monospace;text-align:center">
+          <div>
+            No replay history recorded yet.<br/><br/>
+            Play any game for a few seconds first (history is saved automatically),<br/>
+            then reload this page to watch the replay.
+          </div>
+        </div>`;
+      return;
+    }
+
     const replayInstance = new GameReplayInstance(replayStack, {
       onPlayerJoin: playerJoin,
       buildWorld: () => {},
