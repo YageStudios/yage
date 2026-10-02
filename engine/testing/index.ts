@@ -215,8 +215,6 @@ export class PlayerController {
         if (!elements || elements.length === 0) {
           throw new Error(`UI element '${elementId}' not found`);
         }
-        const element = elements[0];
-
         // UI Final runtimes are plain DOM: a bubbling click with the player in
         // `detail` drives the normal activate path (ownership checks included).
         const finalTarget = document.querySelector(`[data-uif-id="${CSS.escape(elementId)}"]`);
@@ -554,9 +552,9 @@ export async function createYageEnv(config: TestEnvironmentConfig): Promise<Yage
     headless: resolvedConfig.headless,
     channel: resolvedConfig.executablePath ? undefined : resolvedConfig.browserChannel,
     executablePath: resolvedConfig.executablePath,
-    devtools: resolvedConfig.devtools,
     slowMo: resolvedConfig.slowMo,
     args: [
+      ...(resolvedConfig.devtools ? ["--auto-open-devtools-for-tabs"] : []),
       "--disable-web-security",
       "--disable-features=IsolateOrigins,site-per-process",
       "--no-sandbox",

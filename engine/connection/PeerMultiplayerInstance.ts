@@ -11,6 +11,7 @@ const nanoid = customAlphabet("234579ACDEFGHJKMNPQRTWXYZ", 10);
 
 export type PeerMultiplayerInstanceOptions<T> = CoreConnectionInstanceOptions<T> & {
   prefix: string;
+  requireExistingHost?: boolean;
   address?: string;
   host?: string;
 };
@@ -29,20 +30,25 @@ export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
   prefix: string;
   selfAddress: string;
   private unloadDisconnectAnnounced = false;
+  private requireExistingHost: boolean;
+  private rejectJoin: ((error: Error) => void) | null = null;
 
   constructor(
     player: PlayerConnect<T>,
     inputManager: InputManager,
-    { prefix, host, address = nanoid(), ...coreOptions }: PeerMultiplayerInstanceOptions<T>
+    { prefix, host, address = nanoid(), requireExistingHost = false, ...coreOptions }: PeerMultiplayerInstanceOptions<T>
   ) {
     super(player, inputManager, coreOptions);
     this.prefix = prefix;
     this.address = address;
+    this.requireExistingHost = requireExistingHost;
 
     if (!address.startsWith(this.prefix)) {
       address = this.prefix + address;
     }
-    this.handshake(address, host);
+    // A joining browser must never claim an absent room as its own new host.
+    // connect() awaits connectionPromise; observe an early signaling failure until it attaches.
+    void this.handshake(requireExistingHost ? this.prefix + nanoid() : address, host).catch(() => {});
     this.installPageDisconnectHandlers();
   }
 
@@ -97,11 +103,15 @@ export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
       this.peer = new Peer(address);
     }
 
-    let self_resolve: any;
+    let self_resolve: () => void;
+    let rejectHandshake: (error: Error) => void;
+    let handshakeFailed = false;
 
-    this.connectionPromise = new Promise((resolve) => {
+    this.connectionPromise = new Promise((resolve, reject) => {
       self_resolve = resolve;
+      rejectHandshake = reject;
       this.peer.on("open", (id) => {
+        if (handshakeFailed) return;
         this.player.connectionId = id;
         console.log("My peer ID is: " + id);
         resolve();
@@ -115,17 +125,25 @@ export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
 
     this.peer.on("error", (err) => {
       console.log("peer error", err.message);
+      if (this.requireExistingHost && err.type !== "unavailable-id") {
+        const error = new Error("Room unavailable or running a different game build.");
+        handshakeFailed = true;
+        rejectHandshake(error);
+        this.rejectJoin?.(error);
+        if (!this.peer.destroyed) this.peer.destroy();
+        return;
+      }
       this.peer.destroy();
       this.handshake(this.prefix + nanoid(), hostUrl).then(() => {
         self_resolve();
-      });
+      }, rejectHandshake);
     });
 
     await this.connectionPromise;
   }
 
   emit(event: string, ...args: any[]) {
-    Object.entries(this.connections).forEach(([peerId, conn]) => {
+    Object.values(this.connections).forEach((conn) => {
       // @ts-ignore
       if (window.simulatedDelay) {
         setTimeout(() => {
@@ -230,6 +248,10 @@ export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
     }
     await this.connectionPromise;
     if (this.selfAddress === address) {
+      if (this.requireExistingHost) {
+        this.peer.destroy();
+        return Promise.reject(new Error("Room unavailable or running a different game build."));
+      }
       this.player.connected = true;
       this.roomSyncResolve();
       return;
@@ -238,16 +260,29 @@ export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
 
     return new Promise((resolve, reject) => {
       // ICE negotiation can exceed a second on mobile networks after signaling opens.
-      const failTimeout = setTimeout(() => {
+      let finished = false;
+      const fail = (error: Error) => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(failTimeout);
+        this.rejectJoin = null;
         conn.close();
-        reject("Connection timed out");
-      }, 10000);
+        if (this.requireExistingHost) this.peer.destroy();
+        reject(error);
+      };
+      const failTimeout = setTimeout(() => fail(new Error(this.requireExistingHost
+        ? "Room unavailable or running a different game build."
+        : "Connection timed out")), 10000);
+      this.rejectJoin = fail;
       console.log(address, "connecting to host");
 
       this.handleConnection(conn);
 
       conn.once("open", () => {
+        if (finished) return;
+        finished = true;
         clearTimeout(failTimeout);
+        this.rejectJoin = null;
         this.connections[conn.peer] = conn;
 
         const player = this.player;

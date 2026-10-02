@@ -159,14 +159,10 @@ class IndexedDB {
       const objectStore = transaction.objectStore(this.storeName);
       const request = objectStore.put({ key, data });
 
-      request.onsuccess = (evt: any) => {
-        resolve(evt.target.result);
-      };
-
-      request.onerror = (evt: any) => {
-        console.error("Save object error: " + evt.target.errorCode);
-        reject(evt.target.errorCode);
-      };
+      transaction.oncomplete = () => resolve(request.result);
+      transaction.onabort = () => reject(transaction.error ?? new Error("Save transaction aborted"));
+      transaction.onerror = () => reject(transaction.error ?? new Error("Save transaction failed"));
+      request.onerror = () => reject(request.error ?? new Error("Save request failed"));
     });
   }
 

@@ -77,7 +77,17 @@ path aliases or engine build watcher is needed for this development loop.
 
 See [linked development](docs/linked-development.md) for peer versions, package
 exports, build/typecheck separation and packed-consumer validation. Engine library
-builds are `npm run build`; full semantic checks are `npm run typecheck`.
+builds are `npm run build`; semantic checks are `npm run typecheck`.
+
+Run `npm run check` for the complete non-browser check: TypeScript, Vitest,
+the separate Node tooling and UI Final suites, save API, local operating helpers,
+peer-join and IndexedDB durability coverage gates, then the package build and package export/declaration checks.
+Use Node 24 or newer for the save-server process tests. The save API suite opens local sockets; run this command where loopback connections are allowed.
+
+Browser acceptance runs separately with `npm run test:e2e -- --run`,
+`npm run test:ui-final:browser`, `npm run test:ui-final:html` and
+`npm run test:ui-final:flap-render`. These commands require Chromium; see the
+individual test scripts for browser path overrides.
 
 ### Running Examples
 
@@ -259,3 +269,5 @@ Press `/` or `>` in-game to open the **Developer Console**. You can toggle vario
 This project is licensed under the NO-AI Attribution-NonCommercial-ShareAlike 4.0 International License.
 
 *The Covered Software and any modifications made to it may not be used for the purpose of training or improving machine learning algorithms, including but not limited to artificial intelligence, natural language processing, or data mining.*
+
+The local family save service is documented in [the workstation runbook](docs/local-save-server.md).

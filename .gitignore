@@ -27,3 +27,6 @@ dist-ssr
 
 
 vite.config.js.timestamp*
+
+# Private workstation save credentials and durable data
+.local/

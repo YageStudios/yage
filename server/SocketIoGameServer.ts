@@ -1,6 +1,7 @@
 import { Server } from "socket.io";
 import { createServer } from "http";
 import express from "express";
+import { attachSaveApi } from "./saves/socket.mjs";
 
 interface Message {
   event: string;
@@ -27,6 +28,7 @@ interface Group {
 
 class SocketIoGameServer {
   private io: Server;
+  private httpServer: ReturnType<typeof createServer>;
   private groups: Map<string, Group> = new Map();
   private clientGroups: Map<string, string> = new Map();
   private clientRooms: Map<string, string> = new Map();
@@ -35,9 +37,10 @@ class SocketIoGameServer {
   private clientNetIds: Map<string, string> = new Map(); // Maps socket.id to player netId
   private clientLastFrame: Map<string, number> = new Map(); // Maps socket.id to last frame
 
-  constructor(port: number = 3001) {
+  constructor(port: number = 3001, saveService?: { request(action: string, input?: any): Promise<any> }, host = "0.0.0.0") {
     const app = express();
     const httpServer = createServer(app);
+    this.httpServer = httpServer;
 
     // Setup REST endpoints
     const wrapHtml = (content: string, breadcrumbs: Array<[string, string]>) => {
@@ -100,6 +103,7 @@ class SocketIoGameServer {
     });
 
     this.io = new Server(httpServer, {
+      maxHttpBufferSize: 2 * 1024 * 1024,
       cors: {
         origin: "*",
         methods: ["GET", "POST"],
@@ -107,9 +111,22 @@ class SocketIoGameServer {
     });
 
     this.setupSocketHandlers();
-    httpServer.listen(port);
+    if (saveService) attachSaveApi(this.io, saveService);
+    httpServer.listen(port, host);
     console.log(`Game server listening on port ${port}`);
   }
+
+  address() { return this.httpServer.address(); }
+
+  async ready() {
+    if (this.httpServer.listening) return;
+    await new Promise<void>((resolve, reject) => {
+      this.httpServer.once("listening", resolve);
+      this.httpServer.once("error", reject);
+    });
+  }
+
+  close() { return new Promise<void>(resolve => this.io.close(() => resolve())); }
 
   private setupSocketHandlers() {
     this.io.on("connection", (socket) => {
@@ -218,6 +235,8 @@ class SocketIoGameServer {
 
       // Handle all other messages
       socket.onAny((event, ...args) => {
+        // Credentials and private documents stay out of relay logs, history and broadcasts.
+        if (event.startsWith("save:")) return;
         if (event === "frame") {
           // Per-frame traffic: track, never log (60fps x players floods stdout).
           if (args[0] && typeof args[0] === "object") {

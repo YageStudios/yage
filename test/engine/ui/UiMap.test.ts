@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock heavy/browser-only dependencies that blow up in jsdom
 vi.mock("@pixi/sound", () => ({
@@ -55,22 +55,15 @@ vi.mock("yage/console/flags", () => ({
 
 import { buildUiMap, registerUiClass, registerTemplate, getUiMapTemplate } from "yage/ui/UiMap";
 import { Box } from "yage/ui/Box";
-import { Text } from "yage/ui/Text";
 import { Position } from "yage/ui/Rectangle";
 import { scalePxStyleValue } from "yage/ui/utils";
 
 // ─── helpers ───────────────────────────────────────────────────────────────────
 
-/** Extract the flat list of UIElements that were added to the root result. */
-const collectChildren = (element: any): any[] => {
-  const children = element?._config?.children ?? element?.config?.children ?? [];
-  return children;
-};
-
 /** Recursively collect every UIElement in a tree. */
 const flatCollect = (element: any): any[] => {
   const result = [element];
-  const children = element?._config?.children ?? [];
+  const children = element?.config?.children ?? [];
   for (const child of children) {
     result.push(...flatCollect(child));
   }
@@ -143,10 +136,10 @@ describe("UiMap — Legacy Baseline", () => {
         },
       });
       const elements = map.build({}, vi.fn());
-      const host = elements.hud as unknown as { _config?: { style?: { pointerEvents?: string } } };
+      const host = elements.hud;
       // The host spans the whole viewport; if it captured pointer events it
       // would swallow every click aimed at the game beneath the UI layer.
-      expect(host._config?.style?.pointerEvents).toBe("none");
+      expect(host.config?.style?.pointerEvents).toBe("none");
     });
 
     it("throws when top-level value has no type", () => {
@@ -171,8 +164,8 @@ describe("UiMap — Legacy Baseline", () => {
       });
 
       const elements = map.build({}, handler);
-      elements.field._config.onChange?.("alpha");
-      elements.field._config.onSubmit?.("beta");
+      elements.field.config.onChange?.("alpha");
+      elements.field.config.onSubmit?.("beta");
 
       expect(handler).toHaveBeenNthCalledWith(1, 0, "nameChanged", "change", {}, "alpha");
       expect(handler).toHaveBeenNthCalledWith(2, 0, "nameSubmitted", "submit", {}, "beta");
@@ -193,7 +186,7 @@ describe("UiMap — Legacy Baseline", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ playerName: "John" }, vi.fn());
-      expect(elements.label._config.label).toBe("John");
+      expect(elements.label.config.label).toBe("John");
     });
 
     it("replaces partial $$variable within a string", () => {
@@ -206,7 +199,7 @@ describe("UiMap — Legacy Baseline", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ hp: 100 }, vi.fn());
-      expect(elements.label._config.label).toBe("HP: 100");
+      expect(elements.label.config.label).toBe("HP: 100");
     });
 
     it("resolves dot-notation paths in $$", () => {
@@ -219,7 +212,7 @@ describe("UiMap — Legacy Baseline", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ player: { stats: { str: 18 } } }, vi.fn());
-      expect(elements.label._config.label).toBe(18);
+      expect(elements.label.config.label).toBe(18);
     });
 
     it("updates element when context changes via update()", () => {
@@ -288,7 +281,7 @@ describe("UiMap — Legacy Baseline", () => {
       );
       // The grid element should have 3 children
       const grid = elements.grid;
-      const children = grid._config.children ?? [];
+      const children = grid.config.children ?? [];
       expect(children.length).toBe(3);
     });
 
@@ -313,9 +306,9 @@ describe("UiMap — Legacy Baseline", () => {
         },
         vi.fn()
       );
-      const children = elements.grid._config.children ?? [];
-      expect(children[0]._config.label).toBe("Sword");
-      expect(children[1]._config.label).toBe("Shield");
+      const children = elements.grid.config.children ?? [];
+      expect(children[0].config.label).toBe("Sword");
+      expect(children[1].config.label).toBe("Shield");
     });
 
     it("grid shrinks children when items shrink", () => {
@@ -334,9 +327,9 @@ describe("UiMap — Legacy Baseline", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ items: [{ val: "a" }, { val: "b" }, { val: "c" }] }, vi.fn());
-      expect(elements.grid._config.children.length).toBe(3);
+      expect(elements.grid.config.children.length).toBe(3);
       map.update({ items: [{ val: "a" }] });
-      expect(elements.grid._config.children.length).toBe(1);
+      expect(elements.grid.config.children.length).toBe(1);
     });
 
     it("grid provides $index and $context to children", () => {
@@ -390,9 +383,9 @@ describe("UiMap — Legacy Baseline", () => {
         vi.fn(),
       );
 
-      expect(elements.grid._config.style.overflow).toBe("auto");
-      expect(elements.grid._config.pointerEventsOnOverflow).toBe(true);
-      expect(elements.grid._config.children.length).toBe(12);
+      expect(elements.grid.config.style.overflow).toBe("auto");
+      expect(elements.grid.config.pointerEventsOnOverflow).toBe(true);
+      expect(elements.grid.config.children.length).toBe(12);
     });
   });
 
@@ -443,7 +436,7 @@ describe("UiMap — Legacy Baseline", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({}, vi.fn());
-      expect(elements.tpl._config.label).toBe("Header");
+      expect(elements.tpl.config.label).toBe("Header");
     });
 
     it("remapTemplateQueries replaces $$vars from template context", () => {
@@ -464,7 +457,7 @@ describe("UiMap — Legacy Baseline", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({}, vi.fn());
-      expect(elements.tpl._config.label).toBe("Hello World");
+      expect(elements.tpl.config.label).toBe("Hello World");
     });
 
     it("getUiMapTemplate retrieves registered templates", () => {
@@ -493,8 +486,8 @@ describe("UiMap — Legacy Baseline", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({}, vi.fn());
-      expect(elements.btn._config.style.backgroundColor).toBe("blue");
-      expect(elements.btn._config.style.color).toBe("white");
+      expect(elements.btn.config.style.backgroundColor).toBe("blue");
+      expect(elements.btn.config.style.color).toBe("white");
     });
 
     it("element's own style overrides class style", () => {
@@ -508,7 +501,7 @@ describe("UiMap — Legacy Baseline", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({}, vi.fn());
-      expect(elements.el._config.style.color).toBe("green");
+      expect(elements.el.config.style.color).toBe("green");
     });
   });
 
@@ -529,7 +522,7 @@ describe("UiMap — Legacy Baseline", () => {
       const map = buildUiMap(json);
       const elements = map.build({ someData: 1 }, handler);
       // Simulate click
-      elements.btn._config.onClick?.(0);
+      elements.btn.config.onClick?.(0);
       expect(handler).toHaveBeenCalledWith(0, "btnClicked", "click", expect.objectContaining({ someData: 1 }));
     });
 
@@ -545,7 +538,7 @@ describe("UiMap — Legacy Baseline", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({}, handler);
-      elements.btn._config.onEscape?.(0);
+      elements.btn.config.onEscape?.(0);
       expect(handler).toHaveBeenCalledWith(0, "onEsc", "escape", expect.anything());
     });
 
@@ -561,7 +554,7 @@ describe("UiMap — Legacy Baseline", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({}, handler);
-      elements.btn._config.onClick?.(0);
+      elements.btn.config.onClick?.(0);
       expect(handler).toHaveBeenCalledWith(0, "onTrigger", "trigger", expect.anything());
     });
 
@@ -587,24 +580,24 @@ describe("UiMap — Legacy Baseline", () => {
       const map = buildUiMap(json);
       const elements = map.build({}, handler);
 
-      elements.el._config.onMouseDown?.(1);
+      elements.el.config.onMouseDown?.(1);
       expect(handler).toHaveBeenCalledWith(1, "md", "mouseDown", expect.anything());
 
-      elements.el._config.onMouseUp?.(1);
+      elements.el.config.onMouseUp?.(1);
       expect(handler).toHaveBeenCalledWith(1, "mu", "mouseUp", expect.anything());
 
-      elements.el._config.onMouseEnter?.(1);
+      elements.el.config.onMouseEnter?.(1);
       expect(handler).toHaveBeenCalledWith(1, "me", "mouseEnter", expect.anything());
       expect(handler).toHaveBeenCalledWith(1, "hf", "hoverFocus", expect.anything());
 
-      elements.el._config.onMouseLeave?.(1);
+      elements.el.config.onMouseLeave?.(1);
       expect(handler).toHaveBeenCalledWith(1, "ml", "mouseLeave", expect.anything());
       expect(handler).toHaveBeenCalledWith(1, "hb", "hoverBlur", expect.anything());
 
-      elements.el._config.onFocus?.(1);
+      elements.el.config.onFocus?.(1);
       expect(handler).toHaveBeenCalledWith(1, "f", "focus", expect.anything());
 
-      elements.el._config.onBlur?.(1);
+      elements.el.config.onBlur?.(1);
       expect(handler).toHaveBeenCalledWith(1, "b", "blur", expect.anything());
     });
   });
@@ -631,8 +624,8 @@ describe("UiMap — Legacy Baseline", () => {
       const map = buildUiMap(json);
       const elements = map.build({}, vi.fn());
       const parent = elements.parent;
-      expect(parent._config.children.length).toBeGreaterThan(0);
-      expect(parent._config.children[0]._config.label).toBe("Child");
+      expect(parent.config.children.length).toBeGreaterThan(0);
+      expect(parent.config.children[0].config.label).toBe("Child");
     });
   });
 
@@ -660,7 +653,7 @@ describe("UiMap — Legacy Baseline", () => {
       const map = buildUiMap(json);
       const elements = map.build({}, vi.fn());
       // Inner text should be reachable
-      const children = elements.wrapper._config.children ?? [];
+      const children = elements.wrapper.config.children ?? [];
       expect(children.length).toBeGreaterThan(0);
     });
   });
@@ -703,7 +696,7 @@ describe("UiMap — New Features", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ hp: 10 }, vi.fn());
-      expect(elements.label._config.label).toBe(20);
+      expect(elements.label.config.label).toBe(20);
     });
 
     it("evaluates ternary expressions", () => {
@@ -716,7 +709,7 @@ describe("UiMap — New Features", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ isDead: true }, vi.fn());
-      expect(elements.label._config.label).toBe("Dead");
+      expect(elements.label.config.label).toBe("Dead");
     });
 
     it("handles multiple interpolations in one string", () => {
@@ -729,7 +722,7 @@ describe("UiMap — New Features", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ a: 2, b: 3 }, vi.fn());
-      expect(elements.label._config.label).toBe("2 + 3 = 5");
+      expect(elements.label.config.label).toBe("2 + 3 = 5");
     });
 
     it("returns empty string for undefined variables in expressions", () => {
@@ -743,7 +736,7 @@ describe("UiMap — New Features", () => {
       const map = buildUiMap(json);
       const elements = map.build({}, vi.fn());
       // Should not throw; should produce empty or undefined-ish output
-      expect(elements.label._config.label).toBeDefined();
+      expect(elements.label.config.label).toBeDefined();
     });
 
     it("expressions update reactively", () => {
@@ -756,9 +749,9 @@ describe("UiMap — New Features", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ hp: 100 }, vi.fn());
-      expect(elements.label._config.label).toBe(100);
+      expect(elements.label.config.label).toBe(100);
       map.update({ hp: 50 });
-      expect(elements.label._config.label).toBe(50);
+      expect(elements.label.config.label).toBe(50);
     });
 
     it("supports dot-notation in expressions", () => {
@@ -771,7 +764,7 @@ describe("UiMap — New Features", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ player: { hp: 75 } }, vi.fn());
-      expect(elements.label._config.label).toBe(75);
+      expect(elements.label.config.label).toBe(75);
     });
 
     it("supports comparison operators", () => {
@@ -784,7 +777,7 @@ describe("UiMap — New Features", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ val: 10 }, vi.fn());
-      expect(elements.label._config.label).toBe("high");
+      expect(elements.label.config.label).toBe("high");
     });
   });
 
@@ -802,7 +795,7 @@ describe("UiMap — New Features", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ name: "Test" }, vi.fn());
-      expect(elements.label._config.label).toBe("Test");
+      expect(elements.label.config.label).toBe("Test");
     });
 
     it("partial $$var in strings still works", () => {
@@ -815,7 +808,7 @@ describe("UiMap — New Features", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ hp: 100 }, vi.fn());
-      expect(elements.label._config.label).toBe("HP: 100");
+      expect(elements.label.config.label).toBe("HP: 100");
     });
   });
 
@@ -843,10 +836,10 @@ describe("UiMap — New Features", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ val: 5 }, vi.fn());
-      const children = elements.root._config.children ?? [];
+      const children = elements.root.config.children ?? [];
       // Should find the wrapper box with the "then" child inside it
       expect(children.length).toBeGreaterThan(0);
-      const allTexts = flatCollect(elements.root).filter((e) => e._config?.label === "Positive");
+      const allTexts = flatCollect(elements.root).filter((e) => e.config?.label === "Positive");
       expect(allTexts.length).toBe(1);
     });
 
@@ -875,9 +868,9 @@ describe("UiMap — New Features", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ val: -1 }, vi.fn());
-      const allTexts = flatCollect(elements.root).filter((e) => e._config?.label === "Non-positive");
+      const allTexts = flatCollect(elements.root).filter((e) => e.config?.label === "Non-positive");
       expect(allTexts.length).toBe(1);
-      const positiveTexts = flatCollect(elements.root).filter((e) => e._config?.label === "Positive");
+      const positiveTexts = flatCollect(elements.root).filter((e) => e.config?.label === "Positive");
       expect(positiveTexts.length).toBe(0);
     });
 
@@ -906,12 +899,12 @@ describe("UiMap — New Features", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ show: true }, vi.fn());
-      let allTexts = flatCollect(elements.root).filter((e) => e._config?.label === "Visible");
+      const allTexts = flatCollect(elements.root).filter((e) => e.config?.label === "Visible");
       expect(allTexts.length).toBe(1);
 
       map.update({ show: false });
       // After update, the "Visible" text should be gone and "Hidden" should appear
-      const hiddenTexts = flatCollect(elements.root).filter((e) => e._config?.label === "Hidden" && !e.destroyed);
+      const hiddenTexts = flatCollect(elements.root).filter((e) => e.config?.label === "Hidden" && !e.destroyed);
       expect(hiddenTexts.length).toBe(1);
     });
 
@@ -935,7 +928,7 @@ describe("UiMap — New Features", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ show: false }, vi.fn());
-      const texts = flatCollect(elements.root).filter((e) => e._config?.label === "OnlyIfTrue");
+      const texts = flatCollect(elements.root).filter((e) => e.config?.label === "OnlyIfTrue");
       expect(texts.length).toBe(0);
     });
 
@@ -968,14 +961,14 @@ describe("UiMap — New Features", () => {
 
       const map = buildUiMap(json);
       const elements = map.build({ showReset: true }, vi.fn());
-      const wrapper = elements.root._config.children?.[0];
-      const button = wrapper?._config.children?.[0];
+      const wrapper = elements.root.config.children?.[0];
+      const button = wrapper?.config.children?.[0];
 
       expect(wrapper).toBeDefined();
       expect(button).toBeDefined();
       expect(wrapper?.bounds.x).toBe("center");
       expect(wrapper?.bounds.y).toBe("bottom");
-      expect(wrapper?._config.style.position).toBe("absolute");
+      expect(wrapper?.config.style.position).toBe("absolute");
       expect(button?.bounds.x).toBe("left");
       expect(button?.bounds.y).toBe("top");
       expect(button?.bounds.xOffset).toBe(0);
@@ -1007,7 +1000,7 @@ describe("UiMap — New Features", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ hasShield: false }, vi.fn());
-      const texts = flatCollect(elements.root).filter((e) => e._config?.label === "No shield!");
+      const texts = flatCollect(elements.root).filter((e) => e.config?.label === "No shield!");
       expect(texts.length).toBe(1);
     });
 
@@ -1031,7 +1024,7 @@ describe("UiMap — New Features", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ hasShield: true }, vi.fn());
-      const texts = flatCollect(elements.root).filter((e) => e._config?.label === "No shield!");
+      const texts = flatCollect(elements.root).filter((e) => e.config?.label === "No shield!");
       expect(texts.length).toBe(0);
     });
   });
@@ -1060,7 +1053,7 @@ describe("UiMap — New Features", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ player: { stats: { str: 18 } } }, vi.fn());
-      const texts = flatCollect(elements.root).filter((e) => e._config?.label === 18);
+      const texts = flatCollect(elements.root).filter((e) => e.config?.label === 18);
       expect(texts.length).toBe(1);
     });
   });
@@ -1091,7 +1084,7 @@ describe("UiMap — New Features", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({}, vi.fn());
-      const texts = flatCollect(elements.root).filter((e) => e._config?.label === "Status");
+      const texts = flatCollect(elements.root).filter((e) => e.config?.label === "Status");
       expect(texts.length).toBe(1);
     });
 
@@ -1138,7 +1131,7 @@ describe("UiMap — New Features", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ greeting: { message: "Hello!" } }, vi.fn());
-      const texts = flatCollect(elements.root).filter((e) => e._config?.label === "Hello!");
+      const texts = flatCollect(elements.root).filter((e) => e.config?.label === "Hello!");
       expect(texts.length).toBe(1);
     });
   });
@@ -1159,8 +1152,8 @@ describe("UiMap — New Features", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({}, vi.fn());
-      expect(elements.el._config.style.backgroundColor).toBe("red");
-      expect(elements.el._config.style.borderRadius).toBe("5px");
+      expect(elements.el.config.style.backgroundColor).toBe("red");
+      expect(elements.el.config.style.borderRadius).toBe("5px");
     });
 
     it("supports expressions inside CSS strings", () => {
@@ -1175,7 +1168,7 @@ describe("UiMap — New Features", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ color: "blue" }, vi.fn());
-      expect(elements.el._config.style.backgroundColor).toBe("blue");
+      expect(elements.el.config.style.backgroundColor).toBe("blue");
     });
   });
 
@@ -1199,8 +1192,8 @@ describe("UiMap — New Features", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ title: "RootTitle", items: [{ name: "A" }] }, vi.fn());
-      const children = elements.grid._config.children ?? [];
-      expect(children[0]._config.label).toBe("RootTitle");
+      const children = elements.grid.config.children ?? [];
+      expect(children[0].config.label).toBe("RootTitle");
     });
 
     it("$index provides the iteration index in grid", () => {
@@ -1219,10 +1212,10 @@ describe("UiMap — New Features", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ items: [{ v: "a" }, { v: "b" }, { v: "c" }] }, vi.fn());
-      const children = elements.grid._config.children ?? [];
-      expect(children[0]._config.label).toBe(0);
-      expect(children[1]._config.label).toBe(1);
-      expect(children[2]._config.label).toBe(2);
+      const children = elements.grid.config.children ?? [];
+      expect(children[0].config.label).toBe(0);
+      expect(children[1].config.label).toBe(1);
+      expect(children[2].config.label).toBe(2);
     });
   });
 
@@ -1245,14 +1238,14 @@ describe("UiMap — New Features", () => {
       };
       const map = buildUiMap(json);
       const elements = map.build({ x: 1, y: 2 }, vi.fn());
-      expect(elements.a._config.label).toBe(1);
-      expect(elements.b._config.label).toBe(2);
+      expect(elements.a.config.label).toBe(1);
+      expect(elements.b.config.label).toBe(2);
 
       // Update only x
       map.update({ x: 10 });
-      expect(elements.a._config.label).toBe(10);
+      expect(elements.a.config.label).toBe(10);
       // y should be unchanged
-      expect(elements.b._config.label).toBe(2);
+      expect(elements.b.config.label).toBe(2);
     });
   });
 
@@ -1301,9 +1294,9 @@ describe("UiMap — New Features", () => {
 
       const map = buildUiMap(json);
       const elements = map.build({}, vi.fn());
-      const root = elements.overlay._config.children?.[0];
-      const title = root?._config.children?.[0];
-      const button = root?._config.children?.[1];
+      const root = elements.overlay.config.children?.[0];
+      const title = root?.config.children?.[0];
+      const button = root?.config.children?.[1];
 
       expect(root?.config.layoutRect).toBeDefined();
       expect(title?.config.layoutRect).toBeDefined();
@@ -1348,12 +1341,12 @@ describe("UiMap — New Features", () => {
 
       const map = buildUiMap(json);
       const elements = map.build({}, vi.fn());
-      const root = elements.overlay._config.children?.[0];
-      const panel = root?._config.children?.[0];
-      const button = panel?._config.children?.[0];
+      const root = elements.overlay.config.children?.[0];
+      const panel = root?.config.children?.[0];
+      const button = panel?.config.children?.[0];
 
-      expect(panel?._config.style.padding).toBeUndefined();
-      expect(panel?._config.style.boxSizing).toBe("border-box");
+      expect(panel?.config.style.padding).toBeUndefined();
+      expect(panel?.config.style.boxSizing).toBe("border-box");
       expect(panel?.config.layoutRect).toMatchObject({ x: 0, y: 0, width: 164, height: 80 });
       expect(button?.config.layoutRect).toMatchObject({ x: 8, y: 8, width: 148, height: 32 });
     });
@@ -1375,7 +1368,7 @@ describe("UiMap — New Features", () => {
       const map = buildUiMap(json);
       const elements = map.build({}, vi.fn());
       // Should either produce an error or render empty — NOT leak window.location
-      expect(elements.label._config.label).not.toContain("http");
+      expect(elements.label.config.label).not.toContain("http");
       errorSpy.mockRestore();
     });
   });

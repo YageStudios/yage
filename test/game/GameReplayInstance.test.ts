@@ -23,12 +23,6 @@ beforeAll(async () => {
   await import("../../examples/brickup/systems");
 });
 
-const rawTemplates = import.meta.glob("../../examples/brickup/entities/*.json5", {
-  query: "?raw",
-  import: "default",
-  eager: true,
-}) as Record<string, string>;
-
 const SEED = "replay-instance-proof";
 const RUN_FRAMES = 200;
 const PID = "p1";
@@ -199,13 +193,24 @@ describe("GameReplayInstance", () => {
     await waitForFrame(instance, 130);
     instance.pausePlayback();
 
+    const gameModel = (instance as any).options.connection.roomStates["replay-room"].gameModel as GameModel;
+    const frameBeforeScrub = gameModel.frame;
     instance.onScrub(20);
+    const rewindDeadline = Date.now() + 5000;
+    while (gameModel.frame >= frameBeforeScrub && Date.now() < rewindDeadline) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    expect(gameModel.frame).toBeLessThan(frameBeforeScrub);
+    expect(gameModel.frame).toBeLessThanOrEqual(20);
+    expect(instance.currentFrame).toBe(20);
+
     instance.resumePlayback();
     await waitForFrame(instance, 140);
     instance.pausePlayback();
 
-    const gameModel = (instance as any).options.connection.roomStates["replay-room"].gameModel as GameModel;
-    // The end state must equal the original's recorded digest for frame 140.
-    expect(stateHashes[140]).toBe(hashWorldState(gameModel));
+    const replayed = (instance as any).options.connection.roomStates["replay-room"].gameModel as GameModel;
+    expect(replayed.frame).toBeGreaterThanOrEqual(140);
+    expect(stateHashes[replayed.frame]).toBeDefined();
+    expect(hashWorldState(replayed)).toBe(stateHashes[replayed.frame]);
   });
 });

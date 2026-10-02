@@ -70,10 +70,10 @@ describe("UiLoader", () => {
       border: "2px solid white",
       backgroundColor: "red",
     });
-    expect(elements.root._config.label).toBe("Launch");
+    expect(elements.root.config.label).toBe("Launch");
 
     map.update({ cta: "Deploy" });
-    expect(elements.root._config.label).toBe("Deploy");
+    expect(elements.root.config.label).toBe("Deploy");
   });
 
   it("throws on circular $ref dependencies", async () => {

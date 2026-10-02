@@ -9,6 +9,8 @@ const peerMock = vi.hoisted(() => {
   class MockPeer {
     id: string;
     options: unknown;
+    lastConnection: ReturnType<typeof makeConnection> | null = null;
+    connectionTargets: string[] = [];
     handlers: Record<string, ((...args: any[]) => void)[]> = {};
     destroyed = false;
 
@@ -18,7 +20,7 @@ const peerMock = vi.hoisted(() => {
       queueMicrotask(() => {
         if (collideNextPeerId) {
           collideNextPeerId = false;
-          this.emitLocal("error", { message: "ID is taken" });
+          this.emitLocal("error", { type: "unavailable-id", message: "ID is taken" });
           return;
         }
         this.emitLocal("open", id);
@@ -42,6 +44,8 @@ const peerMock = vi.hoisted(() => {
 
     connect(peerId: string) {
       const connection = makeConnection(peerId);
+      this.lastConnection = connection;
+      this.connectionTargets.push(peerId);
       if (connectionOpenDelay > 0) {
         setTimeout(() => connection.emitLocal("open"), connectionOpenDelay);
       }
@@ -179,4 +183,62 @@ describe("PeerMultiplayerInstance", () => {
     expect(received).toContainEqual(["player-2", "userDisconnect"]);
     expect(received).not.toContainEqual(["player-1", "userDisconnect", "player-2"]);
   });
+  it("an explicit join registers a unique peer before connecting the existing room", async () => {
+    peerMock.setConnectionOpenDelay(1);
+    const instance = new PeerMultiplayerInstance({netId:"joiner",uniqueId:"joiner",token:"token",config:{}}, {} as InputManager,
+      {prefix:"test-",address:"room",requireExistingHost:true});
+    try {
+      await instance.connect();
+      expect(instance.selfAddress).not.toBe("test-room");
+      expect((instance.peer as unknown as InstanceType<typeof peerMock.MockPeer>).connectionTargets).toContain("test-room");
+      expect(instance.player.connected).toBe(true);
+    } finally {peerMock.setConnectionOpenDelay(0);}
+  });
+
+  it("missing or incompatible room rejects and destroys the temporary peer", async () => {
+    const instance = new PeerMultiplayerInstance({netId:"joiner",uniqueId:"joiner",token:"token",config:{}}, {} as InputManager,
+      {prefix:"test-",address:"missing",requireExistingHost:true});
+    const connection = instance.connect();
+    const rejected = expect(connection).rejects.toThrow("Room unavailable or running a different game build");
+    await instance.connectionPromise;await Promise.resolve();
+    const peer = instance.peer as unknown as InstanceType<typeof peerMock.MockPeer>;
+    peer.emitLocal("error",{type:"peer-unavailable",message:"No such peer"});
+    await rejected;
+    expect(peer.destroyed).toBe(true);
+    expect(peer.lastConnection?.close).toHaveBeenCalled();
+    expect(instance.player.connected).toBe(false);
+  });
+
+  it("an explicit join cannot materialize itself as the requested host", async () => {
+    const instance = new PeerMultiplayerInstance({netId:"joiner",uniqueId:"joiner",token:"token",config:{}}, {} as InputManager,
+      {prefix:"test-",address:"room",requireExistingHost:true});
+    await instance.connectionPromise;
+    instance.selfAddress="test-room";
+    await expect(instance.connect()).rejects.toThrow("Room unavailable");
+    expect((instance.peer as unknown as InstanceType<typeof peerMock.MockPeer>).destroyed).toBe(true);
+  });
+
+  it("a stalled explicit join rejects before room initialization and closes signaling", async () => {
+    vi.useFakeTimers();
+    const instance = new PeerMultiplayerInstance({netId:"joiner",uniqueId:"joiner",token:"token",config:{}}, {} as InputManager,
+      {prefix:"test-",address:"room",requireExistingHost:true});
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      const rejected=expect(instance.connect()).rejects.toThrow("Room unavailable");
+      await vi.advanceTimersByTimeAsync(10000);await rejected;
+      expect((instance.peer as unknown as InstanceType<typeof peerMock.MockPeer>).destroyed).toBe(true);
+    } finally {vi.useRealTimers();}
+  });
+
+  it("a signaling failure before open rejects connect without an unhandled constructor promise", async () => {
+    const instance = new PeerMultiplayerInstance({netId:"joiner",uniqueId:"joiner",token:"token",config:{}}, {} as InputManager,
+      {prefix:"test-",address:"room",requireExistingHost:true});
+    const peer = instance.peer as unknown as InstanceType<typeof peerMock.MockPeer>;
+    peer.emitLocal("error",{type:"network",message:"Signaling disconnected"});
+    await expect(instance.connect()).rejects.toThrow("Room unavailable");
+    await Promise.resolve();
+    expect(peer.destroyed).toBe(true);
+    expect(instance.player.connected).toBe(false);
+  });
+
 });
