@@ -32,6 +32,9 @@ import { flags } from "yage/console/flags";
 import { FIXED_TIMESTEP_MS } from "yage/game/Timing";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
+/** Join-phase timing marks for measurement tools; a no-op where the Performance API is absent. */
+const markJoin = (name: string) => globalThis.performance?.mark?.("yage:join-" + name);
+
 export type CoreConnectionInstanceOptions<T> = {
   touchRegions?: TouchRegion[];
   roomTimeout?: number;
@@ -1438,7 +1441,9 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
                 inputManager: gameInstance.options.connection.inputManager,
                 playerEventManager: this.playerEventManager,
               }); // GameModel(GameCoordinator.GetInstance(), gameInstance, seed, coreOverrides);
+              markJoin("state-received");
               await roomState.gameModel.deserializeState(state);
+              markJoin("deserialized");
             }
             // Converge to the live timeline: the served snapshot is stale by
             // the request handshake, and a joiner that stays behind has its
@@ -1464,6 +1469,7 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
               }
               roomState.gameModel.step();
             }
+            markJoin("caught-up");
             this.resetHistory(roomState.gameModel.roomId, {
               frames: {},
               seed: roomState.gameModel.seed,
@@ -1478,6 +1484,7 @@ export class CoreConnectionInstance<T> extends ConnectionInstance<T> {
               roomState.gameModel.localNetIds = [localPlayer.netId];
               roomState.gameModel.stepDraw();
             }
+            markJoin("first-draw");
             resolve(roomState.gameModel);
           }
         )

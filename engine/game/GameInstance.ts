@@ -138,6 +138,7 @@ export class GameInstance<T> {
     ticker.start();
     this.ticker = ticker;
     this.bindBackgroundFrameFlow();
+    globalThis.performance?.mark?.("yage:join-ticker");
     console.info("[yage-loop] ticker started", {
       executionMode,
       localPlayers: this.options.connection.localPlayers.map((player) => ({
