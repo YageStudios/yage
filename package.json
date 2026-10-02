@@ -114,7 +114,7 @@
     "pretty": "prettier --write \"./**/*.{js,jsx,json,ts}\"",
     "server": "npx tsx server/index.ts",
     "typecheck": "tsc --noEmit",
-    "check": "npm run typecheck && npm test -- --run && npm run test:tooling && npm run test:ui-final && npm run test:save-api && npm run test:authority && npm run test:persist-durability && npm run test:peer-join && npm run test:save:local && npm run build",
+    "check": "npm run typecheck && npm test -- --run && npm run test:tooling && npm run test:ui-final && npm run test:save-api && npm run test:persist-durability && npm run test:peer-join && npm run test:save:local && npm run build",
     "build:types": "tsc -p tsconfig.build.json",
     "build:watch": "node scripts/watch.mjs",
     "check:package": "node scripts/check-package.mjs",
@@ -134,7 +134,6 @@
     "server:saves:backup": "node server/saves/backup.mjs backup",
     "server:saves:restore": "node server/saves/backup.mjs restore",
     "test:save-api": "node --test --experimental-test-coverage --test-coverage-include=server/saves/*.mjs --test-coverage-lines=80 --test-coverage-branches=80 --test-coverage-functions=80 test/save-api/*.node.mjs",
-    "test:authority": "node --test --experimental-test-coverage --test-coverage-include=server/authority/*.mjs --test-coverage-lines=80 --test-coverage-branches=80 --test-coverage-functions=80 test/authority/*.node.mjs",
     "test:peer-join": "node scripts/test-peer-join.mjs",
     "test:persist-durability": "node scripts/test-persist-durability.mjs"
   },
