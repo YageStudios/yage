@@ -3,7 +3,7 @@ import { mkdir, readFile, open, rename, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export const checksum = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
-export const emptyDatabase = () => ({ families: {}, careers: {}, profiles: {}, slots: {}, uploads: {}, ledgers: {} });
+export const emptyDatabase = () => ({ families: {}, careers: {}, profiles: {}, slots: {}, uploads: {} });
 const storageError = () => ({ ok: false, error: { code: 'storage_error', message: 'The save could not be durably stored. Retry after checking server storage.' } });
 
 export function decode(text) {
@@ -13,9 +13,6 @@ export function decode(text) {
         || ['families', 'careers', 'profiles', 'slots', 'uploads'].some(key => !envelope.data[key] || typeof envelope.data[key] !== 'object' || Array.isArray(envelope.data[key]))) {
         return null;
     }
-    // Databases written before shared-wallet ledgers existed simply have none yet.
-    if (envelope.data.ledgers === undefined) envelope.data.ledgers = {};
-    if (!envelope.data.ledgers || typeof envelope.data.ledgers !== 'object' || Array.isArray(envelope.data.ledgers)) return null;
     return envelope.data;
 }
 const encode = data => JSON.stringify({ format: 1, checksum: checksum(data), data });
@@ -78,8 +75,7 @@ export class SaveStorage {
             const next = this.snapshot();
             let result;
             try { result = change(next); } catch { return storageError(); }
-            // A failed result normally discards the change; `commit: true` persists it while still reporting the failure.
-            if (!result.ok && result.commit !== true) return result;
+            if (!result.ok) return result;
             try {
                 for (let i = 3; i >= 2; i--) {
                     try { await atomicWrite(join(this.directory, `backup-${i}.json`), await readFile(join(this.directory, `backup-${i - 1}.json`), 'utf8')); }
@@ -88,7 +84,6 @@ export class SaveStorage {
                 await atomicWrite(join(this.directory, 'backup-1.json'), encode(this.data));
                 await this.writer(this.path, encode(next));
                 this.data = next;
-                if (Object.hasOwn(result, 'commit')) { const { commit: _commit, ...plain } = result; return plain; }
                 return result;
             } catch {
                 // A rename may have succeeded before a directory-sync error. Re-read to keep CAS truthful.

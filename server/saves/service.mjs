@@ -1,9 +1,5 @@
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { checksum } from './storage.mjs';
-import { CareerLedger } from '../authority/ledger.mjs';
-
-/** Retained ledger events per career; older acknowledged events compact away, retries stay idempotent. */
-const LEDGER_EVENTS = 1000;
 
 const fail = (code, message) => ({ ok: false, error: { code, message } });
 const ok = value => ({ ok: true, value: structuredClone(value) });
@@ -99,35 +95,6 @@ export class SaveService {
         const career = careerIdentifier(input.careerId) ? data.careers[input.careerId] : undefined;
         if (!career || !this.authorize(data, career.familyId, input.credential, ['deleteCareer', 'listSlots', 'promoteSlot'].includes(action))) return fail('unauthorized', 'Valid career and authorized family credential required.');
         if (action === 'getCareer') return ok(career);
-        if (action === 'ledgerOpen') {
-            if (!Number.isSafeInteger(input.balance) || input.balance < 0) return fail('invalid_request', 'Supply a whole nonnegative opening balance.');
-            return this.storage.transact(next => {
-                if (Object.hasOwn(next.ledgers, career.careerId)) return fail('ledger_exists', 'This career already has a shared wallet.');
-                next.ledgers[career.careerId] = new CareerLedger({ balance: input.balance }).snapshot();
-                return ok({ careerId: career.careerId, balance: input.balance, seq: 0 });
-            });
-        }
-        if (action === 'ledgerApply' || action === 'ledgerSince') {
-            const stored = data.ledgers[career.careerId];
-            if (!stored) return fail('not_found', 'This career has no shared wallet yet.');
-            if (action === 'ledgerSince') {
-                const restored = CareerLedger.restore(stored);
-                if (!restored.ok) return restored;
-                const events = restored.value.eventsSince(input.seq);
-                return events.ok ? ok({ balance: restored.value.balance, seq: restored.value.seq, events: events.value }) : events;
-            }
-            // One ordered writer: the ledger is re-read inside the transaction, so concurrent rooms serialize exactly.
-            return this.storage.transact(next => {
-                const restored = CareerLedger.restore(next.ledgers[career.careerId]);
-                if (!restored.ok) return restored;
-                const ledger = restored.value, applied = ledger.apply(input.command);
-                if (ledger.seq > LEDGER_EVENTS) ledger.compact(ledger.seq - LEDGER_EVENTS);
-                next.ledgers[career.careerId] = ledger.snapshot();
-                // Refusals are remembered durably too, so a retry cannot succeed later; the request still reports the error.
-                if (applied.ok) return ok(applied.value);
-                return ['insufficient_funds', 'balance_limit'].includes(applied.error.code) ? { ...applied, commit: true } : applied;
-            });
-        }
         if (action === 'listSlots') return ok(Object.values(data.slots).filter(slot => slot.careerId === career.careerId));
         if (action === 'deleteCareer') return this.storage.transact(next => {
             delete next.careers[career.careerId];

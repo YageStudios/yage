@@ -11,8 +11,7 @@ const fingerprint = command => JSON.stringify([command.kind, command.amount, com
 
 export class CareerLedger {
     /** @param {{ balance?: number, seq?: number, maxBalance?: number, baseBalance?: number, events?: object[], results?: object }} [state] */
-    constructor({ balance = 0, seq = 0, maxBalance = Number.MAX_SAFE_INTEGER, baseBalance, events = [], results = {}, maxResults = 10000 } = {}) {
-        this.maxResults = maxResults;
+    constructor({ balance = 0, seq = 0, maxBalance = Number.MAX_SAFE_INTEGER, baseBalance, events = [], results = {} } = {}) {
         this.balance = balance; this.seq = seq; this.maxBalance = maxBalance;
         // Balance before the first retained event; replaying the log from it must reach the current balance.
         this.baseBalance = baseBalance ?? balance;
@@ -71,8 +70,6 @@ export class CareerLedger {
         }
         // Refusals are remembered too, so a retried purchase cannot succeed later after someone else spent.
         this.results.set(command.id, { fingerprint: print, ok: result.ok, result });
-        // Idempotency is guaranteed for the most recent maxResults commands; older keys are forgotten oldest first.
-        while (this.results.size > this.maxResults) this.results.delete(this.results.keys().next().value);
         return result;
     }
 
