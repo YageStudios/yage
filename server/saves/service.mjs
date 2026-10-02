@@ -12,6 +12,7 @@ const hashSecret = value => checksum(value);
 const sameSecret = (value, expected) => typeof value === 'string' && typeof expected === 'string' && /^[a-f0-9]{64}$/.test(expected)
     && timingSafeEqual(Buffer.from(hashSecret(value)), Buffer.from(expected));
 const profileKey = (gameId, personId) => `${gameId}:${personId}`;
+export const ROOM_TTL_MS = 45000;
 
 /** The only game-specific seam is an optional synchronous document validator. */
 export class SaveService {
@@ -21,6 +22,8 @@ export class SaveService {
         this.operatorHash = hashSecret(operatorCredential);
         this.validators = validators;
         this.now = now;
+        /** Who is playing a career right now: ephemeral, in memory, never saved. */
+        this.rooms = new Map();
     }
     authorize(database, familyId, credential, parentOnly = false, personId) {
         const family = Object.hasOwn(database.families, familyId) ? database.families[familyId] : undefined;
@@ -40,6 +43,22 @@ export class SaveService {
     }
     record(familyId, gameId, careerId, version, seq, doc) {
         return { familyId, gameId, careerId, version, seq, checksum: checksum(doc), doc: structuredClone(doc), updatedAt: this.now() };
+    }
+    /**
+     * Room presence lets a second family device join whoever is already playing. The host claims the career's room
+     * code and refreshes it; it lapses ROOM_TTL_MS after the last refresh. A different live code wins nothing: the caller
+     * is told the current room so it can join instead.
+     */
+    room(action, careerId, input) {
+        const now = this.now(), current = this.rooms.get(careerId), live = current && current.expiresAt > now ? current : null;
+        if (!live && current) this.rooms.delete(careerId);
+        if (action === 'getRoom') return ok(live);
+        if (typeof input.code !== 'string' || !/^[A-Z0-9]{4,12}$/.test(input.code)) return fail('invalid_request', 'A room code of 4–12 capital letters or digits is required.');
+        if (action === 'clearRoom') { if (live?.code === input.code) this.rooms.delete(careerId); return ok(null); }
+        if (live && live.code !== input.code) return { ok: false, error: { code: 'room_taken', message: 'Someone is already playing this career; join their room.' }, value: structuredClone(live) };
+        const room = { code: input.code, personId: typeof input.personId === 'string' ? input.personId.slice(0, 128) : null, expiresAt: now + ROOM_TTL_MS };
+        this.rooms.set(careerId, room);
+        return ok(room);
     }
     async request(action, input = {}) {
         if (!object(input)) return fail('invalid_request', 'Request payload must be an object.');
@@ -95,6 +114,7 @@ export class SaveService {
         const career = careerIdentifier(input.careerId) ? data.careers[input.careerId] : undefined;
         if (!career || !this.authorize(data, career.familyId, input.credential, ['deleteCareer', 'listSlots', 'promoteSlot'].includes(action))) return fail('unauthorized', 'Valid career and authorized family credential required.');
         if (action === 'getCareer') return ok(career);
+        if (['getRoom', 'setRoom', 'clearRoom'].includes(action)) return this.room(action, career.careerId, input);
         if (action === 'listSlots') return ok(Object.values(data.slots).filter(slot => slot.careerId === career.careerId));
         if (action === 'deleteCareer') return this.storage.transact(next => {
             delete next.careers[career.careerId];

@@ -1,4 +1,4 @@
-const actions = new Set(['createFamily', 'createMember', 'listCareers', 'getCareer', 'putCareer', 'deleteCareer', 'putOfflineCopy', 'listSlots', 'promoteSlot', 'getProfile', 'putProfile']);
+const actions = new Set(['createFamily', 'createMember', 'listCareers', 'getCareer', 'putCareer', 'deleteCareer', 'putOfflineCopy', 'listSlots', 'promoteSlot', 'getProfile', 'putProfile', 'getRoom', 'setRoom', 'clearRoom']);
 
 /** Acknowledgements carry error values. Save messages never enter relay/game rooms. */
 export function attachSaveApi(io, service) {

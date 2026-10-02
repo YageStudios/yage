@@ -181,3 +181,19 @@ test('CLI startup, SIGTERM shutdown and restart preserve durable state and relea
   let output='';child.stderr.on('data',data=>output+=data);child.on('exit',code=>resolve({code,output}));
  });assert.equal(invalid.code,1);assert.match(invalid.output,/private operator credential/);
 });
+
+test('room presence: the first host claims a career room, others are pointed at it, and it lapses without refresh',async t=>{
+ let now=1000;const ctx=await setup(t,{now:()=>now});const career=(await newCareer(ctx)).value;
+ const room=(action,input={})=>ctx.service.request(action,{careerId:career.careerId,credential:ctx.memberCredential,...input});
+ assert.deepEqual(await room('getRoom'),{ok:true,value:null});
+ assert.equal((await room('setRoom',{code:'bad code'})).error.code,'invalid_request');
+ const claimed=await room('setRoom',{code:'ABC234',personId:'host'});assert.equal(claimed.ok,true);assert.equal(claimed.value.expiresAt,1000+45000);
+ const other=await room('setRoom',{code:'XYZ789'});assert.equal(other.error.code,'room_taken');assert.equal(other.value.code,'ABC234');
+ now+=30000;assert.equal((await room('setRoom',{code:'ABC234',personId:'host'})).value.expiresAt,31000+45000);
+ assert.equal((await room('getRoom')).value.code,'ABC234');
+ assert.equal((await room('clearRoom',{code:'XYZ789'})).ok,true);assert.equal((await room('getRoom')).value.code,'ABC234');
+ assert.equal((await room('clearRoom',{code:'ABC234'})).ok,true);assert.equal((await room('getRoom')).value,null);
+ await room('setRoom',{code:'ABC234'});now+=45001;assert.equal((await room('getRoom')).value,null);
+ assert.equal((await room('setRoom',{code:'XYZ789'})).ok,true);
+ assert.equal((await ctx.service.request('getRoom',{careerId:career.careerId,credential:'wrong'})).error.code,'unauthorized');
+});
