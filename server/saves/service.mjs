@@ -111,10 +111,16 @@ export class SaveService {
             const careerId = input.careerId ?? randomUUID();
             return this.storage.transact(next => { if (Object.hasOwn(next.careers, careerId)) return fail('stale_seq', 'Career was created by another request.'); const career = this.record(input.familyId, input.gameId, careerId, input.version, 1, input.doc); next.careers[careerId] = career; return ok(career); });
         }
+        // Presence works before the first save creates the career, so it is authorized by family, not by career record.
+        if (['getRoom', 'setRoom', 'clearRoom'].includes(action)) {
+            if (!careerIdentifier(input.careerId) || !this.authorize(data, input.familyId, input.credential)) return fail('unauthorized', 'Valid career ID and family credential required.');
+            const existing = data.careers[input.careerId];
+            if (existing && existing.familyId !== input.familyId) return fail('unauthorized', 'Valid career ID and family credential required.');
+            return this.room(action, `${input.familyId}:${input.careerId}`, input);
+        }
         const career = careerIdentifier(input.careerId) ? data.careers[input.careerId] : undefined;
         if (!career || !this.authorize(data, career.familyId, input.credential, ['deleteCareer', 'listSlots', 'promoteSlot'].includes(action))) return fail('unauthorized', 'Valid career and authorized family credential required.');
         if (action === 'getCareer') return ok(career);
-        if (['getRoom', 'setRoom', 'clearRoom'].includes(action)) return this.room(action, career.careerId, input);
         if (action === 'listSlots') return ok(Object.values(data.slots).filter(slot => slot.careerId === career.careerId));
         if (action === 'deleteCareer') return this.storage.transact(next => {
             delete next.careers[career.careerId];

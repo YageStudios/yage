@@ -184,7 +184,7 @@ test('CLI startup, SIGTERM shutdown and restart preserve durable state and relea
 
 test('room presence: the first host claims a career room, others are pointed at it, and it lapses without refresh',async t=>{
  let now=1000;const ctx=await setup(t,{now:()=>now});const career=(await newCareer(ctx)).value;
- const room=(action,input={})=>ctx.service.request(action,{careerId:career.careerId,credential:ctx.memberCredential,...input});
+ const room=(action,input={})=>ctx.service.request(action,{careerId:career.careerId,familyId:ctx.familyId,credential:ctx.memberCredential,...input});
  assert.deepEqual(await room('getRoom'),{ok:true,value:null});
  assert.equal((await room('setRoom',{code:'bad code'})).error.code,'invalid_request');
  const claimed=await room('setRoom',{code:'ABC234',personId:'host'});assert.equal(claimed.ok,true);assert.equal(claimed.value.expiresAt,1000+45000);
@@ -195,5 +195,11 @@ test('room presence: the first host claims a career room, others are pointed at 
  assert.equal((await room('clearRoom',{code:'ABC234'})).ok,true);assert.equal((await room('getRoom')).value,null);
  await room('setRoom',{code:'ABC234'});now+=45001;assert.equal((await room('getRoom')).value,null);
  assert.equal((await room('setRoom',{code:'XYZ789'})).ok,true);
- assert.equal((await ctx.service.request('getRoom',{careerId:career.careerId,credential:'wrong'})).error.code,'unauthorized');
+ assert.equal((await ctx.service.request('getRoom',{careerId:career.careerId,familyId:ctx.familyId,credential:'wrong'})).error.code,'unauthorized');
+ // Presence works before the career's first save, and never across families.
+ assert.equal((await ctx.service.request('setRoom',{careerId:'not-saved-yet',familyId:ctx.familyId,credential:ctx.memberCredential,code:'NEW234'})).ok,true);
+ assert.equal((await ctx.service.request('getRoom',{careerId:'not-saved-yet',familyId:ctx.familyId,credential:ctx.memberCredential})).value.code,'NEW234');
+ const otherFamily=(await ctx.service.request('createFamily',{operatorCredential})).value;
+ assert.equal((await ctx.service.request('getRoom',{careerId:career.careerId,familyId:otherFamily.familyId,credential:otherFamily.memberCredential})).error.code,'unauthorized');
+ assert.equal((await ctx.service.request('getRoom',{careerId:'bad id!',familyId:ctx.familyId,credential:ctx.memberCredential})).error.code,'unauthorized');
 });
