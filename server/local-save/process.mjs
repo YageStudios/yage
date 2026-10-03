@@ -103,11 +103,13 @@ export async function stop(root = defaultRoot) {
 async function run(root) {
     const config = JSON.parse(await readFile(join(root, 'config.json'), 'utf8'));
     const { operatorCredential } = JSON.parse(await readFile(join(root, 'operator.json'), 'utf8'));
-    const result = await startSaveServer({ directory: join(root, 'data'), operatorCredential, port: config.port, host: '127.0.0.1' });
+    // config.json may set `host` (e.g. this computer's LAN address) so family devices can reach the server; default is loopback only.
+    const host = typeof config.host === 'string' && config.host ? config.host : '127.0.0.1';
+    const result = await startSaveServer({ directory: join(root, 'data'), operatorCredential, port: config.port, host });
     if (!result.ok) { console.error(result.error.message); process.exitCode = 1; return; }
     const schedule = await startDailyBackups(root, { intervalMs: config.backupIntervalMs });
     if (!schedule.ok) { await result.close(); console.error(schedule.error); process.exitCode = 1; return; }
-    const url = `http://127.0.0.1:${result.server.address().port}`;
+    const url = `http://${host}:${result.server.address().port}`;
     try { await atomicWrite(join(root, 'process.json'), JSON.stringify({ pid: process.pid, url, backupIntervalMs: schedule.intervalMs })); }
     catch { await schedule.stop(); await result.close(); console.error('Cannot write private process metadata; the server was stopped.'); process.exitCode = 1; return; }
     let closing = false;
