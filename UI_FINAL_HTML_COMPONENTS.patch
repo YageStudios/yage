@@ -1,0 +1,2895 @@
+diff --git a/docs/ui-final/HTML_COMPONENTS.md b/docs/ui-final/HTML_COMPONENTS.md
+new file mode 100644
+index 0000000..33f6887
+--- /dev/null
++++ b/docs/ui-final/HTML_COMPONENTS.md
+@@ -0,0 +1,256 @@
++# UI Final: stateful HTML components and world surfaces
++
++## Scope
++
++This extension is built against the supplied **integrated** Sky Harbor engine archive, not the earlier UI Final prototype. It keeps the existing scene ownership, scheduler, asset compiler, input bridge, normal widgets, and package entry point. There is no second UI runtime, iframe, independent binding system, or new production dependency.
++
++The two additions are independent:
++
++- `defineHTMLComponent` turns project-authored HTML/CSS plus a small TypeScript adapter into a retained UI Final component.
++- `WorldSurface` projects any retained UI Final content onto an affine surface. The included airport uses a true 30-degree isometric wall.
++
++The airport is an interactive presentation demo, not a complete idle-game simulation. Its terminal is procedural SVG and its billboard is live DOM, both positioned with the same projection math. Its balance, passenger count, and gate capacity are illustrative values.
++
++## 1. Author a custom component
++
++```ts
++import { defineHTMLComponent, signal, UIFinal } from "yage/ui/final";
++
++interface GateState {
++  name: string;
++  passengers: number;
++}
++interface GateEvents {
++  board: { gate: string };
++}
++
++const GatePanel = defineHTMLComponent<GateState, GateEvents>({
++  name: "airport/gate-panel",
++  template: `
++    <section>
++      <h2 id="name"></h2>
++      <p><output id="count"></output> passengers waiting</p>
++      <button id="board" type="button">Start boarding</button>
++    </section>
++  `,
++  styles: `
++    :host { display: block; color: #eee; }
++    section { padding: 20px; background: #17242a; }
++    button { margin-top: 12px; }
++  `,
++  setup(ctx) {
++    const name = ctx.query("#name");
++    const count = ctx.query("#count");
++    ctx.bind(() => ctx.state.get().name, value => {
++      name.textContent = value;
++    });
++    ctx.bind(() => ctx.state.get().passengers, value => {
++      count.textContent = String(value);
++    });
++    ctx.listen(ctx.query("#board"), "click", () => {
++      ctx.emit("board", { gate: ctx.state.peek().name });
++    });
++  },
++});
++
++const gate = signal<GateState>({ name: "A12", passengers: 26 });
++const ui = new UIFinal();
++ui.mount(GatePanel({
++  id: "gate-a12",
++  state: gate,
++  events: { board: detail => console.log("Boarding requested", detail.gate) },
++}));
++gate.update(previous => ({ ...previous, passengers: 31 }));
++// At the end of this screen: ui.dispose().
++```
++
++`GatePanel(...)` returns a `Child`, just like `Button(...)`. It works in normal containers, conditional regions, keyed lists, virtual lists, modal content, and world surfaces. An application signal, computed value, getter, or static state value can be supplied. The component receives a read-only `Readable<S>`, not ownership of the game's state.
++
++Use immutable state updates. Mutating a field inside the object returned by `peek()` does not notify the reactive graph. The default standalone scheduler flushes on a microtask; a scene-owned manual runtime flushes through its existing presentation ticker. `ui.flush()` is available for deterministic tests and explicit synchronization.
++
++### Retention contract
++
++The definition object and key identify a mounted component. Changing its state, host properties, or event callbacks patches the existing instance. Setup runs once, and no HTML is reparsed for a normal state update. Changing the definition identity or key remounts it. Define components at module scope, not inside a repeatedly evaluated binding.
++
++Templates are cached per definition and browser `Document`, then cloned for each instance. A runtime using an application-owned HTML policy parses through that policy instead of reusing a cache from another policy. An open shadow root gives each instance its own IDs and stylesheet scope. Inherited typography and CSS custom properties remain available for theming. Engine defaults occupy a lower-priority CSS layer inside the island, so component styles can override ordinary buttons without fighting engine selector specificity.
++
++UI Final owns the host element. The component owns its shadow contents. Do not replace the host, attach another shadow root, or let a third-party renderer modify UI Final's surrounding child ranges.
++
++## 2. Setup context and lifecycle
++
++| API | Contract |
++| --- | --- |
++| `host`, `root`, `document` | The retained host, open `ShadowRoot`, and its owner document. |
++| `state` | Read-only reactive state. `get()` tracks; `peek()` does not. |
++| `query<T>(selector)` | Instance-local lookup; a missing reference throws `UIF_HTML_SELECTOR`. |
++| `bind(source, update, equals?)` | Immediate initial update, then scheduler-owned changes with selector equality. The update callback is untracked. Returns an early-disposal function. |
++| `effect(fn)` | An owned reactive effect, optionally returning cleanup per execution. |
++| `listen(target, type, callback, options?)` | Owned native or custom DOM listener. Native callbacks are checked against the runtime's input ownership. |
++| `emit(name, detail)` | Calls the latest typed component-event handler. An emission after disposal is ignored. |
++| `onFrame(callback)` | Registers with `ui.frame(dtMs)`, not a private RAF. Returns cancellation. Remove idle work. |
++| `onCleanup(callback)` | Registers cleanup and returns an idempotent early-disposal function. |
++| `abortSignal` | Aborted when the component is removed; useful for fetches and external work. |
++| `reducedMotion` | The same read-only preference used by the runtime. |
++| `mount(target, child)` | Mounts an ordinary UI Final child into an owned interior element. Returns an updatable, disposable view. |
++| `refreshFocus()` | Immediately rescans native controls after structural changes. |
++
++Everything registered through this context belongs to the component scope. Removing an island stops its subscriptions, listeners, registered frame callbacks, focus entries, observers, nested UI views, and abortable operations. Setup can also return cleanup. A cleanup failure does not prevent the scope from attempting its remaining cleanup. Attempts to register a resource after disposal clean up that resource and report a disposed-scope error.
++
++A third-party widget must still expose its own destruction function. Register it through `onCleanup`; UI Final cannot automatically discover private global timers or subscriptions created by arbitrary library code. For asynchronous work, use `abortSignal`, verify that the scope is still alive, and avoid updating detached DOM. A component listener throwing is reported through the runtime's normal error path. Author setup failures are cleaned up and rethrown; arbitrary user code is not transactionally reversible.
++
++### Embedding normal UI inside HTML
++
++```ts
++setup(ctx) {
++  ctx.mount(ctx.query(".controls"), Button({
++    on: { activate: () => ctx.emit("confirm", { accepted: true }) },
++  }, "Confirm"));
++}
++```
++
++Import `Button` and declare the corresponding event type. Use this path for UI Final's existing two-way `TextInput` binding when preserving its IME behavior is preferable to writing a native-input adapter. With a directly authored input, use native input/composition events; do not assign `input.value` on unrelated state updates or interrupt composition.
++
++## 3. Bring in an existing HTML design
++
++`sky-harbor-splitflap.html` remains unchanged in this patch. Its split-cell geometry, perspective/rotation transform, falling flap, landing bounce, character advancement, and shading were adapted in `examples/ui-final-airport/split-flap.ts`. The page's demo controls, global IDs, global state, and per-cell callbacks were not executed inside the game.
++
++For another project-authored HTML asset:
++
++```ts
++import source from "./artist-panel.html?raw"; // Vite raw asset import
++import { extractHTMLComponent, defineHTMLComponent } from "yage/ui/final";
++
++const fragment = extractHTMLComponent(source, ".artist-panel");
++const ArtistPanel = defineHTMLComponent<GateState>({
++  name: "airport/artist-panel",
++  template: fragment.template,
++  styles: fragment.styles,
++  setup(ctx) {
++    ctx.bind(() => ctx.state.get().name, value => {
++      ctx.query(".gate-name").textContent = value;
++    });
++  },
++});
++```
++
++Extraction requires a browser `Document`. It selects the requested fragment and returns stylesheet text without executing surrounding scripts. Selected active markup is rejected. It is not a whole-web-page importer and does not translate a page's JavaScript into a reactive component.
++
++Adapt `body`, `html`, and `:root` CSS selectors to `:host` or a local wrapper. Remove fixed viewport sizing and page-only styling. Replace `document.getElementById` with `ctx.query`, port imperative startup into `setup`, expose dynamic data as state, and expose game interactions as typed events. The host `ref` refers to the normal UI host; use `setup` for access to initialized shadow contents.
++
++Resolve image/font URLs through your application's asset pipeline. A raw HTML string's relative URLs resolve in the embedding document, not relative to the original source file. External stylesheets are not fetched by extraction; bundle them as component CSS. The delivered airport is entirely local and uses system fonts, not a copied font file.
++
++### Trust boundary
++
++These are **trusted project components**, not a sandbox for player-supplied HTML. Templates reject scripts, inline handlers, embedded browsing contexts, document metadata, reserved engine attributes, and hazardous URL schemes before connection. This is a guardrail, not an HTML/CSS sanitizer. Component setup executes with application privileges. Authored CSS can load resources allowed by the application's policy; custom elements can run registered application code. Do not interpolate untrusted data into templates or styles; bind text through `textContent`.
++
++`UIFinalOptions.htmlPolicy` accepts an application-owned `createHTML` policy, including actual `TrustedHTML` objects. No permissive Trusted Types policy is created automatically. `styleNonce` is propagated to engine-owned shadow styles; your application must separately allow any inline styles or resources it uses. The offline demonstration permits inline script/style and disallows external resource loads; it is not an example of a nonce-only production CSP.
++
++## 4. Input, focus, and accessibility
++
++Native buttons, inputs, text areas, selects, links, and opted-in focusable elements are registered with UI Final. Their stable focus IDs are `hostId/localId`, using `data-focus`, an element ID, or a generated identity. For example:
++
++```ts
++ui.focus.focus("departure-board/flight-sh218");
++ui.focus.navigate("accept");
++```
++
++The internal control is not added to `ui.element()`'s host-ID map. Use `ui.element("departure-board")!.shadowRoot` or `ctx.query` to retrieve it.
++
++Composed-tree event targeting preserves the actual inner control rather than treating every event as a click on the host. Controller accept produces the native button/checkbox behavior once. Keyboard editing, caret movement, IME handling, pointer capture, inherited disabled/player restrictions, modal ownership, and scoped focus work across the shadow boundary. Key releases needed to clear held gameplay inputs retain the existing input-bridge behavior. Keyed host moves restore deep native focus. Virtual navigation realizes offscreen HTML controls before moving focus.
++
++A scoped MutationObserver discovers native controls added or removed later, without rescanning on text-only glyph changes. Call `refreshFocus()` after synchronous structural changes that must be navigable immediately. Give controls stable local identifiers and avoid duplicates. A closed third-party shadow root's internals are not automatically discoverable; expose an appropriate host control or adapt that widget explicitly.
++
++The split-flap board has semantic flight-row buttons with complete labels and selection state. The decorative animated character halves are hidden from assistive technology rather than announcing every intermediate glyph. This is behavior coverage, not a completed screen-reader certification. At small world scales, physical rows are too small for reliable finger targeting; the demo provides a front inspection view. The mobile test selects a flight through that view.
++
++## 5. Register HTML components in UI assets
++
++The existing `ui-final/1` schema gains a registered component node:
++
++```json
++{
++  "schema": "ui-final/1",
++  "root": {
++    "component": "DepartureBoard",
++    "state": { "$bind": "airport.board" },
++    "props": { "id": "departure-board" },
++    "events": { "selectFlight": "selectAirportFlight" }
++  }
++}
++```
++
++```ts
++mountDocument(ui, asset, {
++  model,
++  components: { DepartureBoard: SplitFlapBillboard },
++  componentActions: {
++    selectAirportFlight: ({ id }) => commands.enqueue(0, "select-flight", { id }),
++  },
++});
++```
++
++`SplitFlapBillboard` is the included example module, not a game-specific engine export. `componentActions` receive component data; existing `actions` keep receiving `UIEvent` objects. Component code is registered in TypeScript, never evaluated from JSON. Registration/action references are checked before mounting or reload, including inactive branches. Normal host-property and repeated-ID restrictions apply. Static state is literal JSON; a top-level `$bind` selects the whole state object. Nested `$bind` objects inside literal state are not automatically expanded.
++
++Parser/reference failures preserve the current document. A throwing component setup or other arbitrary application code is not a rollback transaction. Registry payloads cross a dynamically typed asset boundary: validate gameplay intent before applying authoritative changes.
++
++## 6. Put the component on a wall
++
++```ts
++import { signal, WorldSurface, isometricSurface } from "yage/ui/final";
++import {
++  SplitFlapBillboard, BILLBOARD_WIDTH, BILLBOARD_HEIGHT,
++  type BillboardState,
++} from "./split-flap";
++
++const board = signal<BillboardState>({
++  title: "SKY HARBOR", message: "GATE A12 OPEN", powered: true,
++  flights: [{
++    id: "sh218", flight: "SH218", destination: "SEOUL",
++    gate: "A12", status: "BOARDING",
++  }],
++});
++const camera = signal({ origin: { x: 585, y: 225 }, zoom: 1 });
++
++// scene is your existing Scene. It owns the presentation clock and disposal.
++scene.mountUIFinal(WorldSurface({
++  pose: () => isometricSurface({
++    position: { x: 48, y: 1, z: 180 },
++    width: BILLBOARD_WIDTH,
++    height: BILLBOARD_HEIGHT,
++    worldUnitsPerPixel: 0.535,
++    plane: "wall-x",
++    camera: camera.get(),
++  }),
++}, SplitFlapBillboard({
++  id: "departure-board", state: board,
++  events: { selectFlight: ({ id }) => commands.enqueue(0, "select-flight", { id }) },
++})));
++
++board.update(previous => ({ ...previous, message: "FINAL CALL FOR SEOUL" }));
++```
++
++For an already-mounted screen, compose the surface into that screen's tree; calling `mountUIFinal` again reconciles/replaces its content, rather than appending a second independent root. Use the existing application's overlay host and scene lifecycle.
++
++`SurfacePose` provides the local width/height, projected origin, and projected displacement across each complete axis. The generated affine transform is `matrix(a,b,c,d,e,f)`, where `a,b = xAxis/width`, `c,d = yAxis/height`, and `e,f = origin`. Coordinates are CSS pixels in the positioned parent. Do not multiply them again by device pixel ratio. `surfaceToLocal` inverts this transform for engine-side coordinate conversion; normal browser hit-testing already handles the transformed DOM. Convert viewport coordinates into the surface parent's coordinate system before calling that helper.
++
++`projectIsometric` uses `screenX = originX + (x-y)*sqrt(3)/2*zoom` and `screenY = originY + ((x+y)/2-z)*zoom`. `wall-x`, `wall-y`, and `floor` orientations are supported. Supply a custom `SurfacePose` to use another affine camera mapping. Projected axes must have nonzero area. Visibility and z-index are reactive pose properties; hide or remove a surface when gameplay requires it.
++
++**Rendering boundary:** this is a DOM world overlay, not an HTML-to-Pixi texture, GPU mesh, or perspective camera renderer. It does not participate in Pixi's depth sorting, lighting, canvas capture, or a 3D depth buffer. The game must supply occlusion/visibility and overlay ordering. The airport draws foreground objects away from the board. Do not infer general 3D occlusion from that scene.
++
++## 7. Split-flap implementation and verification
++
++The sample exposes title, message, up to four keyed flights, selected flight ID, power, and milliseconds per flap. Its native dimensions are 940 × 316 CSS pixels. Fields contain 10 title characters, 24 announcement characters, and 5/12/3/9 characters per flight/destination/gate/status. Longer display strings are truncated to those fields; semantic row labels retain the supplied full values. Applications needing other board sizes should extend the component layout and state validation together.
++
++Initial mount is settled. A changed field animates its retained cells; unchanged fields do not restart. Retargeting finishes the current physical flap and proceeds to the newest destination. One clock owns all active cells of a board. It unregisters when idle, on reduced motion, on power-off, or disposal. Reduced motion and offline updates snap to the latest target without pending animation work. Native row identity and focus survive flight reordering.
++
++The board exposes `data-animated-cells`, `data-flips`, and `data-state-commits` for inspection. `ui.frameTaskCount` includes active HTML clocks and other runtime frame tasks. Existing renderer statistics count renderer-owned nodes/writes, not every DOM mutation inside a custom component; do not treat them as a complete GPU or layout profiler.
++
++Run the demo and validation commands in `examples/ui-final-airport/README.md`. Detailed measured outcomes and explicit verification limits are in `HTML_COMPONENTS_VALIDATION.md`.
++
++### Browser references
++
++These references explain browser mechanics used by the implementation; they are not performance guarantees:
++
++- MDN, `Event.composedPath`: https://developer.mozilla.org/en-US/docs/Web/API/Event/composedPath
++- MDN, `Event.composed`: https://developer.mozilla.org/en-US/docs/Web/API/Event/composed
++- MDN, `ShadowRoot.innerHTML` and injection concerns: https://developer.mozilla.org/en-US/docs/Web/API/ShadowRoot/innerHTML
++- MDN, `matrix3d`: https://developer.mozilla.org/en-US/docs/Web/CSS/transform-function/matrix3d
+diff --git a/docs/ui-final/HTML_COMPONENTS_VALIDATION.md b/docs/ui-final/HTML_COMPONENTS_VALIDATION.md
+new file mode 100644
+index 0000000..c6ea13e
+--- /dev/null
++++ b/docs/ui-final/HTML_COMPONENTS_VALIDATION.md
+@@ -0,0 +1,83 @@
++# HTML component extension: validation
++
++## Baseline and environment
++
++Baseline: the newly supplied integrated `Sky-Harbor-context.zip` containing `yage/sky-harbor-splitflap.html` and the already integrated UI Final runtime. The patch does not depend on applying the previous UI Final delivery first. The original split-flap HTML is unchanged.
++
++Validation environment: Node 22.16.0, TypeScript 5.8.3, Chromium 144.0.7559.96, and an installed Playwright driver. Browser fixtures and the demo are bundled locally and loaded without external assets. Tests use a real browser DOM, shadow roots, layout, animation, native dialog behavior, and input events; they are not jsdom-only tests.
++
++## Results
++
++| Check | Result |
++| --- | --- |
++| `npm run test:ui-final` | 54 passed, 0 failed, 0 skipped. |
++| `npm run test:ui-final:browser` | 41 passed, 0 failed; existing regression suite. |
++| `npm run test:ui-final:html` | 48 passed, 0 failed; new HTML/surface/airport browser suite. |
++| Isolated strict TypeScript build and declaration emission | Passed. |
++| Offline airport demo bundling | Passed. |
++| Patch against a pristine extraction of the new archive | Clean apply and reverse-apply checks passed; all three suites rerun there. |
++| Exact standalone HTML artifact | Loaded and exercised in Chromium; real RAF animation settled correctly with no external requests. |
++| Full repository `npm run typecheck` | Blocked by missing `vite/client`; see limitations below. |
++
++Total: **143 passing checks** across the three suites, including the original 85 checks. Test assertions cover behavior and bounded work, not an end-to-end performance budget. Per-check runtime values in the raw reports are test timings, not reliable shipping frame-time benchmarks.
++
++## What is exercised
++
++The added core tests cover component definition identity and immutability, validation, isometric axis geometry, wall-x/wall-y/floor transforms and their inverse, invalid/collapsed projections, retained reactive surface properties, and registered asset compilation. Literal state containing fields named `component`, `type`, or `events` is not misidentified as another document node.
++
++The added browser unit checks cover independent instances; retained inputs/caret; scoped CSS and override precedence; field-selector equality; replacement state sources; updated event handlers; keyed deep focus retention; synchronous virtual-row realization; definition replacement; hidden/disabled/player guards; light/shadow focus order; focus scopes; native modal ownership and restoration; player-aware checkbox defaults; the engine's input bridge; native editing/IME paths; nested UI Final children; dynamic native-control registration and rename/removal; duplicate local IDs; shadow-descendant animation ownership; setup/disposal failures; late cleanup; markup guardrails; extraction; safe text insertion; application policy/nonce propagation; registered document reload; surface-pose changes; and idle behavior.
++
++The runner separately performs actual browser typing and caret movement, Enter/Space activation, mouse clicking, touch tapping, Tab traversal, and pointer capture while dragging beyond the control's bounds. Controller coverage uses the engine InputManager bridge with injected controller events, not a physical controller.
++
++A separate browser document enables actual Trusted Types enforcement (`require-trusted-types-for 'script'`). A component mounts and updates with the application policy, while mounting without a policy fails as expected. The primary test document disallows `unsafe-eval` and external resource loads.
++
++## Split-flap and demo assertions
++
++- The default board creates **150 retained cells** and starts with **zero active component frame tasks**.
++- An announcement change uses **one board animation task**, retains every cell, and leaves flight markup unchanged.
++- Rapid updates settle to the latest target; active work never grows to one timer per cell.
++- Reduced motion and power-off release the task and display the latest target without pending animation.
++- Reordering flight records retains native row nodes and focus; removing a row releases its focus registration.
++- Two instances have separate DOM, state, and animation work.
++- Removing an actively animating board leaves zero active tasks and no queued bindings or later DOM mutations.
++- Invalid flight IDs/counts are reported before partially modifying flight rows.
++- The HTML idle fixture advances **1,000 presentation frames** with unchanged markup, no new binding execution, and no active frame callbacks.
++- Actual mouse hit-testing on the angled wall selects the intended flight. Gate changes, announcements, and departure refreshes consume commands into state without remounting the board.
++- Isometric/front-inspection switching and zoom retain the original board host.
++- At **390 × 844**, the layout has no horizontal page overflow, and actual touch selection works in the front inspection view.
++- Disposal during demo animation releases the runtime root, focus entries, owned resources, and frame callbacks without unhandled browser exceptions.
++
++Desktop (1440 × 1040), front-inspection, and mobile screenshots are generated from the running demo. They are not concept renders. The small angled mobile rows are not claimed to be reliable finger-sized targets; use the inspection control.
++
++## Reproduction
++
++```sh
++npm run test:ui-final
++UI_FINAL_BROWSER=/path/to/chromium npm run test:ui-final:browser
++UI_FINAL_BROWSER=/path/to/chromium \
++UI_FINAL_SCREENSHOT_DIR=test-reports/airport \
++npm run test:ui-final:html
++npm run demo:ui-final:airport
++```
++
++The browser runner normally imports `playwright-core`. To use an existing compatible installation, set `UI_FINAL_PLAYWRIGHT_MODULE` to its module path. No environment-specific installation path is hard-coded into the committed scripts.
++
++The isolated builder clears `.ui-final-build` before building. Generate the offline HTML last. The delivery includes command transcripts in `test-reports/`; no browser or dependency binaries are bundled.
++
++## Verification limits
++
++The repository-wide typecheck stops with:
++
++```text
++error TS2688: Cannot find type definition file for 'vite/client'.
++The file is in the program because:
++  Entry point of type library 'vite/client' specified in compilerOptions
++```
++
++The uploaded archive has no installed full engine dependency tree. Therefore this report does not claim a passed full Vite/Pixi/game build or complete repository test suite. The isolated UI Final build includes the new runtime code and demo, and the existing controlled Scene/UiLoader integration tests pass, but those are not a substitute for the full engine CI environment.
++
++The container browser blocks navigation to file and localhost URLs (`ERR_BLOCKED_BY_ADMINISTRATOR`). Browser checks therefore use Playwright `setContent` and local script injection. The additional artifact check loads the exact generated HTML, including its inline script and CSP, through `setContent`; it does not claim a successful file-URL or Vite-server navigation in this environment.
++
++Browser behavior was verified in the Chromium version above, not Safari, Firefox, a console runtime, or every embedded webview. Physical gamepad hardware, screen-reader certification, production font/loading behavior, graphics memory, mobile GPU timing, and long-duration load were not measured.
++
++The world surface is a transformed DOM overlay. It has no automatic game-world occlusion, GPU depth participation, texture export, or lighting. The procedural SVG demonstration does not validate Pixi integration beyond the retained scene/UI ownership seams already tested. Custom HTML remains trusted project code; active-markup checks are not an untrusted-content sanitizer.
+diff --git a/engine/ui/final/document.ts b/engine/ui/final/document.ts
+index 86a28eb..205b62f 100644
+--- a/engine/ui/final/document.ts
++++ b/engine/ui/final/document.ts
+@@ -1,3 +1,4 @@
++import type { HTMLComponent } from "./html";
+ import { dynamic, each, h, virtualList, type Child, type EventHandlers, type NodeType, type Props, type UIEvent, type UIEventType } from "./nodes";
+ import { getPath, pathSegments } from "./model";
+ import { read, type Readable, type Value } from "./reactive";
+@@ -26,12 +27,23 @@ export interface DocumentEach {
+   key?: string | number;
+   virtual?: { height: number; rowHeight: number; overscan?: number; label?: string };
+ }
+-export type DocumentNode = DocumentElement | DocumentWhen | DocumentEach | string | number;
++/** HTML code is registered in application TypeScript, never executed from a JSON asset. */
++export interface DocumentComponent {
++  component: string;
++  state: DocumentValue;
++  key?: string | number;
++  props?: Record<string, DocumentValue | Record<string, DocumentValue>>;
++  events?: Readonly<Record<string, string>>;
++}
++export type DocumentNode = DocumentElement | DocumentComponent | DocumentWhen | DocumentEach | string | number;
+ export interface UIDocument { schema: "ui-final/1"; root: DocumentNode; }
+ export interface DocumentBindings {
+   model: { select<V = unknown>(path: string): Readable<V> };
+   actions?: Readonly<Record<string, (event: UIEvent, args?: Readonly<Record<string, unknown>>) => void>>;
+   formatters?: Readonly<Record<string, (value: unknown) => string | number | boolean>>;
++  components?: Readonly<Record<string, HTMLComponent<any, any>>>;
++  /** Typed components emit data, not synthetic UIEvent objects. Keep these actions separate. */
++  componentActions?: Readonly<Record<string, (detail: any) => void>>;
+ }
+ export class DocumentError extends Error {
+   constructor(readonly code: string, readonly path: string, message: string) {
+@@ -113,6 +125,21 @@ export function parseDocument(input: string | unknown): UIDocument {
+     if (typeof node === "string" || typeof node === "number") return;
+     const record = object(node, path);
+     if (record.key !== undefined && typeof record.key !== "string" && typeof record.key !== "number") fail("UIF_DOCUMENT_KEY", path, "key must be string or number");
++    if ("component" in record) {
++      keys(record, ["component", "state", "props", "events", "key"], path);
++      if (typeof record.component !== "string" || !/^[A-Za-z][\w./-]*$/.test(record.component)) fail("UIF_DOCUMENT_COMPONENT", path, "expected a registered component name");
++      if (!("state" in record)) fail("UIF_DOCUMENT_COMPONENT", `${path}.state`, "state is required");
++      validateValue(record.state, `${path}.state`);
++      if (record.events !== undefined) for (const [event, action] of Object.entries(object(record.events, `${path}.events`))) {
++        if (!/^[A-Za-z][\w:-]*$/.test(event) || typeof action !== "string" || !action) fail("UIF_DOCUMENT_COMPONENT_EVENT", `${path}.events.${event}`, "expected an event-to-action name mapping");
++      }
++      if (record.props !== undefined) for (const name of Object.keys(object(record.props, `${path}.props`))) {
++        if (!["id", "class", "style", "attrs", "disabled", "hidden", "title", "label", "describedBy", "role", "lang", "dir", "focusable", "autoFocus", "players", "navigation", "focusScope", "interactive"].includes(name)) fail("UIF_DOCUMENT_PROP", `${path}.props.${name}`, "not a component host property");
++      }
++      // Reuse normal host property/ID validation rather than maintaining a weaker second parser.
++      visit({ type: "panel", ...(record.key !== undefined ? { key: record.key } : {}), ...(record.props !== undefined ? { props: record.props } : {}) }, path, depth + 1, repeated);
++      return;
++    }
+     if ("when" in record) {
+       keys(record, ["when", "then", "else", "key"], path);
+       if (!binding(record.when)) fail("UIF_DOCUMENT_BINDING", `${path}.when`, "expected a binding");
+@@ -208,17 +235,26 @@ type Locals = Readonly<Record<string, Readable<unknown>>>;
+ export function compileDocument(input: UIDocument | unknown, bindings: DocumentBindings): Child {
+   const document = parseDocument(input);
+   // Validate all references, including inactive branches and repeated templates, before mounting any DOM.
+-  const preflight = (value: unknown, path: string): void => {
++  const preflight = (value: unknown, path: string, nodePosition = false): void => {
+     if (!value || typeof value !== "object") return;
+     if (binding(value) && value.format && !Object.prototype.hasOwnProperty.call(bindings.formatters ?? {}, value.format)) fail("UIF_DOCUMENT_FORMAT", path, `unregistered formatter ${value.format}`);
+     const record = value as Record<string, unknown>;
+-    if (typeof record.type === "string" && record.on) for (const [event, definition] of Object.entries(record.on as object)) {
++    if (nodePosition && typeof record.component === "string") {
++      if (!Object.prototype.hasOwnProperty.call(bindings.components ?? {}, record.component)) fail("UIF_DOCUMENT_COMPONENT", path, `unregistered component ${record.component}`);
++      for (const [event, action] of Object.entries(record.events as Record<string, string> ?? {})) {
++        if (!Object.prototype.hasOwnProperty.call(bindings.componentActions ?? {}, action)) fail("UIF_DOCUMENT_COMPONENT_ACTION", `${path}.events.${event}`, `unregistered component action ${action}`);
++      }
++    }
++    if (nodePosition && typeof record.type === "string" && record.on) for (const [event, definition] of Object.entries(record.on as object)) {
+       const name = typeof definition === "string" ? definition : (definition as { action: string }).action;
+       if (!Object.prototype.hasOwnProperty.call(bindings.actions ?? {}, name)) fail("UIF_DOCUMENT_ACTION", `${path}.on.${event}`, `unregistered action ${name}`);
+     }
+-    for (const [key, child] of Object.entries(record)) preflight(child, `${path}.${key}`);
++    for (const [key, child] of Object.entries(record)) {
++      if (nodePosition && key === "children" && Array.isArray(child)) child.forEach((node, index) => preflight(node, `${path}.children.${index}`, true));
++      else preflight(child, `${path}.${key}`, nodePosition && ["then", "else", "template"].includes(key));
++    }
+   };
+-  preflight(document.root, "$.root");
++  preflight(document.root, "$.root", true);
+   const value = (input: unknown, locals: Locals): unknown => {
+     if (!binding(input)) return input;
+     const parts = pathSegments(input.$bind);
+@@ -251,6 +287,10 @@ export function compileDocument(input: UIDocument | unknown, bindings: DocumentB
+       if (["style", "attrs"].includes(key)) props[key] = Object.fromEntries(Object.entries(source as object).map(([name, source]) => [name, value(source, locals)]));
+       else props[key] = value(source, locals);
+     }
++    if ("component" in node) {
++      const events = Object.fromEntries(Object.entries(node.events ?? {}).map(([event, action]) => [event, (detail: unknown) => bindings.componentActions![action](detail)]));
++      return bindings.components![node.component]({ ...props, key: node.key, state: value(node.state, locals), events });
++    }
+     const on: EventHandlers = {};
+     for (const [event, definition] of Object.entries(node.on ?? {})) {
+       const action = typeof definition === "string" ? definition : definition.action;
+diff --git a/engine/ui/final/dom.ts b/engine/ui/final/dom.ts
+new file mode 100644
+index 0000000..5486f28
+--- /dev/null
++++ b/engine/ui/final/dom.ts
+@@ -0,0 +1,78 @@
++/** Composed-tree helpers shared by retained views, native controls and HTML islands. */
++export function composedParent(element: Element): HTMLElement | null {
++    if (element.assignedSlot)
++        return element.assignedSlot;
++    if (element.parentElement)
++        return element.parentElement;
++    const root = element.getRootNode();
++    return "host" in root ? (root as ShadowRoot).host as HTMLElement : null;
++}
++export function composedContains(parent: Node, child: Node | null): boolean {
++    let current = child;
++    while (current) {
++        if (current === parent || parent.contains(current))
++            return true;
++        const root = current.getRootNode();
++        current = "host" in root ? (root as ShadowRoot).host : null;
++    }
++    return false;
++}
++export function composedClosest(element: Element, selector: string): HTMLElement | null {
++    let current: Element | null = element;
++    while (current) {
++        if (current.matches(selector))
++            return current as HTMLElement;
++        current = composedParent(current);
++    }
++    return null;
++}
++export function deepActiveElement(document: Document): HTMLElement | null {
++    let element = document.activeElement;
++    while (element?.shadowRoot?.activeElement)
++        element = element.shadowRoot.activeElement;
++    return element as HTMLElement | null;
++}
++export function eventElement(event: Event): HTMLElement | null {
++    const path = event.composedPath?.() ?? [];
++    const target = path.find(item => !!item && "nodeType" in item && (item as Node).nodeType === 1) ?? event.target;
++    return target && "nodeType" in target && (target as Node).nodeType === 1 ? target as HTMLElement : null;
++}
++/** Stable rendered-tree ordering even when compareDocumentPosition would return DISCONNECTED. */
++export function composedOrder(a: HTMLElement, b: HTMLElement): number {
++    if (a === b)
++        return 0;
++    const path = (element: HTMLElement) => {
++        const result: HTMLElement[] = [];
++        for (let node: HTMLElement | null = element; node; node = composedParent(node))
++            result.unshift(node);
++        return result;
++    };
++    const aa = path(a), bb = path(b);
++    let index = 0;
++    while (index < aa.length && index < bb.length && aa[index] === bb[index])
++        index++;
++    if (index === aa.length)
++        return -1;
++    if (index === bb.length)
++        return 1;
++    return aa[index].compareDocumentPosition(bb[index]) & 4 ? -1 : 1;
++}
++// Native .click() preserves checkbox/form default behavior. Carry controller ownership through
++// its synchronous event dispatch without pretending MouseEvent.detail is a player number.
++let nativePlayer: number | undefined;
++export function eventPlayer(event: Event): number {
++    const detail = (event as CustomEvent<{
++        player?: number;
++    }>).detail;
++    return nativePlayer ?? (detail && typeof detail === "object" ? detail.player ?? 0 : 0);
++}
++export function withInputPlayer<T>(player: number, fn: () => T): T {
++    const previous = nativePlayer;
++    nativePlayer = player;
++    try {
++        return fn();
++    }
++    finally {
++        nativePlayer = previous;
++    }
++}
+diff --git a/engine/ui/final/focus.ts b/engine/ui/final/focus.ts
+index bf53f42..d994ede 100644
+--- a/engine/ui/final/focus.ts
++++ b/engine/ui/final/focus.ts
+@@ -1,3 +1,4 @@
++import { composedParent, composedContains, composedClosest, composedOrder } from "./dom";
+ import type { Direction, NavigationAction } from "./nodes";
+ import type { Dispose } from "./reactive";
+ 
+@@ -27,18 +28,18 @@ export function spatialScore(from: Rect, to: Rect, direction: Direction): number
+   return Math.max(0, near) + cross * 4 + crossCenter * 0.1 + (cross > 0 ? 10000 : 0);
+ }
+ function blocked(element: HTMLElement, host: HTMLElement): boolean {
+-  if (!host.contains(element) || !element.isConnected) return true;
++  if (!composedContains(host, element) || !element.isConnected) return true;
+   let current: HTMLElement | null = element;
+   while (current) {
+     if (current.hidden || current.inert || current.getAttribute("aria-disabled") === "true" ||
+       ("disabled" in current && (current as HTMLButtonElement).disabled)) return true;
+     if (current === host) break;
+-    current = current.parentElement;
++    current = composedParent(current);
+   }
+   return false;
+ }
+ export function isEditable(element: Element | null): boolean {
+-  return !!element && (element.matches("input,textarea,select,[contenteditable=true]") || !!element.closest("[contenteditable=true]"));
++  return !!element && (element.matches("input,textarea,select,[contenteditable=true]") || !!composedClosest(element, "[contenteditable=true]"));
+ }
+ function rendered(element: HTMLElement): boolean {
+   const style = element.ownerDocument.defaultView!.getComputedStyle(element);
+@@ -51,7 +52,7 @@ function visibleRect(element: HTMLElement, host: HTMLElement): Rect | null {
+   const rect = element.getBoundingClientRect();
+   if (rect.width <= 0 || rect.height <= 0) return null;
+   let left = rect.left, top = rect.top, right = rect.right, bottom = rect.bottom;
+-  let parent = element.parentElement;
++  let parent = composedParent(element);
+   while (parent) {
+     const css = view.getComputedStyle(parent);
+     if (css.visibility === "hidden" || css.display === "none") return null;
+@@ -63,7 +64,7 @@ function visibleRect(element: HTMLElement, host: HTMLElement): Rect | null {
+       if (clipY) { top = Math.max(top, clip.top); bottom = Math.min(bottom, clip.bottom); }
+     }
+     if (parent === host) break;
+-    parent = parent.parentElement;
++    parent = composedParent(parent);
+   }
+   left = Math.max(0, left); top = Math.max(0, top);
+   right = Math.min(view.innerWidth, right); bottom = Math.min(view.innerHeight, bottom);
+@@ -103,17 +104,17 @@ export class FocusManager {
+       const allowed = ancestor.getAttribute("data-uif-allowed-players");
+       if (allowed !== null && !allowed.split(" ").filter(Boolean).map(Number).includes(player)) return false;
+       if (ancestor === this.host) break;
+-      ancestor = ancestor.parentElement;
++      ancestor = composedParent(ancestor);
+     }
+     const modal = this.currentModal;
+-    if (modal && !modal.contains(element)) return false;
++    if (modal && !composedContains(modal, element)) return false;
+     const entry = this.entries.get(element.dataset.uifFocusId ?? "");
+     const players = entry?.players();
+     return !players || players.includes(player);
+   }
+   private candidates(player: number, scope?: HTMLElement | null): FocusEntry[] {
+-    return [...this.entries.values()].filter(entry => this.allows(entry.element, player) && (!scope || scope.contains(entry.element)) && rendered(entry.element))
+-      .sort((a, b) => a.element === b.element ? 0 : a.element.compareDocumentPosition(b.element) & 4 ? -1 : 1);
++    return [...this.entries.values()].filter(entry => this.allows(entry.element, player) && (!scope || composedContains(scope, entry.element)) && rendered(entry.element))
++      .sort((a, b) => composedOrder(a.element, b.element));
+   }
+   private setCurrent(player: number, id: string | undefined): void {
+     this.pendingRepair.delete(player);
+@@ -135,7 +136,7 @@ export class FocusManager {
+     return true;
+   }
+   adopt(element: HTMLElement, player = 0): void {
+-    const target = element.closest<HTMLElement>("[data-uif-focus-id]");
++    const target = composedClosest(element, "[data-uif-focus-id]");
+     if (target && this.allows(target, player)) this.setCurrent(player, target.dataset.uifFocusId);
+   }
+   first(player = 0, scope?: HTMLElement): boolean {
+@@ -164,13 +165,13 @@ export class FocusManager {
+     if (input.tagName === "INPUT" && input.type === "range" && (action === "left" || action === "right")) {
+       const min = Number(input.min || 0), max = Number(input.max || 100), step = input.step === "any" ? 1 : Number(input.step || 1);
+       input.value = String(Math.max(min, Math.min(max, Number(input.value) + (action === "right" ? step : -step))));
+-      input.dispatchEvent(new input.ownerDocument.defaultView!.CustomEvent("input", { bubbles: true, detail: { player } }));
+-      input.dispatchEvent(new input.ownerDocument.defaultView!.CustomEvent("change", { bubbles: true, detail: { player } }));
++      input.dispatchEvent(new input.ownerDocument.defaultView!.CustomEvent("input", { bubbles: true, composed: true, detail: { player } }));
++      input.dispatchEvent(new input.ownerDocument.defaultView!.CustomEvent("change", { bubbles: true, composed: true, detail: { player } }));
+       return true;
+     }
+     const override = current.navigation()[action];
+     if (override && this.focus(override, player)) return true;
+-    const scope = current.element.closest<HTMLElement>("[data-uif-focus-scope]");
++    const scope = composedClosest(current.element, "[data-uif-focus-scope]");
+     const candidates = this.candidates(player, scope);
+     if (action === "next" || action === "previous") {
+       const index = candidates.indexOf(current);
+@@ -181,7 +182,7 @@ export class FocusManager {
+       return !!entry && this.focus(entry.id, player);
+     }
+     for (const virtual of this.virtuals) {
+-      if (virtual.element.contains(current.element) && virtual.moveFrom(current.element, action, player)) return true;
++      if (composedContains(virtual.element, current.element) && virtual.moveFrom(current.element, action, player)) return true;
+     }
+     const from = visibleRect(current.element, this.host);
+     if (!from) return this.first(player);
+@@ -200,7 +201,7 @@ export class FocusManager {
+     const target = this.currentElement(player);
+     if (!target || !this.allows(target, player) || !rendered(target)) return false;
+     const EventClass = target.ownerDocument.defaultView!.CustomEvent;
+-    target.dispatchEvent(new EventClass(type, { bubbles: true, cancelable: true, detail: { player } }));
++    target.dispatchEvent(new EventClass(type, { bubbles: true, composed: true, cancelable: true, detail: { player } }));
+     return true;
+   }
+   pushModal(element: HTMLElement, autoFocus = true): Dispose {
+diff --git a/engine/ui/final/html.ts b/engine/ui/final/html.ts
+new file mode 100644
+index 0000000..d2e4d47
+--- /dev/null
++++ b/engine/ui/final/html.ts
+@@ -0,0 +1,335 @@
++import { computed, effect, read, Scope, signal, untrack, type Dispose, type Equality, type Readable, type Value } from "./reactive";
++import type { Child, Key, Props } from "./nodes";
++import type { RenderContext } from "./render";
++import { baseCSS } from "./theme";
++import { composedContains, eventElement, eventPlayer, withInputPlayer } from "./dom";
++/** Project-authored templates only. Shadow DOM isolates styling, NOT untrusted code. */
++export interface HTMLComponentDefinition<S, E extends object = {}> {
++    readonly name: string;
++    /** Static fragment. Scripts, inline handlers and embedded browsing contexts are rejected. */
++    readonly template: string;
++    readonly styles?: string;
++    /** Runs exactly once per mounted definition/key. Use bindings instead of rebuilding the markup. */
++    readonly setup?: (context: HTMLComponentContext<S, E>) => void | Dispose;
++}
++export type HTMLComponentEvents<E extends object> = {
++    readonly [K in keyof E]?: (detail: E[K]) => void;
++};
++export type HTMLComponentProps<S, E extends object = {}> = Omit<Props, "text" | "value" | "bindValue" | "bindChecked" | "checked"> & {
++    state: Value<S>;
++    events?: HTMLComponentEvents<E>;
++};
++export interface HTMLNode<S = any, E extends object = any> {
++    kind: "html";
++    definition: Readonly<HTMLComponentDefinition<S, E>>;
++    state: Value<S>;
++    events?: HTMLComponentEvents<E>;
++    props: Props;
++    key?: Key;
++}
++export interface HTMLComponent<S, E extends object = {}> {
++    (props: HTMLComponentProps<S, E>): HTMLNode<S, E>;
++    readonly definition: Readonly<HTMLComponentDefinition<S, E>>;
++}
++export interface HTMLComponentContext<S, E extends object = {}> {
++    readonly host: HTMLElement;
++    readonly root: ShadowRoot;
++    readonly document: Document;
++    readonly state: Readable<S>;
++    readonly scope: Scope;
++    readonly abortSignal: AbortSignal;
++    readonly reducedMotion: Readable<boolean>;
++    query<T extends Element = HTMLElement>(selector: string): T;
++    /** Per-value equality; update runs untracked so incidental reads cannot widen dependencies. */
++    bind<T>(source: Value<T>, update: (value: T) => void, equals?: Equality<T>): Dispose;
++    effect(fn: () => void | Dispose): Dispose;
++    listen<K extends keyof HTMLElementEventMap>(target: EventTarget, type: K, listener: (event: HTMLElementEventMap[K]) => void, options?: AddEventListenerOptions | boolean): Dispose;
++    listen(target: EventTarget, type: string, listener: (event: Event) => void, options?: AddEventListenerOptions | boolean): Dispose;
++    emit<K extends keyof E>(name: K, detail: E[K]): void;
++    onCleanup(cleanup: Dispose): Dispose;
++    /** UI Final presentation clock, never an independent RAF. Cancel when animation becomes idle. */
++    onFrame(task: (dtMs: number) => void): Dispose;
++    /** Optional UI Final children inside this component, owned by the component scope. */
++    mount(target: HTMLElement, child: Child): {
++        update(child: Child): void;
++        dispose(): void;
++    };
++    /** Automatically called after setup; call after synchronous structural changes before navigation. */
++    refreshFocus(): void;
++}
++export function defineHTMLComponent<S, E extends object = {}>(definition: HTMLComponentDefinition<S, E>): HTMLComponent<S, E> {
++    if (!/^[A-Za-z][\w./-]*$/.test(definition.name))
++        throw new Error("UIF_HTML_NAME: expected a stable component name");
++    if (typeof definition.template !== "string")
++        throw new Error("UIF_HTML_TEMPLATE: expected static HTML");
++    const owned = Object.freeze({ ...definition });
++    const component = (options: HTMLComponentProps<S, E>): HTMLNode<S, E> => {
++        const { state, events, ...props } = options;
++        return { kind: "html", definition: owned, state, events, props, key: props.key };
++    };
++    return Object.assign(component, { definition: owned });
++}
++export interface HTMLPolicy {
++    createHTML(input: string): unknown;
++}
++function parseTemplate(document: Document, source: string, policy?: HTMLPolicy): HTMLTemplateElement {
++    const template = document.createElement("template");
++    // The cast preserves a host-supplied TrustedHTML object at runtime; no policy is silently created.
++    template.innerHTML = (policy ? policy.createHTML(source) : source) as string;
++    return template;
++}
++/** Reject active markup before insertion. This is a guardrail for trusted assets, NOT an HTML sanitizer. */
++export function validateHTMLFragment(fragment: DocumentFragment): void {
++    const forbidden = new Set(["script", "iframe", "frame", "frameset", "object", "embed", "base", "meta", "link"]);
++    const check = (root: DocumentFragment) => {
++        for (const element of root.querySelectorAll("*")) {
++            if (forbidden.has(element.localName))
++                throw new Error(`UIF_HTML_ACTIVE_CONTENT: <${element.localName}> is not allowed`);
++            for (const attribute of element.attributes) {
++                const name = attribute.name.toLowerCase();
++                if (name.startsWith("on") || name === "srcdoc" || name === "shadowrootmode" || name.startsWith("data-uif-")) {
++                    throw new Error(`UIF_HTML_ACTIVE_CONTENT: ${name} is forbidden in templates`);
++                }
++                if (["href", "src", "xlink:href", "action", "formaction"].includes(name)) {
++                    const value = attribute.value.replace(/[\u0000-\u0020\u007f]/g, "");
++                    if (/^(javascript|vbscript):/i.test(value) || /^data:/i.test(value) && !/^data:image\/(png|jpeg|gif|webp|avif);base64,/i.test(value)) {
++                        throw new Error(`UIF_HTML_ACTIVE_CONTENT: unsafe ${name} protocol`);
++                    }
++                }
++            }
++            if (element.localName === "template")
++                check((element as HTMLTemplateElement).content);
++        }
++    };
++    check(fragment);
++}
++/** Extract a chosen component fragment from a project HTML file. Surrounding scripts are NEVER run.
++ * Styles are returned verbatim: adapt body/:root selectors to :host and remove page-only styling.
++ */
++export function extractHTMLComponent(source: string, selector: string, document: Document = globalThis.document, policy?: HTMLPolicy): {
++    template: string;
++    styles: string;
++} {
++    if (!document)
++        throw new Error("UIF_PLATFORM: HTML extraction requires a Document");
++    const parsed = parseTemplate(document, source, policy);
++    const selected = parsed.content.querySelector(selector);
++    if (!selected)
++        throw new Error(`UIF_HTML_SELECTOR: missing ${selector}`);
++    const clone = document.createDocumentFragment();
++    clone.appendChild(selected.cloneNode(true));
++    validateHTMLFragment(clone);
++    return { template: selected.outerHTML, styles: [...parsed.content.querySelectorAll("style")].map(style => style.textContent ?? "").join("\n") };
++}
++const focusSelector = 'button,input:not([type="hidden"]),textarea,select,a[href],[tabindex],[contenteditable="true"]';
++const inputEvents = new Set(["click", "dblclick", "input", "change", "submit", "pointerdown", "pointerup", "pointermove", "keydown", "keyup", "uif-activate", "uif-cancel"]);
++const templates = new WeakMap<object, WeakMap<Document, HTMLTemplateElement>>();
++const shadowCSS = `@layer ui-final-defaults { ${baseCSS.replaceAll("[data-uif-root][data-uif-reduced-motion]", ":host([data-uif-reduced-motion])").replaceAll("[data-uif-root]", ":host")} }
++:host{display:block} :host([hidden]){display:none!important}
++[hidden]{display:none!important}button,input,textarea,select,a[href],[tabindex],[contenteditable]{pointer-events:auto}
++[data-uif-players]{outline:2px solid var(--uif-focus-0,#89d3ff);outline-offset:3px}
++[data-uif-players~="1"]{outline-color:var(--uif-focus-1,#ffbc7f)}
++[data-uif-players~="2"]{outline-color:var(--uif-focus-2,#b6ee94)}
++[data-uif-players~="3"]{outline-color:var(--uif-focus-3,#e2b1ff)}
++`;
++/** Renderer-owned instance. Public authoring uses defineHTMLComponent, not this adapter. */
++export class HTMLInstance {
++    private readonly stateSource;
++    private readonly state;
++    private readonly root: ShadowRoot;
++    private readonly focusEntries = new Map<HTMLElement, {
++        id: string;
++        dispose: Dispose;
++    }>();
++    private focusSequence = 0;
++    private readonly generatedFocusIds = new WeakMap<HTMLElement, string>();
++    constructor(private spec: HTMLNode, readonly host: HTMLElement, private ctx: RenderContext, readonly scope: Scope, mount: HTMLComponentContext<unknown>["mount"]) {
++        if ("text" in spec.props)
++            throw new Error("UIF_HTML_PROPS: HTML components own their internal text");
++        this.stateSource = signal(spec.state);
++        this.state = computed(() => read(this.stateSource.get()), undefined, scope);
++        this.root = host.attachShadow({ mode: "open" });
++        const document = ctx.document;
++        // Cache only when no external Trusted Types policy is involved (policies can differ per runtime).
++        let byDocument = templates.get(spec.definition);
++        if (!byDocument) {
++            byDocument = new WeakMap();
++            templates.set(spec.definition, byDocument);
++        }
++        let template = ctx.htmlPolicy ? undefined : byDocument.get(document);
++        if (!template) {
++            template = parseTemplate(document, spec.definition.template, ctx.htmlPolicy);
++            validateHTMLFragment(template.content);
++            if (!ctx.htmlPolicy)
++                byDocument.set(document, template);
++        }
++        const style = document.createElement("style");
++        if (ctx.styleNonce)
++            style.nonce = ctx.styleNonce;
++        style.textContent = shadowCSS + (spec.definition.styles ?? "");
++        this.root.append(style, document.importNode(template.content, true));
++        host.dataset.uifComponent = spec.definition.name;
++        effect(() => { host.toggleAttribute("data-uif-reduced-motion", ctx.reducedMotion.get()); }, { scope, scheduler: ctx.scheduler, name: `${spec.definition.name}.motion` });
++        const abort = new document.defaultView!.AbortController();
++        scope.add(() => { abort.abort(); for (const entry of this.focusEntries.values())
++            entry.dispose(); this.focusEntries.clear(); });
++        const own = (cleanup: Dispose): Dispose => {
++            if (scope.disposed) {
++                cleanup();
++                throw new Error("UIF_SCOPE_DISPOSED: HTML resource created after disposal");
++            }
++            let alive = true;
++            const dispose = () => { if (alive) {
++                alive = false;
++                unlink();
++                cleanup();
++            } };
++            const unlink = scope.add(dispose);
++            return dispose;
++        };
++        const listen = (target: EventTarget, type: string, fn: (event: any) => void, options?: AddEventListenerOptions | boolean): Dispose => {
++            const handler = (event: Event) => {
++                if (scope.disposed)
++                    return;
++                const element = eventElement(event) ?? host;
++                if (inputEvents.has(type) && !ctx.focus.allows(element, eventPlayer(event)))
++                    return;
++                try {
++                    untrack(() => fn(event));
++                }
++                catch (error) {
++                    ctx.report(error);
++                }
++            };
++            target.addEventListener(type, handler, options);
++            return own(() => target.removeEventListener(type, handler, options));
++        };
++        // Block native default actions as well as application listeners when any composed ancestor
++        // is disabled/inert/player-restricted or another runtime owns a modal.
++        for (const type of inputEvents) {
++            const guard = (event: Event) => {
++                if (!ctx.focus.allows(eventElement(event) ?? host, eventPlayer(event))) {
++                    event.preventDefault();
++                    event.stopImmediatePropagation();
++                }
++            };
++            this.root.addEventListener(type, guard, true);
++            scope.add(() => this.root.removeEventListener(type, guard, true));
++        }
++        const context: HTMLComponentContext<any, any> = {
++            host, root: this.root, document, state: this.state, scope, abortSignal: abort.signal, reducedMotion: ctx.reducedMotion,
++            query: <T extends Element>(selector: string): T => {
++                const element = this.root.querySelector<T>(selector);
++                if (!element)
++                    throw new Error(`UIF_HTML_SELECTOR: ${spec.definition.name} is missing ${selector}`);
++                return element;
++            },
++            bind: <T>(source: Value<T>, update: (value: T) => void, equals?: Equality<T>): Dispose => {
++                const lifetime = new Scope(scope);
++                const selected = computed(() => read(source), equals, lifetime);
++                try {
++                    effect(() => { const value = selected.get(); untrack(() => update(value)); }, { scope: lifetime, scheduler: ctx.scheduler, name: `${spec.definition.name}.binding` });
++                }
++                catch (error) {
++                    lifetime.dispose();
++                    throw error;
++                }
++                return () => lifetime.dispose();
++            },
++            effect: fn => effect(fn, { scope, scheduler: ctx.scheduler, name: `${spec.definition.name}.effect` }),
++            listen,
++            emit: (name, detail) => {
++                if (scope.disposed)
++                    return;
++                try {
++                    untrack(() => this.spec.events?.[name]?.(detail));
++                }
++                catch (error) {
++                    ctx.report(error);
++                }
++            },
++            onCleanup: own,
++            onFrame: task => own(ctx.addFrameTask(dt => {
++                if (scope.disposed)
++                    return;
++                try {
++                    untrack(() => task(dt));
++                }
++                catch (error) {
++                    ctx.report(error);
++                }
++            })),
++            mount: (target, child) => {
++                if (!composedContains(this.root, target))
++                    throw new Error("UIF_HTML_MOUNT: target must belong to this component");
++                return mount(target, child);
++            },
++            refreshFocus: () => this.refreshFocus(),
++        };
++        const cleanup = untrack(() => scope.run(() => spec.definition.setup?.(context)));
++        if (cleanup)
++            scope.add(cleanup);
++        this.refreshFocus();
++        const observer = new document.defaultView!.MutationObserver(records => {
++            // Flap/text animation replaces Text nodes: don't rescan controls on every glyph frame.
++            if (records.some(record => record.type === "attributes" || [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1))) {
++                try {
++                    this.refreshFocus();
++                }
++                catch (error) {
++                    ctx.report(error);
++                }
++            }
++        });
++        observer.observe(this.root, { subtree: true, childList: true, attributes: true, attributeFilter: ["tabindex", "type", "href", "contenteditable", "data-focus", "id"] });
++        scope.add(() => observer.disconnect());
++    }
++    refreshFocus(): void {
++        if (this.scope.disposed)
++            return;
++        const controls = [...this.root.querySelectorAll<HTMLElement>(focusSelector)].filter(element => !element.hasAttribute("data-uif-node") && !element.matches('input[type="hidden"]') &&
++            (element.tabIndex >= 0 || !element.hasAttribute("tabindex") && element.matches('[contenteditable="true"]')));
++        const names = new Map<HTMLElement, string>();
++        const ids = new Set<string>();
++        for (const element of controls) {
++            let local = element.getAttribute("data-focus") || element.id || this.generatedFocusIds.get(element);
++            if (!local) {
++                local = `control-${++this.focusSequence}`;
++                this.generatedFocusIds.set(element, local);
++            }
++            const id = `${this.host.dataset.uifId}/${local}`;
++            if (ids.has(id))
++                throw new Error(`UIF_DUPLICATE_ID: ${id}`);
++            ids.add(id);
++            names.set(element, id);
++        }
++        for (const [element, entry] of this.focusEntries)
++            if (names.get(element) !== entry.id) {
++                entry.dispose();
++                this.focusEntries.delete(element);
++            }
++        for (const element of controls) {
++            if (this.focusEntries.has(element))
++                continue;
++            const id = names.get(element)!;
++            const release = this.ctx.focus.register({ id, element, players: () => undefined, navigation: () => ({}) });
++            const accept = (event: Event) => {
++                if (eventElement(event) !== element || !this.ctx.focus.allows(element, eventPlayer(event)))
++                    return;
++                event.stopPropagation();
++                if (element.matches("button,a[href],input[type=checkbox],input[type=radio],input[type=button],input[type=submit]")) {
++                    withInputPlayer(eventPlayer(event), () => element.click());
++                }
++                else
++                    element.focus({ preventScroll: true });
++            };
++            element.addEventListener("uif-activate", accept);
++            this.focusEntries.set(element, { id, dispose: () => { release(); element.removeEventListener("uif-activate", accept); } });
++        }
++    }
++    patch(spec: HTMLNode): void {
++        this.spec = spec;
++        this.stateSource.set(spec.state);
++        this.refreshFocus();
++    }
++}
+diff --git a/engine/ui/final/index.ts b/engine/ui/final/index.ts
+index 65990fa..5c2cce1 100644
+--- a/engine/ui/final/index.ts
++++ b/engine/ui/final/index.ts
+@@ -11,3 +11,8 @@ export { visibleRange, keyedItems } from "./render";
+ export type { RenderStats } from "./render";
+ export { defaultTheme } from "./theme";
+ export type { Theme } from "./theme";
++
++export { defineHTMLComponent, extractHTMLComponent } from "./html";
++export type { HTMLComponent, HTMLComponentDefinition, HTMLComponentProps, HTMLComponentContext, HTMLComponentEvents, HTMLNode, HTMLPolicy } from "./html";
++export { WorldSurface, projectIsometric, isometricSurface, surfaceMatrix, surfaceTransform, surfaceToLocal } from "./surface";
++export type { Point2, Point3, SurfacePose, IsometricCamera, IsometricSurfaceOptions } from "./surface";
+diff --git a/engine/ui/final/input.ts b/engine/ui/final/input.ts
+index e9810fb..c04635d 100644
+--- a/engine/ui/final/input.ts
++++ b/engine/ui/final/input.ts
+@@ -1,3 +1,4 @@
++import { composedContains, deepActiveElement, eventElement } from "./dom";
+ import { InputEventType, type InputManager } from "../../inputs/InputManager";
+ import { isEditable } from "./focus";
+ import type { UIFinal } from "./runtime";
+@@ -22,7 +23,7 @@ export function connectInput(manager: InputManager, ui: UIFinal, options: InputB
+   const delay = options.repeatDelayMs ?? 350, interval = options.repeatIntervalMs ?? 90;
+   if (!Number.isFinite(delay) || delay < 0 || !Number.isFinite(interval) || interval <= 0) throw new Error("UIF_INPUT_REPEAT: invalid repeat timing");
+   const map = options.keys ?? defaults;
+-  const active = options.active ?? (() => !!ui.focus.currentModal || ui.root.contains(ui.root.ownerDocument.activeElement));
++  const active = options.active ?? (() => !!ui.focus.currentModal || composedContains(ui.root, deepActiveElement(ui.root.ownerDocument)));
+   const held = new Map<string, { action?: NavigationAction; player: number; remaining: number }>();
+   const unlisten = manager.addKeyListener((key, pressed, type, device, native) => {
+     if (type !== InputEventType.GAMEPAD && type !== InputEventType.KEYBOARD) return;
+@@ -33,7 +34,7 @@ export function connectInput(manager: InputManager, ui: UIFinal, options: InputB
+     if (player === undefined) return;
+     if (!Number.isInteger(player) || player < 0) throw new Error("UIF_INPUT_PLAYER: player mapping must return a non-negative integer or undefined");
+     const keyboard = native as KeyboardEvent | undefined;
+-    if (type === InputEventType.KEYBOARD && (keyboard?.isComposing || isEditable(keyboard?.target as Element | null))) return false;
++    if (type === InputEventType.KEYBOARD && (keyboard?.isComposing || isEditable(keyboard ? eventElement(keyboard) : deepActiveElement(ui.root.ownerDocument)))) return false;
+     const action = map[key.toLowerCase()];
+     if (!action) return options.captureUnmapped !== false ? false : undefined;
+     if (!held.has(identity)) {
+diff --git a/engine/ui/final/nodes.ts b/engine/ui/final/nodes.ts
+index 54f1b03..6e763ab 100644
+--- a/engine/ui/final/nodes.ts
++++ b/engine/ui/final/nodes.ts
+@@ -1,3 +1,4 @@
++import type { HTMLNode } from "./html";
+ import { type Readable, type Signal, type Value } from "./reactive";
+ 
+ export type Key = string | number;
+@@ -92,7 +93,7 @@ export interface VirtualNode<T = unknown> {
+   props?: Props;
+   key?: Key;
+ }
+-export type VNode = ElementNode | TextNode | DynamicNode | EachNode<any> | VirtualNode<any>;
++export type VNode = HTMLNode | ElementNode | TextNode | DynamicNode | EachNode<any> | VirtualNode<any>;
+ export type Child = VNode | string | number | boolean | null | undefined | readonly Child[];
+ export function h(type: NodeType, props: Props = {}, ...children: Child[]): ElementNode {
+   return { kind: "element", type, props, children, key: props.key };
+diff --git a/engine/ui/final/render.ts b/engine/ui/final/render.ts
+index a5e6124..3413588 100644
+--- a/engine/ui/final/render.ts
++++ b/engine/ui/final/render.ts
+@@ -1,3 +1,5 @@
++import { HTMLInstance, type HTMLNode, type HTMLPolicy } from "./html";
++import { composedContains, deepActiveElement, eventElement, eventPlayer, composedClosest } from "./dom";
+ import { computed, effect, read, Scope, signal, untrack, type Dispose, type Readable, type Scheduler, type Signal, type Value } from "./reactive";
+ import type { Child, Direction, EachNode, ElementNode, EventHandlers, Key, Props, StyleValue, TextNode, UIEvent, UIEventType, VNode, VirtualNode } from "./nodes";
+ import { FocusManager } from "./focus";
+@@ -21,6 +23,10 @@ export interface RenderContext {
+   lifetimes: WeakMap<HTMLElement, Scope>;
+   nextId(): string;
+   report(error: unknown): void;
++  reducedMotion: Readable<boolean>;
++  styleNonce?: string;
++  htmlPolicy?: HTMLPolicy;
++  addFrameTask(task: (dtMs: number) => void): Dispose;
+ }
+ interface Block {
+   spec: VNode;
+@@ -81,7 +87,8 @@ function normalize(children: readonly Child[], output: VNode[] = []): VNode[] {
+ }
+ function compatible(block: Block, spec: VNode): boolean {
+   return block.spec.kind === spec.kind && block.spec.key === spec.key &&
+-    (spec.kind !== "element" || (block.spec as ElementNode).type === spec.type);
++    (spec.kind !== "element" || (block.spec as ElementNode).type === spec.type) &&
++    (spec.kind !== "html" || (block.spec as HTMLNode).definition === spec.definition);
+ }
+ function moveBefore(block: Pick<Block, "first" | "last">, parent: Node, before: Node | null, stats: RenderStats): void {
+   if (block.last.nextSibling === before && block.first.parentNode === parent) return;
+@@ -132,7 +139,7 @@ export class View {
+     this.blocks.forEach(block => { if (block.spec.key !== undefined) keyed.set(block.spec.key, block); });
+     const used = new Set<Block>();
+     const next: Block[] = [];
+-    const active = this.context.document.activeElement as HTMLElement | null;
++    const active = deepActiveElement(this.context.document);
+     // Validate all keys before the first mutation. A throwing application component is not a DOM transaction.
+     try {
+       specs.forEach((spec, index) => {
+@@ -157,7 +164,7 @@ export class View {
+       before = next[index].first;
+     }
+     this.blocks = next;
+-    if (active && active.isConnected && this.context.document.activeElement !== active && this.parent.contains(active)) {
++    if (active && active.isConnected && deepActiveElement(this.context.document) !== active && composedContains(this.parent, active)) {
+       active.focus({ preventScroll: true });
+     }
+   }
+@@ -168,6 +175,7 @@ export class View {
+   }
+ }
+ function createBlock(spec: VNode, parent: Node, before: Node, context: RenderContext, parentScope: Scope): Block {
++  if (spec.kind === "html") return new HTMLBlock(spec, parent, before, context, parentScope);
+   if (spec.kind === "element") return new ElementBlock(spec, parent, before, context, parentScope);
+   if (spec.kind === "text") return new TextBlock(spec, parent, before, context, parentScope);
+   if (spec.kind === "dynamic") return new DynamicBlock(spec, parent, before, context, parentScope);
+@@ -211,12 +219,11 @@ function safeImageURL(value: unknown): string {
+   return string;
+ }
+ function eventContext(type: UIEventType, nativeEvent: Event, element: HTMLElement): UIEvent {
+-  const control = nativeEvent.target as HTMLInputElement | null;
++  const control = eventElement(nativeEvent) as HTMLInputElement | null;
+   const pointer = nativeEvent as PointerEvent;
+-  const detail = (nativeEvent as CustomEvent<{ player?: number }>).detail;
+   return {
+-    type, nativeEvent, player: detail && typeof detail === "object" ? detail.player ?? 0 : 0,
+-    target: nativeEvent.target, currentTarget: element,
++    type, nativeEvent, player: eventPlayer(nativeEvent),
++    target: control, currentTarget: element,
+     value: control && "value" in control ? String(control.value) : "",
+     checked: !!control && "checked" in control && !!control.checked,
+     isComposing: !!(nativeEvent as InputEvent).isComposing || element.dataset.uifComposing === "true",
+@@ -436,6 +443,37 @@ class ElementBlock implements Block {
+   }
+   dispose(): void { this.scope.dispose(); }
+ }
++/** Reuse the normal prop/event/ID lifetime for the host; internal DOM belongs to HTMLInstance. */
++class HTMLBlock implements Block {
++  readonly first: HTMLElement;
++  readonly last: HTMLElement;
++  readonly scope: Scope;
++  private host: ElementBlock;
++  private instance: HTMLInstance;
++  private hostSpec(spec: HTMLNode): ElementNode {
++    return { kind: "element", type: "panel", props: { interactive: true, ...spec.props }, children: [], key: spec.key };
++  }
++  constructor(public spec: HTMLNode, parent: Node, before: Node, context: RenderContext, owner: Scope) {
++    this.host = new ElementBlock(this.hostSpec(spec), parent, before, context, owner);
++    this.first = this.last = this.host.first;
++    this.scope = this.host.scope;
++    this.first.dataset.uifNode = "html";
++    try {
++      this.instance = new HTMLInstance(spec, this.first, context, this.scope, (target, child) => {
++        const view = new View(target, null, context, this.scope);
++        try { view.scope.run(() => view.update(child)); } catch (error) { view.dispose(); throw error; }
++        return view;
++      });
++    } catch (error) { this.scope.dispose(); throw error; }
++  }
++  patch(spec: VNode): void {
++    if (spec === this.spec) return;
++    this.spec = spec as HTMLNode;
++    this.host.patch(this.hostSpec(this.spec));
++    this.instance.patch(this.spec);
++  }
++  dispose(): void { this.scope.dispose(); }
++}
+ class DynamicBlock implements Block {
+   first: Node;
+   last: Node;
+@@ -481,7 +519,7 @@ class EachBlock<T> implements Block {
+     }, { scheduler: this.ctx.scheduler, scope: this.scope, priority: 0, name: "each" });
+   }
+   private updateRows(items: readonly T[], keys: Key[]): void {
+-    const active = this.ctx.document.activeElement as HTMLElement | null;
++    const active = deepActiveElement(this.ctx.document);
+     const next = new Map<Key, RowRecord<T>>();
+     try {
+       keys.forEach((key, index) => {
+@@ -505,7 +543,7 @@ class EachBlock<T> implements Block {
+       before = row.view.start;
+     }
+     this.rows = next;
+-    if (active && active.isConnected && this.ctx.document.activeElement !== active) active.focus({ preventScroll: true });
++    if (active && active.isConnected && deepActiveElement(this.ctx.document) !== active) active.focus({ preventScroll: true });
+   }
+   patch(spec: VNode): void {
+     if (spec === this.spec) return;
+@@ -568,7 +606,7 @@ class VirtualBlock<T> implements Block {
+   }
+   private updateRows(start: number, end: number): void {
+     const next = new Map<Key, RowRecord<T>>();
+-    const previousFocused = this.ctx.focus.focusedElements().filter(([, element]) => this.first.contains(element));
++    const previousFocused = this.ctx.focus.focusedElements().filter(([, element]) => composedContains(this.first, element));
+     try {
+       for (let index = start; index < end; index++) {
+         const key = this.keys[index];
+@@ -608,12 +646,12 @@ class VirtualBlock<T> implements Block {
+     }
+     for (const [player, element] of previousFocused) {
+       if (!element.isConnected) this.ctx.focus.first(player, this.first);
+-      else if (player === 0 && this.ctx.document.activeElement !== element) element.focus({ preventScroll: true });
++      else if (player === 0 && deepActiveElement(this.ctx.document) !== element) element.focus({ preventScroll: true });
+     }
+   }
+   private moveFrom(element: HTMLElement, direction: Direction, player: number): boolean {
+     if (direction !== "up" && direction !== "down") return false;
+-    const row = element.closest<HTMLElement>("[data-uif-virtual-index]");
++    const row = composedClosest(element, "[data-uif-virtual-index]");
+     if (!row || !this.first.contains(row)) return false;
+     const index = Number(row.dataset.uifVirtualIndex) + (direction === "down" ? 1 : -1);
+     if (index < 0 || index >= this.content.length) return false;
+diff --git a/engine/ui/final/runtime.ts b/engine/ui/final/runtime.ts
+index d0287dc..92f4e74 100644
+--- a/engine/ui/final/runtime.ts
++++ b/engine/ui/final/runtime.ts
+@@ -1,3 +1,5 @@
++import { composedContains, composedParent, eventElement } from "./dom";
++import type { HTMLPolicy } from "./html";
+ import { FocusManager, isEditable } from "./focus";
+ import { Scope, Scheduler, signal, effect, type Dispose, type SchedulerOptions } from "./reactive";
+ import { View, type RenderContext, type RenderStats } from "./render";
+@@ -16,6 +18,8 @@ export interface UIFinalOptions {
+   theme?: Theme;
+   /** CSP nonce for the engine-owned stylesheet. Style attributes still require an appropriate style policy. */
+   styleNonce?: string;
++  /** Optional application-owned Trusted Types policy for project HTML component templates. */
++  htmlPolicy?: HTMLPolicy;
+   keyboard?: boolean;
+   onError?: (error: unknown) => void;
+ }
+@@ -93,16 +97,18 @@ export class UIFinal {
+       if (top) top.handle.close();
+     });
+     this.context = { document, scheduler: this.scheduler, focus: this.focus, stats: this.stats, ids: this.ids, lifetimes: this.lifetimes,
+-      nextId: () => `uif-${this.root.dataset.uifRoot}-${++this.sequence}`, report: error => this.report(error) };
++      nextId: () => `uif-${this.root.dataset.uifRoot}-${++this.sequence}`, report: error => this.report(error),
++      reducedMotion: this.reducedMotion, styleNonce: options.styleNonce, htmlPolicy: options.htmlPolicy,
++      addFrameTask: task => this.addFrameTask(task) };
+     this.view = new View(this.content, null, this.context, this.scope);
+     this.setTheme(options.theme ?? {});
+     this.listen(this.root, "focusin", event => {
+-      const target = event.target as HTMLElement;
++      const target = eventElement(event) ?? this.root;
+       if (this.focus.allows(target)) this.focus.adopt(target);
+       else if (this.focus.currentModal) this.focus.first(0, this.focus.currentModal);
+     });
+     this.listen(this.root, "pointerdown", event => {
+-      const target = event.target as HTMLElement;
++      const target = eventElement(event) ?? this.root;
+       if (!this.focus.allows(target)) { event.preventDefault(); event.stopImmediatePropagation(); }
+       else this.focus.adopt(target);
+     }, true);
+@@ -128,7 +134,7 @@ export class UIFinal {
+     // Keep typing/IME out of the game's keyboard listener, without cancelling native editing.
+     event.stopPropagation();
+     if (event.isComposing || event.key === "Process" || event.keyCode === 229) return;
+-    const target = event.target as HTMLElement;
++    const target = eventElement(event) ?? this.root;
+     if (event.key === "Escape") {
+       if (this.focus.navigate("cancel")) event.preventDefault();
+       return;
+@@ -161,6 +167,8 @@ export class UIFinal {
+     this.flush();
+   }
+   addFrameTask(task: (dtMs: number) => void): Dispose { this.check(); this.frames.add(task); return () => this.frames.delete(task); }
++  /** Includes game-input repeat and currently-active component animations. */
++  get frameTaskCount(): number { return this.frames.size; }
+   element(id: string): HTMLElement | undefined { return this.ids.get(id); }
+   setTheme(theme: Theme): void {
+     this.check();
+@@ -186,9 +194,11 @@ export class UIFinal {
+   animate(target: string | HTMLElement, keyframes: Keyframe[] | PropertyIndexedKeyframes, options: KeyframeAnimationOptions = { duration: 160 }): Animation {
+     this.check();
+     const element = typeof target === "string" ? this.element(target) : target;
+-    if (!element || !this.root.contains(element)) throw new Error("UIF_ANIMATION_TARGET: target must belong to this runtime");
++    if (!element || !composedContains(this.root, element)) throw new Error("UIF_ANIMATION_TARGET: target must belong to this runtime");
+     const animation = element.animate(keyframes, { ...options, ...(this.reducedMotion.peek() ? { duration: 0, delay: 0 } : {}) });
+-    const lifetime = new Scope(this.lifetimes.get(element) ?? this.scope);
++    let owner: Scope | undefined;
++    for (let target: HTMLElement | null = element; target && !owner; target = composedParent(target)) owner = this.lifetimes.get(target);
++    const lifetime = new Scope(owner ?? this.scope);
+     lifetime.add(() => animation.cancel());
+     effect(() => { if (this.reducedMotion.get() && animation.playState !== "idle" && animation.playState !== "finished") animation.finish(); }, { scope: lifetime, scheduler: this.scheduler });
+     const finish = () => { try { lifetime.dispose(); } catch (error) { this.report(error); } };
+diff --git a/engine/ui/final/surface.ts b/engine/ui/final/surface.ts
+new file mode 100644
+index 0000000..d65cf4f
+--- /dev/null
++++ b/engine/ui/final/surface.ts
+@@ -0,0 +1,92 @@
++import { Panel, type Child, type ElementNode, type Props } from "./nodes";
++import { read, type Value } from "./reactive";
++export interface Point2 {
++    readonly x: number;
++    readonly y: number;
++}
++export interface Point3 extends Point2 {
++    readonly z: number;
++}
++/** Coordinates are CSS pixels in the positioned parent, not device pixels. */
++export interface SurfacePose {
++    readonly origin: Point2;
++    /** Projected displacement across the full local width/height (not unit vectors). */
++    readonly xAxis: Point2;
++    readonly yAxis: Point2;
++    readonly width: number;
++    readonly height: number;
++    readonly visible?: boolean;
++    readonly zIndex?: number;
++}
++export interface IsometricCamera {
++    readonly origin: Point2;
++    readonly zoom?: number;
++}
++const finite = (...values: number[]) => values.every(Number.isFinite);
++export function projectIsometric(point: Point3, camera: IsometricCamera): Point2 {
++    const zoom = camera.zoom ?? 1;
++    if (!finite(point.x, point.y, point.z, camera.origin.x, camera.origin.y, zoom) || zoom <= 0)
++        throw new Error("UIF_PROJECTION: invalid camera or world point");
++    return { x: camera.origin.x + (point.x - point.y) * Math.sqrt(3) / 2 * zoom, y: camera.origin.y + ((point.x + point.y) / 2 - point.z) * zoom };
++}
++export function surfaceMatrix(pose: SurfacePose): readonly [
++    number,
++    number,
++    number,
++    number,
++    number,
++    number
++] {
++    if (!finite(pose.width, pose.height, pose.origin.x, pose.origin.y, pose.xAxis.x, pose.xAxis.y, pose.yAxis.x, pose.yAxis.y) || pose.width <= 0 || pose.height <= 0)
++        throw new Error("UIF_SURFACE: dimensions must be positive and coordinates finite");
++    const a = pose.xAxis.x / pose.width, b = pose.xAxis.y / pose.width, c = pose.yAxis.x / pose.height, d = pose.yAxis.y / pose.height;
++    if (Math.abs(a * d - b * c) < 1e-10)
++        throw new Error("UIF_SURFACE: projected axes must not be collinear");
++    return [a, b, c, d, pose.origin.x, pose.origin.y];
++}
++export function surfaceTransform(pose: SurfacePose): string { return `matrix(${surfaceMatrix(pose).join(",")})`; }
++/** Inverse of the same affine matrix used by DOM rendering. */
++export function surfaceToLocal(pose: SurfacePose, point: Point2): Point2 {
++    if (!finite(point.x, point.y))
++        throw new Error("UIF_SURFACE: invalid input point");
++    const [a, b, c, d, e, f] = surfaceMatrix(pose), x = point.x - e, y = point.y - f, determinant = a * d - b * c;
++    return { x: (d * x - c * y) / determinant, y: (-b * x + a * y) / determinant };
++}
++export interface IsometricSurfaceOptions {
++    /** Top-left corner of a wall, or first corner of a floor panel, in world units. */
++    position: Point3;
++    width: number;
++    height: number;
++    /** Uniform conversion from local CSS units to world units. */
++    worldUnitsPerPixel?: number;
++    plane?: "wall-x" | "wall-y" | "floor";
++    camera: IsometricCamera;
++    visible?: boolean;
++    zIndex?: number;
++}
++export function isometricSurface(options: IsometricSurfaceOptions): SurfacePose {
++    const { position, camera, width, height } = options, scale = options.worldUnitsPerPixel ?? 1;
++    if (!Number.isFinite(scale) || scale <= 0)
++        throw new Error("UIF_SURFACE: worldUnitsPerPixel must be positive");
++    const origin = projectIsometric(position, camera);
++    const plane = options.plane ?? "wall-x";
++    if (!["wall-x", "wall-y", "floor"].includes(plane))
++        throw new Error("UIF_SURFACE: unsupported plane");
++    const across = projectIsometric({ ...position, x: position.x + (plane !== "wall-y" ? width * scale : 0), y: position.y + (plane === "wall-y" ? width * scale : 0) }, camera);
++    const down = projectIsometric({ ...position, y: position.y + (plane === "floor" ? height * scale : 0), z: position.z - (plane !== "floor" ? height * scale : 0) }, camera);
++    const pose: SurfacePose = { width, height, origin, xAxis: { x: across.x - origin.x, y: across.y - origin.y }, yAxis: { x: down.x - origin.x, y: down.y - origin.y }, visible: options.visible, zIndex: options.zIndex };
++    surfaceMatrix(pose);
++    return pose;
++}
++/** Retained DOM surface: transform/layout are bound, content is never rasterized or re-created.
++ * The game owns depth/occlusion via visible/zIndex. This is not a Pixi texture or a depth-buffer mesh.
++ */
++export function WorldSurface(options: Omit<Props, "hidden"> & {
++    pose: Value<SurfacePose>;
++}, ...children: Child[]): ElementNode {
++    const { pose, style, ...props } = options;
++    return Panel({ ...props, hidden: () => read(pose).visible === false, style: { ...style,
++            position: "absolute", left: 0, top: 0, transformOrigin: "0 0", width: () => read(pose).width,
++            height: () => read(pose).height, transform: () => surfaceTransform(read(pose)), zIndex: () => read(pose).zIndex ?? 0,
++        } }, ...children);
++}
+diff --git a/examples/index.ts b/examples/index.ts
+index 7a5e6f1..eab4f81 100644
+--- a/examples/index.ts
++++ b/examples/index.ts
+@@ -4,6 +4,7 @@ const games = [
+   ["reba", () => import("./reball")],
+   ["ui", () => import("./uimap")],
+   ["ui-final", () => import("./ui-final")],
++  ["ui-final-airport", () => import("./ui-final-airport")],
+   ["peer", () => import("./peer")],
+   ["socket", () => import("./socket")],
+   ["tictactoe", () => import("./tictactoe")],
+diff --git a/examples/ui-final-airport/README.md b/examples/ui-final-airport/README.md
+new file mode 100644
+index 0000000..644de2c
+--- /dev/null
++++ b/examples/ui-final-airport/README.md
+@@ -0,0 +1,67 @@
++# Sky Harbor airport / UI Final HTML component demo
++
++An interactive isometric terminal with a state-driven split-flap board mounted on its right-hand wall. The terminal uses procedural SVG. The billboard is real HTML/CSS with retained, animated cells; it is not a screenshot or iframe.
++
++## Run
++
++With the normal engine dependencies installed:
++
++```sh
++npm run examples
++```
++
++Open the `ui-final-airport` example, at `/ui-final-airport` or `/#/ui-final-airport` on the examples server (normally port 5173).
++
++For a self-contained demo without the Vite/Pixi runtime dependency graph:
++
++```sh
++npm run demo:ui-final:airport
++```
++
++This builds `.ui-final-build/ui-final-airport-demo.html`. Open it in a browser or serve that directory with your local static server. The generated file needs no network assets. The isolated builder uses an installed TypeScript compiler, either the project's compiler or `tsc` on PATH. Any later isolated build clears `.ui-final-build`, so regenerate the HTML after running tests.
++
++## Interact
++
++Click a flight on the angled wall, change its gate/status, publish an announcement, or refresh departures. Each action goes through the demo's command queue into a UI Final signal. Adjust the flap speed, reduced-motion preference, power, and zoom. “Inspect board” changes the pose of the same live component; it does not mount a second board. On narrow touch screens, use inspection mode for flight selection.
++
++The standalone page exposes `window.skyHarborAirportDemo` for experimentation:
++
++```js
++const demo = window.skyHarborAirportDemo;
++demo.board.update(state => ({ ...state, message: "WELCOME HOME" }));
++demo.ui.flush();
++// demo.dispose(); // Stops clock, bindings, input ownership, and all retained views.
++```
++
++## Files
++
++| File | Responsibility |
++| --- | --- |
++| `split-flap.ts` | Reusable, typed HTML component; board state/events; per-cell mechanics and one active clock. |
++| `terminal.ts` | Isometric projection and local SVG scenery. |
++| `demo.ts` | Normal UI Final inspector, presentation model, game-intent queue, zoom/inspection state. |
++| `index.ts` | Examples-gallery entry and HMR cleanup. |
++| `offline.mjs` | Entry for the standalone local bundle. |
++| `billboard.ui.json` | Example registered-component asset; supply the registry and model as documented. |
++
++The original `sky-harbor-splitflap.html` is retained unmodified. Its flap mechanics were adapted into an instance-owned component rather than executing its page-level script. The airport does not ship a copied font file or a third-party runtime.
++
++## Test
++
++```sh
++npm run test:ui-final
++UI_FINAL_BROWSER=/path/to/chromium npm run test:ui-final:browser
++UI_FINAL_BROWSER=/path/to/chromium npm run test:ui-final:html
++```
++
++Browser tests require `playwright-core` and an installed Chromium/Chrome executable. `UI_FINAL_PLAYWRIGHT_MODULE` can point to another installed compatible Playwright module. Screenshots are optional:
++
++```sh
++UI_FINAL_BROWSER=/path/to/chromium \
++UI_FINAL_SCREENSHOT_DIR=test-reports/airport \
++npm run test:ui-final:html
++```
++
++The test runner builds locally, uses actual browser input for typing/touch/pointer actions, and performs no resource downloads. It does not exercise a physical gamepad; controller events enter through the real engine input bridge in the component tests.
++
++See `docs/ui-final/HTML_COMPONENTS.md` for custom HTML authoring, lifecycle, assets, input, security constraints, and game integration. `WorldSurface` is a DOM overlay; it is not a GPU texture or a general 3D occlusion solution.
+diff --git a/examples/ui-final-airport/billboard.ui.json b/examples/ui-final-airport/billboard.ui.json
+new file mode 100644
+index 0000000..a39b213
+--- /dev/null
++++ b/examples/ui-final-airport/billboard.ui.json
+@@ -0,0 +1,9 @@
++{
++  "schema": "ui-final/1",
++  "root": {
++    "component": "DepartureBoard",
++    "state": { "$bind": "airport.board" },
++    "props": { "id": "departure-board" },
++    "events": { "selectFlight": "selectAirportFlight" }
++  }
++}
+diff --git a/examples/ui-final-airport/demo.ts b/examples/ui-final-airport/demo.ts
+new file mode 100644
+index 0000000..07fbd9d
+--- /dev/null
++++ b/examples/ui-final-airport/demo.ts
+@@ -0,0 +1,89 @@
++import { UIFinal, signal, computed, Panel, Row, Column, Text, Button, TextInput, Slider, Toggle, WorldSurface, isometricSurface, CommandQueue, type SurfacePose } from "../../engine/ui/final/index";
++import { SplitFlapBillboard, BILLBOARD_WIDTH, BILLBOARD_HEIGHT, type AirportFlight, type BillboardState } from "./split-flap";
++import { TerminalArchitecture, TERMINAL_CAMERA } from "./terminal";
++const css = `
++.airport-app{--uif-font:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--uif-text:#253f36;--uif-muted:#7e8f83;--uif-surface:#f5f7ed;--uif-surface-raised:#e8eddc;--uif-border:#d9e0d0;--uif-radius:10px;--uif-focus-0:#267660;color:#253f36;background:#f1f3e8;min-height:100svh;line-height:1.5;font-size:14px}
++.airport-app .topbar{height:86px;display:flex;align-items:center;justify-content:space-between;padding:0 36px;border-bottom:1px solid #dce3d3;background:#fafbf5}.airport-app .brand{display:flex;align-items:center;gap:13px}.airport-app .brand-icon{display:grid;place-items:center;width:40px;height:40px;background:#2f5948;border-radius:13px;color:#f9edca;font-size:24px;transform:rotate(-12deg)}.airport-app .brand-name{font-size:19px;letter-spacing:3px;font-weight:750}.airport-app .brand-sub{font-size:10px;letter-spacing:2.4px;color:#98a28f;text-transform:uppercase}.airport-app .top-stats{display:flex;gap:34px}.airport-app .top-stats strong{display:block;font:600 18px/1.4 ui-monospace,monospace}.airport-app .eyebrow{font-size:10px;font-weight:650;letter-spacing:1.9px;color:#829283;text-transform:uppercase}.airport-app .profile{border:1px solid #dce3d3;border-radius:30px;padding:8px 13px;color:#5b7766;font-size:12px;white-space:nowrap}
++.airport-app .workspace{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:23px;max-width:1700px;margin:auto;padding:27px 30px 20px}.airport-app .main-heading{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}.airport-app .main-heading h1{font-size:25px;font-weight:550;letter-spacing:-.6px;line-height:1.3;margin:5px 0}.airport-app .chip{font:600 10px system-ui;letter-spacing:1.3px;padding:7px 10px;background:#e1eada;color:#547457;border-radius:30px}.airport-app .stage{position:relative;overflow:clip;overflow-anchor:none;background:radial-gradient(ellipse at 48% 35%,#edf1df,#e3ead8 75%);border:1px solid #d5dfcb;border-radius:20px;aspect-ratio:1200/860;min-height:500px}.airport-app .world{width:1200px;height:860px;position:absolute;left:50%;top:50%;transform-origin:center}.airport-app .view-note{position:absolute;left:23px;top:20px;font-size:10px;letter-spacing:1.5px;line-height:1.8;color:#7f947b}.airport-app .view-badge{position:absolute;right:20px;top:20px;font-size:10px;letter-spacing:1.4px;padding:6px 10px;background:#f6f8edbd;border:1px solid #dbe4d1;border-radius:5px;color:#547361}.airport-app .zoom-controls{position:absolute;bottom:18px;left:20px;right:20px;display:flex;justify-content:space-between;align-items:center;gap:12px}.airport-app .zoom{display:flex;align-items:center;gap:10px;padding:7px 12px;background:#f7f9f0ef;border:1px solid #d4dfca;border-radius:10px;font:600 11px ui-monospace,monospace}.airport-app .zoom input{padding:0;border:0;background:transparent;accent-color:#527c60;width:90px;min-height:14px}.airport-app .ghost-button{padding:8px 12px;font-size:11px;background:#f7f9f0e8;color:#567361;border-color:#d4dfca}.airport-app .stage-footer{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#81917e;padding:14px 4px;gap:12px}.airport-app .stage-footer b{color:#476b55;font-weight:500}.airport-app .selection-hint{font:500 12px system-ui;letter-spacing:0}
++.airport-app .inspector{margin-top:1px;border:1px solid #dce3d3;border-radius:17px;background:#fafbf6;overflow:hidden;align-self:start}.airport-app .inspector-top{padding:21px 21px 17px;border-bottom:1px solid #e6ebdf}.airport-app h2{font-size:21px;font-weight:550;letter-spacing:-.4px;margin:5px 0 8px}.airport-app .muted{font-size:12px;color:#8a9788;line-height:1.6}.airport-app .section{padding:19px 21px;border-bottom:1px solid #e6ebdf}.airport-app .section:last-child{border-bottom:0}.airport-app .section-title{font-size:10px;font-weight:700;letter-spacing:1.8px;color:#91a089;margin-bottom:12px}.airport-app .flight-name{font:600 24px ui-monospace,monospace;color:#385e49;line-height:1.4}.airport-app .flight-destination{font-size:14px;color:#7a8f7c}.airport-app .flight-detail{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:13px;font-size:12px}.airport-app .flight-status{color:#598160;background:#e8eedf;padding:4px 8px;border-radius:5px;font-size:10px;letter-spacing:.8px}.airport-app .button-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:15px}.airport-app .button-grid button{font-size:11px;padding:9px 7px}.airport-app .primary{display:block;width:100%;background:#345c48;color:#f4eed5;border:1px solid #345c48;padding:11px 13px;font-size:12px}.airport-app .primary:hover{background:#446e56}.airport-app .message-input{width:100%;font-size:12px;padding:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;background:#f3f5eb}.airport-app .small-row{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:#84947f;margin-bottom:9px}.airport-app .small-row strong{font-family:ui-monospace,monospace;color:#617b61}.airport-app .flip-speed{width:100%;height:18px;padding:0;accent-color:#668561;background:transparent;border:0}.airport-app .toggle-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:13px;font-size:12px;color:#71856f}.airport-app .toggle-row input{accent-color:#496f51;width:16px;height:16px;min-height:0}.airport-app .bottom-info{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#93a08d;letter-spacing:.5px}.airport-app .power{padding:6px 9px;font-size:10px;min-height:0;background:#edf1e4}.airport-app .activity{margin-top:10px;border-left:2px solid #d2ddc5;padding-left:10px;font-size:11px;color:#80947b;min-height:33px}.airport-app .page-footer{display:flex;justify-content:space-between;padding:0 34px 22px;color:#9aaa92;font-size:10px;letter-spacing:.7px}.airport-app .live-label{display:flex;align-items:center;gap:6px}.airport-app .dot{display:inline-block;width:5px;height:5px;border-radius:50%;background:#77a473}.airport-app [data-flat=true] .world{z-index:2}.airport-app [data-flat=true] .view-note{opacity:0}
++@media(min-width:1600px){.airport-app .stage{min-height:640px}}
++@media(max-width:1100px){.airport-app .workspace{padding:20px;grid-template-columns:minmax(0,1fr) 280px;gap:16px}.airport-app .stage{min-height:440px}.airport-app .topbar{padding:0 22px}.airport-app .top-stats{gap:20px}.airport-app .inspector-top,.airport-app .section{padding:16px}.airport-app .brand-name{font-size:16px}}
++@media(max-width:800px){.airport-app .workspace{grid-template-columns:1fr;gap:12px;padding:19px 14px}.airport-app .stage{min-height:0;aspect-ratio:1.15}.airport-app .topbar{height:75px;padding:0 16px}.airport-app .top-stats{gap:13px}.airport-app .top-stats strong{font-size:14px}.airport-app .top-stats .gate-stat,.airport-app .profile{display:none}.airport-app .brand-sub{font-size:8px;letter-spacing:1.6px}.airport-app .brand-name{font-size:14px;letter-spacing:2px}.airport-app .brand-icon{width:32px;height:32px;font-size:20px}.airport-app .main-heading h1{font-size:21px}.airport-app .inspector{display:grid;grid-template-columns:1fr 1fr}.airport-app .inspector-top{grid-column:1/-1}.airport-app .section{border-top:1px solid #e6ebdf;border-bottom:0}.airport-app .section:last-child{grid-column:1/-1}.airport-app .stage-footer{font-size:10px}.airport-app .page-footer{padding:4px 18px 22px}.airport-app .view-note{top:12px;left:14px;font-size:8px}.airport-app .view-badge{top:12px;right:12px;font-size:8px}.airport-app .zoom-controls{bottom:12px;left:12px;right:12px}.airport-app .zoom input{width:70px}}
++@media(max-width:430px){.airport-app .top-stats .passenger-stat{display:none}.airport-app .inspector{grid-template-columns:1fr}.airport-app .inspector-top,.airport-app .section:last-child{grid-column:auto}.airport-app .stage-footer{align-items:flex-start}.airport-app .stage-footer span{max-width:47%}.airport-app .stage-footer span:last-child{text-align:right}.airport-app .page-footer span:last-child{display:none}.airport-app .ghost-button{font-size:10px;padding:7px 9px}.airport-app .zoom{padding:6px 8px;gap:7px}}
++`;
++export const initialBillboard: BillboardState = {
++    title: "SKY HARBOR", message: "WELCOME TO SKY HARBOR", flipMs: 80, powered: true, selectedId: "sh104",
++    flights: [
++        { id: "sh104", flight: "SH104", destination: "LISBON", gate: "A04", status: "BOARDING" },
++        { id: "sh218", flight: "SH218", destination: "SEOUL", gate: "A07", status: "ON TIME" },
++        { id: "sh306", flight: "SH306", destination: "OSLO", gate: "B02", status: "GATE OPEN" },
++        { id: "sh442", flight: "SH442", destination: "CAIRO", gate: "B08", status: "DELAYED" },
++    ],
++};
++export function createAirportDemo(host: HTMLElement = document.body, options: {
++    animate?: boolean;
++} = {}) {
++    const ui = new UIFinal({ host, placement: "inline", scheduling: "manual" });
++    const style = host.ownerDocument.createElement("style");
++    style.textContent = css;
++    ui.root.append(style);
++    const board = signal<BillboardState>({ ...initialBillboard }), draft = signal(initialBillboard.message), zoom = signal(1), fit = signal(.8), flat = signal(false);
++    const activity = signal("Board online. Select a flight directly on the wall."), revision = signal(0), commands = new CommandQueue();
++    const selected = computed(() => board.get().flights.find(flight => flight.id === board.get().selectedId), undefined, ui.scope);
++    let rotation = 0;
++    const destinations = ["TOKYO", "LISBON", "NAIROBI", "SEOUL", "OSLO", "SYDNEY", "DENVER", "DUBAI"];
++    const pose = computed<SurfacePose>(() => flat.get() ? { width: BILLBOARD_WIDTH, height: BILLBOARD_HEIGHT, origin: { x: 130, y: 235 }, xAxis: { x: BILLBOARD_WIDTH, y: 0 }, yAxis: { x: 0, y: BILLBOARD_HEIGHT }, zIndex: 4 } : isometricSurface({ position: { x: 48, y: 1, z: 180 }, width: BILLBOARD_WIDTH, height: BILLBOARD_HEIGHT, worldUnitsPerPixel: .535, camera: TERMINAL_CAMERA, zIndex: 4 }), undefined, ui.scope);
++    const submit = (type: string, payload: any = null) => { commands.enqueue(0, type, payload); };
++    const pump = () => commands.drain(command => {
++        const current = board.peek();
++        if (command.type === "select") {
++            const id = String(command.payload);
++            if (!current.flights.some(flight => flight.id === id))
++                return;
++            board.set({ ...current, selectedId: id });
++            activity.set(`Selected ${current.flights.find(flight => flight.id === id)!.flight} from the live board.`);
++        }
++        else if (command.type === "message") {
++            const message = String(command.payload).toUpperCase().slice(0, 24);
++            board.set({ ...current, message });
++            activity.set(`Announcement updated: ${message || "(blank)"}`);
++        }
++        else if (command.type === "departures") {
++            rotation++;
++            board.set({ ...current, flights: current.flights.map((flight, index) => ({ ...flight, flight: `SH${104 + index * 114 + rotation * 7}`, destination: destinations[(index + rotation) % destinations.length], gate: `${index < 2 ? "A" : "B"}${String((index * 3 + rotation) % 12 + 1).padStart(2, "0")}`, status: (["ON TIME", "BOARDING", "GATE OPEN", "DELAYED"] as const)[(index + rotation) % 4] })) });
++            activity.set("Departure feed refreshed. Existing rows and flap cells retained.");
++        }
++        else if (command.type === "delay" || command.type === "gate") {
++            const id = current.selectedId;
++            if (!id)
++                return;
++            board.set({ ...current, flights: current.flights.map(flight => flight.id !== id ? flight : { ...flight, ...(command.type === "delay" ? { status: flight.status === "DELAYED" ? "ON TIME" as const : "DELAYED" as const } : { gate: flight.gate === "A12" ? "B03" : "A12" }) }) });
++            activity.set(command.type === "delay" ? "Selected flight status updated." : "Selected flight moved to a new gate.");
++        }
++        else if (command.type === "power") {
++            board.set({ ...current, powered: current.powered === false });
++            activity.set(current.powered === false ? "Board powered on with the latest state." : "Board powered off. Animation work stopped.");
++        }
++        revision.update(value => value + 1);
++    });
++    const metric = (label: string, value: string, className = "") => Column({ class: className }, Text(label, { class: "eyebrow" }), Text(value, { style: { fontFamily: "ui-monospace,monospace", fontSize: 18, fontWeight: 600 } }));
++    let observer: ResizeObserver | undefined;
++    ui.mount(Panel({ class: "airport-app" }, Panel({ class: "topbar" }, Panel({ class: "brand" }, Text("✈", { class: "brand-icon" }), Column({}, Text("SKY HARBOR", { class: "brand-name" }), Text("AIRPORT OPERATIONS", { class: "brand-sub" }))), Panel({ class: "top-stats" }, metric("BALANCE", "$24,840"), metric("PASSENGERS", "128", "passenger-stat"), metric("GATES", "08 / 12", "gate-stat")), Text("TERMINAL MANAGER", { class: "profile" })), Panel({ class: "workspace" }, Column({}, Panel({ class: "main-heading" }, Column({}, Text("YOUR AIRPORT / TERMINAL 01", { class: "eyebrow" }), Text("Concourse A", { style: { fontSize: 26, fontWeight: 550, letterSpacing: "-.6px" } })), Text("OPERATIONS LIVE", { class: "chip" })), Panel({ id: "terminal-stage", class: "stage", attrs: { "data-flat": flat }, ref: element => {
++            observer?.disconnect();
++            if (!element)
++                return;
++            const measure = () => { const rect = element.getBoundingClientRect(); fit.set(Math.min(rect.width / 1200, rect.height / 860)); };
++            observer = new element.ownerDocument.defaultView!.ResizeObserver(measure);
++            observer.observe(element);
++            measure();
++        } }, Panel({ class: "world", style: { transform: () => `translate(-50%,-50%) scale(${fit.get() * zoom.get()})` } }, TerminalArchitecture({ state: null, id: "terminal-architecture", interactive: false, style: { opacity: () => flat.get() ? .16 : 1 } }), WorldSurface({ id: "billboard-surface", pose }, SplitFlapBillboard({ id: "departure-board", state: board, events: { selectFlight: ({ id }) => submit("select", id) } }))), Text("TERMINAL 01\nISOMETRIC / 30°", { class: "view-note" }), Text(() => flat.get() ? "FRONT INSPECTION" : "LIVE WORLD SURFACE", { class: "view-badge" }), Panel({ class: "zoom-controls" }, Panel({ class: "zoom" }, Text("ZOOM"), Slider({ id: "airport-zoom", label: "Terminal zoom", min: .7, max: 1.35, step: .05, value: zoom, on: { input: event => zoom.set(Number(event.value)) } }), Text(() => `${Math.round(zoom.get() * 100)}%`)), Button({ id: "toggle-flat", class: "ghost-button", on: { activate: () => flat.update(value => !value) } }, Text(() => flat.get() ? "↗ Return to terminal" : "↗ Inspect board")))), Panel({ class: "stage-footer" }, Text("Click a flight on the wall to inspect it.", { class: "selection-hint" }), Text("HTML + CSS · reactive state · retained DOM"))), Column({ class: "inspector" }, Column({ class: "inspector-top" }, Text("SELECTED OBJECT", { class: "eyebrow" }), Text("Departure board", { style: { fontSize: 22, fontWeight: 550, letterSpacing: "-.5px" } }), Text("Split-flap display / Concourse A", { class: "muted" })), Column({ class: "section" }, Text("FLIGHT OPERATIONS", { class: "section-title" }), Text(() => selected.get()?.flight ?? "—", { id: "selected-flight", class: "flight-name" }), Text(() => selected.get()?.destination ?? "Select a flight", { class: "flight-destination" }), Panel({ class: "flight-detail" }, Text(() => `GATE ${selected.get()?.gate ?? "—"}`), Text(() => selected.get()?.status ?? "", { class: "flight-status" })), Panel({ class: "button-grid" }, Button({ id: "delay-flight", disabled: () => !selected.get(), on: { activate: () => submit("delay") } }, "Toggle delay"), Button({ id: "change-gate", disabled: () => !selected.get(), on: { activate: () => submit("gate") } }, "Change gate"))), Column({ class: "section" }, Text("BOARD ANNOUNCEMENT", { class: "section-title" }), TextInput({ id: "announcement", class: "message-input", label: "Board announcement", maxLength: 24, bindValue: draft }), Panel({ class: "small-row" }, Text("24 characters maximum"), Text(() => `${Array.from(draft.get()).length} / 24`)), Button({ id: "publish-message", class: "primary", on: { activate: () => submit("message", draft.peek()) } }, "Publish to board")), Column({ class: "section" }, Text("MECHANICAL DISPLAY", { class: "section-title" }), Panel({ class: "small-row" }, Text("Time per flap"), Text(() => `${board.get().flipMs} ms`, { style: { fontFamily: "ui-monospace,monospace" } })), Slider({ id: "flip-speed", class: "flip-speed", label: "Time per flap", min: 40, max: 220, step: 10, value: () => board.get().flipMs ?? 80, on: { input: event => board.update(state => ({ ...state, flipMs: Number(event.value) })) } }), Row({ class: "toggle-row" }, Text("Reduced motion"), Toggle({ id: "airport-reduced-motion", label: "Reduced motion", checked: ui.reducedMotion, on: { change: event => ui.setReducedMotion(event.checked) } })), Button({ id: "new-departures", class: "primary", style: { marginTop: 17 }, on: { activate: () => submit("departures") } }, "↻ Refresh departures"), Text(activity, { id: "airport-activity", class: "activity" })), Column({ class: "section" }, Panel({ class: "bottom-info" }, Text(() => `STATE REVISION ${String(revision.get()).padStart(3, "0")}`), Button({ id: "board-power", class: "power", on: { activate: () => submit("power") } }, Text(() => board.get().powered === false ? "○ Offline" : "● Powered")))))), Panel({ class: "page-footer" }, Row({ class: "live-label" }, Panel({ class: "dot" }), Text("UI FINAL / HTML COMPONENT DEMO")), Text("STATE → BINDING → FLAP · NO IFRAME · NO DOM REPLACEMENT"))));
++    ui.scope.add(() => { observer?.disconnect(); commands.clear(); });
++    // Standalone demo supplies the engine presentation clock. Scene.mountUIFinal does this in-game.
++    let raf = 0, last = 0, dead = false;
++    const frame = (now: number) => { if (dead)
++        return; pump(); ui.frame(last ? Math.min(100, now - last) : 16); last = now; raf = host.ownerDocument.defaultView!.requestAnimationFrame(frame); };
++    if (options.animate !== false)
++        raf = host.ownerDocument.defaultView!.requestAnimationFrame(frame);
++    ui.scope.add(() => { dead = true; host.ownerDocument.defaultView!.cancelAnimationFrame(raf); });
++    return { ui, board, draft, zoom, flat, commands, pose, revision, step(dt = 16) { pump(); ui.frame(dt); }, dispose() { ui.dispose(); } };
++}
+diff --git a/examples/ui-final-airport/index.ts b/examples/ui-final-airport/index.ts
+new file mode 100644
+index 0000000..f0abb67
+--- /dev/null
++++ b/examples/ui-final-airport/index.ts
+@@ -0,0 +1,4 @@
++import { createAirportDemo } from "./demo";
++const demo = createAirportDemo();
++if (import.meta.hot)
++    import.meta.hot.dispose(() => demo.dispose());
+diff --git a/examples/ui-final-airport/offline.mjs b/examples/ui-final-airport/offline.mjs
+new file mode 100644
+index 0000000..cb929cc
+--- /dev/null
++++ b/examples/ui-final-airport/offline.mjs
+@@ -0,0 +1,2 @@
++import { createAirportDemo } from "../../.ui-final-build/examples/ui-final-airport/demo.js";
++window.skyHarborAirportDemo = createAirportDemo();
+diff --git a/examples/ui-final-airport/split-flap.ts b/examples/ui-final-airport/split-flap.ts
+new file mode 100644
+index 0000000..e59d76b
+--- /dev/null
++++ b/examples/ui-final-airport/split-flap.ts
+@@ -0,0 +1,327 @@
++import { defineHTMLComponent, type HTMLComponentContext, type Dispose } from "../../engine/ui/final/index";
++export interface AirportFlight {
++    readonly id: string;
++    readonly flight: string;
++    readonly destination: string;
++    readonly gate: string;
++    readonly status: "ON TIME" | "BOARDING" | "DELAYED" | "DEPARTED" | "GATE OPEN";
++}
++export interface BillboardState {
++    readonly title: string;
++    readonly message: string;
++    readonly flights: readonly AirportFlight[];
++    readonly selectedId?: string;
++    readonly flipMs?: number;
++    readonly powered?: boolean;
++}
++export interface BillboardEvents {
++    selectFlight: {
++        id: string;
++    };
++}
++export const BILLBOARD_WIDTH = 940;
++export const BILLBOARD_HEIGHT = 316;
++const CHARSET = Array.from(" ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,:-/+%$#!?×•→✈");
++const CELL_W = .64, CELL_H = .88, GAP = .032, HALF = CELL_H / 2 - GAP / 2;
++/** Ported from sky-harbor-splitflap.html: column-major perspective × rotateX. */
++export function flapMatrix(degrees: number, perspective = 300): string {
++    const radians = degrees * Math.PI / 180, c = Math.cos(radians), s = Math.sin(radians), p = -1 / perspective;
++    return `matrix3d(1,0,0,0,0,${c},${s},${s * p},0,${-s},${c},${c * p},0,0,0,1)`;
++}
++const bounce = (t: number) => {
++    const n = 7.5625, d = 2.75;
++    if (t < 1 / d)
++        return n * t * t;
++    if (t < 2 / d)
++        return n * (t -= 1.5 / d) * t + .75;
++    if (t < 2.5 / d)
++        return n * (t -= 2.25 / d) * t + .9375;
++    return n * (t -= 2.625 / d) * t + .984375;
++};
++interface Half {
++    element: HTMLDivElement;
++    glyph: HTMLSpanElement;
++    shade: HTMLDivElement;
++}
++function half(document: Document, className: string): Half {
++    const element = document.createElement("div"), glyph = document.createElement("span"), shade = document.createElement("div");
++    element.className = `sf-half ${className}`;
++    glyph.className = "sf-glyph";
++    shade.className = "sf-shade";
++    element.append(glyph, shade);
++    return { element, glyph, shade };
++}
++/** One clock per BILLBOARD, not one requestAnimationFrame/timeout per cell. No idle tasks. */
++class FlapClock {
++    readonly active = new Set<Cell>();
++    private stop?: Dispose;
++    reduced = false;
++    flipMs = 80;
++    flips = 0;
++    constructor(private context: HTMLComponentContext<BillboardState, BillboardEvents>, private board: HTMLElement) {
++        context.onCleanup(() => { this.stop?.(); this.stop = undefined; this.active.clear(); });
++    }
++    wake(cell: Cell): void {
++        this.active.add(cell);
++        this.board.dataset.animatedCells = String(this.active.size);
++        if (!this.stop)
++            this.stop = this.context.onFrame(dt => {
++                for (const item of this.active)
++                    if (!item.tick(dt))
++                        this.active.delete(item);
++                this.board.dataset.animatedCells = String(this.active.size);
++                this.board.dataset.flips = String(this.flips);
++                if (!this.active.size) {
++                    this.stop?.();
++                    this.stop = undefined;
++                }
++            });
++    }
++    remove(cell: Cell): void {
++        this.active.delete(cell);
++        if (!this.active.size) {
++            this.stop?.();
++            this.stop = undefined;
++        }
++        this.board.dataset.animatedCells = String(this.active.size);
++    }
++    settle(): void {
++        for (const cell of this.active)
++            cell.snap();
++        this.active.clear();
++        this.stop?.();
++        this.stop = undefined;
++        this.board.dataset.animatedCells = "0";
++    }
++}
++class Cell {
++    readonly element: HTMLDivElement;
++    private top: Half;
++    private bottom: Half;
++    private falling: Half;
++    private landing: Half;
++    current = " ";
++    target = " ";
++    private to = " ";
++    private elapsed = -1;
++    private duration = 80;
++    private delay = 0;
++    constructor(document: Document, private clock: FlapClock, private order: string[]) {
++        this.element = document.createElement("div");
++        this.element.className = "sf-cell";
++        this.top = half(document, "sf-top");
++        this.bottom = half(document, "sf-bottom");
++        this.falling = half(document, "sf-top sf-flap");
++        this.landing = half(document, "sf-bottom sf-flap");
++        const hinge = document.createElement("div");
++        hinge.className = "sf-hinge";
++        this.element.append(this.top.element, this.bottom.element, this.falling.element, this.landing.element, hinge);
++    }
++    set(character: string, animate: boolean, delay: number): void {
++        if (this.target === character && (animate || this.current === character))
++            return;
++        this.target = character;
++        if (!this.order.includes(character))
++            this.order.push(character);
++        if (!animate || this.clock.reduced) {
++            this.snap();
++            this.clock.remove(this);
++            return;
++        }
++        // A retarget changes the destination; finish the in-flight physical flap before advancing.
++        if (!this.clock.active.has(this))
++            this.delay = delay;
++        if (this.current !== character || this.elapsed >= 0)
++            this.clock.wake(this);
++    }
++    snap(): void {
++        this.current = this.target;
++        this.elapsed = -1;
++        this.delay = 0;
++        this.top.glyph.textContent = this.bottom.glyph.textContent = this.current;
++        this.falling.element.style.visibility = this.landing.element.style.visibility = "hidden";
++        this.falling.element.style.willChange = this.landing.element.style.willChange = "";
++        this.bottom.shade.style.opacity = "0";
++        this.element.dataset.character = this.current;
++    }
++    tick(dt: number): boolean {
++        if (this.delay > 0) {
++            this.delay -= dt;
++            return true;
++        }
++        if (this.elapsed < 0) {
++            if (this.current === this.target)
++                return false;
++            this.to = this.order[(Math.max(0, this.order.indexOf(this.current)) + 1) % this.order.length];
++            this.elapsed = 0;
++            this.duration = this.clock.flipMs;
++            this.top.glyph.textContent = this.to;
++            this.bottom.glyph.textContent = this.current;
++            this.falling.glyph.textContent = this.current;
++            this.landing.glyph.textContent = this.to;
++            this.falling.element.style.visibility = "visible";
++            this.falling.element.style.willChange = this.landing.element.style.willChange = "transform";
++        }
++        this.elapsed += dt;
++        const t = Math.min(1, this.elapsed / this.duration);
++        if (t < .5) {
++            const k = (t * 2) ** 3;
++            this.falling.element.style.transform = flapMatrix(-90 * k);
++            this.falling.shade.style.opacity = String(.55 * k);
++            this.bottom.shade.style.opacity = String(.35 * k);
++            this.landing.element.style.visibility = "hidden";
++        }
++        else {
++            const k = bounce((t - .5) * 2);
++            this.falling.element.style.visibility = "hidden";
++            this.landing.element.style.visibility = "visible";
++            this.landing.element.style.transform = flapMatrix(90 * (1 - k));
++            this.landing.shade.style.opacity = String(.5 * (1 - k));
++            this.bottom.shade.style.opacity = String(.35 * (1 - k));
++        }
++        if (t >= 1) {
++            this.current = this.to;
++            this.elapsed = -1;
++            this.clock.flips++;
++            this.top.glyph.textContent = this.bottom.glyph.textContent = this.current;
++            this.falling.element.style.visibility = this.landing.element.style.visibility = "hidden";
++            this.bottom.shade.style.opacity = "0";
++            this.element.dataset.character = this.current;
++            if (this.current === this.target) {
++                this.falling.element.style.willChange = this.landing.element.style.willChange = "";
++                return false;
++            }
++        }
++        return true;
++    }
++    dispose(): void { this.clock.remove(this); this.element.remove(); }
++}
++class FlapRow {
++    readonly element: HTMLDivElement;
++    readonly cells: Cell[] = [];
++    private value = "";
++    constructor(document: Document, length: number, private clock: FlapClock) {
++        this.element = document.createElement("div");
++        this.element.className = "sf-row";
++        this.element.setAttribute("aria-hidden", "true");
++        const order = CHARSET.slice();
++        for (let index = 0; index < length; index++) {
++            const cell = new Cell(document, clock, order);
++            this.cells.push(cell);
++            this.element.appendChild(cell.element);
++        }
++    }
++    set(text: string, animate: boolean): void {
++        const characters = Array.from(text.toUpperCase()).slice(0, this.cells.length);
++        while (characters.length < this.cells.length)
++            characters.push(" ");
++        const next = characters.join("");
++        if (next === this.value && animate)
++            return;
++        this.value = next;
++        Array.from(next).forEach((character, index) => this.cells[index]?.set(character, animate, (index * 37) % 120));
++    }
++    dispose(): void { this.cells.forEach(cell => cell.dispose()); this.element.remove(); }
++}
++const template = `
++<section class="billboard" aria-label="Airport departure board" data-animated-cells="0" data-flips="0">
++  <header><div class="board-title"></div><div class="board-meta">TERMINAL 01<span>LOCAL DEPARTURES · LIVE</span></div></header>
++  <div class="headings"><span>FLIGHT</span><span>DESTINATION</span><span>GATE</span><span>STATUS</span></div>
++  <div class="departures"></div>
++  <footer><span class="live-dot"></span><div class="board-message"></div><span class="maker">SH / 01</span></footer>
++  <i class="screw tl"></i><i class="screw tr"></i><i class="screw bl"></i><i class="screw br"></i>
++</section>`;
++const styles = `
++:host{--sf-ink:#ffe29a;--sf-tile:#222b2c;--sf-font:ui-monospace,"Liberation Mono",Consolas,monospace;display:block;width:100%;height:100%;line-height:1}
++.billboard{position:relative;width:${BILLBOARD_WIDTH}px;height:${BILLBOARD_HEIGHT}px;padding:18px 24px 15px;background:#111a1c;color:#f5d36f;border:5px solid #304244;border-radius:9px;box-shadow:0 7px 0 #102126,0 13px 17px #081c204d,inset 0 0 0 2px #080f11;overflow:hidden}
++header{display:flex;align-items:center;justify-content:space-between;height:49px;margin-bottom:11px}.board-title{font-size:44px;--sf-ink:#ffc947}.board-meta{text-align:right;font:700 13px/1.5 system-ui;letter-spacing:2px;color:#bfd0cd}.board-meta span{display:block;font-size:9px;letter-spacing:1.6px;color:#8daba6}
++.headings,.flight-row{display:grid;grid-template-columns:126px 306px 84px 236px;column-gap:25px;align-items:center}.headings{height:20px;color:#829d98;font:600 10px/1 system-ui;letter-spacing:2px;padding:0 6px}
++.departures{height:158px}.flight-row{width:100%;height:38px;padding:3px 6px;margin:0 0 2px;border:0;border-radius:3px;background:transparent;box-shadow:none;cursor:pointer;text-align:left;font-size:32px;touch-action:manipulation;transition:none}.flight-row:hover{background:#344239}.flight-row[aria-pressed=true]{background:#405547;box-shadow:inset 3px 0 #e8c767}.flight-row:focus-visible{outline:2px solid #8ddace;outline-offset:0}.flight-row:disabled{cursor:default;opacity:.6}.flight-row .status{--sf-ink:#ffcc65}.flight-row[data-status=DELAYED] .status{--sf-ink:#ff917d}.flight-row[data-status=BOARDING] .status{--sf-ink:#9ad1a8}.flight-row[data-status=DEPARTED] .status{--sf-ink:#79908e}
++footer{display:flex;align-items:center;gap:13px;margin-top:8px;padding-top:10px;border-top:1px solid #314043}.board-message{font-size:24px;--sf-ink:#a8dabb}.live-dot{width:5px;height:5px;background:#a8dabb;border-radius:50%;box-shadow:0 0 8px #77cd92}.maker{margin-left:auto;font:600 10px system-ui;letter-spacing:2px;color:#718b83}
++.screw{position:absolute;width:5px;height:5px;border-radius:50%;background:linear-gradient(130deg,#788783 44%,#142320 47% 55%,#788783 57%);box-shadow:0 0 0 1px #0c1415}.tl{top:4px;left:4px}.tr{top:4px;right:4px}.bl{bottom:4px;left:4px}.br{bottom:4px;right:4px}
++:host([data-power=off]) .sf-row,:host([data-power=off]) .live-dot{opacity:.13}
++.sf-row{display:inline-flex;gap:.065em;font-family:var(--sf-font);font-weight:700;vertical-align:top}.sf-cell{position:relative;width:${CELL_W}em;height:${CELL_H}em;flex:none}
++.sf-half{position:absolute;left:0;width:100%;height:${HALF}em;overflow:hidden;background:var(--sf-tile);color:var(--sf-ink);backface-visibility:hidden}.sf-top{top:0;border-radius:.05em .05em 0 0;transform-origin:50% calc(100% + ${GAP / 2}em);background:linear-gradient(#2d3737,#222b2c)}.sf-bottom{top:${CELL_H / 2 + GAP / 2}em;border-radius:0 0 .05em .05em;transform-origin:50% -${GAP / 2}em}
++.sf-glyph{position:absolute;left:0;width:100%;height:${CELL_H}em;line-height:${CELL_H}em;white-space:pre;text-align:center;letter-spacing:0}.sf-top .sf-glyph{top:0}.sf-bottom .sf-glyph{top:-${CELL_H / 2 + GAP / 2}em}.sf-shade{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none}.sf-flap{visibility:hidden;z-index:2}.sf-hinge{position:absolute;top:${CELL_H / 2 - GAP / 2}em;height:${GAP}em;left:-.02em;right:-.02em;z-index:3;background:linear-gradient(90deg,#0a1314 0 .05em,transparent .05em calc(100% - .05em),#0a1314 0)}
++`;
++interface FlightView {
++    element: HTMLButtonElement;
++    columns: FlapRow[];
++    stop: Dispose;
++}
++export const SplitFlapBillboard = defineHTMLComponent<BillboardState, BillboardEvents>({
++    name: "sky-harbor/split-flap-billboard", template, styles,
++    setup(context) {
++        const board = context.query(".billboard"), container = context.query(".departures");
++        const clock = new FlapClock(context, board);
++        const title = new FlapRow(context.document, 10, clock), message = new FlapRow(context.document, 24, clock);
++        context.query(".board-title").append(title.element);
++        context.query(".board-message").append(message.element);
++        const flights = new Map<string, FlightView>();
++        let mounted = false, commits = 0;
++        context.bind(() => context.reducedMotion.get() || context.state.get().powered === false, reduced => {
++            clock.reduced = reduced;
++            if (reduced)
++                clock.settle();
++        });
++        context.bind(context.state, state => {
++            if (!Array.isArray(state.flights) || state.flights.length > 4 || new Set(state.flights.map(flight => flight.id)).size !== state.flights.length || state.flights.some(flight => !flight.id))
++                throw new Error("SPLIT_FLAP_STATE: expected up to four flights with unique nonempty IDs");
++            if (typeof state.title !== "string" || typeof state.message !== "string" || state.flights.some(flight => ![flight.flight, flight.destination, flight.gate, flight.status].every(value => typeof value === "string")))
++                throw new Error("SPLIT_FLAP_STATE: display values must be strings");
++            const duration = state.flipMs ?? 80;
++            if (!Number.isFinite(duration) || duration < 16 || duration > 2000)
++                throw new Error("SPLIT_FLAP_STATE: flipMs must be 16..2000");
++            clock.flipMs = duration;
++            context.host.dataset.power = state.powered === false ? "off" : "on";
++            const animate = mounted && !clock.reduced && state.powered !== false;
++            title.set(state.title, animate);
++            message.set(state.message, animate);
++            context.query(".board-message").setAttribute("aria-label", state.message);
++            board.setAttribute("aria-label", `${state.title} departure board${state.powered === false ? ", powered off" : ""}`);
++            const ids = new Set(state.flights.map(flight => flight.id));
++            for (const [id, view] of flights)
++                if (!ids.has(id)) {
++                    view.stop();
++                    view.columns.forEach(column => column.dispose());
++                    view.element.remove();
++                    flights.delete(id);
++                }
++            const focused = context.root.activeElement as HTMLElement | null;
++            let before: ChildNode | null = container.firstChild;
++            for (const flight of state.flights) {
++                let view = flights.get(flight.id);
++                const existed = !!view;
++                if (!view) {
++                    const element = context.document.createElement("button");
++                    element.type = "button";
++                    element.className = "flight-row";
++                    element.dataset.focus = `flight-${flight.id}`;
++                    element.dataset.flight = flight.id;
++                    const columns = [5, 12, 3, 9].map(length => new FlapRow(context.document, length, clock));
++                    columns[3].element.classList.add("status");
++                    columns.forEach(column => element.append(column.element));
++                    const stop = context.listen(element, "click", () => context.emit("selectFlight", { id: flight.id }));
++                    view = { element, columns, stop };
++                    flights.set(flight.id, view);
++                }
++                // Do not move retained rows on value-only updates (preserves native focus/caret).
++                if (view.element !== before)
++                    container.insertBefore(view.element, before);
++                before = view.element.nextSibling;
++                view.element.dataset.status = flight.status;
++                view.element.disabled = state.powered === false;
++                view.element.setAttribute("aria-label", `${flight.flight}, ${flight.destination}, gate ${flight.gate}, ${flight.status}`);
++                view.element.setAttribute("aria-pressed", String(flight.id === state.selectedId));
++                [flight.flight, flight.destination, flight.gate, flight.status].forEach((value, index) => view!.columns[index].set(value, animate && existed));
++            }
++            if (focused?.isConnected && context.root.activeElement !== focused)
++                focused.focus({ preventScroll: true });
++            mounted = true;
++            board.dataset.stateCommits = String(++commits);
++            context.refreshFocus();
++        });
++        return () => { title.dispose(); message.dispose(); for (const view of flights.values())
++            view.columns.forEach(column => column.dispose()); flights.clear(); };
++    },
++});
+diff --git a/examples/ui-final-airport/terminal.ts b/examples/ui-final-airport/terminal.ts
+new file mode 100644
+index 0000000..d1ffdce
+--- /dev/null
++++ b/examples/ui-final-airport/terminal.ts
+@@ -0,0 +1,87 @@
++import { defineHTMLComponent, projectIsometric, type Point3 } from "../../engine/ui/final/index";
++export const TERMINAL_CAMERA = { origin: { x: 585, y: 225 }, zoom: 1 };
++const p = (x: number, y: number, z = 0) => projectIsometric({ x, y, z }, TERMINAL_CAMERA);
++const xy = (point: Point3) => { const v = p(point.x, point.y, point.z); return `${v.x.toFixed(2)},${v.y.toFixed(2)}`; };
++const polygon = (points: Point3[], fill: string, stroke = "none") => `<polygon points="${points.map(xy).join(" ")}" fill="${fill}" stroke="${stroke}" stroke-width="1" stroke-linejoin="round"/>`;
++const rect = (x: number, y: number, w: number, d: number, z: number, fill: string, stroke?: string) => polygon([{ x, y, z }, { x: x + w, y, z }, { x: x + w, y: y + d, z }, { x, y: y + d, z }], fill, stroke);
++const line = (a: Point3, b: Point3, color: string, width = 1) => `<line x1="${p(a.x, a.y, a.z).x}" y1="${p(a.x, a.y, a.z).y}" x2="${p(b.x, b.y, b.z).x}" y2="${p(b.x, b.y, b.z).y}" stroke="${color}" stroke-width="${width}"/>`;
++function box(x: number, y: number, w: number, d: number, h: number, top: string, left: string, right: string, z = 0): string {
++    return polygon([{ x, y: y + d, z }, { x: x + w, y: y + d, z }, { x: x + w, y: y + d, z: z + h }, { x, y: y + d, z: z + h }], left) +
++        polygon([{ x: x + w, y, z }, { x: x + w, y: y + d, z }, { x: x + w, y: y + d, z: z + h }, { x: x + w, y, z: z + h }], right) + rect(x, y, w, d, z + h, top);
++}
++function plant(x: number, y: number): string {
++    const at = p(x, y);
++    return `<g><ellipse cx="${at.x + 3}" cy="${at.y + 2}" rx="24" ry="12" fill="#2a695b" opacity=".13"/><path d="M${at.x - 16},${at.y - 21}l4,26q12,9 24,0l4,-26z" fill="#d4a884"/><ellipse cx="${at.x}" cy="${at.y - 21}" rx="16" ry="8" fill="#a47a55"/><path d="M${at.x},${at.y - 21}v-51" stroke="#456e54" stroke-width="4"/><ellipse cx="${at.x - 12}" cy="${at.y - 56}" rx="11" ry="21" fill="#54806a" transform="rotate(-40 ${at.x - 12} ${at.y - 56})"/><ellipse cx="${at.x + 10}" cy="${at.y - 66}" rx="11" ry="22" fill="#71977b" transform="rotate(25 ${at.x + 10} ${at.y - 66})"/><ellipse cx="${at.x + 17}" cy="${at.y - 43}" rx="11" ry="22" fill="#3e705d" transform="rotate(57 ${at.x + 17} ${at.y - 43})"/></g>`;
++}
++function person(x: number, y: number, coat: string, bag = false): string {
++    const a = p(x, y);
++    return `<g><ellipse cx="${a.x + 3}" cy="${a.y + 2}" rx="11" ry="5" fill="#49695b" opacity=".18"/><path d="M${a.x - 3},${a.y - 12}l-2,13m8,-13l2,13" stroke="#314745" stroke-width="4" stroke-linecap="round"/><rect x="${a.x - 7}" y="${a.y - 32}" width="14" height="22" rx="5" fill="${coat}"/><circle cx="${a.x}" cy="${a.y - 39}" r="6" fill="#c99778"/><path d="M${a.x - 6},${a.y - 40}q1,-10 11,-3l1,3" fill="#374f46"/>${bag ? `<rect x="${a.x + 12}" y="${a.y - 15}" width="11" height="17" rx="3" fill="#a5724e"/><path d="M${a.x + 15},${a.y - 15}v-7h5v7" fill="none" stroke="#5f5449" stroke-width="1.5"/>` : ""}</g>`;
++}
++function bench(x: number, y: number, seats: number): string {
++    let result = rect(x - 4, y - 4, seats * 43 + 10, 40, 0, "#abb8a644");
++    result += box(x + 5, y + 7, seats * 43 - 12, 5, 12, "#48655e", "#657e72", "#3c5954");
++    result += box(x + 5, y + 28, seats * 43 - 12, 5, 12, "#48655e", "#657e72", "#3c5954");
++    for (let i = 0; i < seats; i++) {
++        result += box(x + i * 43, y, 39, 34, 7, "#719481", "#638773", "#496e60", 12);
++        result += box(x + i * 43, y + 28, 39, 6, 25, "#85a08a", "#77987f", "#496e60", 19);
++    }
++    return result;
++}
++function architecture(): string {
++    const parts: string[] = [];
++    // Floor slab and true 30° orthographic axes.
++    parts.push(`<ellipse cx="592" cy="603" rx="525" ry="204" fill="#4f7658" opacity=".08"/>`);
++    parts.push(box(0, 0, 600, 600, 15, "#e8e7d5", "#c9ccb5", "#bec6af", -15));
++    for (let n = 0; n <= 600; n += 60) {
++        parts.push(line({ x: n, y: 0, z: .1 }, { x: n, y: 600, z: .1 }, "#ced5c1"));
++        parts.push(line({ x: 0, y: n, z: .1 }, { x: 600, y: n, z: .1 }, "#ced5c1"));
++    }
++    parts.push(polygon([{ x: 0, y: 0, z: 0 }, { x: 600, y: 0, z: 0 }, { x: 600, y: 0, z: 205 }, { x: 0, y: 0, z: 205 }], "#dce0d0"));
++    parts.push(polygon([{ x: 0, y: 0, z: 0 }, { x: 0, y: 600, z: 0 }, { x: 0, y: 600, z: 205 }, { x: 0, y: 0, z: 205 }], "#eaf0df"));
++    parts.push(box(-9, -9, 618, 9, 214, "#f5f5e8", "#d4ddc7", "#b4c5af"));
++    parts.push(box(-9, 0, 9, 600, 214, "#f5f5e8", "#d4ddc7", "#c5d2bd"));
++    parts.push(line({ x: 0, y: 0, z: 7 }, { x: 600, y: 0, z: 7 }, "#91a895", 8), line({ x: 0, y: 0, z: 7 }, { x: 0, y: 600, z: 7 }, "#b1c2aa", 8));
++    // Long window wall, runway view and mullions.
++    for (let n = 0; n < 3; n++) {
++        const y = 28 + n * 187, span = 160;
++        parts.push(polygon([{ x: 1, y, z: 53 }, { x: 1, y: y + span, z: 53 }, { x: 1, y: y + span, z: 176 }, { x: 1, y, z: 176 }], "#a8cbd0", "#92b9ba"));
++        parts.push(polygon([{ x: 2, y, z: 53 }, { x: 2, y: y + span, z: 53 }, { x: 2, y: y + span, z: 100 }, { x: 2, y, z: 98 }], "#c4d7c4"));
++        parts.push(line({ x: 3, y, z: 81 }, { x: 3, y: y + span, z: 81 }, "#eaf0d6", 3));
++        parts.push(line({ x: 3, y: y + 80, z: 53 }, { x: 3, y: y + 80, z: 176 }, "#ecf0da", 5));
++        parts.push(line({ x: 3, y, z: 121 }, { x: 3, y: y + span, z: 121 }, "#e9efd9", 4));
++        parts.push(polygon([{ x: 3, y: y + 14, z: 125 }, { x: 3, y: y + 48, z: 142 }, { x: 3, y: y + 75, z: 174 }, { x: 3, y: y + 54, z: 174 }], "#d4e5df88"));
++        parts.push(box(0, y - 6, 16, span + 12, 7, "#fbf8e9", "#d3ddc8", "#b4c6af", 47));
++    }
++    // A tiny plane through the center pane (decorative SVG, not an external asset).
++    const plane = p(3, 314, 128);
++    parts.push(`<g transform="translate(${plane.x} ${plane.y}) rotate(-30) scale(.8)"><path d="M-44,0L-10,-5L10,-29L18,-29L10,-4L42,-1Q53,1 42,4L9,5L15,20L8,20L-11,5L-41,6L-50,15L-56,15L-50,3L-56,-8L-50,-8z" fill="#f6f6e8"/><path d="M-30,1L25,1" stroke="#87a9a6" stroke-width="2"/></g>`);
++    // Carpet and markings anchor the waiting area.
++    parts.push(rect(120, 215, 290, 210, .5, "#b9cab3"), rect(128, 223, 274, 194, .7, "#becfb8"));
++    const path = p(440, 370, .8);
++    parts.push(`<g transform="matrix(.866,.5,-.866,.5,${path.x},${path.y})" fill="#91a78c"><rect x="0" y="0" width="15" height="60" rx="5"/><path d="M-12,21L7,-2L26,21z"/><text x="-10" y="92" font-family="system-ui" font-size="16" font-weight="700">GATES</text></g>`);
++    // Sort freestanding objects by floor depth for this fixed camera.
++    const objects: [
++        number,
++        string
++    ][] = [];
++    objects.push([430, bench(160, 230, 4)], [525, bench(160, 325, 4)]);
++    for (let n = 0; n < 3; n++) {
++        const x = 387 + n * 57, y = 100;
++        objects.push([x + y, box(x, y, 47, 60, 48, "#d8e4cc", "#6e9582", "#507968") + box(x + 5, y + 7, 35, 17, 4, "#edf0da", "#cad5bf", "#a4b59e", 48) + box(x + 10, y + 15, 24, 6, 21, "#324b47", "#476863", "#243d38", 52)]);
++    }
++    objects.push([690, box(62, 480, 118, 50, 55, "#e9d6b7", "#b69778", "#8f795f") + box(77, 487, 20, 22, 23, "#627f70", "#4e6e5e", "#385647", 55)]);
++    for (const [x, y] of [[32, 180], [35, 553], [558, 55], [477, 502]])
++        objects.push([x + y, plant(x, y)]);
++    const people: [
++        number,
++        number,
++        string,
++        boolean
++    ][] = [[344, 165, "#bd8e60", true], [295, 462, "#4b7470", true], [462, 268, "#a06449", false], [126, 436, "#cebb83", false], [254, 285, "#d4a866", false], [428, 472, "#63816f", true], [215, 580, "#966951", true], [519, 350, "#c4b493", false], [361, 549, "#7b9d97", false]];
++    for (const [x, y, color, bag] of people)
++        objects.push([x + y, person(x, y, color, bag)]);
++    objects.sort((a, b) => a[0] - b[0]);
++    parts.push(...objects.map(item => item[1]));
++    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 860" aria-hidden="true">${parts.join("")}</svg>`;
++}
++export const TerminalArchitecture = defineHTMLComponent<null>({ name: "sky-harbor/terminal-architecture", template: architecture(), styles: ':host{display:block;width:1200px;height:860px;pointer-events:none}svg{display:block;width:100%;height:100%}' });
+diff --git a/package.json b/package.json
+index db4763b..40ee086 100644
+--- a/package.json
++++ b/package.json
+@@ -122,7 +122,9 @@
+     "build:ui-final": "node scripts/build-ui-final.mjs",
+     "test:ui-final": "node scripts/test-ui-final.mjs",
+     "test:ui-final:browser": "node scripts/test-ui-final-browser.mjs",
+-    "demo:ui-final:offline": "node scripts/build-ui-final-demo.mjs"
++    "demo:ui-final:offline": "node scripts/build-ui-final-demo.mjs",
++    "demo:ui-final:airport": "node scripts/build-ui-final-airport-demo.mjs",
++    "test:ui-final:html": "node scripts/test-ui-final-html-browser.mjs"
+   },
+   "devDependencies": {
+     "@types/express": "^5.0.0",
+diff --git a/scripts/build-ui-final-airport-demo.mjs b/scripts/build-ui-final-airport-demo.mjs
+new file mode 100644
+index 0000000..4d2a1e1
+--- /dev/null
++++ b/scripts/build-ui-final-airport-demo.mjs
+@@ -0,0 +1,12 @@
++import { execFileSync } from "node:child_process";
++import { writeFile } from "node:fs/promises";
++import { dirname, resolve } from "node:path";
++import { fileURLToPath } from "node:url";
++import { browserBundle } from "./ui-final-browser-bundle.mjs";
++const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
++if (!process.argv.includes("--no-build"))
++    execFileSync(process.execPath, ["scripts/build-ui-final.mjs"], { cwd: root, stdio: "inherit" });
++const bundle = browserBundle(root, "examples/ui-final-airport/offline.mjs").replaceAll("</script", "<\\/script");
++const output = resolve(root, ".ui-final-build/ui-final-airport-demo.html");
++await writeFile(output, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:"><title>Sky Harbor · Isometric terminal</title><style>html,body{margin:0;background:#f1f3e8;min-height:100%;}body{overflow-x:hidden}</style></head><body><script>${bundle}</script></body></html>`);
++console.log(`Offline airport demo: ${output}`);
+diff --git a/scripts/test-ui-final-html-browser.mjs b/scripts/test-ui-final-html-browser.mjs
+new file mode 100644
+index 0000000..4cb3c30
+--- /dev/null
++++ b/scripts/test-ui-final-html-browser.mjs
+@@ -0,0 +1,147 @@
++import { execFileSync } from "node:child_process";
++import { mkdir } from "node:fs/promises";
++import { dirname, resolve } from "node:path";
++import { fileURLToPath } from "node:url";
++import { browserBundle } from "./ui-final-browser-bundle.mjs";
++const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
++if (!process.argv.includes("--no-build"))
++    execFileSync(process.execPath, ["scripts/build-ui-final.mjs"], { cwd: root, stdio: "inherit" });
++const { chromium } = await import(process.env.UI_FINAL_PLAYWRIGHT_MODULE || "playwright-core");
++const browser = await chromium.launch({ executablePath: process.env.UI_FINAL_BROWSER || undefined, headless: true, args: ["--no-sandbox"] });
++const results = [];
++const uncaught = [];
++const check = async (name, fn) => { try {
++    await fn();
++    results.push({ name, pass: true });
++}
++catch (error) {
++    results.push({ name, pass: false, error: String(error.stack ?? error) });
++} };
++try {
++    const page = await browser.newPage({ viewport: { width: 1440, height: 1040 }, hasTouch: true });
++    page.on("pageerror", error => uncaught.push(String(error)));
++    page.setDefaultTimeout(6000);
++    await page.setContent('<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\'; style-src \'unsafe-inline\'; img-src data: blob:"></head><body style="margin:0"></body></html>');
++    await page.addScriptTag({ content: browserBundle(root, "test/ui-final/html-browser.mjs") });
++    results.push(...await page.evaluate(() => window.runUIFinalHTMLTests()));
++    await page.evaluate(() => window.setupNativeHTMLTest());
++    await check("NATIVE: shadow input typing and caret movement remain native", async () => {
++        const input = page.locator('[data-uif-id="native-html"] input');
++        await input.focus();
++        await page.keyboard.type("Sky Harbor");
++        await page.keyboard.press("ArrowLeft");
++        await page.keyboard.type("!");
++        if (await input.inputValue() !== "Sky Harbo!r")
++            throw new Error(await input.inputValue());
++    });
++    await check("NATIVE: shadow Enter, Space, pointer and touch activate exactly once each", async () => {
++        const button = page.getByRole("button", { name: "Shadow action", exact: true });
++        await button.focus();
++        await page.keyboard.press("Enter");
++        await page.keyboard.press("Space");
++        await button.click();
++        await button.tap();
++        const count = await page.evaluate(() => window.nativeHTML.clicks);
++        if (count !== 4)
++            throw new Error(`expected 4, got ${count}`);
++    });
++    await check("NATIVE: Tab crosses into, within and out of a shadow component", async () => {
++        await page.locator('[data-uif-id="native-before"]').focus();
++        await page.keyboard.press("Tab");
++        const current = () => page.evaluate(() => window.nativeHTML.ui.focus.current());
++        if (await current() !== "native-html/edit")
++            throw new Error(await current());
++        await page.keyboard.press("Tab");
++        if (await current() !== "native-html/button")
++            throw new Error(await current());
++        await page.keyboard.press("Tab");
++        await page.keyboard.press("Tab");
++        if (await current() !== "native-after")
++            throw new Error(await current());
++    });
++    await check("NATIVE: pointer capture continues dragging outside shadow control bounds", async () => {
++        const box = await page.getByRole("button", { name: "Shadow drag" }).boundingBox();
++        await page.mouse.move(box.x + 10, box.y + 10);
++        await page.mouse.down();
++        await page.mouse.move(box.x + box.width + 130, box.y + box.height + 70, { steps: 4 });
++        await page.mouse.up();
++        const state = await page.evaluate(() => ({ moves: window.nativeHTML.pointerMoves, captures: window.nativeHTML.captures }));
++        if (state.captures !== 1 || state.moves < 1)
++            throw new Error(JSON.stringify(state));
++    });
++    await page.evaluate(() => window.cleanupHTMLTests());
++    await page.addScriptTag({ content: browserBundle(root, "examples/ui-final-airport/offline.mjs") });
++    await page.waitForFunction(() => !!window.skyHarborAirportDemo?.ui.element("departure-board"));
++    await check("DEMO: actual projected wall hit-testing selects the flight and retains the board", async () => {
++        await page.getByRole("button", { name: "SH218, SEOUL, gate A07, ON TIME" }).click();
++        await page.waitForFunction(() => window.skyHarborAirportDemo.board.peek().selectedId === "sh218");
++        await page.evaluate(() => window.originalAirportBoard = window.skyHarborAirportDemo.ui.element("departure-board"));
++        await page.locator('[data-uif-id="change-gate"]').click();
++        await page.waitForFunction(() => window.skyHarborAirportDemo.board.peek().flights[1].gate === "A12");
++        if (!await page.evaluate(() => window.originalAirportBoard === window.skyHarborAirportDemo.ui.element("departure-board")))
++            throw new Error("board remounted");
++    });
++    await check("DEMO: announcement and departure actions go through the command queue", async () => {
++        await page.locator('[data-uif-id="announcement"]').fill("GATE 12 IS OPEN");
++        await page.locator('[data-uif-id="publish-message"]').click();
++        await page.waitForFunction(() => window.skyHarborAirportDemo.board.peek().message === "GATE 12 IS OPEN");
++        await page.locator('[data-uif-id="new-departures"]').click();
++        await page.waitForFunction(() => window.skyHarborAirportDemo.board.peek().flights[0].flight === "SH111");
++    });
++    await check("DEMO: front inspection and isometric zoom preserve DOM and surface interaction", async () => {
++        await page.locator('[data-uif-id="toggle-flat"]').click();
++        await page.waitForFunction(() => window.skyHarborAirportDemo.flat.peek());
++        await page.evaluate(() => { window.skyHarborAirportDemo.zoom.set(1.15); window.skyHarborAirportDemo.ui.flush(); });
++        if (!await page.evaluate(() => window.originalAirportBoard === window.skyHarborAirportDemo.ui.element("departure-board")))
++            throw new Error("board remounted");
++        await page.locator('[data-uif-id="toggle-flat"]').click();
++    });
++    // Settle for deterministic screenshots and then restore motion for the standalone artifact.
++    await page.evaluate(() => { const demo = window.skyHarborAirportDemo; demo.ui.setReducedMotion(true); demo.zoom.set(1); demo.board.set({ ...demo.board.peek(), ...{ title: "SKY HARBOR", message: "WELCOME TO SKY HARBOR", selectedId: "sh104", flights: [{ id: "sh104", flight: "SH104", destination: "LISBON", gate: "A04", status: "BOARDING" }, { id: "sh218", flight: "SH218", destination: "SEOUL", gate: "A07", status: "ON TIME" }, { id: "sh306", flight: "SH306", destination: "OSLO", gate: "B02", status: "GATE OPEN" }, { id: "sh442", flight: "SH442", destination: "CAIRO", gate: "B08", status: "DELAYED" }] } }); demo.draft.set("WELCOME TO SKY HARBOR"); demo.ui.flush(); });
++    const screenshots = process.env.UI_FINAL_SCREENSHOT_DIR;
++    if (screenshots) {
++        await mkdir(screenshots, { recursive: true });
++        await page.screenshot({ path: resolve(screenshots, "airport-desktop.png"), fullPage: true });
++        await page.locator('[data-uif-id="toggle-flat"]').click();
++        await page.screenshot({ path: resolve(screenshots, "airport-inspection.png"), fullPage: true });
++        await page.locator('[data-uif-id="toggle-flat"]').click();
++    }
++    await check("DEMO: 390px mobile layout has no horizontal overflow and supports touch inspection", async () => {
++        await page.setViewportSize({ width: 390, height: 844 });
++        await page.waitForTimeout(80);
++        const size = await page.evaluate(() => ({ width: innerWidth, scroll: document.documentElement.scrollWidth }));
++        if (size.scroll > size.width + 1)
++            throw new Error(JSON.stringify(size));
++        await page.locator('[data-uif-id="toggle-flat"]').tap();
++        await page.waitForFunction(() => window.skyHarborAirportDemo.flat.peek());
++        await page.getByRole("button", { name: "SH218, SEOUL, gate A07, ON TIME" }).tap();
++        await page.waitForFunction(() => window.skyHarborAirportDemo.board.peek().selectedId === "sh218");
++        await page.locator('[data-uif-id="toggle-flat"]').tap();
++        if (screenshots)
++            await page.screenshot({ path: resolve(screenshots, "airport-mobile.png"), fullPage: true });
++    });
++    await check("DEMO: disposing during animation releases every Final scope, frame task and host", async () => {
++        const remaining = await page.evaluate(() => { const demo = window.skyHarborAirportDemo; demo.ui.setReducedMotion(false); demo.board.update(state => ({ ...state, message: "CLOSING TERMINAL" })); demo.ui.flush(); demo.dispose(); return { tasks: demo.ui.frameTaskCount, scopes: demo.ui.scope.resources, focus: demo.ui.focus.size, root: demo.ui.root.isConnected, errors: demo.ui.errors.map(String) }; });
++        if (remaining.tasks || remaining.scopes || remaining.focus || remaining.root || remaining.errors.length)
++            throw new Error(JSON.stringify(remaining));
++    });
++    await check("BROWSER: actual Trusted Types enforcement accepts only the application's policy", async () => {
++        const trustedPage = await browser.newPage();
++        try {
++            const bundle = browserBundle(root, "test/ui-final/html-browser.mjs").replaceAll("</script", "<\\/script");
++            await trustedPage.setContent(`<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; require-trusted-types-for 'script'; trusted-types ui-final-html-test"></head><body><script>${bundle}</script></body></html>`);
++            await trustedPage.evaluate(() => window.runTrustedHTMLTest());
++        }
++        finally {
++            await trustedPage.close();
++        }
++    });
++    results.push({ name: "no unhandled browser exceptions", pass: !uncaught.length, ...(uncaught.length ? { error: uncaught.join("\n") } : {}) });
++    const output = { browser: await browser.version(), networkAssets: false, cspUnsafeEval: false, results, passed: results.filter(result => result.pass).length, failed: results.filter(result => !result.pass).length };
++    console.log(JSON.stringify(output, null, 2));
++    if (output.failed)
++        process.exitCode = 1;
++}
++finally {
++    await browser.close();
++}
+diff --git a/test/ui-final/html-browser.mjs b/test/ui-final/html-browser.mjs
+new file mode 100644
+index 0000000..ca5b070
+--- /dev/null
++++ b/test/ui-final/html-browser.mjs
+@@ -0,0 +1,577 @@
++import { UIFinal, signal, computed, each, virtualList, dynamic, Panel, Button, TextInput, Text, defineHTMLComponent, extractHTMLComponent, WorldSurface, isometricSurface, Model, mountDocument, connectInput } from "../../.ui-final-build/engine/ui/final/index.js";
++import { deepActiveElement } from "../../.ui-final-build/engine/ui/final/dom.js";
++import { InputManager, InputEventType } from "../../.ui-final-build/engine/inputs/InputManager.js";
++import { SplitFlapBillboard } from "../../.ui-final-build/examples/ui-final-airport/split-flap.js";
++import { initialBillboard } from "../../.ui-final-build/examples/ui-final-airport/demo.js";
++const tests = [], cleanups = [];
++const test = (name, run) => tests.push({ name, run });
++const assert = (v, msg = "assertion failed") => { if (!v)
++    throw new Error(msg); };
++const equal = (a, b, msg = "") => assert(Object.is(a, b), `${msg}: expected ${String(b)}, got ${String(a)}`);
++const throws = (fn, re) => { let e; try {
++    fn();
++}
++catch (error) {
++    e = error;
++} assert(e && re.test(String(e)), `expected ${re}, got ${e}`); };
++const fixture = (options = {}) => { const host = document.createElement("div"); host.style.cssText = "position:relative;width:1100px;height:660px;"; document.body.append(host); const ui = new UIFinal({ host, scheduling: "manual", onError: () => { }, ...options }); cleanups.push(() => { try {
++    ui.dispose();
++}
++finally {
++    host.remove();
++} }); return ui; };
++const cleanup = () => { while (cleanups.length)
++    cleanups.pop()(); };
++const root = (ui, id = "island") => ui.element(id).shadowRoot;
++const afterMutations = async () => { await Promise.resolve(); await Promise.resolve(); };
++const Counter = defineHTMLComponent({ name: "test/counter", template: '<span id="value"></span><input id="edit" aria-label="Native edit"><button id="add" type="button">Add</button>', setup(ctx) { ctx.bind(() => ctx.state.get().count, value => ctx.query("#value").textContent = String(value)); ctx.listen(ctx.query("#add"), "click", () => ctx.emit("add", ctx.state.peek().count)); } });
++test("HTML: state changes retain template, native input, caret and independent instances", () => {
++    const ui = fixture(), a = signal({ count: 1 }), b = signal({ count: 7 });
++    ui.mount(Panel({}, Counter({ id: "one", state: a }), Counter({ id: "two", state: b })));
++    const one = root(ui, "one"), two = root(ui, "two"), input = one.querySelector("input"), span = one.querySelector("span");
++    input.value = "edited";
++    input.focus();
++    input.setSelectionRange(1, 4);
++    a.set({ count: 2 });
++    ui.flush();
++    equal(one.querySelector("span"), span);
++    equal(span.textContent, "2");
++    equal(two.querySelector("span").textContent, "7");
++    equal(input.value, "edited");
++    equal(input.selectionStart, 1);
++    equal(deepActiveElement(document), input);
++    assert(!document.getElementById("value"));
++});
++test("HTML: scoped CSS wins over engine defaults and never leaks into another island", () => {
++    const ui = fixture();
++    const A = defineHTMLComponent({ name: "red", template: '<button class="custom">A</button>', styles: '.custom{background:rgb(200,10,20);font-size:31px}body{background:rgb(255,0,0)}' });
++    const B = defineHTMLComponent({ name: "blue", template: '<button class="custom">B</button>', styles: '.custom{background:rgb(20,30,200)}' });
++    const background = getComputedStyle(document.body).backgroundColor;
++    ui.mount(Panel({}, A({ id: "a", state: null }), B({ id: "b", state: null })));
++    equal(getComputedStyle(root(ui, "a").querySelector("button")).backgroundColor, "rgb(200, 10, 20)");
++    equal(getComputedStyle(root(ui, "a").querySelector("button")).fontSize, "31px");
++    equal(getComputedStyle(root(ui, "b").querySelector("button")).backgroundColor, "rgb(20, 30, 200)");
++    equal(getComputedStyle(document.body).backgroundColor, background);
++});
++test("HTML: per-field binding equality suppresses unrelated writes and incidental reads", () => {
++    const ui = fixture(), state = signal({ a: 1, b: 2 }), other = signal(4);
++    let aa = 0, bb = 0;
++    const C = defineHTMLComponent({ name: "leaf", template: '<span></span>', setup(ctx) { ctx.bind(() => ctx.state.get().a, () => { other.get(); aa++; }); ctx.bind(() => ctx.state.get().b, () => bb++); } });
++    ui.mount(C({ state }));
++    state.set({ a: 2, b: 2 });
++    ui.flush();
++    equal(aa, 2);
++    equal(bb, 1);
++    other.set(5);
++    ui.flush();
++    equal(aa, 2);
++});
++test("HTML: static-state reconciliation and source replacement detach old dependencies", () => {
++    const ui = fixture(), old = signal({ count: 1 }), next = signal({ count: 9 });
++    ui.mount(Counter({ id: "island", state: old }));
++    const host = ui.element("island"), input = root(ui).querySelector("input");
++    ui.update(Counter({ id: "island", state: next }));
++    old.set({ count: 90 });
++    ui.flush();
++    equal(root(ui).querySelector("span").textContent, "9");
++    equal(ui.element("island"), host);
++    equal(root(ui).querySelector("input"), input);
++    next.set({ count: 10 });
++    ui.flush();
++    equal(root(ui).querySelector("span").textContent, "10");
++    ui.update(Counter({ id: "island", state: { count: 11 } }));
++    equal(root(ui).querySelector("span").textContent, "11");
++});
++test("HTML: updated event handlers are used without rerunning setup", () => {
++    const ui = fixture();
++    let a = 0, b = 0;
++    ui.mount(Counter({ id: "island", state: { count: 3 }, events: { add: value => a += value } }));
++    const button = root(ui).querySelector("button");
++    button.click();
++    ui.update(Counter({ id: "island", state: { count: 4 }, events: { add: value => b += value } }));
++    button.click();
++    equal(a, 3);
++    equal(b, 4);
++    equal(root(ui).querySelector("button"), button);
++});
++test("HTML: keyed reorder retains deep native focus and selection across shadow hosts", () => {
++    const ui = fixture(), items = signal([{ id: "a", count: 1 }, { id: "b", count: 2 }]);
++    ui.mount(each(items, item => item.id, item => Counter({ id: item.peek().id, state: item })));
++    const input = root(ui, "b").querySelector("input");
++    input.value = "abcde";
++    input.focus();
++    input.setSelectionRange(1, 3);
++    items.set([...items.peek()].reverse());
++    ui.flush();
++    equal(deepActiveElement(document), input);
++    equal(input.selectionStart, 1);
++    equal(input.selectionEnd, 3);
++    items.set([{ id: "b", count: 8 }, { id: "a", count: 1 }]);
++    ui.flush();
++    equal(root(ui, "b").querySelector("span").textContent, "8");
++});
++test("HTML: virtual lists realize offscreen shadow controls synchronously for controller focus", () => {
++    const ui = fixture(), items = signal(Array.from({ length: 100 }, (_, id) => ({ id }))), C = defineHTMLComponent({ name: "virtual-cell", template: '<button id="choose" type="button">Choose</button>', styles: 'button{height:36px;width:120px}' });
++    ui.mount(virtualList({ items, itemKey: item => item.id, rowHeight: 40, height: 80, overscan: 0, props: { id: "virtual" }, render: item => C({ id: `cell-${item.peek().id}`, state: item }) }));
++    assert(ui.focus.focus("cell-1/choose"));
++    assert(ui.focus.navigate("down"));
++    equal(ui.focus.current(), "cell-2/choose");
++    assert(ui.element("cell-2"));
++    assert(ui.element("virtual").scrollTop > 0);
++    equal(ui.errors.length, 0);
++});
++test("HTML: changing definition identity remounts and disposes exactly once", () => {
++    const ui = fixture();
++    let mounted = 0, disposed = 0;
++    const create = () => defineHTMLComponent({ name: "same-name", template: '<p>Version</p>', setup() { mounted++; return () => disposed++; } });
++    const A = create(), B = create();
++    ui.mount(A({ key: "key", state: null }));
++    ui.update(A({ key: "key", state: null }));
++    equal(mounted, 1);
++    ui.update(B({ key: "key", state: null }));
++    equal(mounted, 2);
++    equal(disposed, 1);
++    ui.dispose();
++    equal(disposed, 2);
++});
++test("HTML: host hidden/disabled/player restrictions block native application callbacks", () => {
++    const ui = fixture(), disabled = signal(false), hidden = signal(false), players = signal([0]);
++    let calls = 0;
++    ui.mount(Counter({ id: "island", state: { count: 1 }, disabled, hidden, players, events: { add: () => calls++ } }));
++    const button = root(ui).querySelector("button");
++    button.click();
++    equal(calls, 1);
++    disabled.set(true);
++    ui.flush();
++    button.click();
++    equal(calls, 1);
++    disabled.set(false);
++    hidden.set(true);
++    ui.flush();
++    button.click();
++    equal(calls, 1);
++    hidden.set(false);
++    players.set([1]);
++    ui.flush();
++    button.click();
++    equal(calls, 1);
++    assert(ui.focus.focus("island/add", 1));
++    ui.focus.navigate("accept", 1);
++    equal(calls, 2);
++});
++test("HTML: native focus participates in normal Tab order across light and shadow DOM", () => {
++    const ui = fixture();
++    ui.mount(Panel({}, Button({ id: "before" }, "Before"), Counter({ id: "island", state: { count: 1 } }), Button({ id: "after" }, "After")));
++    ui.focus.focus("before");
++    ui.focus.navigate("next");
++    equal(ui.focus.current(), "island/edit");
++    equal(deepActiveElement(document), root(ui).querySelector("input"));
++    ui.focus.navigate("next");
++    equal(ui.focus.current(), "island/add");
++    ui.focus.navigate("next");
++    equal(ui.focus.current(), "after");
++    ui.focus.navigate("previous");
++    equal(ui.focus.current(), "island/add");
++});
++test("HTML: focus scopes and native dialogs contain shadow controls and restore focus", () => {
++    const ui = fixture();
++    ui.mount(Panel({}, Counter({ id: "island", state: { count: 1 }, focusScope: "component" }), Button({ id: "outside" }, "Outside")));
++    ui.focus.focus("island/add");
++    ui.focus.navigate("next");
++    equal(ui.focus.current(), "island/edit");
++    ui.focus.focus("island/add");
++    const dialog = ui.openModal(Counter({ id: "modal", state: { count: 2 } }), { label: "HTML modal" });
++    equal(ui.focus.current(), "modal/edit");
++    assert(!ui.focus.focus("island/add"));
++    ui.focus.navigate("previous");
++    equal(ui.focus.current(), "modal/add");
++    dialog.close();
++    equal(ui.focus.current(), "island/add");
++});
++test("HTML: a modal owned by another runtime blocks shadow synthetic input", () => {
++    const a = fixture(), b = fixture();
++    let calls = 0;
++    a.mount(Counter({ id: "island", state: { count: 1 }, events: { add: () => calls++ } }));
++    const modal = b.openModal(Button({}, "Close"), { label: "Other runtime" });
++    root(a).querySelector("button").click();
++    equal(calls, 0);
++    modal.close();
++    root(a).querySelector("button").click();
++    equal(calls, 1);
++});
++test("HTML: controller activation preserves native checkbox defaults and player ownership", () => {
++    const ui = fixture(), manager = new InputManager();
++    let checked = false, player = -1;
++    const Check = defineHTMLComponent({ name: "check", template: '<input id="check" type="checkbox">', setup(ctx) { ctx.listen(ctx.query("input"), "change", event => checked = event.target.checked); } });
++    ui.mount(Check({ id: "check-host", state: null, players: [1], on: { activate: event => player = event.player } }));
++    connectInput(manager, ui, { active: () => true });
++    assert(ui.focus.focus("check-host/check", 1));
++    manager.dispatchEvent("e", true, InputEventType.GAMEPAD, 1);
++    equal(checked, true);
++    equal(player, 1);
++    manager.dispatchEvent("e", false, InputEventType.GAMEPAD, 1);
++    manager.dispatchEvent("e", true, InputEventType.GAMEPAD, 1);
++    equal(checked, false);
++});
++test("HTML: shadow IME/typing is not intercepted as directional navigation and releases bubble", () => {
++    const ui = fixture();
++    ui.mount(Counter({ id: "island", state: { count: 1 } }));
++    const input = root(ui).querySelector("input");
++    input.focus();
++    let down = 0, up = 0;
++    const kd = () => down++, ku = () => up++;
++    document.body.addEventListener("keydown", kd);
++    document.body.addEventListener("keyup", ku);
++    try {
++        const event = new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, composed: true, cancelable: true });
++        input.dispatchEvent(event);
++        assert(!event.defaultPrevented);
++        equal(ui.focus.current(), "island/edit");
++        const ime = new KeyboardEvent("keydown", { key: "Process", isComposing: true, bubbles: true, composed: true, cancelable: true });
++        input.dispatchEvent(ime);
++        assert(!ime.defaultPrevented);
++        input.dispatchEvent(new KeyboardEvent("keyup", { key: "a", bubbles: true, composed: true }));
++        equal(down, 0);
++        equal(up, 1);
++    }
++    finally {
++        document.body.removeEventListener("keydown", kd);
++        document.body.removeEventListener("keyup", ku);
++    }
++});
++test("HTML: nested UI Final children use the same scheduler, focus and lifetime", () => {
++    const ui = fixture(), value = signal("hello");
++    let child;
++    const C = defineHTMLComponent({ name: "nested", template: '<section></section>', setup(ctx) { child = ctx.mount(ctx.query("section"), TextInput({ id: "nested-input", value })); } });
++    ui.mount(C({ id: "island", state: null }));
++    assert(ui.focus.focus("nested-input"));
++    equal(deepActiveElement(document), ui.element("nested-input"));
++    value.set("next");
++    ui.flush();
++    equal(ui.element("nested-input").value, "next");
++    child.update(Button({ id: "nested-button" }, "Replacement"));
++    ui.flush();
++    assert(!ui.element("nested-input"));
++    ui.update(null);
++    equal(ui.focus.size, 0);
++    assert(!ui.element("nested-button"));
++});
++test("HTML: structural control registration handles additions, renames, tabindex and removals", async () => {
++    const ui = fixture();
++    let context;
++    const C = defineHTMLComponent({ name: "dynamic-controls", template: '<div></div>', setup(ctx) { context = ctx; } });
++    ui.mount(C({ id: "island", state: null }));
++    const button = document.createElement("button");
++    button.id = "added";
++    button.textContent = "Added";
++    context.query("div").append(button);
++    await afterMutations();
++    assert(ui.focus.focus("island/added"));
++    button.id = "renamed";
++    await afterMutations();
++    assert(!ui.focus.focus("island/added"));
++    assert(ui.focus.focus("island/renamed"));
++    button.tabIndex = -1;
++    await afterMutations();
++    equal(ui.focus.size, 0);
++    button.remove();
++    await afterMutations();
++    equal(ui.focus.size, 0);
++});
++test("HTML: contenteditable joins focus order, negative tab stops and hidden inputs do not", () => {
++    const ui = fixture(), C = defineHTMLComponent({ name: "focus-types", template: '<input type="hidden" tabindex="0"><button tabindex="-1">No</button><div id="editor" contenteditable="true">Edit</div><select id="select"><option>A</option></select>' });
++    ui.mount(C({ id: "island", state: null }));
++    equal(ui.focus.size, 2);
++    assert(ui.focus.focus("island/editor"));
++    ui.focus.navigate("next");
++    equal(ui.focus.current(), "island/select");
++});
++test("HTML: duplicate local focus names fail without leaking host IDs or resources", () => {
++    const ui = fixture(), C = defineHTMLComponent({ name: "duplicate", template: '<button id="same">One</button><button id="same">Two</button>' });
++    throws(() => ui.mount(C({ id: "island", state: null })), /DUPLICATE_ID/);
++    equal(ui.focus.size, 0);
++    assert(!ui.element("island"));
++    equal(ui.stats.created, ui.stats.disposed);
++});
++test("HTML: runtime animations on shadow descendants cancel with component lifetime", () => {
++    const ui = fixture();
++    ui.mount(Counter({ id: "island", state: { count: 1 } }));
++    const span = root(ui).querySelector("span"), animation = ui.animate(span, [{ opacity: 0 }, { opacity: 1 }], { duration: 60000 });
++    assert(animation.playState !== "idle");
++    ui.update(null);
++    equal(animation.playState, "idle");
++});
++test("HTML: scoped clocks, listeners and abort signals cleanly stop on removal", () => {
++    const ui = fixture();
++    let ticks = 0, events = 0, context, stop;
++    const C = defineHTMLComponent({ name: "lifetime", template: '<button>Tick</button>', setup(ctx) { context = ctx; stop = ctx.onFrame(() => ticks++); ctx.listen(document, "custom-test", () => events++); } });
++    ui.mount(C({ state: null }));
++    equal(ui.frameTaskCount, 1);
++    ui.frame(16);
++    equal(ticks, 1);
++    stop();
++    equal(ui.frameTaskCount, 0);
++    context.onFrame(() => ticks++);
++    ui.update(null);
++    assert(context.abortSignal.aborted);
++    equal(ui.frameTaskCount, 0);
++    document.dispatchEvent(new Event("custom-test"));
++    equal(events, 0);
++    ui.frame(16);
++    equal(ticks, 1);
++    throws(() => context.onFrame(() => ticks++), /DISPOSED/);
++    equal(ui.frameTaskCount, 0);
++    throws(() => context.listen(document, "custom-test", () => events++), /DISPOSED/);
++    document.dispatchEvent(new Event("custom-test"));
++    equal(events, 0);
++});
++test("HTML: setup errors dispose partial setup and leave no queued or focus resources", () => {
++    const ui = fixture();
++    let disposed = 0;
++    const C = defineHTMLComponent({ name: "throws", template: '<button>Partial</button>', setup(ctx) { ctx.onFrame(() => { }); ctx.onCleanup(() => disposed++); ctx.bind(() => ctx.state.get(), () => { }); throw new Error("setup-error"); } });
++    throws(() => ui.mount(C({ id: "island", state: signal(1) })), /setup-error/);
++    equal(disposed, 1);
++    equal(ui.frameTaskCount, 0);
++    equal(ui.focus.size, 0);
++    equal(ui.scheduler.pending, 0);
++    assert(!ui.element("island"));
++});
++test("HTML: scripts, inline handlers, iframe, unsafe URLs and nested active templates reject before insertion", () => {
++    const ui = fixture();
++    window.injected = false;
++    for (const template of ['<script>window.injected=true</script>', '<img src="x" onerror="window.injected=true">', '<iframe srcdoc="bad"></iframe>', '<a href="java&#x09;script:alert(1)">bad</a>', '<template><button onclick="bad()">bad</button></template>', '<div data-uif-allowed-players="0"></div>']) {
++        const C = defineHTMLComponent({ name: "unsafe", template });
++        throws(() => ui.mount(C({ id: "island", state: null })), /ACTIVE_CONTENT/);
++        assert(!ui.element("island"));
++    }
++    equal(window.injected, false);
++    equal(ui.focus.size, 0);
++});
++test("HTML: extracting a fragment from full HTML ignores external scripts but preserves CSS", () => {
++    const source = '<!doctype html><html><head><style>.board{color:red}</style></head><body><div class="board"><p>Board</p></div><script>window.injected=true</script></body></html>';
++    const extracted = extractHTMLComponent(source, ".board");
++    assert(extracted.template.includes("Board"));
++    assert(!extracted.template.includes("script"));
++    equal(extracted.styles, ".board{color:red}");
++    equal(window.injected, false);
++    throws(() => extractHTMLComponent(source, ".missing"), /SELECTOR/);
++    const ui = fixture(), C = defineHTMLComponent({ name: "extracted", ...extracted });
++    ui.mount(C({ id: "island", state: null }));
++    equal(root(ui).querySelector("p").textContent, "Board");
++});
++test("HTML: injected state text never becomes executable HTML", () => {
++    const ui = fixture();
++    ui.mount(Counter({ id: "island", state: { count: '<img src=x onerror=alert(1)>' } }));
++    equal(root(ui).querySelectorAll("img").length, 0);
++    assert(root(ui).querySelector("span").textContent.startsWith("<img"));
++});
++test("HTML: application template policy and style nonce are propagated, reduced motion crosses the boundary", () => {
++    let calls = 0;
++    const ui = fixture({ styleNonce: "test-nonce", htmlPolicy: { createHTML: source => { calls++; return source; } } });
++    ui.mount(Counter({ id: "island", state: { count: 1 } }));
++    equal(calls, 1);
++    equal(root(ui).querySelector("style").nonce, "test-nonce");
++    ui.setReducedMotion(true);
++    ui.flush();
++    assert(ui.element("island").hasAttribute("data-uif-reduced-motion"));
++});
++test("HTML: late emissions are ignored and one failing cleanup does not prevent remaining disposal", () => {
++    const ui = fixture();
++    let calls = 0, context, cleaned = 0;
++    const C = defineHTMLComponent({ name: "cleanup", template: '<span></span>', setup(ctx) { context = ctx; ctx.onCleanup(() => cleaned++); ctx.onCleanup(() => { throw new Error("cleanup fail"); }); } });
++    ui.mount(C({ state: null, events: { done: () => calls++ } }));
++    throws(() => ui.update(null), /CLEANUP/);
++    context.emit("done", null);
++    equal(calls, 0);
++    equal(cleaned, 1);
++    assert(context.abortSignal.aborted);
++    equal(ui.frameTaskCount, 0);
++    equal(ui.stats.created, ui.stats.disposed);
++});
++test("HTML: document registry composes retained state and validates reload before mutation", () => {
++    const ui = fixture(), model = new Model({ board: { count: 1 } });
++    let result = 0;
++    const make = (name = "counter") => ({ schema: "ui-final/1", root: { component: name, state: { $bind: "board" }, props: { id: "island" }, events: { add: "select" } } });
++    const handle = mountDocument(ui, make(), { model, components: { counter: Counter }, componentActions: { select: value => result = value } });
++    const element = ui.element("island");
++    model.set("board.count", 2);
++    ui.flush();
++    root(ui).querySelector("button").click();
++    equal(result, 2);
++    assert(handle.reload(make()));
++    equal(ui.element("island"), element);
++    assert(!handle.reload(make("unknown")));
++    equal(ui.element("island"), element);
++    equal(root(ui).querySelector("span").textContent, "2");
++});
++test("HTML: surface pose changes retain the exact custom DOM and focus registrations", () => {
++    const ui = fixture(), position = signal({ x: 0, y: 0, z: 0 }), pose = () => isometricSurface({ position: position.get(), width: 400, height: 100, camera: { origin: { x: 50, y: 50 } } });
++    ui.mount(WorldSurface({ id: "surface", pose }, Counter({ id: "island", state: { count: 1 } })));
++    const host = ui.element("island"), button = root(ui).querySelector("button"), previous = ui.element("surface").style.transform;
++    position.set({ x: 50, y: 30, z: 20 });
++    ui.flush();
++    assert(ui.element("surface").style.transform !== previous);
++    equal(ui.element("island"), host);
++    equal(root(ui).querySelector("button"), button);
++    equal(ui.focus.size, 2);
++});
++test("HTML: settled components have no idle bindings, mutations or animation tasks", () => {
++    const ui = fixture();
++    ui.mount(Counter({ id: "island", state: { count: 1 } }));
++    const before = ui.scheduler.stats.executed, markup = root(ui).innerHTML;
++    for (let i = 0; i < 1000; i++)
++        ui.frame(16);
++    equal(ui.scheduler.stats.executed, before);
++    equal(root(ui).innerHTML, markup);
++    equal(ui.frameTaskCount, 0);
++});
++const chars = element => [...element.querySelectorAll(".sf-cell")].map(cell => cell.dataset.character ?? " ").join("").trimEnd();
++const settle = ui => { for (let i = 0; i < 1500 && ui.frameTaskCount; i++)
++    ui.frame(16); equal(ui.frameTaskCount, 0, "flaps must eventually settle"); };
++test("BILLBOARD: initial mount is settled and click emits the selected flight's stable ID", () => {
++    const ui = fixture(), state = signal(initialBillboard);
++    let selected;
++    ui.mount(SplitFlapBillboard({ id: "board", state, events: { selectFlight: detail => selected = detail.id } }));
++    const shadow = root(ui, "board");
++    equal(ui.frameTaskCount, 0);
++    equal(shadow.querySelectorAll(".sf-cell").length, 150);
++    equal(chars(shadow.querySelector(".board-title")), "SKY HARBOR");
++    shadow.querySelector('[data-flight="sh218"]').click();
++    equal(selected, "sh218");
++});
++test("BILLBOARD: an announcement uses one clock, updates only its rows and retains all cells", () => {
++    const ui = fixture(), state = signal(initialBillboard);
++    ui.mount(SplitFlapBillboard({ id: "board", state }));
++    const shadow = root(ui, "board"), flight = shadow.querySelector(".departures"), before = flight.innerHTML, cells = [...shadow.querySelectorAll(".sf-cell")];
++    state.update(value => ({ ...value, message: "GATE 7 OPEN" }));
++    ui.flush();
++    equal(ui.frameTaskCount, 1);
++    settle(ui);
++    equal(chars(shadow.querySelector(".board-message")), "GATE 7 OPEN");
++    equal(flight.innerHTML, before);
++    assert(cells.every((cell, index) => shadow.querySelectorAll(".sf-cell")[index] === cell));
++});
++test("BILLBOARD: rapid state changes coalesce to latest flap targets without per-cell timers", () => {
++    const ui = fixture(), state = signal(initialBillboard);
++    ui.mount(SplitFlapBillboard({ id: "board", state }));
++    for (let n = 0; n < 15; n++) {
++        state.update(value => ({ ...value, message: `FLIGHT ${n} READY` }));
++        ui.flush();
++        ui.frame(40);
++        assert(ui.frameTaskCount <= 1);
++    }
++    state.update(value => ({ ...value, message: "FINAL GATE A12" }));
++    ui.flush();
++    settle(ui);
++    equal(chars(root(ui, "board").querySelector(".board-message")), "FINAL GATE A12");
++});
++test("BILLBOARD: reduced motion snaps active flaps and power-off retains latest data without work", () => {
++    const ui = fixture(), state = signal(initialBillboard);
++    ui.mount(SplitFlapBillboard({ id: "board", state }));
++    state.update(value => ({ ...value, message: "NEW MESSAGE" }));
++    ui.flush();
++    equal(ui.frameTaskCount, 1);
++    ui.setReducedMotion(true);
++    ui.flush();
++    equal(ui.frameTaskCount, 0);
++    equal(chars(root(ui, "board").querySelector(".board-message")), "NEW MESSAGE");
++    ui.setReducedMotion(false);
++    state.update(value => ({ ...value, message: "OFFLINE MESSAGE", powered: false }));
++    ui.flush();
++    equal(ui.frameTaskCount, 0);
++    equal(chars(root(ui, "board").querySelector(".board-message")), "OFFLINE MESSAGE");
++    assert([...root(ui, "board").querySelectorAll("button")].every(button => button.disabled));
++});
++test("BILLBOARD: flight reorder retains native rows and replacement data; removed rows release focus", () => {
++    const ui = fixture(), state = signal(initialBillboard);
++    ui.setReducedMotion(true);
++    ui.mount(SplitFlapBillboard({ id: "board", state }));
++    const row = root(ui, "board").querySelector('[data-flight="sh104"]');
++    row.focus();
++    state.update(value => ({ ...value, flights: [...value.flights].reverse().map(flight => flight.id === "sh104" ? { ...flight, destination: "TOKYO" } : flight) }));
++    ui.flush();
++    equal(root(ui, "board").lastElementChild.querySelector('[data-flight="sh104"]'), row);
++    assert(row.getAttribute("aria-label").includes("TOKYO"));
++    equal(root(ui, "board").activeElement, row);
++    state.update(value => ({ ...value, flights: value.flights.filter(flight => flight.id !== "sh104") }));
++    ui.flush();
++    assert(!ui.focus.focus("board/flight-sh104"));
++    equal(ui.focus.size, 3);
++});
++test("BILLBOARD: independent instances share definitions, not state, DOM or animation work", () => {
++    const ui = fixture(), a = signal(initialBillboard), b = signal({ ...initialBillboard, message: "OTHER BOARD" });
++    ui.mount(Panel({}, SplitFlapBillboard({ id: "a", state: a }), SplitFlapBillboard({ id: "b", state: b })));
++    a.update(value => ({ ...value, message: "FIRST BOARD" }));
++    ui.flush();
++    settle(ui);
++    equal(chars(root(ui, "a").querySelector(".board-message")), "FIRST BOARD");
++    equal(chars(root(ui, "b").querySelector(".board-message")), "OTHER BOARD");
++    equal(ui.focus.size, 8);
++});
++test("BILLBOARD: removing an animating component cancels its one task and pending bindings", () => {
++    const ui = fixture(), state = signal(initialBillboard);
++    ui.mount(SplitFlapBillboard({ id: "board", state }));
++    state.update(value => ({ ...value, message: "UPDATING" }));
++    ui.flush();
++    ui.frame(40);
++    equal(ui.frameTaskCount, 1);
++    const host = ui.element("board");
++    ui.update(null);
++    const before = host.shadowRoot.innerHTML;
++    equal(ui.frameTaskCount, 0);
++    equal(ui.focus.size, 0);
++    state.set(initialBillboard);
++    ui.frame(100);
++    equal(host.shadowRoot.innerHTML, before);
++    equal(ui.scheduler.pending, 0);
++});
++test("BILLBOARD: malformed flight state is reported before rows are partially changed", () => {
++    const ui = fixture(), state = signal(initialBillboard);
++    ui.mount(SplitFlapBillboard({ id: "board", state }));
++    const before = root(ui, "board").querySelector(".departures").innerHTML;
++    state.update(value => ({ ...value, flights: [value.flights[0], value.flights[0]] }));
++    ui.flush();
++    equal(ui.errors.length, 1);
++    equal(root(ui, "board").querySelector(".departures").innerHTML, before);
++    equal(ui.frameTaskCount, 0);
++});
++window.runUIFinalHTMLTests = async () => { const results = []; for (const entry of tests) {
++    let error;
++    const start = performance.now();
++    try {
++        await entry.run();
++    }
++    catch (e) {
++        error = String(e.stack ?? e);
++    }
++    try {
++        cleanup();
++    }
++    catch (e) {
++        error = `${error ?? ""}\nCleanup: ${e.stack ?? e}`;
++    }
++    results.push({ name: entry.name, pass: !error, durationMs: performance.now() - start, ...(error ? { error } : {}) });
++} return results; };
++window.setupNativeHTMLTest = () => { cleanup(); const ui = fixture(); window.nativeHTML = { ui, clicks: 0, inputEvents: 0, pointerMoves: 0, captures: 0 }; const C = defineHTMLComponent({ name: "native-test", template: '<input id="edit" aria-label="Shadow edit"><button id="button" type="button">Shadow action</button><button id="drag" type="button">Shadow drag</button>', styles: 'button,input{display:block;margin:25px;width:210px;padding:14px;font-size:16px}', setup(ctx) { ctx.listen(ctx.query("#button"), "click", () => window.nativeHTML.clicks++); ctx.listen(ctx.query("#edit"), "input", () => window.nativeHTML.inputEvents++); ctx.listen(ctx.query("#drag"), "pointerdown", event => { event.currentTarget.setPointerCapture(event.pointerId); window.nativeHTML.captures++; }); ctx.listen(ctx.query("#drag"), "pointermove", event => { if (event.buttons)
++        window.nativeHTML.pointerMoves++; }); } }); ui.mount(Panel({}, Button({ id: "native-before" }, "Before"), C({ id: "native-html", state: null }), Button({ id: "native-after" }, "After"))); };
++window.cleanupHTMLTests = cleanup;
++// Invoked by the runner in a separate document with Trusted Types enforcement enabled.
++window.runTrustedHTMLTest = () => {
++    assert(globalThis.trustedTypes, "Chromium Trusted Types support expected");
++    let created = 0;
++    const policy = trustedTypes.createPolicy("ui-final-html-test", { createHTML: source => { created++; return source; } });
++    const ui = fixture({ htmlPolicy: policy });
++    try {
++        const state = signal({ count: 1 });
++        ui.mount(Counter({ id: "island", state }));
++        state.set({ count: 42 });
++        ui.flush();
++        equal(root(ui).querySelector("span").textContent, "42");
++        equal(created, 1);
++        const noPolicy = fixture();
++        throws(() => noPolicy.mount(Counter({ state: { count: 1 } })), /TrustedHTML|Trusted Types/);
++    }
++    finally {
++        cleanup();
++    }
++};
+diff --git a/test/ui-final/html-surface.test.mjs b/test/ui-final/html-surface.test.mjs
+new file mode 100644
+index 0000000..b42286b
+--- /dev/null
++++ b/test/ui-final/html-surface.test.mjs
+@@ -0,0 +1,81 @@
++import test from "node:test";
++import assert from "node:assert/strict";
++import { defineHTMLComponent, surfaceMatrix, surfaceTransform, surfaceToLocal, projectIsometric, isometricSurface, WorldSurface, signal, compileDocument } from "../../.ui-final-build/engine/ui/final/index.js";
++const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-7, `${a} != ${b}`);
++test("HTML definitions are immutable first-class nodes with stable definition identity", () => {
++    const spec = { name: "example/board", template: "<span></span>" };
++    const Component = defineHTMLComponent(spec), state = signal({ count: 1 });
++    spec.template = "changed";
++    const a = Component({ key: "a", id: "board", state }), b = Component({ state });
++    assert.equal(a.kind, "html");
++    assert.equal(a.key, "a");
++    assert.equal(a.props.id, "board");
++    assert.equal(a.state, state);
++    assert.equal(a.definition, b.definition);
++    assert.equal(a.definition.template, "<span></span>");
++    assert.ok(Object.isFrozen(a.definition));
++});
++test("HTML definitions reject missing template and invalid names without a DOM", () => {
++    assert.throws(() => defineHTMLComponent({ name: "", template: "" }), /HTML_NAME/);
++    assert.throws(() => defineHTMLComponent({ name: "ok", template: 4 }), /HTML_TEMPLATE/);
++});
++test("isometric axes have equal scale, 30 degree slopes and independent height", () => {
++    const camera = { origin: { x: 100, y: 200 }, zoom: 2 };
++    const x = projectIsometric({ x: 10, y: 0, z: 0 }, camera), y = projectIsometric({ x: 0, y: 10, z: 0 }, camera), z = projectIsometric({ x: 0, y: 0, z: 10 }, camera);
++    close(x.x - 100, Math.sqrt(3) * 10);
++    close(x.y - 200, 10);
++    close(y.x - 100, -Math.sqrt(3) * 10);
++    close(y.y - 200, 10);
++    close(z.y, 180);
++});
++for (const plane of ["wall-x", "wall-y", "floor"])
++    test(`${plane} surface projection and inverse round-trip`, () => {
++        const pose = isometricSurface({ plane, position: { x: 35, y: 10, z: 90 }, width: 400, height: 150, worldUnitsPerPixel: .3, camera: { origin: { x: 200, y: 100 }, zoom: 1.7 } });
++        const [a, b, c, d, e, f] = surfaceMatrix(pose);
++        assert.match(surfaceTransform(pose), /^matrix\(/);
++        for (const [x, y] of [[0, 0], [400, 150], [123, 48], [-15, 170]]) {
++            const local = surfaceToLocal(pose, { x: a * x + c * y + e, y: b * x + d * y + f });
++            close(local.x, x);
++            close(local.y, y);
++        }
++    });
++test("projected surfaces reject nonfinite, zero-area, collapsed and unsupported poses", () => {
++    const pose = { width: 100, height: 50, origin: { x: 0, y: 0 }, xAxis: { x: 100, y: 0 }, yAxis: { x: 0, y: 50 } };
++    for (const invalid of [{ ...pose, width: 0 }, { ...pose, height: -1 }, { ...pose, xAxis: { x: NaN, y: 0 } }, { ...pose, yAxis: { x: 10, y: 0 } }])
++        assert.throws(() => surfaceMatrix(invalid), /UIF_SURFACE/);
++    assert.throws(() => projectIsometric({ x: 0, y: 0, z: 0 }, { origin: { x: 0, y: 0 }, zoom: 0 }), /UIF_PROJECTION/);
++    assert.throws(() => isometricSurface({ position: { x: 0, y: 0, z: 0 }, width: 10, height: 10, plane: "bad", camera: { origin: { x: 0, y: 0 } } }), /UIF_SURFACE/);
++});
++test("WorldSurface stays a retained node with reactive pose and no pixel-ratio multiplication", () => {
++    const pose = signal({ width: 100, height: 50, origin: { x: 12, y: 24 }, xAxis: { x: 100, y: 0 }, yAxis: { x: 0, y: 50 }, visible: true });
++    const surface = WorldSurface({ pose, id: "wall" }, "content");
++    assert.equal(surface.kind, "element");
++    assert.equal(surface.props.style.transform(), "matrix(1,0,0,1,12,24)");
++    assert.equal(surface.props.hidden(), false);
++    pose.update(value => ({ ...value, visible: false }));
++    assert.equal(surface.props.hidden(), true);
++    assert.equal(surface.children[0], "content");
++});
++test("document compiler resolves registered HTML components and data events without evaluating source", async () => {
++    const { parseDocument, compileDocument, Model } = await import("../../.ui-final-build/engine/ui/final/index.js");
++    const Component = defineHTMLComponent({ name: "counter", template: "<span></span>" });
++    const asset = { schema: "ui-final/1", root: { component: "counter", state: { $bind: "screen" }, props: { id: "counter" }, events: { increment: "incrementCounter" } } };
++    const model = new Model({ screen: { count: 4 } });
++    let payload;
++    const node = compileDocument(asset, { model, components: { counter: Component }, componentActions: { incrementCounter: detail => payload = detail } });
++    assert.equal(node.kind, "html");
++    assert.equal(node.props.id, "counter");
++    assert.deepEqual(node.state(), { count: 4 });
++    node.events.increment({ by: 2 });
++    assert.deepEqual(payload, { by: 2 });
++    assert.throws(() => compileDocument(asset, { model }), /unregistered component/);
++    assert.throws(() => compileDocument(asset, { model, components: { counter: Component } }), /unregistered component action/);
++    assert.throws(() => parseDocument({ ...asset, root: { ...asset.root, props: { text: "bad" } } }), /not a component host property/);
++    assert.throws(() => parseDocument({ ...asset, root: { ...asset.root, events: { x: () => { } } } }), /JSON-compatible/);
++});
++test("document state with component/type field names is literal data, not an asset node", () => {
++    const component = defineHTMLComponent({ name: "custom", template: "<div></div>" });
++    const state = { component: "aircraft-part", events: { activate: "not-an-action" }, type: "simulation", on: { activate: "not-an-action" } };
++    const node = compileDocument({ schema: "ui-final/1", root: { component: "custom", state } }, { model: { select() { throw Error("unexpected binding"); } }, components: { custom: component } });
++    assert.deepEqual(node.state, state);
++});
+diff --git a/tsconfig.ui-final.json b/tsconfig.ui-final.json
+index 6c36394..4743c6c 100644
+--- a/tsconfig.ui-final.json
++++ b/tsconfig.ui-final.json
+@@ -1,7 +1,11 @@
+ {
+   "compilerOptions": {
+     "target": "ES2020",
+-    "lib": ["ES2021", "DOM", "DOM.Iterable"],
++    "lib": [
++      "ES2021",
++      "DOM",
++      "DOM.Iterable"
++    ],
+     "module": "ESNext",
+     "moduleResolution": "bundler",
+     "strict": true,
+@@ -13,5 +17,10 @@
+     "rootDir": ".",
+     "outDir": ".ui-final-build"
+   },
+-  "include": ["engine/ui/final/**/*.ts", "examples/ui-final/demo.ts"]
++  "include": [
++    "engine/ui/final/**/*.ts",
++    "examples/ui-final/demo.ts",
++    "examples/ui-final-airport/demo.ts",
++    "examples/ui-final-airport/split-flap.ts"
++  ]
+ }

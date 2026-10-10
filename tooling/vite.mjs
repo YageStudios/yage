@@ -2,6 +2,7 @@
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { yageHotReload } from "./hot-reload.mjs";
 
 const engineRoot = realpathSync(fileURLToPath(new URL("../", import.meta.url)));
 const engineManifest = JSON.parse(readFileSync(join(engineRoot, "package.json"), "utf8"));
@@ -94,7 +95,7 @@ export function yageJson5(options = {}) {
 }
 
 /** Source-first by default; use source:false to exercise built/packed exports. */
-export function yage({ source = true, reload = true, json5 = true } = {}) {
+export function yage({ source = true, reload = true, json5 = true, hotReload = false } = {}) {
   const watchRoots = [join(engineRoot, "engine"), join(engineRoot, "assets")];
   let cleanup = () => {};
   const plugin = {
@@ -170,7 +171,7 @@ export function yage({ source = true, reload = true, json5 = true } = {}) {
     },
     closeBundle() { cleanup(); },
   };
-  return [plugin, ...(json5 ? [yageJson5(typeof json5 === "object" ? json5 : {})] : [])];
+  return [plugin, ...(hotReload ? yageHotReload() : []), ...(json5 ? [yageJson5(typeof json5 === "object" ? json5 : {})] : [])];
 }
 
 export default yage;

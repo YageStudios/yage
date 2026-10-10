@@ -1,4 +1,6 @@
 import type { Constructor, Schema, SerializedWorld, SystemImpl, WorldComponent } from "minecs";
+import { applyHotReload, getHotSystem, hasHotSystems, registerHotWorld, stepHotWorld } from "../dev/hotReload";
+import { forgetEntityTemplate } from "../entity/hotDefaults";
 import {
   addComponent,
   addEntity,
@@ -397,9 +399,12 @@ export const GameModel = ({
   inputManager: InputManager;
   playerEventManager: PlayerEventManager;
 }): GameModel => {
+  registerHotWorld(world);
   const allocateEntity = () => {
     try {
-      return addEntity(world);
+      const entity = addEntity(world);
+      forgetEntityTemplate(world, entity);
+      return entity;
     } catch (error) {
       logMaxEntityDiagnostics(world, error);
       throw error;
@@ -410,32 +415,38 @@ export const GameModel = ({
     acc[component.category].push(component);
     return acc;
   }, {} as Record<number, (typeof Schema)[]>);
-  const sortedSystemsByCategory = Object.entries(componentsByCategory).reduce((acc, [category, components]) => {
-    acc[parseInt(category)] = components
-      .map((component) =>
-        getSystemsByType(world, component.type).sort(
-          (a, b) => (a.constructor as typeof SystemImpl).depth - (b.constructor as typeof SystemImpl).depth
+  let sortedSystemsByCategory: Record<number, SystemImpl<any>[]>;
+  let sortedSystemsByComponent: Record<string, SystemImpl<any>[]>;
+  let componentsBySystem: Record<string, string[]>;
+  const refreshSystemLookups = () => {
+    sortedSystemsByCategory = Object.entries(componentsByCategory).reduce((acc, [category, components]) => {
+      acc[parseInt(category)] = components
+        .map((component) =>
+          getSystemsByType(world, component.type).sort(
+            (a, b) => (a.constructor as typeof SystemImpl).depth - (b.constructor as typeof SystemImpl).depth
+          )
         )
-      )
-      .flat()
-      .filter((system, index, array) => array.indexOf(system) === index);
-    return acc;
-  }, {} as Record<number, SystemImpl<any>[]>);
+        .flat()
+        .filter((system, index, array) => array.indexOf(system) === index);
+      return acc;
+    }, {} as Record<number, SystemImpl<any>[]>);
 
-  const sortedSystemsByComponent = componentList.reduce((acc, component) => {
-    acc[component.type] = getSystemsByType(world, component.type).sort(
-      (a, b) => (a.constructor as typeof SystemImpl).depth - (b.constructor as typeof SystemImpl).depth
-    );
-    return acc;
-  }, {} as Record<string, SystemImpl<any>[]>);
+    sortedSystemsByComponent = componentList.reduce((acc, component) => {
+      acc[component.type] = getSystemsByType(world, component.type).sort(
+        (a, b) => (a.constructor as typeof SystemImpl).depth - (b.constructor as typeof SystemImpl).depth
+      );
+      return acc;
+    }, {} as Record<string, SystemImpl<any>[]>);
 
-  const componentsBySystem = Object.entries(sortedSystemsByComponent).reduce((acc, [type, systems]) => {
-    systems.flat().forEach((system) => {
-      acc[system.constructor.name] = acc[system.constructor.name] || [];
-      acc[system.constructor.name].push(type);
-    });
-    return acc;
-  }, {} as Record<string, string[]>);
+    componentsBySystem = Object.entries(sortedSystemsByComponent).reduce((acc, [type, systems]) => {
+      systems.flat().forEach((system) => {
+        acc[system.constructor.name] = acc[system.constructor.name] || [];
+        acc[system.constructor.name].push(type);
+      });
+      return acc;
+    }, {} as Record<string, string[]>);
+  };
+  refreshSystemLookups();
 
   const gameModel = Object.assign(world, {
     inputManager,
@@ -481,10 +492,14 @@ export const GameModel = ({
       });
     },
     step: (dt?: number) => {
+      if (applyHotReload(gameModel)) refreshSystemLookups();
       const elapsed = dt ?? FIXED_TIMESTEP_MS;
       gameModel.timeElapsed += elapsed;
       gameModel.frameDt = elapsed;
-      if (flags.PERFORMANCE_LOGS) {
+      if (hasHotSystems(gameModel)) {
+        stepHotWorld(gameModel, flags.PERFORMANCE_LOGS);
+        if (flags.PERFORMANCE_LOGS) publishPerformanceTiming(gameModel.timing, "perf");
+      } else if (flags.PERFORMANCE_LOGS) {
         stepWorldTiming(gameModel);
         publishPerformanceTiming(gameModel.timing, "perf");
       } else {
@@ -492,6 +507,7 @@ export const GameModel = ({
       }
     },
     stepDraw: () => {
+      if (applyHotReload(gameModel)) refreshSystemLookups();
       if (flags.DRAW_PERFORMANCE_LOGS) {
         publishPerformanceTiming(stepWorldDrawTiming(gameModel), "draw");
         return;
@@ -881,7 +897,7 @@ export const GameModel = ({
       return componentsByCategory[category] || [];
     },
     getSystem: <T extends typeof SystemImpl<any>>(system: T) => {
-      return getSystem(world, system);
+      return getHotSystem(world, system) ?? getSystem(world, system);
     },
     addEntity: () => {
       return allocateEntity();

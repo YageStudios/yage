@@ -75,6 +75,11 @@ The engine-owned plugin uses package source exports, shares the ECS/Pixi runtime
 handles JSON5, and reloads the page after engine source changes. No vendoring,
 path aliases or engine build watcher is needed for this development loop.
 
+Enable `yage({ hotReload: true })` to apply game system and entity-template
+updates at the next frame while preserving the running world. Existing entity
+fields update only while they still match the previous defaults. See
+[game hot reload](docs/linked-development.md#game-hot-reload) for supported edits.
+
 See [linked development](docs/linked-development.md) for peer versions, package
 exports, build/typecheck separation and packed-consumer validation. Engine library
 builds are `npm run build`; semantic checks are `npm run typecheck`.

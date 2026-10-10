@@ -6,6 +6,8 @@ export interface YageViteOptions {
   source?: boolean;
   /** Reload the page on engine source/asset edits, additions and deletions. Default true. */
   reload?: boolean;
+  /** Replace game systems and entity definitions at the next frame. Development only. Default false. */
+  hotReload?: boolean;
   /** Enable JSON5/JSONC imports, leaving ?raw and ?url untouched. Default true. */
   json5?: boolean | YageJson5Options;
 }

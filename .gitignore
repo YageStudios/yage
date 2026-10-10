@@ -30,3 +30,5 @@ vite.config.js.timestamp*
 
 # Private workstation save credentials and durable data
 .local/
+
+.audio-build/

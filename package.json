@@ -99,6 +99,12 @@
       "types": "./dist/ui/final/index.d.ts",
       "import": "./dist/ui/final/index.js",
       "default": "./dist/ui/final/index.js"
+    },
+    "./audio": {
+      "yage-source": "./engine/audio/index.ts",
+      "types": "./dist/audio/index.d.ts",
+      "import": "./dist/audio/index.js",
+      "default": "./dist/audio/index.js"
     }
   },
   "scripts": {
@@ -114,11 +120,13 @@
     "pretty": "prettier --write \"./**/*.{js,jsx,json,ts}\"",
     "server": "npx tsx server/index.ts",
     "typecheck": "tsc --noEmit",
-    "check": "npm run typecheck && npm test -- --run && npm run test:tooling && npm run test:ui-final && npm run test:save-api && npm run test:persist-durability && npm run test:peer-join && npm run test:save:local && npm run build",
+    "check": "npm run typecheck && npm run test:audio && npm test -- --run && npm run test:tooling && npm run test:hot-reload && npm run test:ui-final && npm run test:save-api && npm run test:persist-durability && npm run test:peer-join && npm run test:save:local && npm run build",
     "build:types": "tsc -p tsconfig.build.json",
     "build:watch": "node scripts/watch.mjs",
     "check:package": "node scripts/check-package.mjs",
     "test:tooling": "node --experimental-vm-modules --test test/tooling/*.test.mjs",
+    "test:hot-reload": "node scripts/test-hot-reload-coverage.mjs",
+    "test:hot-reload:browser": "YAGE_BROWSER_HMR=1 node test/tooling/hot-reload.browser.test.mjs",
     "prepack": "npm run build",
     "build:ui-final": "node scripts/build-ui-final.mjs",
     "test:ui-final": "node scripts/test-ui-final.mjs",
@@ -135,7 +143,8 @@
     "server:saves:restore": "node server/saves/backup.mjs restore",
     "test:save-api": "node --test --experimental-test-coverage --test-coverage-include=server/saves/*.mjs --test-coverage-lines=80 --test-coverage-branches=80 --test-coverage-functions=80 test/save-api/*.node.mjs",
     "test:peer-join": "node scripts/test-peer-join.mjs",
-    "test:persist-durability": "node scripts/test-persist-durability.mjs"
+    "test:persist-durability": "node scripts/test-persist-durability.mjs",
+    "test:audio": "node scripts/test-audio.mjs"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",

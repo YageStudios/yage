@@ -1,0 +1,593 @@
+diff --git a/docs/ui-final/SPLIT_FLAP_RENDERING_FIX.md b/docs/ui-final/SPLIT_FLAP_RENDERING_FIX.md
+new file mode 100644
+index 0000000..46642ec
+--- /dev/null
++++ b/docs/ui-final/SPLIT_FLAP_RENDERING_FIX.md
+@@ -0,0 +1,111 @@
++# Split-flap board: settled-face rendering investigation
++
++## Scope and confidence
++
++This patch targets the latest supplied `Sky-Harbor-context.zip`, containing the integrated HTML-component support. The production change is confined to `examples/ui-final-airport/split-flap.ts`. There is no UI Final API change, asset migration, font replacement, or change to the world-surface projection. The original `sky-harbor-splitflap.html` is unchanged.
++
++The reported symptom is an upper character half disappearing after the board has finished animating. In the supplied screenshot, the first `S` in the title is an example.
++
++**Confirmed:** the original implementation keeps the stationary faces in the browser's backface/compositing path and leaves completed moving flaps with their final `matrix3d` values. Both are unnecessary for a settled board. The original code fails the new rendering-state, compositor-budget, and visual-reference tests; the patched code passes.
++
++**Not confirmed:** the exact missing upper `S` shown in the user's screenshot did not reproduce in this Linux Chromium environment. The compositing setup is a likely explanation, not proof of a particular browser/driver defect. The patch removes the identified hazards and provides a browser-rendered regression test; verification in the reporting browser/GPU remains necessary. No synthetic missing-letter image is presented as a reproduction of the original defect.
++
++## What the code was doing
++
++A cell owns four half-panels: a stationary upper face, a stationary lower face, a falling upper flap, and a landing lower flap. During motion, the fixed top holds the next character while the fixed bottom holds the current character. On completion, both fixed faces receive the same committed character.
++
++The original CSS placed `backface-visibility:hidden` on `.sf-half`, so the rule applied to all four panels, including the two panels that never rotate. The stock 150-cell board therefore had 300 stationary faces participating in that rendering path. In the original isometric test fixture, Chrome DevTools Protocol's `LayerTree` reported **311 compositor layers** after all animation tasks had stopped. The front-facing fixture reported 310. This count is for the entire fixture page, not a portable per-widget GPU guarantee.
++
++A separate live-demo probe reported about 312 layers initially. Changing only the stationary faces' backface visibility to `visible` reduced that demo's count to five, without changing any character state. That experiment isolates the unnecessary stationary-face backface handling from the reactive model and the animation scheduler.
++
++The original `Cell.snap()` and normal completion branch used `visibility:hidden` for the moving flaps. They cleared promotion hints only on some paths but did not remove the final 3D transform. The falling flap could keep a partially rotated matrix; the landing flap could retain a perspective matrix even at zero rotation. A retarget to the just-landed character between drum steps could also exit without clearing the remaining hints.
++
++The original title does not change when `createAirportDemo` handles a departure refresh (`examples/ui-final-airport/demo.ts`). Consequently, a blank upper title face after that action is not explained by the refresh intentionally assigning a blank title. Stored character assertions alone cannot establish whether the browser painted that character.
++
++### Source locations
++
++In the patched `examples/ui-final-airport/split-flap.ts`:
++
++- `Cell` construction and `paintRest()` / `hideFlap()`: lines 109–135.
++- State retargeting, snapping, and physical animation completion: lines 136–203.
++- The static/moving-face CSS boundary and cell-local stacking: lines 240–255.
++
++The diff preserves the original code immediately around these locations, including the old visibility-only completion path.
++
++## Changes
++
++### 1. Stationary faces remain ordinary 2D content
++
++`backface-visibility:hidden` now belongs only to `.sf-flap`. Fixed faces have no 3D transform, promotion hint, or backface-culling rule. `isolation:isolate` on the cell keeps each flap's and hinge's z-order local to that character.
++
++This is not a `translateZ(0)` workaround. It removes unnecessary 3D involvement instead of promoting every character permanently.
++
++### 2. One explicit resting state
++
++`paintRest()` commits the same character to both stationary faces, zeroes the stationary lower shade, updates `data-character`, and retires both moving flaps. `hideFlap()` sets the native `hidden` attribute, removes `transform` and `will-change`, and zeroes the moving shade. A component-scoped `[hidden]` rule makes the moving panel `display:none`.
++
++The shared path runs on initialization, every completed physical flap, and `snap()`. Reduced motion and power-off already use `snap()`, so they receive the same cleanup. Initial blank cells now have explicit space characters and the same valid resting state as every other cell.
++
++Moving transforms and shading are prepared before their flap becomes visible. The falling and landing phases still use the existing perspective matrix and bounce function. The character drum, retarget behavior, flight IDs, row/cell identity, input events, and single owned animation clock are preserved.
++
++### 3. No continuous repaint workaround
++
++The fix does not add timers, forced layout reads, periodic repainting, DOM replacement, or a second animation clock. The board still has no active component frame task after settling. The idle regression advances 1,000 additional UI frames and verifies unchanged markup.
++
++## Regression coverage
++
++Three checks were added to `test/ui-final/html-browser.mjs`, with multiple assertions per check. They cover cold mount including spaces, normal completion, visible moving phases, reduced-motion and power-off interruption in both physical phases, retargeting to the just-landed character, and idle immutability. They check actual computed display/backface styles, both fixed glyphs, shades, hidden flags, and removal of transforms/hints—not only `data-character`.
++
++The new `scripts/test-ui-final-flap-render.mjs` drives `test/ui-final/flap-render-browser.mjs` in Chromium. UI ticks are scheduled in browser animation frames, allowing intermediate falling and landing poses to paint. The main projection matrix uses short, real drum transitions; a separate rapid-retarget case exercises long wraps and temporary blank targets.
++
++The rendering suite covers two isometric wall orientations, front inspection, fractional ancestor scales and translations, and device pixel ratios 1, 1.25, and 2. Each settled result is compared against a cold mount from the expected state, with the moving overlays removed and fixed faces explicitly made flat. It never copies the animated glyph DOM into the expected result.
++
++Pixel comparison decodes the browser's PNGs through canvas. It allows a maximum difference of **32/255 per color channel**, with **zero pixels allowed above that threshold**. This accommodates small antialiasing changes following layer retirement; it is not a blanket percentage of ignored pixels. In the measured patched results the largest normal difference was 29, and the DPR 1.25 and 2 comparisons were identical.
++
++A negative control deliberately hides the upper title `S` without changing either text node or `data-character`. The comparison detects it at every tested pixel ratio: 25, 36, and 82 significant pixels respectively. This demonstrates that the tolerance does not hide the reported class of error. The negative control is an intentional test mutation, not evidence that the original artifact was reproduced.
++
++A loose Chromium-only idle layer budget of fewer than 20 layers guards against reintroducing hundreds of stationary compositor layers. All 12 patched projection/DPI fixtures reported **five layers**. This is not a shipping frame-time or GPU-memory benchmark.
++
++## Results
++
++Environment: Node 22.16.0, TypeScript 5.8.3, Chromium 144.0.7559.96, locally installed Playwright driver. Browser content and bundles load locally through `setContent` without network assets.
++
++| Suite | Patched result |
++| --- | ---: |
++| Core and isolated engine-adapter tests | 54 passed |
++| Existing UI Final browser regression tests | 41 passed |
++| HTML/airport browser tests, including the three new checks | 51 passed |
++| New painted-frame, layer, and pixel regression suite | 70 passed |
++| Total | 216 passed, 0 failed |
++
++The final regression tests were also run against a separate extraction of the original archive, with only the new test files copied in. The HTML suite reported 48 existing checks passing and all three new checks failing. The rendering smoke run reported 2 passing and 22 failing. Its unchanged original production code retained 310–311 idle layers; the visual-reference differences also exceeded the documented tolerance. Those failures establish that the tests distinguish the patch from the supplied baseline; they do not prove the exact screenshot's browser-specific failure mechanism.
++
++The patch was applied to a fresh extraction of the latest uploaded archive with `git apply --check`, and all four suites were rerun there. Reverse-application checks also passed. The rebuilt standalone demo was then exercised with real browser animation frames (reduced motion off): departure refresh, announcement publication, front inspection, and return to the wall. It retained 150 cells, had no stale moving-flap styles or unequal settled glyphs, and reported five idle layers and no unhandled browser errors. These additional demo observations are not included in the 216-check total.
++
++Raw JSON and command logs are included in the delivery's `test-reports/` directory. The report includes actual layer counts and pixel-difference measurements. Baseline reports are intentionally failing results, not failures in the patched delivery.
++
++## Apply and reproduce
++
++Run from the engine repository root (the directory containing `package.json`):
++
++```sh
++git apply --check /path/to/UI_FINAL_SPLIT_FLAP_FIX.patch
++git apply /path/to/UI_FINAL_SPLIT_FLAP_FIX.patch
++
++npm run test:ui-final
++UI_FINAL_BROWSER=/path/to/chromium npm run test:ui-final:browser
++UI_FINAL_BROWSER=/path/to/chromium npm run test:ui-final:html
++UI_FINAL_BROWSER=/path/to/chromium npm run test:ui-final:flap-render
++
++npm run demo:ui-final:airport
++```
++
++The browser scripts normally import the project's `playwright-core`. `UI_FINAL_PLAYWRIGHT_MODULE` can point to a compatible existing installation. No container-specific module or browser path is committed.
++
++For a faster DPR-1 rendering run, use `npm run test:ui-final:flap-render -- --smoke`. To save actual/reference/negative-control screenshots, set `UI_FINAL_SCREENSHOT_DIR=test-reports/split-flap/pixels`. The builder clears `.ui-final-build`, so generate the standalone demo after running builds/tests.
++
++The rebuilt demo uses the same component and needs no application-side changes. Refresh departures, publish an announcement, interrupt with reduced motion or power-off, and inspect the settled title and rows at different zoom levels.
++
++## Limits
++
++This validates the isolated UI Final build and the listed Chromium suites, not the full engine's Vite/Pixi/physics/network test matrix. The archive has no installed full dependency tree. Safari, Firefox, the reporting browser/driver, physical mobile GPUs, production font loading, and long-duration performance were not certified. No browser binaries or font files are included.
+diff --git a/examples/ui-final-airport/split-flap.ts b/examples/ui-final-airport/split-flap.ts
+index e59d76b..d249213 100644
+--- a/examples/ui-final-airport/split-flap.ts
++++ b/examples/ui-final-airport/split-flap.ts
+@@ -116,6 +116,22 @@ class Cell {
+         const hinge = document.createElement("div");
+         hinge.className = "sf-hinge";
+         this.element.append(this.top.element, this.bottom.element, this.falling.element, this.landing.element, hinge);
++        this.paintRest();
++    }
++    /** The resting display is two ordinary 2D faces. Retire the moving layers
++     * completely; visibility:hidden alone leaves their 3D transforms attached. */
++    private paintRest(): void {
++        this.top.glyph.textContent = this.bottom.glyph.textContent = this.current;
++        this.hideFlap(this.falling);
++        this.hideFlap(this.landing);
++        this.bottom.shade.style.opacity = "0";
++        this.element.dataset.character = this.current;
++    }
++    private hideFlap(flap: Half): void {
++        flap.element.hidden = true;
++        flap.element.style.removeProperty("transform");
++        flap.element.style.removeProperty("will-change");
++        flap.shade.style.opacity = "0";
+     }
+     set(character: string, animate: boolean, delay: number): void {
+         if (this.target === character && (animate || this.current === character))
+@@ -138,11 +154,7 @@ class Cell {
+         this.current = this.target;
+         this.elapsed = -1;
+         this.delay = 0;
+-        this.top.glyph.textContent = this.bottom.glyph.textContent = this.current;
+-        this.falling.element.style.visibility = this.landing.element.style.visibility = "hidden";
+-        this.falling.element.style.willChange = this.landing.element.style.willChange = "";
+-        this.bottom.shade.style.opacity = "0";
+-        this.element.dataset.character = this.current;
++        this.paintRest();
+     }
+     tick(dt: number): boolean {
+         if (this.delay > 0) {
+@@ -159,38 +171,32 @@ class Cell {
+             this.bottom.glyph.textContent = this.current;
+             this.falling.glyph.textContent = this.current;
+             this.landing.glyph.textContent = this.to;
+-            this.falling.element.style.visibility = "visible";
+             this.falling.element.style.willChange = this.landing.element.style.willChange = "transform";
+         }
+         this.elapsed += dt;
+         const t = Math.min(1, this.elapsed / this.duration);
++        if (t >= 1) {
++            this.current = this.to;
++            this.elapsed = -1;
++            this.clock.flips++;
++            this.paintRest();
++            return this.current !== this.target;
++        }
+         if (t < .5) {
+             const k = (t * 2) ** 3;
+             this.falling.element.style.transform = flapMatrix(-90 * k);
+             this.falling.shade.style.opacity = String(.55 * k);
+             this.bottom.shade.style.opacity = String(.35 * k);
+-            this.landing.element.style.visibility = "hidden";
++            this.landing.element.hidden = true;
++            this.falling.element.hidden = false;
+         }
+         else {
+             const k = bounce((t - .5) * 2);
+-            this.falling.element.style.visibility = "hidden";
+-            this.landing.element.style.visibility = "visible";
+             this.landing.element.style.transform = flapMatrix(90 * (1 - k));
+             this.landing.shade.style.opacity = String(.5 * (1 - k));
+             this.bottom.shade.style.opacity = String(.35 * (1 - k));
+-        }
+-        if (t >= 1) {
+-            this.current = this.to;
+-            this.elapsed = -1;
+-            this.clock.flips++;
+-            this.top.glyph.textContent = this.bottom.glyph.textContent = this.current;
+-            this.falling.element.style.visibility = this.landing.element.style.visibility = "hidden";
+-            this.bottom.shade.style.opacity = "0";
+-            this.element.dataset.character = this.current;
+-            if (this.current === this.target) {
+-                this.falling.element.style.willChange = this.landing.element.style.willChange = "";
+-                return false;
+-            }
++            this.falling.element.hidden = true;
++            this.landing.element.hidden = false;
+         }
+         return true;
+     }
+@@ -231,6 +237,9 @@ const template = `
+   <footer><span class="live-dot"></span><div class="board-message"></div><span class="maker">SH / 01</span></footer>
+   <i class="screw tl"></i><i class="screw tr"></i><i class="screw bl"></i><i class="screw br"></i>
+ </section>`;
++// Never promote stationary halves with backface-visibility or will-change:
++// an idle projected board must not retain hundreds of independent 3D layers.
++// Keep moving flap/hinge z-order local to each character.
+ const styles = `
+ :host{--sf-ink:#ffe29a;--sf-tile:#222b2c;--sf-font:ui-monospace,"Liberation Mono",Consolas,monospace;display:block;width:100%;height:100%;line-height:1}
+ .billboard{position:relative;width:${BILLBOARD_WIDTH}px;height:${BILLBOARD_HEIGHT}px;padding:18px 24px 15px;background:#111a1c;color:#f5d36f;border:5px solid #304244;border-radius:9px;box-shadow:0 7px 0 #102126,0 13px 17px #081c204d,inset 0 0 0 2px #080f11;overflow:hidden}
+@@ -240,9 +249,9 @@ header{display:flex;align-items:center;justify-content:space-between;height:49px
+ footer{display:flex;align-items:center;gap:13px;margin-top:8px;padding-top:10px;border-top:1px solid #314043}.board-message{font-size:24px;--sf-ink:#a8dabb}.live-dot{width:5px;height:5px;background:#a8dabb;border-radius:50%;box-shadow:0 0 8px #77cd92}.maker{margin-left:auto;font:600 10px system-ui;letter-spacing:2px;color:#718b83}
+ .screw{position:absolute;width:5px;height:5px;border-radius:50%;background:linear-gradient(130deg,#788783 44%,#142320 47% 55%,#788783 57%);box-shadow:0 0 0 1px #0c1415}.tl{top:4px;left:4px}.tr{top:4px;right:4px}.bl{bottom:4px;left:4px}.br{bottom:4px;right:4px}
+ :host([data-power=off]) .sf-row,:host([data-power=off]) .live-dot{opacity:.13}
+-.sf-row{display:inline-flex;gap:.065em;font-family:var(--sf-font);font-weight:700;vertical-align:top}.sf-cell{position:relative;width:${CELL_W}em;height:${CELL_H}em;flex:none}
+-.sf-half{position:absolute;left:0;width:100%;height:${HALF}em;overflow:hidden;background:var(--sf-tile);color:var(--sf-ink);backface-visibility:hidden}.sf-top{top:0;border-radius:.05em .05em 0 0;transform-origin:50% calc(100% + ${GAP / 2}em);background:linear-gradient(#2d3737,#222b2c)}.sf-bottom{top:${CELL_H / 2 + GAP / 2}em;border-radius:0 0 .05em .05em;transform-origin:50% -${GAP / 2}em}
+-.sf-glyph{position:absolute;left:0;width:100%;height:${CELL_H}em;line-height:${CELL_H}em;white-space:pre;text-align:center;letter-spacing:0}.sf-top .sf-glyph{top:0}.sf-bottom .sf-glyph{top:-${CELL_H / 2 + GAP / 2}em}.sf-shade{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none}.sf-flap{visibility:hidden;z-index:2}.sf-hinge{position:absolute;top:${CELL_H / 2 - GAP / 2}em;height:${GAP}em;left:-.02em;right:-.02em;z-index:3;background:linear-gradient(90deg,#0a1314 0 .05em,transparent .05em calc(100% - .05em),#0a1314 0)}
++.sf-row{display:inline-flex;gap:.065em;font-family:var(--sf-font);font-weight:700;vertical-align:top}.sf-cell{position:relative;width:${CELL_W}em;height:${CELL_H}em;flex:none;isolation:isolate}
++.sf-half{position:absolute;left:0;width:100%;height:${HALF}em;overflow:hidden;background:var(--sf-tile);color:var(--sf-ink)}.sf-top{top:0;border-radius:.05em .05em 0 0;transform-origin:50% calc(100% + ${GAP / 2}em);background:linear-gradient(#2d3737,#222b2c)}.sf-bottom{top:${CELL_H / 2 + GAP / 2}em;border-radius:0 0 .05em .05em;transform-origin:50% -${GAP / 2}em}
++.sf-glyph{position:absolute;left:0;width:100%;height:${CELL_H}em;line-height:${CELL_H}em;white-space:pre;text-align:center;letter-spacing:0}.sf-top .sf-glyph{top:0}.sf-bottom .sf-glyph{top:-${CELL_H / 2 + GAP / 2}em}.sf-shade{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none}.sf-flap{z-index:2;backface-visibility:hidden}.sf-flap[hidden]{display:none!important}.sf-hinge{position:absolute;top:${CELL_H / 2 - GAP / 2}em;height:${GAP}em;left:-.02em;right:-.02em;z-index:3;background:linear-gradient(90deg,#0a1314 0 .05em,transparent .05em calc(100% - .05em),#0a1314 0)}
+ `;
+ interface FlightView {
+     element: HTMLButtonElement;
+diff --git a/package.json b/package.json
+index 40ee086..652a713 100644
+--- a/package.json
++++ b/package.json
+@@ -124,7 +124,8 @@
+     "test:ui-final:browser": "node scripts/test-ui-final-browser.mjs",
+     "demo:ui-final:offline": "node scripts/build-ui-final-demo.mjs",
+     "demo:ui-final:airport": "node scripts/build-ui-final-airport-demo.mjs",
+-    "test:ui-final:html": "node scripts/test-ui-final-html-browser.mjs"
++    "test:ui-final:html": "node scripts/test-ui-final-html-browser.mjs",
++    "test:ui-final:flap-render": "node scripts/test-ui-final-flap-render.mjs"
+   },
+   "devDependencies": {
+     "@types/express": "^5.0.0",
+diff --git a/scripts/test-ui-final-flap-render.mjs b/scripts/test-ui-final-flap-render.mjs
+new file mode 100644
+index 0000000..9aec5c4
+--- /dev/null
++++ b/scripts/test-ui-final-flap-render.mjs
+@@ -0,0 +1,144 @@
++import assert from "node:assert/strict";
++import { execFileSync } from "node:child_process";
++import { mkdir, writeFile } from "node:fs/promises";
++import { dirname, resolve } from "node:path";
++import { fileURLToPath } from "node:url";
++import { browserBundle } from "./ui-final-browser-bundle.mjs";
++
++const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
++if (!process.argv.includes("--no-build"))
++    execFileSync(process.execPath, ["scripts/build-ui-final.mjs"], { cwd: root, stdio: "inherit" });
++const { chromium } = await import(process.env.UI_FINAL_PLAYWRIGHT_MODULE || "playwright-core");
++const browser = await chromium.launch({ executablePath: process.env.UI_FINAL_BROWSER || undefined, headless: true, args: ["--no-sandbox"] });
++const outputDirectory = process.env.UI_FINAL_SCREENSHOT_DIR;
++if (outputDirectory) await mkdir(outputDirectory, { recursive: true });
++const results = [], uncaught = [], layerSamples = [], pixelSamples = [];
++const deviceScaleFactors = process.argv.includes("--smoke") ? [1] : [1, 1.25, 2];
++async function check(name, run) {
++    try { await run(); results.push({ name, pass: true }); console.error(`PASS ${name}`); }
++    catch (error) { results.push({ name, pass: false, error: String(error.stack ?? error) }); console.error(`FAIL ${name}: ${error.message}`); }
++}
++async function save(name, png) {
++    if (outputDirectory) await writeFile(resolve(outputDirectory, `${name}.png`), png);
++}
++// Browser compositors may change edge antialiasing after retiring a layer.
++// Compare decoded pixels rather than PNG compression bytes. No pixel may differ
++// by more than 32/255 in any channel; the hidden-upper-S negative control below
++// proves this allowance cannot conceal the reported kind of missing face.
++const maxChannelDelta = 32;
++async function comparePixels(page, actual, expected) {
++    if (actual.equals(expected)) return { significantPixels: 0, maximumDelta: 0 };
++    return page.evaluate(async ({ actual, expected, tolerance }) => {
++        async function decode(png) {
++            const image = new Image();
++            image.src = `data:image/png;base64,${png}`;
++            await image.decode();
++            const canvas = document.createElement("canvas");
++            canvas.width = image.naturalWidth;
++            canvas.height = image.naturalHeight;
++            const context = canvas.getContext("2d", { willReadFrequently: true });
++            if (!context) throw new Error("2D canvas unavailable for pixel comparison");
++            context.drawImage(image, 0, 0);
++            return { width: canvas.width, height: canvas.height, pixels: context.getImageData(0, 0, canvas.width, canvas.height).data };
++        }
++        const [a, b] = await Promise.all([decode(actual), decode(expected)]);
++        if (a.width !== b.width || a.height !== b.height) throw new Error("screenshot dimensions changed");
++        let significantPixels = 0, maximumDelta = 0;
++        for (let i = 0; i < a.pixels.length; i += 4) {
++            const delta = Math.max(Math.abs(a.pixels[i] - b.pixels[i]), Math.abs(a.pixels[i + 1] - b.pixels[i + 1]), Math.abs(a.pixels[i + 2] - b.pixels[i + 2]), Math.abs(a.pixels[i + 3] - b.pixels[i + 3]));
++            maximumDelta = Math.max(maximumDelta, delta);
++            if (delta > tolerance) significantPixels++;
++        }
++        return { significantPixels, maximumDelta };
++    }, { actual: actual.toString("base64"), expected: expected.toString("base64"), tolerance: maxChannelDelta });
++}
++function assertFlat(state) {
++    assert.equal(state.tasks, 0, "idle animation tasks");
++    assert.deepEqual(state.errors, []);
++    assert.equal(state.cells, 150);
++    assert.deepEqual(state.upper, state.lower, "committed upper/lower glyphs disagree");
++    assert.equal(state.culledFixedFaces, 0, "stationary glyphs still use backface culling");
++    assert.equal(state.renderedFlaps, 0, "inactive overlays still participate in rendering");
++    assert.equal(state.transforms, 0, "completed overlays retain 3D state");
++}
++try {
++    const bundle = browserBundle(root, "test/ui-final/flap-render-browser.mjs");
++    for (const dpr of deviceScaleFactors) {
++        const page = await browser.newPage({ viewport: { width: 1200, height: 800 }, deviceScaleFactor: dpr });
++        page.on("pageerror", error => uncaught.push(String(error)));
++        const session = await page.context().newCDPSession(page);
++        let layers = [];
++        session.on("LayerTree.layerTreeDidChange", event => { layers = event.layers ?? []; });
++        await session.send("LayerTree.enable");
++        try {
++            await page.setContent('<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\'; style-src \'unsafe-inline\'; img-src data:"></head><body style="margin:0;background:#e6ecdc"></body></html>');
++            await page.addScriptTag({ content: bundle });
++            for (const [pose, scale] of [["wall-x", .51], ["wall-x", .73], ["wall-y", .73], ["flat", 1]]) {
++                const label = `${pose}-${scale}-dpr${dpr}`;
++                await page.evaluate(({ pose, scale }) => window.flapRender.setup(pose, scale), { pose, scale });
++                await check(`${label}: cold mount has flat fixed faces and no rendering overlays`, async () => {
++                    assertFlat(await page.evaluate(() => window.flapRender.state()));
++                });
++                await page.evaluate(() => window.flapRender.exercise());
++                await check(`${label}: painted animation completion releases all transient 3D state`, async () => {
++                    const state = await page.evaluate(() => window.flapRender.state());
++                    assertFlat(state);
++                    assert.ok(state.fallingFrames > 0 && state.landingFrames > 0, "test must paint both moving phases, not just snap to the destination");
++                });
++                const animated = await page.screenshot();
++                layerSamples.push({ label, count: layers.length });
++                await save(`${label}-settled`, animated);
++                await check(`${label}: settled compositor layer count stays below 20`, async () => {
++                    // A loose Chromium smoke-test budget, not a portable performance contract.
++                    // The old board creates ~300 layers even with its animation clock stopped.
++                    assert.ok(layers.length < 20, `${layers.length} compositor layers for an idle board`);
++                });
++                await page.evaluate(() => window.flapRender.reference());
++                const expected = await page.screenshot();
++                await save(`${label}-reference`, expected);
++                await check(`${label}: settled pixels match a cold flat-face reference`, async () => {
++                    const comparison = await comparePixels(page, animated, expected);
++                    pixelSamples.push({ label, ...comparison });
++                    assert.equal(comparison.significantPixels, 0, `settled pixels differ from the flat-face reference: ${JSON.stringify(comparison)}`);
++                });
++                // Check the oracle itself: a missing upper S MUST change the pixels,
++                // even though data-character and both text nodes still contain S.
++                if (pose === "wall-x" && scale === .51) {
++                    await page.evaluate(() => window.flapRender.hideFirstUpperFace());
++                    const missing = await page.screenshot();
++                    await save(`${label}-negative-control`, missing);
++                    await check(`${label}: pixel oracle detects a hidden upper S with intact state`, async () => {
++                        const state = await page.evaluate(() => window.flapRender.state());
++                        assert.equal(state.upper[0], "S");
++                        assert.equal(state.lower[0], "S");
++                        const comparison = await comparePixels(page, missing, expected);
++                        pixelSamples.push({ label: `${label}-negative-control`, ...comparison });
++                        assert.ok(comparison.significantPixels > 0, "oracle missed an invisible upper face");
++                    });
++                }
++            }
++            for (const mode of ["retarget", "reduced", "power"]) {
++                const label = `${mode}-dpr${dpr}`;
++                await page.evaluate(() => window.flapRender.setup("wall-x", .73));
++                if (mode === "retarget") await page.evaluate(() => window.flapRender.retarget());
++                else await page.evaluate(mode => window.flapRender.interrupt(mode), mode);
++                await check(`${label}: endpoint releases 3D state`, async () => assertFlat(await page.evaluate(() => window.flapRender.state())));
++                const actual = await page.screenshot();
++                await page.evaluate(() => window.flapRender.reference());
++                const expected = await page.screenshot();
++                await save(`${label}-actual`, actual);
++                await save(`${label}-reference`, expected);
++                await check(`${label}: endpoint pixels match the static reference`, async () => {
++                    const comparison = await comparePixels(page, actual, expected);
++                    pixelSamples.push({ label, ...comparison });
++                    assert.equal(comparison.significantPixels, 0, `endpoint pixels differ from the flat-face reference: ${JSON.stringify(comparison)}`);
++                });
++            }
++            await page.evaluate(() => window.flapRender.dispose());
++        } finally { await session.detach(); await page.close(); }
++    }
++    await check("no unhandled browser exceptions", () => assert.deepEqual(uncaught, []));
++    const report = { browser: await browser.version(), deviceScaleFactors, layerSamples, pixelSamples, pixelComparison: { maxChannelDelta, allowedPixelsAboveThreshold: 0, reference: "same browser and viewport, cold expected state with moving layers removed" }, results, passed: results.filter(result => result.pass).length, failed: results.filter(result => !result.pass).length };
++    console.log(JSON.stringify(report, null, 2));
++    if (report.failed) process.exitCode = 1;
++} finally { await browser.close(); }
+diff --git a/test/ui-final/flap-render-browser.mjs b/test/ui-final/flap-render-browser.mjs
+new file mode 100644
+index 0000000..9ba32e8
+--- /dev/null
++++ b/test/ui-final/flap-render-browser.mjs
+@@ -0,0 +1,114 @@
++// Real-paint fixture. Each UI tick yields to the browser; synchronous DOM-only
++// tests do not exercise compositor promotion, clipping, or layer retirement.
++import { UIFinal, signal, Panel, WorldSurface, isometricSurface } from "../../.ui-final-build/engine/ui/final/index.js";
++import { SplitFlapBillboard, BILLBOARD_WIDTH, BILLBOARD_HEIGHT } from "../../.ui-final-build/examples/ui-final-airport/split-flap.js";
++import { initialBillboard } from "../../.ui-final-build/examples/ui-final-airport/demo.js";
++
++let fixture;
++const paint = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
++function mount(pose, scale, state) {
++    fixture?.ui.dispose();
++    const ui = new UIFinal({ host: document.body, placement: "inline", scheduling: "manual" });
++    ui.setReducedMotion(false); // Do not let the test machine's accessibility setting skip the animation.
++    const model = signal(state);
++    const surface = pose === "flat"
++        ? { width: BILLBOARD_WIDTH, height: BILLBOARD_HEIGHT, origin: { x: 24.375, y: 40.625 }, xAxis: { x: BILLBOARD_WIDTH, y: 0 }, yAxis: { x: 0, y: BILLBOARD_HEIGHT } }
++        : isometricSurface({ plane: pose, position: { x: 0, y: 0, z: 0 }, width: BILLBOARD_WIDTH, height: BILLBOARD_HEIGHT, worldUnitsPerPixel: .535, camera: { origin: { x: pose === "wall-y" ? 555.375 : 24.375, y: 40.625 } } });
++    ui.mount(Panel({ style: { position: "relative", width: 1100, height: 720, transform: `translate(13.375px,9.625px) scale(${scale})`, transformOrigin: "0 0" } },
++        WorldSurface({ pose: surface }, SplitFlapBillboard({ id: "render-board", state: model }))));
++    fixture = { ui, model, pose, scale, fallingFrames: 0, landingFrames: 0 };
++    return fixture;
++}
++function shadow() { return fixture.ui.element("render-board").shadowRoot; }
++async function frames(count, dt = 16) {
++    for (let i = 0; i < count; i++) {
++        // Advance inside a browser frame and schedule the next tick for the
++        // following RAF, so every intermediate pose has a paint opportunity.
++        await new Promise(resolve => requestAnimationFrame(() => {
++            fixture.ui.frame(dt);
++            for (const phase of ["top", "bottom"]) {
++                const visible = [...shadow().querySelectorAll(`.sf-${phase}.sf-flap`)].some(flap => {
++                    const style = getComputedStyle(flap);
++                    return style.display !== "none" && style.visibility === "visible";
++                });
++                if (visible) fixture[phase === "top" ? "fallingFrames" : "landingFrames"]++;
++            }
++            resolve();
++        }));
++    }
++}
++async function settle() {
++    for (let i = 0; i < 240 && fixture.ui.frameTaskCount; i++) await frames(1);
++    if (fixture.ui.frameTaskCount) throw new Error("flaps did not settle within 240 painted ticks");
++    if (fixture.ui.errors.length) throw new Error(fixture.ui.errors.map(String).join("\n"));
++    await paint();
++}
++const target = {
++    ...initialBillboard, title: "SKY HARBOR", message: "WELCOME TO SKY HARBOR", flipMs: 48,
++    flights: initialBillboard.flights.map((flight, index) => ({ ...flight, flight: `SH${111 + index * 114}`, destination: ["LISBON", "NAIROBI", "SEOUL", "OSLO"][index], gate: ["A02", "A05", "B08", "B11"][index], status: ["BOARDING", "GATE OPEN", "DELAYED", "ON TIME"][index] })),
++};
++window.flapRender = {
++    async setup(pose = "wall-x", scale = .73) {
++        // Seed numeric cells one drum position behind the target. The DPI/pose
++        // matrix then exercises real falling/landing paints without spending
++        // dozens of identical revolutions on each screenshot. retarget() below
++        // separately covers long wraps, spaces, and interruption mid-flight.
++        const precedingDigit = text => text.slice(0, -1) + String(Number(text.slice(-1)) - 1);
++        mount(pose, scale, { ...target, flights: target.flights.map(flight => ({ ...flight, flight: precedingDigit(flight.flight), gate: precedingDigit(flight.gate) })) });
++        await paint();
++    },
++    async exercise() {
++        // The title intentionally remains unchanged here: the reported missing S
++        // belongs to the title, not the departure rows that were updated.
++        fixture.model.set(target);
++        fixture.ui.flush();
++        await settle();
++    },
++    async retarget() {
++        fixture.model.update(state => ({ ...state, title: "DEPARTURES", message: "GATE A12 IS OPEN" }));
++        fixture.ui.flush();
++        await frames(8);
++        fixture.model.update(state => ({ ...state, title: "          ", message: "" }));
++        fixture.ui.flush();
++        await frames(4);
++        fixture.model.set(target);
++        fixture.ui.flush();
++        await settle();
++    },
++    async interrupt(mode) {
++        fixture.model.update(state => ({ ...state, title: "ZZZZZZZZZZ", message: "POWER CHECK", flipMs: 80 }));
++        fixture.ui.flush();
++        await frames(1, mode === "power" ? 56 : 16);
++        if (mode === "power") fixture.model.update(state => ({ ...state, powered: false }));
++        else fixture.ui.setReducedMotion(true);
++        fixture.ui.flush();
++        await paint();
++        if (fixture.ui.frameTaskCount) throw new Error("interrupted board still has an animation task");
++    },
++    async reference() {
++        const { pose, scale, model } = fixture;
++        mount(pose, scale, model.peek());
++        // Independent static reference: cold-mount from EXPECTED STATE, remove
++        // moving overlays entirely and opt fixed faces out of backface culling.
++        // Do not copy glyphs or markup from the animated component under test.
++        shadow().querySelectorAll(".sf-flap").forEach(flap => flap.remove());
++        const style = document.createElement("style");
++        style.textContent = ".sf-half { backface-visibility:visible!important; transform:none!important; will-change:auto!important; }";
++        shadow().append(style);
++        await paint();
++    },
++    async hideFirstUpperFace() {
++        shadow().querySelector(".board-title .sf-top:not(.sf-flap)").style.visibility = "hidden";
++        await paint();
++    },
++    state() {
++        const cells = [...shadow().querySelectorAll(".sf-cell")];
++        return { fallingFrames: fixture.fallingFrames, landingFrames: fixture.landingFrames, tasks: fixture.ui.frameTaskCount, errors: fixture.ui.errors.map(String), cells: cells.length,
++            upper: cells.map(cell => cell.querySelector(".sf-top:not(.sf-flap) .sf-glyph").textContent),
++            lower: cells.map(cell => cell.querySelector(".sf-bottom:not(.sf-flap) .sf-glyph").textContent),
++            transforms: [...shadow().querySelectorAll(".sf-flap")].filter(flap => flap.style.transform || flap.style.willChange).length,
++            renderedFlaps: [...shadow().querySelectorAll(".sf-flap")].filter(flap => getComputedStyle(flap).display !== "none").length,
++            culledFixedFaces: [...shadow().querySelectorAll(".sf-half:not(.sf-flap)")].filter(face => getComputedStyle(face).backfaceVisibility !== "visible").length };
++    },
++    dispose() { fixture?.ui.dispose(); fixture = undefined; },
++};
+diff --git a/test/ui-final/html-browser.mjs b/test/ui-final/html-browser.mjs
+index ca5b070..d1fe91b 100644
+--- a/test/ui-final/html-browser.mjs
++++ b/test/ui-final/html-browser.mjs
+@@ -525,6 +525,74 @@ test("BILLBOARD: removing an animating component cancels its one task and pendin
+     equal(host.shadowRoot.innerHTML, before);
+     equal(ui.scheduler.pending, 0);
+ });
++// Text equality alone cannot detect a clipped/cullable face or a stale compositor layer.
++const assertRestingFlaps = (ui, id = "board") => {
++    const shadow = root(ui, id);
++    equal(ui.frameTaskCount, 0, "settled board must release its clock");
++    equal(shadow.querySelector(".billboard").dataset.animatedCells, "0");
++    for (const cell of shadow.querySelectorAll(".sf-cell")) {
++        for (const face of cell.querySelectorAll(".sf-half:not(.sf-flap)")) {
++            equal(face.querySelector(".sf-glyph").textContent, cell.dataset.character, "both fixed faces must contain the committed character, including spaces");
++            equal(getComputedStyle(face).backfaceVisibility, "visible", "fixed faces must not use 3D backface culling");
++            equal(getComputedStyle(face).transform, "none");
++            equal(getComputedStyle(face.querySelector(".sf-shade")).opacity, "0");
++        }
++        for (const flap of cell.querySelectorAll(".sf-flap")) {
++            assert(flap.hidden, "inactive moving faces must be removed from rendering, not only visibility-hidden");
++            equal(getComputedStyle(flap).display, "none");
++            equal(flap.style.transform, "", "settling must remove the old 3D matrix");
++            equal(flap.style.willChange, "", "settling must release promotion hints");
++            equal(getComputedStyle(flap.querySelector(".sf-shade")).opacity, "0");
++        }
++    }
++};
++test("BILLBOARD RENDER: cold mount and normal completion use only flat fixed faces", () => {
++    const ui = fixture(), state = signal(initialBillboard);
++    ui.mount(SplitFlapBillboard({ id: "board", state }));
++    assertRestingFlaps(ui);
++    state.update(value => ({ ...value, title: "DEPARTURES", message: "GATE 7 OPEN", flights: value.flights.map(flight => ({ ...flight, destination: "TOKYO", status: "DELAYED" })) }));
++    ui.flush();
++    ui.frame(16);
++    const moving = root(ui, "board").querySelectorAll(".sf-flap:not([hidden])");
++    assert(moving.length > 0, "moving overlays must still render during animation");
++    assert([...moving].every(flap => getComputedStyle(flap).backfaceVisibility === "hidden"));
++    settle(ui);
++    assertRestingFlaps(ui);
++    equal(chars(root(ui, "board").querySelector(".board-title")), "DEPARTURES");
++});
++test("BILLBOARD RENDER: reduced motion and power-off clear both animation phases", () => {
++    for (const elapsed of [16, 56]) {
++        for (const mode of ["reduced-motion", "power-off"]) {
++            const ui = fixture(), state = signal(initialBillboard);
++            ui.mount(SplitFlapBillboard({ id: "board", state }));
++            state.update(value => ({ ...value, title: "ZZZZZZZZZZ", message: "CHANGED" }));
++            ui.flush();
++            ui.frame(elapsed);
++            const cell = root(ui, "board").querySelector(".board-title .sf-cell");
++            assert(cell.querySelector(elapsed < 40 ? ".sf-top.sf-flap" : ".sf-bottom.sf-flap").getClientRects().length > 0, "the selected physical phase must really have started");
++            if (mode === "reduced-motion") ui.setReducedMotion(true);
++            else state.update(value => ({ ...value, powered: false }));
++            ui.flush();
++            assertRestingFlaps(ui);
++            equal(chars(root(ui, "board").querySelector(".board-title")), "ZZZZZZZZZZ");
++        }
++    }
++});
++test("BILLBOARD RENDER: retarget to the just-landed character releases transient layers", () => {
++    const ui = fixture(), state = signal({ ...initialBillboard, title: "A" });
++    ui.mount(SplitFlapBillboard({ id: "board", state }));
++    state.update(value => ({ ...value, title: "Z" }));
++    ui.flush();
++    ui.frame(80); // One physical flap lands on B, with more drum steps still queued.
++    equal(chars(root(ui, "board").querySelector(".board-title")), "B");
++    state.update(value => ({ ...value, title: "B" }));
++    ui.flush();
++    ui.frame(16);
++    assertRestingFlaps(ui);
++    const before = root(ui, "board").innerHTML;
++    for (let n = 0; n < 1000; n++) ui.frame(16);
++    equal(root(ui, "board").innerHTML, before, "idle frames must not repaint to conceal the artifact");
++});
+ test("BILLBOARD: malformed flight state is reported before rows are partially changed", () => {
+     const ui = fixture(), state = signal(initialBillboard);
+     ui.mount(SplitFlapBillboard({ id: "board", state }));

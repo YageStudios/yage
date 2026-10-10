@@ -1,4 +1,6 @@
 import type { ComponentData } from "../systems/types";
+import { isEntityHotReloadEnabled, queueEntityDefaultsPatch, setEntityReloadHandler } from "../dev/hotReload";
+import { applyEntityDefaults, trackEntityTemplate } from "./hotDefaults";
 import { EnemyTypeEnum, EntityTypeEnum } from "../constants/enums";
 import type { GameModel } from "yage/game/GameModel";
 import { clone } from "yage/utils/clone";
@@ -29,6 +31,7 @@ export type FlexibleEntityDefinition = EntityDefinition & {
 };
 
 export type EntityComponentDTO = {
+  template?: string;
   children?: EntityComponentDTO[];
   components: ComponentData[];
 };
@@ -168,6 +171,22 @@ export class EntityFactory {
 
   static configureEntityFactory(entityDefinitions: FlexibleEntityDefinition[]) {
     new EntityFactory(entityDefinitions);
+    setEntityReloadHandler((value) => {
+      const definition = value as FlexibleEntityDefinition;
+      const index = entityDefinitions.findIndex(
+        (entry) => entry.name === definition.name
+      );
+      if (index < 0)
+        throw new Error(
+          "Hot reload cannot rename an entity definition. Reload the page."
+        );
+      const updated = entityDefinitions.slice();
+      updated[index] = definition;
+      const previous = EntityFactory.getInstance();
+      EntityFactory.configureEntityFactory(updated);
+      const next = EntityFactory.getInstance();
+      queueEntityDefaultsPatch(world => applyEntityDefaults(world, previous, next));
+    });
   }
 
   static getInstance(): EntityFactory {
@@ -313,6 +332,7 @@ export class EntityFactory {
   ): EntityComponentDTO {
     const entityDefinition = this.getEntityDefinition(entityName, gameModel);
     const entityComponents = this.generateComponents(entityDefinition);
+    if (isEntityHotReloadEnabled()) entityComponents.template = entityName;
 
     if (componentOverrides) {
       const overrideKeys = Object.keys(componentOverrides);
@@ -378,6 +398,7 @@ export class EntityFactory {
   createEntity(gameModel: GameModel, entity: EntityComponentDTO): number {
     const entityId = gameModel.addEntity();
     this.addComponents(gameModel, entityId, entity.components);
+    if (entity.template) trackEntityTemplate(gameModel, entityId, entity.template);
 
     entity.children?.forEach((child: EntityComponentDTO) => {
       const childComponent = child.components.find((c) => c.type === "Child");
