@@ -164,6 +164,8 @@ type Chunk = { __peerData: number; n: number; total: number; data: ArrayBuffer }
 export class ManualConnection extends Emitter {
   open = false;
   private closed = false;
+  private announced = false;
+  private announcing = false;
   private pending: unknown[] = [];
   private outbox: ArrayBuffer[] = [];
   private chunks: Record<number, { data: Uint8Array[]; count: number; total: number }> = {};
@@ -183,29 +185,43 @@ export class ManualConnection extends Emitter {
     if (channel.readyState === "open") this.open = true;
     else channel.addEventListener("open", () => {
       this.open = true;
-      this.emit("open");
+      this.announce();
     }, { once: true });
   }
 
   override on(event: string, fn: Listener) {
-    super.on(event, fn);
-    this.deliverLate(event);
+    if (event === "open" && this.announced) queueMicrotask(() => fn());
+    else super.on(event, fn);
+    this.scheduleAnnounce(event);
     return this;
   }
 
   override once(event: string, fn: Listener) {
-    super.once(event, fn);
-    this.deliverLate(event);
+    if (event === "open" && this.announced) queueMicrotask(() => fn());
+    else super.once(event, fn);
+    this.scheduleAnnounce(event);
     return this;
   }
 
-  private deliverLate(event: string) {
-    if (event === "open" && this.open) queueMicrotask(() => { if (!this.closed) this.emit("open"); });
-    if (event === "data" && this.pending.length) {
-      const held = this.pending;
-      this.pending = [];
-      queueMicrotask(() => held.forEach((data) => this.emit("data", data)));
+  /** The channel was open before anyone listened: report it once the current listeners have attached. */
+  private scheduleAnnounce(event: string) {
+    if ((event === "open" || event === "data") && this.open && !this.announced && !this.announcing) {
+      this.announcing = true;
+      queueMicrotask(() => this.announce());
     }
+  }
+
+  /**
+   * PeerJS always reports `open` before any data, and PeerMultiplayerInstance relies on it: data from a peer it has not
+   * seen open makes it attach the connection a second time. Data waits until `open` has reached the listeners.
+   */
+  private announce() {
+    if (this.closed || this.announced) return;
+    this.announced = true;
+    this.emit("open");
+    const held = this.pending;
+    this.pending = [];
+    held.forEach((data) => this.emit("data", data));
   }
 
   send(data: unknown) {
@@ -255,7 +271,7 @@ export class ManualConnection extends Emitter {
       this.receive(whole.buffer);
       return;
     }
-    if (this.listenerCount("data")) this.emit("data", data);
+    if (this.announced && this.listenerCount("data")) this.emit("data", data);
     else this.pending.push(data);
   }
 
@@ -267,6 +283,15 @@ export class ManualConnection extends Emitter {
     try { this.peerConnection.close(); } catch { /* already closed */ }
     this.emit("close");
   }
+}
+
+class UnreachableConnection extends Emitter {
+  open = false;
+  constructor(readonly peer: string) {
+    super();
+  }
+  send() {}
+  close() {}
 }
 
 /**
@@ -298,10 +323,11 @@ export class ManualPeer extends Emitter {
     this.connection = connection;
   }
 
-  connect(peerId: string): ManualConnection {
+  connect(peerId: string): ManualConnection | UnreachableConnection {
     if (this.connection?.peer === peerId) return this.connection;
-    // Rooms without a signaling server are host + one guest; there is no route to a third device.
-    throw new Error("Offline rooms connect two devices only.");
+    // Rooms without a signaling server are host + one guest: any other id (PeerMultiplayerInstance also dials its own
+    // id once) gets a connection that never opens, as an unreachable peer does under PeerJS.
+    return new UnreachableConnection(peerId);
   }
 
   destroy() {
