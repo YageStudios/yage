@@ -6,6 +6,7 @@ import type { InputManager } from "yage/inputs/InputManager";
 import type { CoreConnectionInstanceOptions } from "./CoreConnectionInstance";
 import { CoreConnectionInstance } from "./CoreConnectionInstance";
 import { flags } from "yage/console/flags";
+import type { ManualPeer } from "./ManualPeer";
 
 const nanoid = customAlphabet("234579ACDEFGHJKMNPQRTWXYZ", 10);
 
@@ -14,6 +15,8 @@ export type PeerMultiplayerInstanceOptions<T> = CoreConnectionInstanceOptions<T>
   requireExistingHost?: boolean;
   address?: string;
   host?: string;
+  /** Replaces the PeerJS signaling server, e.g. with a ManualPeer whose link was made by swapping codes. */
+  peerFactory?: (id: string) => Peer | ManualPeer;
 };
 
 export const isPeerMultiplayerInstanceOptions = <T>(
@@ -32,16 +35,18 @@ export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
   private unloadDisconnectAnnounced = false;
   private requireExistingHost: boolean;
   private rejectJoin: ((error: Error) => void) | null = null;
+  private peerFactory?: (id: string) => Peer | ManualPeer;
 
   constructor(
     player: PlayerConnect<T>,
     inputManager: InputManager,
-    { prefix, host, address = nanoid(), requireExistingHost = false, ...coreOptions }: PeerMultiplayerInstanceOptions<T>
+    { prefix, host, address = nanoid(), requireExistingHost = false, peerFactory, ...coreOptions }: PeerMultiplayerInstanceOptions<T>
   ) {
     super(player, inputManager, coreOptions);
     this.prefix = prefix;
     this.address = address;
     this.requireExistingHost = requireExistingHost;
+    this.peerFactory = peerFactory;
 
     if (!address.startsWith(this.prefix)) {
       address = this.prefix + address;
@@ -86,7 +91,11 @@ export class PeerMultiplayerInstance<T> extends CoreConnectionInstance<T> {
   async handshake(address: string, hostUrl?: string) {
     this.selfAddress = address;
 
-    if (hostUrl) {
+    if (this.peerFactory) {
+      // ManualPeer implements the part of Peer this class uses.
+      this.peer = this.peerFactory(address) as Peer;
+      this.selfAddress = this.peer.id;
+    } else if (hostUrl) {
       const host = hostUrl.split(":")[0];
       const port = parseInt((hostUrl.split(":")[1] || "443").split("/")[0]);
       const path = hostUrl.split("/")[1] || "/";
