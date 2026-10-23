@@ -239,6 +239,7 @@ export class ChunkPool {
     for (const host of this.hosts) host.transport.send(encodeConfig(bytes));
   }
 
+  /** Sends input for a controlled entity to whichever host holds it; empty bytes release it. */
   input(gid: number, bytes: Uint8Array) {
     const message = encodeInput(gid, bytes);
     for (const host of this.hosts) host.transport.send(message);

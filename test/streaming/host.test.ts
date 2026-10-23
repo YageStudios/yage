@@ -242,6 +242,22 @@ describe("ChunkHost", () => {
     expect(client.last(Op.Locate)!.entries[0]).toMatchObject({ cx: 1, x: 30 });
   });
 
+  test("empty input releases a controlled entity", () => {
+    const host = new ChunkHost(testModule({ "0,0": [{ x: 10, y: 50, gid: 4 }] }));
+    const client = connect(host);
+    client.send(encodeGenerate(0, 0, 1));
+    client.send(encodeTier(0, 0, Tier.Hot, 1));
+    client.send(encodeInput(4, new Uint8Array([128 + 5])));
+    host.tick();
+    // Controlled entities are located even when nobody tracks them.
+    const located = client.all(Op.Locate).length;
+    expect(located).toBe(1);
+    client.send(encodeInput(4, new Uint8Array(0)));
+    host.tick();
+    host.tick();
+    expect(client.all(Op.Locate)).toHaveLength(located);
+  });
+
   test("configuration reaches the module", () => {
     const host = new ChunkHost(testModule({ "0,0": [{ x: 10, y: 10, vx: 1, gid: 1 }] }));
     const client = connect(host);

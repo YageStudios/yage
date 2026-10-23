@@ -196,7 +196,11 @@ export class ChunkHost {
         this.module.configure?.(message.bytes.slice());
         break;
       case Op.Input:
-        this.inputs.set(message.gid, message.bytes.slice());
+        // Empty input releases the entity.
+        if (message.bytes.byteLength === 0) {
+          this.inputs.delete(message.gid);
+          this.trackDirty = true;
+        } else this.inputs.set(message.gid, message.bytes.slice());
         break;
       case Op.Track:
         if (connection) {
