@@ -27,6 +27,7 @@ import {
   EMPTY_SLOT,
   encodeLocate,
   encodeLog,
+  encodeOverlay,
   encodeReady,
   encodeStatic,
   encodeStats,
@@ -52,6 +53,11 @@ export type StepContext = {
   ticks: number;
   /** Seconds this step covers. */
   dt: number;
+  /**
+   * True when a client watches the chunk closely (Hot tier): the place to spend detail that only
+   * matters on screen. Warm chunks can run a cheaper model of the same thing.
+   */
+  hot: boolean;
   /** The chunk's space (0 unless the game uses several). */
   space: number;
   cx: number;
@@ -96,6 +102,13 @@ export interface ChunkModule {
    * should be drawn: `x`/`y` in chunk-local units × POSITION_SCALE, `sprite`, `tint` and `gid`.
    */
   render(world: World, snapshot: Snapshot): void;
+  /**
+   * Game-defined bytes sent right after the chunk's snapshot (Op.Overlay), e.g. load fields,
+   * effect events or extra per-slot values (index them by entity slot, like the snapshot).
+   * Called at most once per chunk per tick, only on ticks that build a snapshot of it; return
+   * null to send nothing. Events drained here reach every client sent that tick's snapshot.
+   */
+  overlay?(world: World, snapshot: Snapshot): Uint8Array | null;
   /** Small per-chunk stats (population, counts…) sent after each step. */
   stats?(world: World): Uint8Array;
   /** Game configuration broadcast to every chunk (e.g. evolution traits). */
@@ -412,7 +425,7 @@ export class ChunkHost {
       // Normally 1 (hot) or warmEvery (warm); more when the clock skipped ticks or a slot was missed.
       const ticks = Math.max(hot ? 1 : warmEvery, chunk.lastStep < 0 ? 0 : tick - chunk.lastStep);
       chunk.lastStep = tick;
-      const ctx: StepContext = { tick, ticks, dt: ticks / tickRate, space: chunk.space, cx: chunk.cx, cy: chunk.cy };
+      const ctx: StepContext = { tick, ticks, dt: ticks / tickRate, hot, space: chunk.space, cx: chunk.cx, cy: chunk.cy };
       this.applyInputs(chunk, ctx);
       this.module.step(chunk.world, ctx);
       this.depart(chunk, ctx);
@@ -508,7 +521,9 @@ export class ChunkHost {
 
   private sendSnapshots(tick: number) {
     const built = new Map<number, Snapshot>();
+    const overlays = new Map<number, Uint8Array | null>();
     const sends: [Connection, Snapshot][] = [];
+    const overlaySends: [Connection, Uint8Array][] = [];
     for (const connection of this.connections) {
       for (const [key, subscription] of connection.subscriptions) {
         if (subscription.tier !== Tier.Hot || subscription.snapshotEvery === 0) continue;
@@ -521,8 +536,12 @@ export class ChunkHost {
           snapshot.tint.fill(EMPTY_SLOT);
           this.module.render(chunk.world, snapshot);
           built.set(key, snapshot);
+          const extra = this.module.overlay?.(chunk.world, snapshot);
+          overlays.set(key, extra ? encodeOverlay(chunk.cx, chunk.cy, tick, extra, chunk.space) : null);
         }
         sends.push([connection, snapshot]);
+        const overlay = overlays.get(key);
+        if (overlay) overlaySends.push([connection, overlay]);
       }
     }
     // The last send of each snapshot moves its buffer instead of copying it.
@@ -533,6 +552,7 @@ export class ChunkHost {
       remaining.set(snapshot, left);
       connection.transport.send(snapshot.bytes, left === 0);
     }
+    for (const [connection, bytes] of overlaySends) connection.transport.send(bytes, false);
   }
 
   // -------------------------------------------------------------------------------------------

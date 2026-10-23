@@ -12,10 +12,12 @@
  * reports a host whose Hello names another version, so mismatched builds fail clearly instead of
  * misreading each other's bytes. A client that never sends Hello (an in-process client of the
  * same build, e.g. a test) is trusted.
+ *
+ * Version 3 added Overlay: game-defined bytes sent with a hot chunk's snapshot.
  */
 
 /** Wire format version. Bump on any layout change. */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 export enum Op {
   // client -> host
@@ -47,6 +49,11 @@ export enum Op {
   Depart = 27,
   /** host -> client: a trip's arrival was applied (sent again for a repeated Arrive). */
   Arrived = 28,
+  /**
+   * host -> client: game-defined bytes sent with a hot chunk's snapshot, for whatever rides along
+   * with the entities (load fields, effect events, extra per-slot values…). See ChunkModule.overlay.
+   */
+  Overlay = 29,
 }
 
 /** Positions in snapshots are int16 fixed point: world units × POSITION_SCALE. */
@@ -435,6 +442,12 @@ export const encodeLog = (level: number, text: string) => {
   return new ByteWriter(utf8.byteLength + 4).u8(Op.Log).u8(level).raw(utf8).finish();
 };
 
+/** Overlay header: op u8, pad u8, space u16, cx i16, cy i16, tick u32; then the game's bytes. */
+export const encodeOverlay = (cx: number, cy: number, tick: number, bytes: Uint8Array, space = 0) =>
+  new ByteWriter(bytes.byteLength + 12).u8(Op.Overlay).u8(0).u16(space).i16(cx).i16(cy).u32(tick).raw(bytes).finish();
+
+export type OverlayMessage = { space: number; cx: number; cy: number; tick: number; bytes: Uint8Array };
+
 export const encodeReady = (cx: number, cy: number, population: number, space = 0) =>
   new ByteWriter(12).u8(Op.Ready).u8(0).u16(space).i16(cx).i16(cy).u32(population).finish();
 
@@ -462,7 +475,8 @@ export type Message =
   | { op: Op.Locate; tick: number; entries: LocateEntry[] }
   | { op: Op.Static; space: number; cx: number; cy: number; bytes: Uint8Array }
   | { op: Op.Log; level: number; text: string }
-  | { op: Op.Ready; space: number; cx: number; cy: number; population: number };
+  | { op: Op.Ready; space: number; cx: number; cy: number; population: number }
+  | ({ op: Op.Overlay } & OverlayMessage);
 
 /** Reads the (pad, space, cx, cy) prefix shared by chunk-addressed messages. */
 const address = (reader: ByteReader) => {
@@ -581,6 +595,8 @@ export const decodeMessage = (bytes: Uint8Array): Message => {
       return { op, level: reader.u8(), text: new TextDecoder().decode(reader.rest()) };
     case Op.Ready:
       return { op, ...address(reader), population: reader.u32() };
+    case Op.Overlay:
+      return { op, ...address(reader), tick: reader.u32(), bytes: reader.rest() };
     default:
       throw new Error(`Unknown chunk protocol op ${op}`);
   }

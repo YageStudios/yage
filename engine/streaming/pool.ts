@@ -30,6 +30,7 @@ import {
   Tier,
   type DepartMessage,
   type LocateEntry,
+  type OverlayMessage,
   type RouteEntry,
   type Snapshot,
   type StatsEntry,
@@ -66,6 +67,8 @@ export type ChunkState = {
 
 export type ChunkPoolEvents = {
   snapshot?: (snapshot: Snapshot, host: number) => void;
+  /** Game-defined bytes that came with a hot chunk's snapshot (ChunkModule.overlay). */
+  overlay?: (overlay: OverlayMessage, host: number) => void;
   stats?: (entries: StatsEntry[], host: number, tick: number) => void;
   locate?: (entry: LocateEntry, host: number) => void;
   ready?: (chunk: ChunkState) => void;
@@ -382,6 +385,11 @@ export class ChunkPool {
       case Op.Snapshot:
         this.events.snapshot?.(message.snapshot, host.index);
         break;
+      case Op.Overlay: {
+        const { op: _op, ...overlay } = message;
+        this.events.overlay?.(overlay, host.index);
+        break;
+      }
       case Op.Stats:
         host.busyMs = message.busyMs;
         host.tick = Math.max(host.tick, message.tick);
