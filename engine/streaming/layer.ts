@@ -536,8 +536,12 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
 export type ChunkSceneOptions = {
   chunkSize: number;
   style: ChunkLayerStyle;
-  /** Static per-chunk sprites (trees, lamps…) depth-sorted with the entities; see `setProps`. */
-  props?: ChunkLayerStyle;
+  /**
+   * Static per-chunk sprites (trees, lamps…) depth-sorted with the entities; see `setProps`. Several
+   * styles give several prop sets (e.g. small props, then wide ones such as vehicles or stalls,
+   * each with its own atlas and cell size); they all share the depth buffer.
+   */
+  props?: ChunkLayerStyle | readonly ChunkLayerStyle[];
   /** Expected milliseconds between snapshots, used until real arrivals are measured. */
   snapshotInterval?: number;
 };
@@ -547,7 +551,10 @@ type ChunkView = {
   cy: number;
   ground: PIXI.Container;
   layer: ChunkLayer | null;
+  /** Prop set 0 (the same layer as `propSets[0]`). */
   props: ChunkLayer | null;
+  /** One layer per prop style, by set index. */
+  propSets: (ChunkLayer | null)[];
 };
 
 /**
@@ -562,13 +569,14 @@ export class ChunkScene {
   readonly edgeRoot = new PIXI.Container();
   readonly views = new Map<number, ChunkView>();
   private readonly entities: LayerKind;
-  private readonly propKind: LayerKind | null;
+  private readonly propKinds: LayerKind[];
   private readonly options: ChunkSceneOptions;
 
   constructor(options: ChunkSceneOptions) {
     this.options = options;
     this.entities = new LayerKind(options.style);
-    this.propKind = options.props ? new LayerKind(options.props) : null;
+    const props = options.props ? (Array.isArray(options.props) ? options.props : [options.props]) : [];
+    this.propKinds = props.map((style: ChunkLayerStyle) => new LayerKind(style));
     this.root.addChild(this.groundRoot, this.shadowRoot, this.entityRoot, this.edgeRoot);
   }
 
@@ -580,7 +588,7 @@ export class ChunkScene {
   /** Multiplies every sprite by `light` (RGB 0–1) and scales drop shadows by `shadow`. */
   setLight(light: [number, number, number], shadow = 1) {
     this.entities.setLight(light, shadow);
-    this.propKind?.setLight(light, shadow);
+    for (const kind of this.propKinds) kind.setLight(light, shadow);
   }
 
   /** The chunk's view, created on first use and positioned at the chunk's origin. */
@@ -591,7 +599,7 @@ export class ChunkScene {
       const ground = new PIXI.Container();
       ground.position.set(cx * this.options.chunkSize, cy * this.options.chunkSize);
       this.groundRoot.addChild(ground);
-      view = { cx, cy, ground, layer: null, props: null };
+      view = { cx, cy, ground, layer: null, props: null, propSets: [] };
       this.views.set(key, view);
     }
     return view;
@@ -615,19 +623,23 @@ export class ChunkScene {
 
   /**
    * Sets a chunk's static props (positions chunk-local in POSITION_SCALE fixed point, like a
-   * snapshot), drawn with the `props` style. Null clears them.
+   * snapshot), drawn with prop style `set` (default the first). Null clears them.
    */
-  setProps(cx: number, cy: number, props: Snapshot | null) {
-    if (!this.propKind) throw new Error("ChunkScene was created without a props style");
+  setProps(cx: number, cy: number, props: Snapshot | null, set = 0) {
+    const kind = this.propKinds[set];
+    if (!kind) throw new Error(`ChunkScene was created without props style ${set}`);
     const view = this.view(cx, cy);
+    let layer = view.propSets[set] ?? null;
     if (!props) {
-      view.props?.destroy();
-      view.props = null;
-      return;
+      layer?.destroy();
+      layer = null;
+    } else {
+      if (!layer) layer = this.createLayer(kind, cx, cy);
+      layer.push(props, 0);
+      layer.interpolate(Infinity);
     }
-    if (!view.props) view.props = this.createLayer(this.propKind, cx, cy);
-    view.props.push(props, 0);
-    view.props.interpolate(Infinity);
+    view.propSets[set] = layer;
+    if (set === 0) view.props = layer;
   }
 
   /** Drops a chunk's entity layer (e.g. when it stops being hot), keeping its ground. */
@@ -643,7 +655,7 @@ export class ChunkScene {
     const view = this.views.get(key);
     if (!view) return;
     view.layer?.destroy();
-    view.props?.destroy();
+    for (const layer of view.propSets) layer?.destroy();
     view.ground.destroy({ children: true });
     this.views.delete(key);
   }
@@ -661,7 +673,7 @@ export class ChunkScene {
       const y = chunk.cy * size;
       const inView = x + size * 1.1 >= view.minX && x - size * 0.1 <= view.maxX && y + size * 1.1 >= view.minY && y - size * 0.1 <= view.maxY;
       chunk.ground.visible = inView;
-      chunk.props?.setVisible(inView && chunk.props.count > 0);
+      for (const props of chunk.propSets) props?.setVisible(inView && props.count > 0);
       if (chunk.layer) {
         const visible = inView && chunk.layer.count > 0;
         chunk.layer.setVisible(visible);
