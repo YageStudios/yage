@@ -11,6 +11,9 @@ export default defineConfig({
     environment: "node",
     setupFiles: ["./test/setup.ts"],
     alias: { yage: `${root}/engine` },
+    // minecs 0.2.0's build imports "lodash/cloneDeep" without an extension, which Node's ESM
+    // loader rejects; letting Vite transform it resolves the import.
+    server: { deps: { inline: ["minecs"] } },
     // Node suites have dedicated runners; browser e2e suites use their own config.
     exclude: ["test/tooling/**", "test/ui-final/**", "test/e2e/**", "node_modules/**", "dist/**"],
   },

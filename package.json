@@ -75,6 +75,18 @@
       "import": "./dist/vendor/noise/index.js",
       "default": "./dist/vendor/noise/index.js"
     },
+    "./streaming": {
+      "yage-source": "./engine/streaming/index.ts",
+      "types": "./dist/streaming/index.d.ts",
+      "import": "./dist/streaming/index.js",
+      "default": "./dist/streaming/index.js"
+    },
+    "./streaming/server": {
+      "yage-source": "./engine/streaming/server.ts",
+      "types": "./dist/streaming/server.d.ts",
+      "import": "./dist/streaming/server.js",
+      "default": "./dist/streaming/server.js"
+    },
     "./*": {
       "yage-source": "./engine/*.ts",
       "types": "./dist/*.d.ts",
@@ -214,7 +226,7 @@
   ],
   "sideEffects": true,
   "peerDependencies": {
-    "minecs": "^0.2.0",
+    "minecs": "0.2.0",
     "pixi.js": "7.4.2",
     "playwright-core": "^1.52.0",
     "vite": "^7.3.1"
