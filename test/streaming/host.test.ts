@@ -4,6 +4,7 @@ import {
   decodeMessage,
   encodeConfig,
   encodeGenerate,
+  encodeHello,
   encodeInput,
   encodeLoad,
   encodeRoute,
@@ -26,6 +27,7 @@ const connect = (host: ChunkHost) => {
   host.attach(hostSide);
   const messages: Message[] = [];
   client.onMessage((bytes) => messages.push(decodeMessage(bytes)));
+  client.send(encodeHello());
   return {
     send: (bytes: Uint8Array) => client.send(bytes),
     messages,
@@ -68,7 +70,7 @@ describe("ChunkHost", () => {
     expect(snapshot.x[0]).toBe(11 * POSITION_SCALE);
     expect(snapshot.y[0]).toBe(20 * POSITION_SCALE);
     expect(snapshot.gid[0]).toBe(41);
-    expect(client.last(Op.Stats)!.entries).toEqual([{ cx: 0, cy: 0, bytes: new Uint8Array([1]) }]);
+    expect(client.last(Op.Stats)!.entries).toEqual([{ space: 0, cx: 0, cy: 0, bytes: new Uint8Array([1]) }]);
   });
 
   test("steps warm chunks every warmEvery ticks with the whole interval, and sends no snapshots", () => {
@@ -237,7 +239,7 @@ describe("ChunkHost", () => {
     client.send(encodeTrack([9]));
     client.send(encodeInput(9, new Uint8Array([128 + 20])));
     host.tick();
-    expect(client.last(Op.Locate)!.entries).toEqual([{ gid: 9, cx: 1, cy: 0, x: 10, y: 50, tint: 7 }]);
+    expect(client.last(Op.Locate)!.entries).toEqual([{ gid: 9, space: 0, cx: 1, cy: 0, x: 10, y: 50, tint: 7 }]);
     host.tick();
     expect(client.last(Op.Locate)!.entries[0]).toMatchObject({ cx: 1, x: 30 });
   });

@@ -7,12 +7,23 @@
  * The host owns the clock. Every tick it steps hot chunks, steps a staggered share of warm
  * chunks, hands entities that crossed a border to their new chunk, then sends snapshots, tracked
  * entity locations and per-chunk stats.
+ *
+ * Chunks live in spaces (see coord.ts): every chunk, route, subscription, stat and location is
+ * qualified by its space, and the module is told which space it is generating or stepping. Space
+ * 0 is the default, so single-space games never mention it. Walking hand-offs stay inside a
+ * space; trips (Depart / Arrive) move travellers between chunks of any space, exactly once.
+ *
+ * With a committed campaign tick (Commit) the host never runs more than `maxLead` ticks ahead of
+ * the slowest host, so every host's work is on one timeline.
  */
 import { deleteWorld, deserializeWorld, SerialMode, serializeWorld, type Schema, type World } from "minecs";
-import { chunkHash, chunkKey, chunkX, chunkY } from "./coord";
+import { chunkHash, chunkX, chunkY, keySpace, spaceChunkKey } from "./coord";
 import {
   createSnapshot,
   decodeMessage,
+  encodeArrived,
+  encodeDepart,
+  encodeHello,
   EMPTY_SLOT,
   encodeLocate,
   encodeLog,
@@ -23,7 +34,9 @@ import {
   encodeUnloaded,
   NO_HOST,
   Op,
+  PROTOCOL_VERSION,
   Tier,
+  type ArriveMessage,
   type LocateEntry,
   type Message,
   type Snapshot,
@@ -39,6 +52,8 @@ export type StepContext = {
   ticks: number;
   /** Seconds this step covers. */
   dt: number;
+  /** The chunk's space (0 unless the game uses several). */
+  space: number;
   cx: number;
   cy: number;
 };
@@ -47,6 +62,7 @@ export type StepContext = {
 export type RestoreContext = {
   /** The host tick the chunk joins at (the tick its first step will carry, or later). */
   tick: number;
+  space: number;
   cx: number;
   cy: number;
   /** True for a freshly generated world, false for one loaded from bytes. */
@@ -69,8 +85,11 @@ export interface ChunkModule {
   /** A globally unique id that survives hand-offs, used for tracking and input. */
   gid: { component: typeof Schema; field: string };
 
-  /** Creates the chunk's world. Must be a pure function of the arguments (and configuration). */
-  generate(seed: number, cx: number, cy: number): World;
+  /**
+   * Creates the chunk's world. Must be a pure function of the arguments (and configuration).
+   * `space` says which map the chunk belongs to: chunk (0, 0) of two spaces are different places.
+   */
+  generate(seed: number, cx: number, cy: number, space: number): World;
   step(world: World, ctx: StepContext): void;
   /**
    * Fills a snapshot. Slots arrive with `tint` set to EMPTY_SLOT; write every live entity that
@@ -86,7 +105,7 @@ export interface ChunkModule {
   /** A one-byte state for a tracked entity's Locate entry. */
   describe?(world: World, eid: number): number;
   /** Static per-chunk data (e.g. terrain) sent once when a client first watches a chunk. */
-  staticData?(world: World, cx: number, cy: number): Uint8Array;
+  staticData?(world: World, cx: number, cy: number, space: number): Uint8Array;
   /** Called when an entity was kept inside its chunk because no neighbour could take it. */
   bounced?(world: World, eid: number): void;
   /**
@@ -102,10 +121,17 @@ export interface ChunkModule {
   arrived?(world: World, eid: number, dx: number, dy: number): void;
   /** Entities counted as the chunk's population in Ready messages. Defaults to all entities. */
   population?(world: World): number;
+  /**
+   * Called after each step: groups of entities leaving the chunk on a trip, each under a stable
+   * transaction id. Their rows go to the client, which owns them until it sends them to an
+   * arrival chunk; they are removed from this world.
+   */
+  departing?(world: World, ctx: StepContext): { txn: number; eids: number[] }[];
 }
 
 type Chunk = {
   key: number;
+  space: number;
   cx: number;
   cy: number;
   world: World;
@@ -121,6 +147,8 @@ type Connection = {
   subscriptions: Map<number, Subscription>;
   tracked: Set<number>;
   sentStatic: Set<number>;
+  /** Protocol version from the client's Hello; null until it arrives. */
+  version: number | null;
 };
 
 export type ChunkHostOptions = {
@@ -142,6 +170,11 @@ export class ChunkHost {
   lastBusyMs = 0;
   /** Rows dropped because neither the destination nor the origin had room. */
   dropped = 0;
+  /** Committed campaign tick (every host has completed it) and how far past it this host may run. */
+  committed = 0;
+  maxLead = 0;
+  /** Trip transactions already applied here, so a repeated Arrive adds nobody. */
+  private readonly arrivals = new Map<number, number>();
 
   constructor(readonly module: ChunkModule, options: ChunkHostOptions = {}) {
     if (options.autoTick) this.start();
@@ -154,6 +187,7 @@ export class ChunkHost {
       subscriptions: new Map(),
       tracked: new Set(),
       sentStatic: new Set(),
+      version: null,
     };
     this.connections.push(connection);
     transport.onMessage((bytes) => this.receive(connection, bytes));
@@ -174,6 +208,12 @@ export class ChunkHost {
     const interval = 1000 / this.module.tickRate;
     let due = performance.now();
     const loop = () => {
+      if (!this.canTick()) {
+        // Held by the campaign clock: wait for the slow host instead of skipping ahead.
+        due = performance.now() + interval;
+        this.timer = setTimeout(loop, interval);
+        return;
+      }
       this.tick();
       due += interval;
       const now = performance.now();
@@ -181,7 +221,8 @@ export class ChunkHost {
       // numbers instead, so the clock keeps to wall time and hosts started together agree on it;
       // each chunk's next step covers the skipped ticks.
       if (due < now - interval) {
-        const missed = Math.floor((now - due) / interval);
+        let missed = Math.floor((now - due) / interval);
+        if (this.maxLead > 0) missed = Math.max(0, Math.min(missed, this.committed + this.maxLead - this.tickCount));
         this.tickCount += missed;
         due += missed * interval;
       }
@@ -206,20 +247,40 @@ export class ChunkHost {
       this.log(2, `Bad message: ${(error as Error).message}`);
       return;
     }
+    if (connection) {
+      if (message.op === Op.Hello) {
+        connection.version = message.version;
+        connection.transport.send(encodeHello());
+        if (message.version !== PROTOCOL_VERSION) {
+          this.log(2, `Chunk protocol mismatch: client speaks v${message.version}, host speaks v${PROTOCOL_VERSION}; ignoring the client`);
+        }
+        return;
+      }
+      // A client that never said Hello is an in-process client of this build (tests, embedded
+      // hosts) and is trusted; one that announced another version is not.
+      if (connection.version !== null && connection.version !== PROTOCOL_VERSION) return;
+    }
     switch (message.op) {
       case Op.Generate:
-        this.generate(message.cx, message.cy, message.seed);
+        this.generate(message.cx, message.cy, message.seed, message.space);
         break;
       case Op.Load:
-        this.load(message.cx, message.cy, message.bytes);
+        this.load(message.cx, message.cy, message.bytes, message.space);
         break;
       case Op.Unload: {
-        const bytes = this.unload(message.cx, message.cy);
-        if (bytes && connection) connection.transport.send(encodeUnloaded(message.cx, message.cy, bytes), true);
+        const bytes = this.unload(message.cx, message.cy, message.space);
+        if (bytes && connection) connection.transport.send(encodeUnloaded(message.cx, message.cy, bytes, message.space), true);
         break;
       }
       case Op.Tier:
-        if (connection) this.subscribe(connection, message.cx, message.cy, message.tier, message.snapshotEvery);
+        if (connection) this.subscribe(connection, message.space, message.cx, message.cy, message.tier, message.snapshotEvery);
+        break;
+      case Op.Commit:
+        this.committed = Math.max(this.committed, message.tick);
+        this.maxLead = message.maxLead;
+        break;
+      case Op.Arrive:
+        this.arrive(connection, message);
         break;
       case Op.Config:
         this.module.configure?.(message.bytes.slice());
@@ -240,13 +301,13 @@ export class ChunkHost {
       case Op.Route:
         this.selfIndex = message.self;
         for (const entry of message.entries) {
-          const key = chunkKey(entry.cx, entry.cy);
+          const key = spaceChunkKey(entry.space ?? 0, entry.cx, entry.cy);
           if (entry.host === NO_HOST) this.route.delete(key);
           else this.route.set(key, entry.host);
         }
         break;
       case Op.Transfer:
-        this.acceptTransfer(message.cx, message.cy, message.fx, message.fy, message.returned, message.count, message.rows);
+        this.acceptTransfer(message.space, message.cx, message.cy, message.fx, message.fy, message.returned, message.count, message.rows);
         break;
       default:
         this.log(1, `Host ignored op ${message.op}`);
@@ -266,28 +327,28 @@ export class ChunkHost {
   // -------------------------------------------------------------------------------------------
   // Chunk lifecycle
 
-  generate(cx: number, cy: number, seed: number) {
-    const key = chunkKey(cx, cy);
+  generate(cx: number, cy: number, seed: number, space = 0) {
+    const key = spaceChunkKey(space, cx, cy);
     if (!this.chunks.has(key)) {
-      const world = this.module.generate(seed, cx, cy);
-      this.addChunk(cx, cy, world);
-      this.module.restored?.(world, { tick: this.tickCount, cx, cy, generated: true });
+      const world = this.module.generate(seed, cx, cy, space);
+      this.addChunk(space, cx, cy, world);
+      this.module.restored?.(world, { tick: this.tickCount, space, cx, cy, generated: true });
     }
     this.ready(key);
   }
 
-  load(cx: number, cy: number, bytes: Uint8Array) {
-    const key = chunkKey(cx, cy);
+  load(cx: number, cy: number, bytes: Uint8Array, space = 0) {
+    const key = spaceChunkKey(space, cx, cy);
     const existing = this.chunks.get(key);
     if (existing) deleteWorld(existing.world);
     const world = deserializeWorld(bytes.slice().buffer) as World;
-    this.addChunk(cx, cy, world);
-    this.module.restored?.(world, { tick: this.tickCount, cx, cy, generated: false });
+    this.addChunk(space, cx, cy, world);
+    this.module.restored?.(world, { tick: this.tickCount, space, cx, cy, generated: false });
     this.ready(key);
   }
 
-  unload(cx: number, cy: number): Uint8Array | null {
-    const key = chunkKey(cx, cy);
+  unload(cx: number, cy: number, space = 0): Uint8Array | null {
+    const key = spaceChunkKey(space, cx, cy);
     const chunk = this.chunks.get(key);
     if (!chunk) return null;
     const payload = serializeWorld(SerialMode.BINARY, chunk.world) as ArrayBuffer;
@@ -298,9 +359,9 @@ export class ChunkHost {
     return new Uint8Array(payload);
   }
 
-  private addChunk(cx: number, cy: number, world: World) {
-    const key = chunkKey(cx, cy);
-    this.chunks.set(key, { key, cx, cy, world, phase: chunkHash(cx, cy) % this.module.warmEvery, lastStep: -1 });
+  private addChunk(space: number, cx: number, cy: number, world: World) {
+    const key = spaceChunkKey(space, cx, cy);
+    this.chunks.set(key, { key, space, cx, cy, world, phase: chunkHash(cx, cy, space) % this.module.warmEvery, lastStep: -1 });
     this.route.set(key, this.selfIndex);
     this.trackDirty = true;
   }
@@ -308,16 +369,16 @@ export class ChunkHost {
   private ready(key: number) {
     const chunk = this.chunks.get(key)!;
     const population = this.module.population?.(chunk.world) ?? chunk.world.entitySparseSet.dense.length;
-    this.broadcast(encodeReady(chunk.cx, chunk.cy, population));
+    this.broadcast(encodeReady(chunk.cx, chunk.cy, population, chunk.space));
   }
 
-  private subscribe(connection: Connection, cx: number, cy: number, tier: Tier, snapshotEvery: number) {
-    const key = chunkKey(cx, cy);
+  private subscribe(connection: Connection, space: number, cx: number, cy: number, tier: Tier, snapshotEvery: number) {
+    const key = spaceChunkKey(space, cx, cy);
     connection.subscriptions.set(key, { tier, snapshotEvery });
     const chunk = this.chunks.get(key);
     if (tier === Tier.Hot && chunk && this.module.staticData && !connection.sentStatic.has(key)) {
       connection.sentStatic.add(key);
-      connection.transport.send(encodeStatic(cx, cy, this.module.staticData(chunk.world, cx, cy)), true);
+      connection.transport.send(encodeStatic(cx, cy, this.module.staticData(chunk.world, cx, cy, space), space), true);
     }
   }
 
@@ -331,7 +392,14 @@ export class ChunkHost {
   // -------------------------------------------------------------------------------------------
   // Tick
 
-  tick() {
+  /** False while the campaign clock holds this host (it is `maxLead` ticks past the committed tick). */
+  canTick() {
+    return this.maxLead <= 0 || this.tickCount < this.committed + this.maxLead;
+  }
+
+  /** Runs one tick; returns false (doing nothing) while the campaign clock holds this host. */
+  tick(): boolean {
+    if (!this.canTick()) return false;
     const start = performance.now();
     const tick = this.tickCount++;
     const { warmEvery, tickRate } = this.module;
@@ -344,9 +412,10 @@ export class ChunkHost {
       // Normally 1 (hot) or warmEvery (warm); more when the clock skipped ticks or a slot was missed.
       const ticks = Math.max(hot ? 1 : warmEvery, chunk.lastStep < 0 ? 0 : tick - chunk.lastStep);
       chunk.lastStep = tick;
-      const ctx: StepContext = { tick, ticks, dt: ticks / tickRate, cx: chunk.cx, cy: chunk.cy };
+      const ctx: StepContext = { tick, ticks, dt: ticks / tickRate, space: chunk.space, cx: chunk.cx, cy: chunk.cy };
       this.applyInputs(chunk, ctx);
       this.module.step(chunk.world, ctx);
+      this.depart(chunk, ctx);
       stepped.push(chunk);
     }
     // Hand-offs run after every chunk has stepped, so an entity moves at most once per tick.
@@ -355,13 +424,14 @@ export class ChunkHost {
     }
     for (const chunk of stepped) {
       const bytes = this.module.stats?.(chunk.world);
-      if (bytes) stats.push({ cx: chunk.cx, cy: chunk.cy, bytes });
+      if (bytes) stats.push({ space: chunk.space, cx: chunk.cx, cy: chunk.cy, bytes });
     }
 
     this.sendSnapshots(tick);
     this.sendLocations(tick);
     this.lastBusyMs = performance.now() - start;
     this.broadcast(encodeStats(tick, this.lastBusyMs, stats));
+    return true;
   }
 
   private applyInputs(chunk: Chunk, ctx: StepContext) {
@@ -423,6 +493,7 @@ export class ChunkHost {
       const [xs, ys] = this.positionColumns(chunk.world);
       entries.push({
         gid,
+        space: chunk.space,
         cx: chunk.cx,
         cy: chunk.cy,
         x: xs[location.eid],
@@ -446,7 +517,7 @@ export class ChunkHost {
         if (!chunk) continue;
         let snapshot = built.get(key);
         if (!snapshot) {
-          snapshot = createSnapshot(chunk.cx, chunk.cy, tick, chunk.world.entityCursor);
+          snapshot = createSnapshot(chunk.cx, chunk.cy, tick, chunk.world.entityCursor, chunk.space);
           snapshot.tint.fill(EMPTY_SLOT);
           this.module.render(chunk.world, snapshot);
           built.set(key, snapshot);
@@ -480,7 +551,7 @@ export class ChunkHost {
       const y = ys[eid];
       if (x >= -margin && y >= -margin && x < size + margin && y < size + margin) continue;
       if (!hasPosition(world, positionMask, eid)) continue;
-      const target = chunkKey(chunk.cx + Math.floor(x / size), chunk.cy + Math.floor(y / size));
+      const target = spaceChunkKey(chunk.space, chunk.cx + Math.floor(x / size), chunk.cy + Math.floor(y / size));
       leaving ??= new Map();
       let list = leaving.get(target);
       if (!list) leaving.set(target, (list = []));
@@ -494,7 +565,7 @@ export class ChunkHost {
       const local = this.chunks.get(target);
       if (local) {
         const rows = takeRows(world, components, eids);
-        this.acceptTransfer(tx, ty, chunk.cx, chunk.cy, false, eids.length, rows, chunk);
+        this.acceptTransfer(chunk.space, tx, ty, chunk.cx, chunk.cy, false, eids.length, rows, chunk);
         continue;
       }
       const host = this.route.get(target);
@@ -503,7 +574,7 @@ export class ChunkHost {
         continue;
       }
       const rows = takeRows(world, components, eids);
-      const message = encodeTransfer(tx, ty, chunk.cx, chunk.cy, false, eids.length, rows);
+      const message = encodeTransfer(tx, ty, chunk.cx, chunk.cy, false, eids.length, rows, chunk.space);
       (this.peers.get(host) ?? this.connections[0]?.transport)?.send(message, true);
     }
   }
@@ -517,6 +588,7 @@ export class ChunkHost {
   }
 
   private acceptTransfer(
+    space: number,
     cx: number,
     cy: number,
     fx: number,
@@ -526,15 +598,15 @@ export class ChunkHost {
     rows: Uint8Array,
     sourceChunk?: Chunk
   ) {
-    const key = chunkKey(cx, cy);
+    const key = spaceChunkKey(space, cx, cy);
     const chunk = this.chunks.get(key);
     if (!chunk) {
       // The chunk moved or was never here. Forward it if someone else owns it, else send it back.
       const host = this.route.get(key);
       if (!returned && host !== undefined && host !== NO_HOST && host !== this.selfIndex) {
-        (this.peers.get(host) ?? this.connections[0]?.transport)?.send(encodeTransfer(cx, cy, fx, fy, false, count, rows), true);
+        (this.peers.get(host) ?? this.connections[0]?.transport)?.send(encodeTransfer(cx, cy, fx, fy, false, count, rows, space), true);
       } else if (!returned) {
-        this.sendBack(fx, fy, count, rows);
+        this.sendBack(space, fx, fy, count, rows);
       } else {
         this.dropped += count;
       }
@@ -558,21 +630,81 @@ export class ChunkHost {
     if (returned) {
       this.dropped += rejectedCount;
     } else if (sourceChunk) {
-      this.acceptTransfer(sourceChunk.cx, sourceChunk.cy, fx, fy, true, rejectedCount, rejected);
+      this.acceptTransfer(space, sourceChunk.cx, sourceChunk.cy, fx, fy, true, rejectedCount, rejected);
     } else {
-      this.sendBack(fx, fy, rejectedCount, rejected);
+      this.sendBack(space, fx, fy, rejectedCount, rejected);
     }
   }
 
-  private sendBack(fx: number, fy: number, count: number, rows: Uint8Array) {
-    const key = chunkKey(fx, fy);
+  private sendBack(space: number, fx: number, fy: number, count: number, rows: Uint8Array) {
+    const key = spaceChunkKey(space, fx, fy);
     if (this.chunks.has(key)) {
-      this.acceptTransfer(fx, fy, fx, fy, true, count, rows);
+      this.acceptTransfer(space, fx, fy, fx, fy, true, count, rows);
       return;
     }
     const host = this.route.get(key);
     const link = host === undefined ? this.connections[0]?.transport : this.peers.get(host) ?? this.connections[0]?.transport;
-    link?.send(encodeTransfer(fx, fy, fx, fy, true, count, rows), true);
+    link?.send(encodeTransfer(fx, fy, fx, fy, true, count, rows, space), true);
+  }
+
+  // -------------------------------------------------------------------------------------------
+  // Trips
+
+  /** Sends the module's departing travellers to the client, which owns them until they arrive. */
+  private depart(chunk: Chunk, ctx: StepContext) {
+    const groups = this.module.departing?.(chunk.world, ctx);
+    if (!groups?.length) return;
+    const upstream = this.connections[0]?.transport;
+    for (const group of groups) {
+      if (!group.eids.length) continue;
+      if (!upstream) {
+        this.log(2, `Trip ${group.txn} has no client to depart to; travellers stay`);
+        continue;
+      }
+      const rows = takeRows(chunk.world, this.module.components, group.eids);
+      upstream.send(encodeDepart(group.txn, chunk.space, chunk.cx, chunk.cy, group.eids.length, rows), true);
+    }
+    this.trackDirty = true;
+  }
+
+  /**
+   * Puts a trip's travellers into a chunk at (x, y), once per transaction. A full chunk takes none
+   * of them and answers with count 0, so the client keeps the whole group queued and retries.
+   */
+  private arrive(connection: Connection | null, message: ArriveMessage) {
+    const reply = (count: number) =>
+      (connection?.transport ?? this.connections[0]?.transport)?.send(
+        encodeArrived(message.txn, message.space, message.cx, message.cy, count)
+      );
+    const applied = this.arrivals.get(message.txn);
+    if (applied !== undefined) {
+      reply(applied);
+      return;
+    }
+    const chunk = this.chunks.get(spaceChunkKey(message.space, message.cx, message.cy));
+    if (!chunk) {
+      this.log(1, `Trip ${message.txn} arrived for a chunk this host doesn't hold`);
+      reply(0);
+      return;
+    }
+    const world = chunk.world;
+    if (world.size - world.entitySparseSet.dense.length < message.count) {
+      reply(0);
+      return;
+    }
+    const [xs, ys] = this.positionColumns(world);
+    const { added } = putRows(world, this.module.components, message.rows, message.count);
+    for (const eid of added) {
+      const dx = message.x - xs[eid];
+      const dy = message.y - ys[eid];
+      xs[eid] = message.x;
+      ys[eid] = message.y;
+      this.module.arrived?.(world, eid, dx, dy);
+    }
+    this.arrivals.set(message.txn, added.length);
+    this.trackDirty = true;
+    this.noteArrivals(chunk, added);
+    reply(added.length);
   }
 
   private noteArrivals(chunk: Chunk, added: number[]) {

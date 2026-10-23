@@ -12,7 +12,7 @@ const fakePool = () => {
   const log: string[] = [];
   const pendingUnloads: (() => void)[] = [];
   const add = (cx: number, cy: number) => {
-    const state: ChunkState = { cx, cy, host: 0, ready: true, population: 1, tier: Tier.Warm, snapshotEvery: 0, moving: false };
+    const state: ChunkState = { space: 0, cx, cy, host: 0, ready: true, population: 1, tier: Tier.Warm, snapshotEvery: 0, moving: false };
     chunks.set(chunkKey(cx, cy), state);
     return state;
   };
