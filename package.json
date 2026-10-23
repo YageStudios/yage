@@ -81,6 +81,12 @@
       "import": "./dist/streaming/index.js",
       "default": "./dist/streaming/index.js"
     },
+    "./streaming/server": {
+      "yage-source": "./engine/streaming/server.ts",
+      "types": "./dist/streaming/server.d.ts",
+      "import": "./dist/streaming/server.js",
+      "default": "./dist/streaming/server.js"
+    },
     "./*": {
       "yage-source": "./engine/*.ts",
       "types": "./dist/*.d.ts",

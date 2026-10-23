@@ -10,3 +10,4 @@ export * from "./rows";
 export * from "./host";
 export * from "./pool";
 export * from "./interp";
+export * from "./streamer";
