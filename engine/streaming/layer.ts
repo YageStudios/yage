@@ -106,6 +106,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   private extent: number;
 
   constructor(shader: PIXI.Shader, extent: number, expectedInterval: number) {
+    // Each layer has its own shader object (one program, shared uniform group) for its own alpha.
     const corners = new PIXI.Buffer(new Float32Array([-0.5, -1, 0.5, -1, 0.5, 0, -0.5, 0]), true);
     const empty16 = () => new PIXI.Buffer(new Int16Array(1), false);
     const empty8 = () => new PIXI.Buffer(new Uint8Array(1), false);
@@ -159,6 +160,11 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     return this.geometry.instanceCount;
   }
 
+  /** Sets the interpolation point between the last two snapshots. */
+  interpolate(now: number) {
+    this.shader.uniforms.uAlpha = this.pair.alpha(now);
+  }
+
   // The chunk square plus its overlap margin, instead of the single template quad.
   _calculateBounds() {
     this._bounds.addFrame(this.transform, -this.extent * 0.1, -this.extent * 0.1, this.extent * 1.1, this.extent * 1.1);
@@ -192,7 +198,9 @@ export class ChunkScene {
   readonly groundRoot = new PIXI.Container();
   readonly entityRoot = new PIXI.Container();
   readonly views = new Map<number, ChunkView>();
-  private readonly shader: PIXI.Shader;
+  private readonly program: PIXI.Program;
+  private readonly atlas: PIXI.Texture;
+  private readonly shared: PIXI.UniformGroup;
   private readonly options: ChunkSceneOptions;
 
   constructor(options: ChunkSceneOptions) {
@@ -200,9 +208,9 @@ export class ChunkScene {
     const { style } = options;
     style.atlas.baseTexture.scaleMode = PIXI.SCALE_MODES.NEAREST;
     style.atlas.baseTexture.mipmap = PIXI.MIPMAP_MODES.OFF;
-    this.shader = PIXI.Shader.from(vertex, fragment, {
-      uAtlas: style.atlas,
-      uAlpha: 1,
+    this.program = PIXI.Program.from(vertex, fragment, "yage-chunk-layer");
+    this.atlas = style.atlas;
+    this.shared = new PIXI.UniformGroup({
       uPositionScale: POSITION_SCALE,
       uSize: new Float32Array(style.size),
       uMinPixels: style.minPixels ?? 2,
@@ -213,7 +221,8 @@ export class ChunkScene {
   }
 
   setPalette(palette: number[]) {
-    this.shader.uniforms.uPalette = paletteArray(palette);
+    this.shared.uniforms.uPalette = paletteArray(palette);
+    this.shared.update();
   }
 
   /** The chunk's view, created on first use and positioned at the chunk's origin. */
@@ -233,7 +242,8 @@ export class ChunkScene {
   push(snapshot: Snapshot, now = performance.now()) {
     const view = this.view(snapshot.cx, snapshot.cy);
     if (!view.layer) {
-      view.layer = new ChunkLayer(this.shader, this.options.chunkSize, this.options.snapshotInterval ?? 50);
+      const shader = new PIXI.Shader(this.program, { uAtlas: this.atlas, uAlpha: 1, shared: this.shared });
+      view.layer = new ChunkLayer(shader, this.options.chunkSize, this.options.snapshotInterval ?? 50);
       view.layer.position.set(snapshot.cx * this.options.chunkSize, snapshot.cy * this.options.chunkSize);
       this.entityRoot.addChild(view.layer);
     }
@@ -271,18 +281,12 @@ export class ChunkScene {
       chunk.ground.visible = inView;
       if (chunk.layer) {
         chunk.layer.visible = inView && chunk.layer.count > 0;
-        if (chunk.layer.visible) drawn += chunk.layer.count;
+        if (chunk.layer.visible) {
+          chunk.layer.interpolate(now);
+          drawn += chunk.layer.count;
+        }
       }
     }
-    // One alpha for all layers keeps neighbouring chunks in step; each uses its own arrival time.
-    let alpha = 1;
-    for (const chunk of this.views.values()) {
-      if (chunk.layer?.visible) {
-        alpha = chunk.layer.pair.alpha(now);
-        break;
-      }
-    }
-    this.shader.uniforms.uAlpha = alpha;
     return drawn;
   }
 
