@@ -6,18 +6,23 @@
  * overlap correctly with no cross-chunk sorting, and an entity that has strayed past its border
  * (before its hand-off lands) still draws in the right order. Ground layers draw first and don't
  * touch the depth buffer.
+ *
+ * Draw order: ground, soft drop shadows (blended, no depth), opaque sprite cores (depth-tested and
+ * written), then the sprites' anti-aliased edges (blended, depth-tested, not written) so smooth
+ * art keeps soft outlines without sorting. Static props (trees, lamps…) use the same machinery
+ * with their own atlas, so people walk behind and in front of them correctly.
  */
 import * as PIXI from "pixi.js";
+import { glowUniforms, MAX_GLOW_RAMP, MAX_GLOWS, MAX_PALETTE, paletteArray, type GlowRange } from "./tint";
 import { chunkKey } from "./coord";
 import { SnapshotPair } from "./interp";
-import { POSITION_SCALE, type Snapshot } from "./protocol";
+import { EMPTY_SLOT, POSITION_SCALE, type Snapshot } from "./protocol";
 
 const GL_FLOAT = 5126;
 const GL_SHORT = 5122;
 const GL_UNSIGNED_BYTE = 5121;
-export const MAX_PALETTE = 32;
-
-const vertex = `
+export { glowOf, glowUniforms, MAX_PALETTE, paletteArray, tintIndices, type GlowRange } from "./tint";
+const instanceHeader = `
 precision highp float;
 attribute vec2 aCorner;
 attribute float aPrevX;
@@ -32,29 +37,56 @@ uniform float uAlpha;
 uniform float uPositionScale;
 uniform vec2 uSize;
 uniform float uMinPixels;
+
+vec2 footOf() {
+  return mix(vec2(aPrevX, aPrevY), vec2(aCurX, aCurY), uAlpha) / uPositionScale;
+}
+float growOf() {
+  float pixelsPerUnit = length(vec2(translationMatrix[0][0], translationMatrix[0][1]));
+  return max(1.0, uMinPixels / max(uSize.y * pixelsPerUnit, 0.0001));
+}
+`;
+
+const vertex = `${instanceHeader}
 uniform vec2 uGrid;
 uniform vec3 uPalette[${MAX_PALETTE}];
+uniform vec3 uFields;
 varying vec2 vUv;
 varying vec3 vColor;
+varying vec3 vColor2;
+varying vec3 vColor3;
 
 void main() {
-  if (aTint > 254.5) {
+  if (aTint > ${EMPTY_SLOT - 0.5}) {
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
     vUv = vec2(0.0);
-    vColor = vec3(0.0);
+    vColor = vColor2 = vColor3 = vec3(0.0);
     return;
   }
-  vec2 foot = mix(vec2(aPrevX, aPrevY), vec2(aCurX, aCurY), uAlpha) / uPositionScale;
-  float pixelsPerUnit = length(vec2(translationMatrix[0][0], translationMatrix[0][1]));
-  float grow = max(1.0, uMinPixels / max(uSize.y * pixelsPerUnit, 0.0001));
+  vec2 foot = footOf();
+  float grow = growOf();
   mat3 m = projectionMatrix * translationMatrix;
   vec3 clip = m * vec3(foot + aCorner * uSize * grow, 1.0);
   vec3 clipFoot = m * vec3(foot, 1.0);
   // Lower on screen is nearer, in every chunk alike.
   gl_Position = vec4(clip.xy, clamp(clipFoot.y * 0.5, -0.999, 0.999), 1.0);
-  vec2 cell = vec2(mod(aSprite, uGrid.x), floor(aSprite / uGrid.x));
+  float column = floor(mod(aSprite + 0.5, uGrid.x));
+  vec2 cell = vec2(column, floor((aSprite + 0.5) / uGrid.x));
   vUv = (cell + vec2(aCorner.x + 0.5, aCorner.y + 1.0)) / uGrid;
-  vColor = uPalette[int(aTint)];
+  if (uFields.x > 0.5) {
+    // The tint byte packs up to three palette indices (e.g. clothes, hair, skin).
+    float t = aTint + 0.5;
+    float a = floor(mod(t, uFields.x));
+    t = floor(t / uFields.x) + 0.5;
+    float b = floor(mod(t, uFields.y));
+    float c = floor(t / uFields.y);
+    vColor = uPalette[int(a)];
+    vColor2 = uPalette[int(uFields.x + b + 0.5)];
+    vColor3 = uPalette[int(uFields.x + uFields.y + c + 0.5)];
+  } else {
+    vColor = uPalette[int(aTint + 0.5)];
+    vColor2 = vColor3 = vec3(1.0);
+  }
 }
 `;
 
@@ -62,25 +94,193 @@ const fragment = `
 precision mediump float;
 varying vec2 vUv;
 varying vec3 vColor;
+varying vec3 vColor2;
+varying vec3 vColor3;
 uniform sampler2D uAtlas;
+uniform sampler2D uMask;
+uniform float uMasked;
+uniform float uEdges;
+uniform vec3 uLight;
 
 void main() {
   vec4 texel = texture2D(uAtlas, vUv);
-  if (texel.a < 0.5) discard;
-  // Opaque texels take the tint; texels drawn at about 70% alpha keep their own colour.
+  // The opaque pass draws solid cores; the edge pass blends the soft rims over them.
+  if (uEdges > 0.5) {
+    if (texel.a >= 0.97 || texel.a < 0.03) discard;
+  } else if (texel.a < 0.97) {
+    discard;
+  }
   vec3 raw = texel.rgb / texel.a;
-  float tinted = clamp((texel.a - 0.7) / 0.25, 0.0, 1.0);
-  gl_FragColor = vec4(mix(raw, raw * vColor, tinted), 1.0);
+  vec3 color;
+  if (uMasked > 0.5) {
+    // The mask says how much of each palette colour multiplies the (greyscale-shaded) art.
+    vec4 m = texture2D(uMask, vUv);
+    vec3 w = clamp(m.rgb / max(m.a, 0.004), 0.0, 1.0);
+    color = raw * mix(vec3(1.0), vColor, w.r) * mix(vec3(1.0), vColor2, w.g) * mix(vec3(1.0), vColor3, w.b);
+  } else {
+    // Opaque texels take the tint; texels drawn at about 70% alpha keep their own colour.
+    float tinted = clamp((texel.a - 0.7) / 0.25, 0.0, 1.0);
+    color = mix(raw, raw * vColor, tinted);
+  }
+  color *= uLight;
+  float alpha = uEdges > 0.5 ? texel.a : 1.0;
+  gl_FragColor = vec4(color * alpha, alpha);
+}
+`;
+
+const shadowVertex = `${instanceHeader}
+uniform vec2 uShadowSize;
+uniform vec2 uShadowOffset;
+varying vec2 vLocal;
+
+void main() {
+  if (aTint > ${EMPTY_SLOT - 0.5}) {
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    vLocal = vec2(9.0);
+    return;
+  }
+  vec2 foot = footOf();
+  float grow = growOf();
+  vLocal = vec2(aCorner.x, aCorner.y + 0.5) * 2.0;
+  mat3 m = projectionMatrix * translationMatrix;
+  vec3 clip = m * vec3(foot + (vLocal * 0.5 * uShadowSize + uShadowOffset) * grow, 1.0);
+  gl_Position = vec4(clip.xy, 0.0, 1.0);
+}
+`;
+
+const shadowFragment = `
+precision mediump float;
+varying vec2 vLocal;
+uniform float uShadowAlpha;
+
+void main() {
+  float d = length(vLocal);
+  float a = uShadowAlpha * (1.0 - smoothstep(0.25, 1.0, d));
+  if (a < 0.004) discard;
+  gl_FragColor = vec4(0.0, 0.0, 0.0, a);
+}
+`;
+
+const glowVertex = `${instanceHeader}
+uniform vec2 uGrid;
+uniform vec4 uGlowBounds[${MAX_GLOWS}];
+uniform vec4 uGlowShape[${MAX_GLOWS}];
+uniform vec3 uGlowRamp[${MAX_GLOW_RAMP}];
+uniform float uGlowRadius;
+uniform float uGlowMinPixels;
+uniform float uGlowTime;
+varying vec2 vUv;
+varying vec4 vCell;
+varying vec2 vReach;
+varying vec4 vGlow;
+
+void main() {
+  // Find this sprite's glow range (the last match wins), then its colour on that range's ramp.
+  float sprite = aSprite + 0.5;
+  vec4 bounds = vec4(0.0);
+  vec4 shape = vec4(0.0);
+  for (int i = 0; i < ${MAX_GLOWS}; i++) {
+    vec4 b = uGlowBounds[i];
+    if (sprite >= b.x && sprite < b.y) {
+      bounds = b;
+      shape = uGlowShape[i];
+    }
+  }
+  if (aTint > ${EMPTY_SLOT - 0.5} || shape.x <= 0.0) {
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    vUv = vReach = vec2(0.0);
+    vCell = vGlow = vec4(0.0);
+    return;
+  }
+  float stages = shape.z;
+  float stage = 0.0;
+  if (bounds.z > 0.0) stage = floor((sprite - bounds.x) / bounds.z);
+  else if (bounds.w > 0.0) stage = mod(floor((aTint + 0.5) / bounds.w), stages);
+  stage = clamp(stage, 0.0, stages - 1.0);
+  float rampIndex = floor(shape.w) + stage;
+  vec3 color = vec3(0.0);
+  for (int j = 0; j < ${MAX_GLOW_RAMP}; j++) {
+    if (float(j) == rampIndex) color = uGlowRamp[j];
+  }
+  // The last stage throbs (a host about to die), each sprite a little out of step.
+  float pulse = fract(shape.w) * 2.0;
+  float throb = 0.0;
+  float strength = shape.x;
+  if (pulse > 0.0 && stage >= stages - 1.0) {
+    throb = pulse * (0.5 + 0.5 * sin(uGlowTime * 5.0 + aPrevX * 0.37 + aPrevY * 0.21));
+    strength *= 1.0 - 0.3 * pulse + 0.8 * throb;
+  }
+  vGlow = vec4(color, strength);
+  vec2 foot = footOf();
+  float grow = growOf();
+  float pixelsPerUnit = length(vec2(translationMatrix[0][0], translationMatrix[0][1]));
+  vec2 size = uSize * grow;
+  // The halo keeps a minimum width on screen, so the hive still reads far out.
+  float reach = max(uGlowRadius * grow, uGlowMinPixels / max(pixelsPerUnit, 0.0001)) * shape.y * (1.0 + 0.35 * throb);
+  vec2 margin = vec2(reach) / size;
+  vec2 corner = aCorner * (1.0 + 2.0 * margin) + vec2(0.0, -margin.y);
+  mat3 m = projectionMatrix * translationMatrix;
+  vec3 clip = m * vec3(foot + corner * size, 1.0);
+  gl_Position = vec4(clip.xy, 0.0, 1.0);
+  float column = floor(mod(aSprite + 0.5, uGrid.x));
+  vec2 cell = vec2(column, floor((aSprite + 0.5) / uGrid.x));
+  vUv = (cell + vec2(corner.x + 0.5, corner.y + 1.0)) / uGrid;
+  vCell = vec4(cell / uGrid, (cell + 1.0) / uGrid);
+  vReach = margin / uGrid;
+}
+`;
+
+const glowFragment = `
+precision mediump float;
+varying vec2 vUv;
+varying vec4 vCell;
+varying vec2 vReach;
+varying vec4 vGlow;
+uniform sampler2D uAtlas;
+
+float coverage(vec2 uv) {
+  if (uv.x < vCell.x || uv.y < vCell.y || uv.x > vCell.z || uv.y > vCell.w) return 0.0;
+  return texture2D(uAtlas, uv).a;
+}
+
+void main() {
+  // A dilated, softened silhouette: coverage sampled on two rings around the pixel.
+  float a = coverage(vUv);
+  float ring = 0.0;
+  float near = 0.0;
+  for (int i = 0; i < 10; i++) {
+    float t = float(i) * 0.6283;
+    vec2 d = vec2(cos(t), sin(t));
+    ring += coverage(vUv + d * vReach);
+    near += coverage(vUv + d * vReach * 0.45);
+  }
+  float halo = max(a, max(near / 10.0 * 2.4, ring / 10.0 * 1.3));
+  halo = smoothstep(0.0, 1.0, clamp(halo, 0.0, 1.0)) * min(vGlow.a, 1.0);
+  if (halo < 0.004) discard;
+  gl_FragColor = vec4(vGlow.rgb * halo * max(vGlow.a, 1.0), halo);
 }
 `;
 
 export type ChunkLayerStyle = {
   /**
-   * Sprite atlas: a grid of equally sized cells. Fully opaque texels are multiplied by the
-   * entity's palette colour; texels at about 70% alpha (e.g. skin, outlines) are drawn as they
-   * are; below 50% is transparent.
+   * Sprite atlas: a grid of equally sized cells, read row by row (sprite index = row × columns +
+   * column). Without a `mask`, fully opaque texels are multiplied by the entity's palette colour,
+   * texels at about 70% alpha (e.g. skin, outlines) are drawn as they are, and below 50% is
+   * transparent.
    */
   atlas: PIXI.Texture;
+  /**
+   * Optional tint mask with the atlas's layout: its red, green and blue say how much of the
+   * entity's first, second and third palette colour multiply each texel. The atlas alpha is then
+   * plain coverage, with soft edges blended.
+   */
+  mask?: PIXI.Texture;
+  /**
+   * With a mask: how many palette entries each of the three colours chooses from. The tint byte
+   * is a + b × fields[0] + c × fields[0] × fields[1]; colour a is palette[a], b is
+   * palette[fields[0] + b], c is palette[fields[0] + fields[1] + c]. Tint 255 still means empty.
+   */
+  fields?: [number, number, number];
   /** Filter the atlas smoothly with mipmaps (drawn art) rather than nearest (pixel art). */
   smooth?: boolean;
   /** Atlas columns and rows. */
@@ -91,21 +291,114 @@ export type ChunkLayerStyle = {
   palette: number[];
   /** Sprites never draw smaller than this many screen pixels tall, so far zooms show dots. */
   minPixels?: number;
+  /** A soft elliptical drop shadow under each sprite (world units, offset from the feet). */
+  shadow?: { size: [number, number]; offset?: [number, number]; alpha?: number };
+  /**
+   * Soft glowing halos around the silhouettes of some sprites (e.g. one sprite set), drawn under
+   * every sprite and unaffected by `setLight`. At most four ranges (see GlowRange: one colour or a
+   * ramp picked by sprite offset or tint, an optional pulse and a wider ring). `radius` is in
+   * world units; the halo is never thinner than `minPixels` on screen.
+   */
+  glow?: { radius: number; minPixels?: number; ranges: GlowRange[] };
 };
 
-const paletteArray = (palette: number[]) => {
-  const values = new Float32Array(MAX_PALETTE * 3);
-  palette.slice(0, MAX_PALETTE).forEach((color, i) => {
-    values[i * 3] = ((color >> 16) & 255) / 255;
-    values[i * 3 + 1] = ((color >> 8) & 255) / 255;
-    values[i * 3 + 2] = (color & 255) / 255;
-  });
-  return values;
-};
+/** One style's GPU programs and shared uniforms. */
+class LayerKind {
+  readonly program: PIXI.Program;
+  readonly shared: PIXI.UniformGroup;
+  readonly shadowProgram: PIXI.Program | null;
+  readonly shadowShared: PIXI.UniformGroup | null;
+  readonly glowProgram: PIXI.Program | null = null;
+  readonly glowShared: PIXI.UniformGroup | null = null;
+  readonly style: ChunkLayerStyle;
 
-/** One chunk's entities as a single instanced draw. */
+  constructor(style: ChunkLayerStyle) {
+    this.style = style;
+    for (const texture of [style.atlas, style.mask]) {
+      if (!texture) continue;
+      texture.baseTexture.scaleMode = style.smooth ? PIXI.SCALE_MODES.LINEAR : PIXI.SCALE_MODES.NEAREST;
+      texture.baseTexture.mipmap = style.smooth ? PIXI.MIPMAP_MODES.ON : PIXI.MIPMAP_MODES.OFF;
+    }
+    this.program = PIXI.Program.from(vertex, fragment, "yage-chunk-layer");
+    this.shared = new PIXI.UniformGroup({
+      uPositionScale: POSITION_SCALE,
+      uSize: new Float32Array(style.size),
+      uMinPixels: style.minPixels ?? 2,
+      uGrid: new Float32Array(style.grid),
+      uPalette: paletteArray(style.palette),
+      uFields: new Float32Array(style.mask && style.fields ? style.fields : [0, 0, 0]),
+      uMasked: style.mask ? 1 : 0,
+      uLight: new Float32Array([1, 1, 1]),
+    });
+    if (style.shadow) {
+      this.shadowProgram = PIXI.Program.from(shadowVertex, shadowFragment, "yage-chunk-shadow");
+      const alpha = style.shadow.alpha ?? 0.3;
+      this.shadowShared = new PIXI.UniformGroup({
+        uPositionScale: POSITION_SCALE,
+        uSize: new Float32Array(style.size),
+        uMinPixels: style.minPixels ?? 2,
+        uShadowSize: new Float32Array(style.shadow.size),
+        uShadowOffset: new Float32Array(style.shadow.offset ?? [0, 0]),
+        uShadowAlpha: alpha,
+      });
+    } else {
+      this.shadowProgram = null;
+      this.shadowShared = null;
+    }
+    if (style.glow) {
+      const glow = glowUniforms(style.glow.ranges);
+      this.glowProgram = PIXI.Program.from(glowVertex, glowFragment, "yage-chunk-glow");
+      this.glowShared = new PIXI.UniformGroup({
+        uPositionScale: POSITION_SCALE,
+        uSize: new Float32Array(style.size),
+        uMinPixels: style.minPixels ?? 2,
+        uGrid: new Float32Array(style.grid),
+        uGlowBounds: glow.bounds,
+        uGlowShape: glow.shape,
+        uGlowRamp: glow.ramp,
+        uGlowTime: 0,
+        uGlowRadius: style.glow.radius,
+        uGlowMinPixels: style.glow.minPixels ?? 2,
+      });
+    }
+  }
+
+  shader(edges: boolean) {
+    return new PIXI.Shader(this.program, {
+      uAtlas: this.style.atlas,
+      uMask: this.style.mask ?? this.style.atlas,
+      uAlpha: 1,
+      uEdges: edges ? 1 : 0,
+      shared: this.shared,
+    });
+  }
+
+  /** Animation clock for pulsing glows, in seconds. */
+  setTime(seconds: number) {
+    if (!this.glowShared) return;
+    this.glowShared.uniforms.uGlowTime = seconds % 1000;
+    this.glowShared.update();
+  }
+
+  setLight(light: [number, number, number], shadow: number) {
+    this.shared.uniforms.uLight = new Float32Array(light);
+    this.shared.update();
+    if (this.shadowShared) {
+      this.shadowShared.uniforms.uShadowAlpha = (this.style.shadow!.alpha ?? 0.3) * shadow;
+      this.shadowShared.update();
+    }
+  }
+}
+
+/** One chunk's entities as a single instanced draw (plus its edge and shadow passes). */
 export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   readonly pair: SnapshotPair;
+  /** Soft anti-aliased rims, drawn after every layer's opaque pass. */
+  readonly edges: PIXI.Mesh<PIXI.Shader>;
+  /** Drop shadows, drawn before any sprite; null when the style has none. */
+  readonly shadow: PIXI.Mesh<PIXI.Shader> | null;
+  /** Silhouette halos, drawn after shadows and before any sprite; null when the style has none. */
+  readonly glow: PIXI.Mesh<PIXI.Shader> | null;
   private readonly prevX: PIXI.Buffer;
   private readonly prevY: PIXI.Buffer;
   private readonly curX: PIXI.Buffer;
@@ -114,8 +407,8 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   private readonly tintBuffer: PIXI.Buffer;
   private extent: number;
 
-  constructor(shader: PIXI.Shader, extent: number, expectedInterval: number) {
-    // Each layer has its own shader object (one program, shared uniform group) for its own alpha.
+  constructor(kind: LayerKind, extent: number, expectedInterval: number) {
+    // Each layer has its own shader objects (one program, shared uniform group) for its own alpha.
     const corners = new PIXI.Buffer(new Float32Array([-0.5, -1, 0.5, -1, 0.5, 0, -0.5, 0]), true);
     const empty16 = () => new PIXI.Buffer(new Int16Array(1), false);
     const empty8 = () => new PIXI.Buffer(new Uint8Array(1), false);
@@ -139,7 +432,32 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     state.depthTest = true;
     state.depthMask = true;
     state.blend = false;
-    super(geometry, shader, state);
+    super(geometry, kind.shader(false), state);
+    const edgeState = PIXI.State.for2d();
+    edgeState.depthTest = true;
+    edgeState.depthMask = false;
+    edgeState.blend = true;
+    this.edges = new PIXI.Mesh(geometry, kind.shader(true), edgeState);
+    if (kind.shadowProgram) {
+      const shadowState = PIXI.State.for2d();
+      shadowState.depthTest = false;
+      shadowState.depthMask = false;
+      shadowState.blend = true;
+      this.shadow = new PIXI.Mesh(geometry, new PIXI.Shader(kind.shadowProgram, { uAlpha: 1, shared: kind.shadowShared! }), shadowState);
+    } else {
+      this.shadow = null;
+    }
+    if (kind.glowProgram) {
+      const glowState = PIXI.State.for2d();
+      glowState.depthTest = false;
+      glowState.depthMask = false;
+      glowState.blend = true;
+      // Additive: halos read as light, and overlapping halos in a crowd brighten together.
+      glowState.blendMode = PIXI.BLEND_MODES.ADD;
+      this.glow = new PIXI.Mesh(geometry, new PIXI.Shader(kind.glowProgram, { uAlpha: 1, uAtlas: kind.style.atlas, shared: kind.glowShared! }), glowState);
+    } else {
+      this.glow = null;
+    }
     this.prevX = prevX;
     this.prevY = prevY;
     this.curX = curX;
@@ -148,8 +466,29 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     this.tintBuffer = tint;
     this.extent = extent;
     this.pair = new SnapshotPair(expectedInterval);
-    this.eventMode = "none";
-    this.visible = false;
+    for (const mesh of this.companions()) {
+      mesh.eventMode = "none";
+      mesh.visible = false;
+      if (mesh === this) continue;
+      (mesh as unknown as { extent: number }).extent = extent;
+      (mesh as unknown as { _calculateBounds: () => void })._calculateBounds = this._calculateBounds.bind(mesh);
+    }
+  }
+
+  /** This mesh and its edge and shadow passes. */
+  companions() {
+    const meshes: PIXI.Mesh<PIXI.Shader>[] = [this, this.edges];
+    if (this.shadow) meshes.push(this.shadow);
+    if (this.glow) meshes.push(this.glow);
+    return meshes;
+  }
+
+  setPosition(x: number, y: number) {
+    for (const mesh of this.companions()) mesh.position.set(x, y);
+  }
+
+  setVisible(visible: boolean) {
+    for (const mesh of this.companions()) mesh.visible = visible;
   }
 
   push(snapshot: Snapshot, now: number) {
@@ -162,7 +501,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     this.sprite.update(snapshot.sprite);
     this.tintBuffer.update(snapshot.tint);
     this.geometry.instanceCount = count;
-    this.visible = count > 0;
+    this.setVisible(count > 0);
   }
 
   get count() {
@@ -171,22 +510,33 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
 
   /** Sets the interpolation point between the last two snapshots. */
   interpolate(now: number) {
-    this.shader.uniforms.uAlpha = this.pair.alpha(now);
+    const alpha = this.pair.alpha(now);
+    for (const mesh of this.companions()) mesh.shader.uniforms.uAlpha = alpha;
   }
 
   // The chunk square plus its overlap margin, instead of the single template quad.
   _calculateBounds() {
-    this._bounds.addFrame(this.transform, -this.extent * 0.1, -this.extent * 0.1, this.extent * 1.1, this.extent * 1.1);
+    const extent = (this as unknown as { extent?: number }).extent ?? 0;
+    this._bounds.addFrame(this.transform, -extent * 0.1, -extent * 0.1, extent * 1.1, extent * 1.1);
   }
 
   containsPoint() {
     return false;
+  }
+
+  destroy() {
+    this.edges.destroy();
+    this.shadow?.destroy();
+    this.glow?.destroy();
+    super.destroy();
   }
 }
 
 export type ChunkSceneOptions = {
   chunkSize: number;
   style: ChunkLayerStyle;
+  /** Static per-chunk sprites (trees, lamps…) depth-sorted with the entities; see `setProps`. */
+  props?: ChunkLayerStyle;
   /** Expected milliseconds between snapshots, used until real arrivals are measured. */
   snapshotInterval?: number;
 };
@@ -196,6 +546,7 @@ type ChunkView = {
   cy: number;
   ground: PIXI.Container;
   layer: ChunkLayer | null;
+  props: ChunkLayer | null;
 };
 
 /**
@@ -205,33 +556,30 @@ type ChunkView = {
 export class ChunkScene {
   readonly root = new PIXI.Container();
   readonly groundRoot = new PIXI.Container();
+  readonly shadowRoot = new PIXI.Container();
   readonly entityRoot = new PIXI.Container();
+  readonly edgeRoot = new PIXI.Container();
   readonly views = new Map<number, ChunkView>();
-  private readonly program: PIXI.Program;
-  private readonly atlas: PIXI.Texture;
-  private readonly shared: PIXI.UniformGroup;
+  private readonly entities: LayerKind;
+  private readonly propKind: LayerKind | null;
   private readonly options: ChunkSceneOptions;
 
   constructor(options: ChunkSceneOptions) {
     this.options = options;
-    const { style } = options;
-    style.atlas.baseTexture.scaleMode = style.smooth ? PIXI.SCALE_MODES.LINEAR : PIXI.SCALE_MODES.NEAREST;
-    style.atlas.baseTexture.mipmap = style.smooth ? PIXI.MIPMAP_MODES.ON : PIXI.MIPMAP_MODES.OFF;
-    this.program = PIXI.Program.from(vertex, fragment, "yage-chunk-layer");
-    this.atlas = style.atlas;
-    this.shared = new PIXI.UniformGroup({
-      uPositionScale: POSITION_SCALE,
-      uSize: new Float32Array(style.size),
-      uMinPixels: style.minPixels ?? 2,
-      uGrid: new Float32Array(style.grid),
-      uPalette: paletteArray(style.palette),
-    });
-    this.root.addChild(this.groundRoot, this.entityRoot);
+    this.entities = new LayerKind(options.style);
+    this.propKind = options.props ? new LayerKind(options.props) : null;
+    this.root.addChild(this.groundRoot, this.shadowRoot, this.entityRoot, this.edgeRoot);
   }
 
   setPalette(palette: number[]) {
-    this.shared.uniforms.uPalette = paletteArray(palette);
-    this.shared.update();
+    this.entities.shared.uniforms.uPalette = paletteArray(palette);
+    this.entities.shared.update();
+  }
+
+  /** Multiplies every sprite by `light` (RGB 0–1) and scales drop shadows by `shadow`. */
+  setLight(light: [number, number, number], shadow = 1) {
+    this.entities.setLight(light, shadow);
+    this.propKind?.setLight(light, shadow);
   }
 
   /** The chunk's view, created on first use and positioned at the chunk's origin. */
@@ -242,21 +590,43 @@ export class ChunkScene {
       const ground = new PIXI.Container();
       ground.position.set(cx * this.options.chunkSize, cy * this.options.chunkSize);
       this.groundRoot.addChild(ground);
-      view = { cx, cy, ground, layer: null };
+      view = { cx, cy, ground, layer: null, props: null };
       this.views.set(key, view);
     }
     return view;
   }
 
+  private createLayer(kind: LayerKind, cx: number, cy: number) {
+    const layer = new ChunkLayer(kind, this.options.chunkSize, this.options.snapshotInterval ?? 50);
+    layer.setPosition(cx * this.options.chunkSize, cy * this.options.chunkSize);
+    if (layer.shadow) this.shadowRoot.addChild(layer.shadow);
+    if (layer.glow) this.shadowRoot.addChild(layer.glow);
+    this.entityRoot.addChild(layer);
+    this.edgeRoot.addChild(layer.edges);
+    return layer;
+  }
+
   push(snapshot: Snapshot, now = performance.now()) {
     const view = this.view(snapshot.cx, snapshot.cy);
-    if (!view.layer) {
-      const shader = new PIXI.Shader(this.program, { uAtlas: this.atlas, uAlpha: 1, shared: this.shared });
-      view.layer = new ChunkLayer(shader, this.options.chunkSize, this.options.snapshotInterval ?? 50);
-      view.layer.position.set(snapshot.cx * this.options.chunkSize, snapshot.cy * this.options.chunkSize);
-      this.entityRoot.addChild(view.layer);
-    }
+    if (!view.layer) view.layer = this.createLayer(this.entities, snapshot.cx, snapshot.cy);
     view.layer.push(snapshot, now);
+  }
+
+  /**
+   * Sets a chunk's static props (positions chunk-local in POSITION_SCALE fixed point, like a
+   * snapshot), drawn with the `props` style. Null clears them.
+   */
+  setProps(cx: number, cy: number, props: Snapshot | null) {
+    if (!this.propKind) throw new Error("ChunkScene was created without a props style");
+    const view = this.view(cx, cy);
+    if (!props) {
+      view.props?.destroy();
+      view.props = null;
+      return;
+    }
+    if (!view.props) view.props = this.createLayer(this.propKind, cx, cy);
+    view.props.push(props, 0);
+    view.props.interpolate(Infinity);
   }
 
   /** Drops a chunk's entity layer (e.g. when it stops being hot), keeping its ground. */
@@ -272,6 +642,7 @@ export class ChunkScene {
     const view = this.views.get(key);
     if (!view) return;
     view.layer?.destroy();
+    view.props?.destroy();
     view.ground.destroy({ children: true });
     this.views.delete(key);
   }
@@ -282,15 +653,18 @@ export class ChunkScene {
    */
   update(view: { minX: number; minY: number; maxX: number; maxY: number }, now = performance.now()) {
     const size = this.options.chunkSize;
+    this.entities.setTime(now / 1000);
     let drawn = 0;
     for (const chunk of this.views.values()) {
       const x = chunk.cx * size;
       const y = chunk.cy * size;
       const inView = x + size * 1.1 >= view.minX && x - size * 0.1 <= view.maxX && y + size * 1.1 >= view.minY && y - size * 0.1 <= view.maxY;
       chunk.ground.visible = inView;
+      chunk.props?.setVisible(inView && chunk.props.count > 0);
       if (chunk.layer) {
-        chunk.layer.visible = inView && chunk.layer.count > 0;
-        if (chunk.layer.visible) {
+        const visible = inView && chunk.layer.count > 0;
+        chunk.layer.setVisible(visible);
+        if (visible) {
           chunk.layer.interpolate(now);
           drawn += chunk.layer.count;
         }
