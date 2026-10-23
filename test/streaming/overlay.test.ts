@@ -57,7 +57,7 @@ describe("overlay and hot steps", () => {
   test("steps say whether the chunk is hot", () => {
     const base = testModule({ "0,0": [{ x: 10, y: 10, gid: 1 }] });
     const seen: boolean[] = [];
-    const host = new ChunkHost({ ...base, step: (world, ctx: StepContext) => (seen.push(ctx.hot), base.step(world, ctx)) });
+    const host = new ChunkHost({ ...base, step: (world, ctx: StepContext) => (seen.push(!!ctx.hot), base.step(world, ctx)) });
     const c = connect(host);
     c.send(encodeGenerate(0, 0, 1));
     for (let i = 0; i < 4; i++) host.tick();
@@ -72,7 +72,7 @@ describe("overlay and hot steps", () => {
     const pool = new ChunkPool(() => 0);
     const [client, hostSide] = memoryTransportPair();
     host.attach(hostSide);
-    pool.addHost(client, "test");
+    pool.addHost(client, "local");
     const got: number[][] = [];
     pool.on({ overlay: (o) => got.push([o.cx, o.cy, o.tick, ...o.bytes]) });
     pool.generate(0, 0, 1);

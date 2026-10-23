@@ -55,9 +55,10 @@ export type StepContext = {
   dt: number;
   /**
    * True when a client watches the chunk closely (Hot tier): the place to spend detail that only
-   * matters on screen. Warm chunks can run a cheaper model of the same thing.
+   * matters on screen. Warm chunks can run a cheaper model of the same thing. The host always
+   * sets it; it is optional so hand-made contexts (tests, tools) may leave it out (= warm).
    */
-  hot: boolean;
+  hot?: boolean;
   /** The chunk's space (0 unless the game uses several). */
   space: number;
   cx: number;
