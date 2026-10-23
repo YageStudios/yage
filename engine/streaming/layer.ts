@@ -67,13 +67,22 @@ uniform sampler2D uAtlas;
 void main() {
   vec4 texel = texture2D(uAtlas, vUv);
   if (texel.a < 0.5) discard;
-  gl_FragColor = vec4(texel.rgb * vColor, 1.0);
+  // Opaque texels take the tint; texels drawn at about 70% alpha keep their own colour.
+  vec3 raw = texel.rgb / texel.a;
+  float tinted = clamp((texel.a - 0.7) / 0.25, 0.0, 1.0);
+  gl_FragColor = vec4(mix(raw, raw * vColor, tinted), 1.0);
 }
 `;
 
 export type ChunkLayerStyle = {
-  /** Sprite atlas: a grid of equally sized cells, read with nearest filtering. */
+  /**
+   * Sprite atlas: a grid of equally sized cells. Fully opaque texels are multiplied by the
+   * entity's palette colour; texels at about 70% alpha (e.g. skin, outlines) are drawn as they
+   * are; below 50% is transparent.
+   */
   atlas: PIXI.Texture;
+  /** Filter the atlas smoothly with mipmaps (drawn art) rather than nearest (pixel art). */
+  smooth?: boolean;
   /** Atlas columns and rows. */
   grid: [number, number];
   /** Sprite size in world units; sprites are anchored at the bottom centre (the feet). */
@@ -206,8 +215,8 @@ export class ChunkScene {
   constructor(options: ChunkSceneOptions) {
     this.options = options;
     const { style } = options;
-    style.atlas.baseTexture.scaleMode = PIXI.SCALE_MODES.NEAREST;
-    style.atlas.baseTexture.mipmap = PIXI.MIPMAP_MODES.OFF;
+    style.atlas.baseTexture.scaleMode = style.smooth ? PIXI.SCALE_MODES.LINEAR : PIXI.SCALE_MODES.NEAREST;
+    style.atlas.baseTexture.mipmap = style.smooth ? PIXI.MIPMAP_MODES.ON : PIXI.MIPMAP_MODES.OFF;
     this.program = PIXI.Program.from(vertex, fragment, "yage-chunk-layer");
     this.atlas = style.atlas;
     this.shared = new PIXI.UniformGroup({
