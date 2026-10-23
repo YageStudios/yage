@@ -17,6 +17,7 @@ import { glowUniforms, MAX_GLOW_RAMP, MAX_GLOWS, MAX_PALETTE, paletteArray, type
 import { chunkKey } from "./coord";
 import { SnapshotPair } from "./interp";
 import { EMPTY_SLOT, POSITION_SCALE, type Snapshot } from "./protocol";
+import { StaticSet, tintTree, type StaticSpec } from "./statics";
 
 const GL_FLOAT = 5126;
 const GL_SHORT = 5122;
@@ -550,6 +551,8 @@ type ChunkView = {
   cx: number;
   cy: number;
   ground: PIXI.Container;
+  /** Over the ground, under every sprite; see `setDecals`. */
+  decals: PIXI.Container | null;
   layer: ChunkLayer | null;
   /** Prop set 0 (the same layer as `propSets[0]`). */
   props: ChunkLayer | null;
@@ -564,9 +567,17 @@ type ChunkView = {
 export class ChunkScene {
   readonly root = new PIXI.Container();
   readonly groundRoot = new PIXI.Container();
+  /** Per-chunk decals (road meshes…), over every chunk's ground. */
+  readonly decalRoot = new PIXI.Container();
+  /** Static instances' lower parts (floors, walls), under every sprite and its shadow. */
+  readonly staticRoot = new PIXI.Container();
   readonly shadowRoot = new PIXI.Container();
   readonly entityRoot = new PIXI.Container();
   readonly edgeRoot = new PIXI.Container();
+  /** Static instances' upper parts (roofs), over every sprite. */
+  readonly overRoot = new PIXI.Container();
+  /** Static instances placed at any position and angle; see `setStatics`. */
+  readonly statics = new StaticSet(this.staticRoot, this.overRoot);
   readonly views = new Map<number, ChunkView>();
   private readonly entities: LayerKind;
   private readonly propKinds: LayerKind[];
@@ -577,7 +588,7 @@ export class ChunkScene {
     this.entities = new LayerKind(options.style);
     const props = options.props ? (Array.isArray(options.props) ? options.props : [options.props]) : [];
     this.propKinds = props.map((style: ChunkLayerStyle) => new LayerKind(style));
-    this.root.addChild(this.groundRoot, this.shadowRoot, this.entityRoot, this.edgeRoot);
+    this.root.addChild(this.groundRoot, this.decalRoot, this.staticRoot, this.shadowRoot, this.entityRoot, this.edgeRoot, this.overRoot);
   }
 
   setPalette(palette: number[]) {
@@ -589,6 +600,42 @@ export class ChunkScene {
   setLight(light: [number, number, number], shadow = 1) {
     this.entities.setLight(light, shadow);
     for (const kind of this.propKinds) kind.setLight(light, shadow);
+    const rgb = light.reduce((v, c) => (v << 8) | Math.round(Math.max(0, Math.min(1, c)) * 255), 0);
+    if (rgb !== this.lightTint) {
+      this.lightTint = rgb;
+      for (const view of this.views.values()) if (view.decals) tintTree(view.decals, rgb);
+    }
+    this.statics.setTint(rgb);
+  }
+
+  private lightTint = 0xffffff;
+
+  /**
+   * Sets a chunk's decals: display objects in chunk-local units drawn over all ground and under
+   * every sprite, tinted by `setLight` (sprites, graphics and mesh-material meshes; custom shaders
+   * light themselves). The scene owns them from here; null clears them.
+   */
+  setDecals(cx: number, cy: number, objects: readonly PIXI.DisplayObject[] | null) {
+    const view = this.view(cx, cy);
+    view.decals?.destroy({ children: true });
+    view.decals = null;
+    if (!objects?.length) return;
+    const decals = new PIXI.Container();
+    decals.position.set(cx * this.options.chunkSize, cy * this.options.chunkSize);
+    decals.addChild(...objects);
+    tintTree(decals, this.lightTint);
+    this.decalRoot.addChild(decals);
+    view.decals = decals;
+  }
+
+  /**
+   * Lists the static instances (world units, any angle) that touch a chunk. Every chunk an
+   * instance overlaps may list it under the same id: it is built once and kept until no loaded
+   * chunk lists it. Null or empty clears this chunk's listings.
+   */
+  setStatics(cx: number, cy: number, specs: readonly StaticSpec[] | null) {
+    this.view(cx, cy);
+    this.statics.list(chunkKey(cx, cy), specs ?? []);
   }
 
   /** The chunk's view, created on first use and positioned at the chunk's origin. */
@@ -599,7 +646,7 @@ export class ChunkScene {
       const ground = new PIXI.Container();
       ground.position.set(cx * this.options.chunkSize, cy * this.options.chunkSize);
       this.groundRoot.addChild(ground);
-      view = { cx, cy, ground, layer: null, props: null, propSets: [] };
+      view = { cx, cy, ground, decals: null, layer: null, props: null, propSets: [] };
       this.views.set(key, view);
     }
     return view;
@@ -657,6 +704,8 @@ export class ChunkScene {
     view.layer?.destroy();
     for (const layer of view.propSets) layer?.destroy();
     view.ground.destroy({ children: true });
+    view.decals?.destroy({ children: true });
+    this.statics.drop(key);
     this.views.delete(key);
   }
 
@@ -673,6 +722,7 @@ export class ChunkScene {
       const y = chunk.cy * size;
       const inView = x + size * 1.1 >= view.minX && x - size * 0.1 <= view.maxX && y + size * 1.1 >= view.minY && y - size * 0.1 <= view.maxY;
       chunk.ground.visible = inView;
+      if (chunk.decals) chunk.decals.visible = inView;
       for (const props of chunk.propSets) props?.setVisible(inView && props.count > 0);
       if (chunk.layer) {
         const visible = inView && chunk.layer.count > 0;
@@ -683,10 +733,12 @@ export class ChunkScene {
         }
       }
     }
+    this.statics.cull(view);
     return drawn;
   }
 
   destroy() {
+    this.statics.clear();
     this.root.destroy({ children: true });
     this.views.clear();
   }
