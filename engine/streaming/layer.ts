@@ -24,6 +24,17 @@ const GL_SHORT = 5122;
 const GL_UNSIGNED_BYTE = 5121;
 const GL_UNSIGNED_SHORT = 5123;
 export { glowOf, glowUniforms, MAX_PALETTE, paletteArray, tintIndices, type GlowRange } from "./tint";
+/** A sitter's height (fraction of standing) and how far its feet drop below the seat (of its height). */
+const SIT_HEIGHT = 0.82;
+const SIT_DROP = 0.12;
+/** How much of a sleeper shows above the covers (of its height, from the top). */
+const TUCKED = 0.55;
+
+/** How an entity is posed; see `ChunkLayer.setPoses`. SitLeft is a sitter facing left (drawn mirrored). */
+export const POSE = { Stand: 0, Lie: 1, Sit: 2, SitLeft: 3 } as const;
+export type PoseKind = (typeof POSE)[keyof typeof POSE];
+export type PoseEntry = { slot: number; pose: PoseKind; turn: number };
+
 const instanceHeader = `
 precision highp float;
 attribute vec2 aCorner;
@@ -33,6 +44,7 @@ attribute float aCurX;
 attribute float aCurY;
 attribute float aSprite;
 attribute float aTint;
+attribute vec2 aPose;
 uniform mat3 projectionMatrix;
 uniform mat3 translationMatrix;
 uniform float uAlpha;
@@ -42,6 +54,23 @@ uniform float uMinPixels;
 
 vec2 footOf() {
   return mix(vec2(aPrevX, aPrevY), vec2(aCurX, aCurY), uAlpha) / uPositionScale;
+}
+// A pose (see ChunkLayer.setPoses) moves the sprite's corners about its feet: lying, the quad
+// turns by aPose.y about its middle, which lands on the feet (a sleeper centred on the bed);
+// sitting, it is shortened onto the seat, mirrored when it faces left.
+vec2 posedOf(vec2 corner, vec2 size) {
+  vec2 p = corner * size;
+  if (aPose.x > 0.5 && aPose.x < 1.5) {
+    vec2 c = p + vec2(0.0, 0.5 * size.y);
+    float s = sin(aPose.y);
+    float k = cos(aPose.y);
+    return vec2(k * c.x - s * c.y, s * c.x + k * c.y);
+  }
+  if (aPose.x > 1.5) {
+    p.y = p.y * ${SIT_HEIGHT.toFixed(2)} + ${SIT_DROP.toFixed(2)} * size.y;
+    if (aPose.x > 2.5) p.x = -p.x;
+  }
+  return p;
 }
 float growOf() {
   float pixelsPerUnit = length(vec2(translationMatrix[0][0], translationMatrix[0][1]));
@@ -57,8 +86,11 @@ varying vec2 vUv;
 varying vec3 vColor;
 varying vec3 vColor2;
 varying vec3 vColor3;
+varying float vTucked;
 
 void main() {
+  // A sleeper is tucked in: the bed covers it below the chest (see the fragment shader).
+  vTucked = aPose.x > 0.5 && aPose.x < 1.5 ? aCorner.y + 1.0 : -1.0;
   if (aTint > ${EMPTY_SLOT - 0.5}) {
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
     vUv = vec2(0.0);
@@ -68,7 +100,7 @@ void main() {
   vec2 foot = footOf();
   float grow = growOf();
   mat3 m = projectionMatrix * translationMatrix;
-  vec3 clip = m * vec3(foot + aCorner * uSize * grow, 1.0);
+  vec3 clip = m * vec3(foot + posedOf(aCorner, uSize * grow), 1.0);
   vec3 clipFoot = m * vec3(foot, 1.0);
   // Lower on screen is nearer, in every chunk alike.
   gl_Position = vec4(clip.xy, clamp(clipFoot.y * 0.5, -0.999, 0.999), 1.0);
@@ -98,6 +130,7 @@ varying vec2 vUv;
 varying vec3 vColor;
 varying vec3 vColor2;
 varying vec3 vColor3;
+varying float vTucked;
 uniform sampler2D uAtlas;
 uniform sampler2D uMask;
 uniform float uMasked;
@@ -105,6 +138,7 @@ uniform float uEdges;
 uniform vec3 uLight;
 
 void main() {
+  if (vTucked > ${TUCKED.toFixed(2)}) discard;
   vec4 texel = texture2D(uAtlas, vUv);
   // The opaque pass draws solid cores; the edge pass blends the soft rims over them.
   if (uEdges > 0.5) {
@@ -136,7 +170,7 @@ uniform vec2 uShadowOffset;
 varying vec2 vLocal;
 
 void main() {
-  if (aTint > ${EMPTY_SLOT - 0.5}) {
+  if (aTint > ${EMPTY_SLOT - 0.5} || (aPose.x > 0.5 && aPose.x < 1.5)) {
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
     vLocal = vec2(9.0);
     return;
@@ -222,7 +256,7 @@ void main() {
   vec2 margin = vec2(reach) / size;
   vec2 corner = aCorner * (1.0 + 2.0 * margin) + vec2(0.0, -margin.y);
   mat3 m = projectionMatrix * translationMatrix;
-  vec3 clip = m * vec3(foot + corner * size, 1.0);
+  vec3 clip = m * vec3(foot + posedOf(corner, size), 1.0);
   gl_Position = vec4(clip.xy, 0.0, 1.0);
   float column = floor(mod(aSprite + 0.5, uGrid.x));
   vec2 cell = vec2(column, floor((aSprite + 0.5) / uGrid.x));
@@ -407,6 +441,9 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   private readonly curY: PIXI.Buffer;
   private readonly sprite: PIXI.Buffer;
   private readonly tintBuffer: PIXI.Buffer;
+  private readonly poseBuffer: PIXI.Buffer;
+  private poseData = new Float32Array(2);
+  private poses: readonly PoseEntry[] = [];
   private extent: number;
 
   constructor(kind: LayerKind, extent: number, expectedInterval: number) {
@@ -420,6 +457,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     const curY = empty16();
     const sprite = new PIXI.Buffer(new Uint16Array(1), false);
     const tint = empty8();
+    const pose = new PIXI.Buffer(new Float32Array(2), false);
     const geometry = new PIXI.Geometry()
       .addAttribute("aCorner", corners, 2, false, GL_FLOAT as PIXI.TYPES)
       .addAttribute("aPrevX", prevX, 1, false, GL_SHORT as PIXI.TYPES, 0, 0, true)
@@ -428,6 +466,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
       .addAttribute("aCurY", curY, 1, false, GL_SHORT as PIXI.TYPES, 0, 0, true)
       .addAttribute("aSprite", sprite, 1, false, GL_UNSIGNED_SHORT as PIXI.TYPES, 0, 0, true)
       .addAttribute("aTint", tint, 1, false, GL_UNSIGNED_BYTE as PIXI.TYPES, 0, 0, true)
+      .addAttribute("aPose", pose, 2, false, GL_FLOAT as PIXI.TYPES, 0, 0, true)
       .addIndex(new Uint16Array([0, 1, 2, 0, 2, 3]));
     geometry.instanceCount = 0;
     const state = PIXI.State.for2d();
@@ -466,6 +505,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     this.curY = curY;
     this.sprite = sprite;
     this.tintBuffer = tint;
+    this.poseBuffer = pose;
     this.extent = extent;
     this.pair = new SnapshotPair(expectedInterval);
     for (const mesh of this.companions()) {
@@ -503,11 +543,39 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     this.sprite.update(snapshot.sprite);
     this.tintBuffer.update(snapshot.tint);
     this.geometry.instanceCount = count;
+    this.writePoses();
     this.setVisible(count > 0);
   }
 
   get count() {
     return this.geometry.instanceCount;
+  }
+
+  /**
+   * Poses some slots (lying turned by `turn` radians, clockwise on screen, from upright; sitting);
+   * every other slot stands. Kept across snapshots until the next call, so a slot keeps its pose
+   * while the snapshots that move it arrive between pose updates.
+   */
+  setPoses(poses: readonly PoseEntry[]) {
+    this.poses = poses;
+    this.writePoses();
+  }
+
+  /** The pose data per instance (mode, turn), for tests. */
+  get poseArray(): Float32Array {
+    return this.poseData.subarray(0, this.geometry.instanceCount * 2);
+  }
+
+  private writePoses() {
+    const count = Math.max(1, this.geometry.instanceCount);
+    if (this.poseData.length < count * 2) this.poseData = new Float32Array(count * 2);
+    else this.poseData.fill(0);
+    for (const p of this.poses) {
+      if (p.slot >= count) continue;
+      this.poseData[p.slot * 2] = p.pose;
+      this.poseData[p.slot * 2 + 1] = p.turn;
+    }
+    this.poseBuffer.update(this.poseData.subarray(0, count * 2));
   }
 
   /** Sets the interpolation point between the last two snapshots. */
@@ -687,6 +755,11 @@ export class ChunkScene {
     }
     view.propSets[set] = layer;
     if (set === 0) view.props = layer;
+  }
+
+  /** Poses a chunk's entities (see `ChunkLayer.setPoses`); nothing until its layer exists. */
+  setPoses(cx: number, cy: number, poses: readonly PoseEntry[]) {
+    this.views.get(chunkKey(cx, cy))?.layer?.setPoses(poses);
   }
 
   /** Drops a chunk's entity layer (e.g. when it stops being hot), keeping its ground. */
