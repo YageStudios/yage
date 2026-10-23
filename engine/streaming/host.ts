@@ -43,6 +43,16 @@ export type StepContext = {
   cy: number;
 };
 
+/** Passed to `ChunkModule.restored` when a chunk's world appears on a host. */
+export type RestoreContext = {
+  /** The host tick the chunk joins at (the tick its first step will carry, or later). */
+  tick: number;
+  cx: number;
+  cy: number;
+  /** True for a freshly generated world, false for one loaded from bytes. */
+  generated: boolean;
+};
+
 export interface ChunkModule {
   /** World units per chunk side. */
   chunkSize: number;
@@ -79,6 +89,17 @@ export interface ChunkModule {
   staticData?(world: World, cx: number, cy: number): Uint8Array;
   /** Called when an entity was kept inside its chunk because no neighbour could take it. */
   bounced?(world: World, eid: number): void;
+  /**
+   * Called after a chunk's world is generated or loaded, with the host's current tick. A module
+   * whose state is a function of time uses it to bring the chunk up to date (e.g. put people
+   * where their schedules say they are now) instead of simulating the time it was away.
+   */
+  restored?(world: World, ctx: RestoreContext): void;
+  /**
+   * Called for each entity accepted from another chunk, after its position was shifted by
+   * (dx, dy) into this chunk's frame. Shift any other chunk-local fields (targets, waypoints).
+   */
+  arrived?(world: World, eid: number, dx: number, dy: number): void;
   /** Entities counted as the chunk's population in Ready messages. Defaults to all entities. */
   population?(world: World): number;
 }
@@ -89,6 +110,8 @@ type Chunk = {
   cy: number;
   world: World;
   phase: number;
+  /** Tick of the chunk's last step, -1 before its first. */
+  lastStep: number;
 };
 
 type Subscription = { tier: Tier; snapshotEvery: number };
@@ -154,8 +177,14 @@ export class ChunkHost {
       this.tick();
       due += interval;
       const now = performance.now();
-      // Fall behind gracefully: never queue a burst of catch-up ticks.
-      if (due < now - interval) due = now;
+      // Fall behind gracefully: never queue a burst of catch-up ticks. Skip the missed tick
+      // numbers instead, so the clock keeps to wall time and hosts started together agree on it;
+      // each chunk's next step covers the skipped ticks.
+      if (due < now - interval) {
+        const missed = Math.floor((now - due) / interval);
+        this.tickCount += missed;
+        due += missed * interval;
+      }
       this.timer = setTimeout(loop, Math.max(0, due - now));
     };
     this.timer = setTimeout(loop, 0);
@@ -240,7 +269,9 @@ export class ChunkHost {
   generate(cx: number, cy: number, seed: number) {
     const key = chunkKey(cx, cy);
     if (!this.chunks.has(key)) {
-      this.addChunk(cx, cy, this.module.generate(seed, cx, cy));
+      const world = this.module.generate(seed, cx, cy);
+      this.addChunk(cx, cy, world);
+      this.module.restored?.(world, { tick: this.tickCount, cx, cy, generated: true });
     }
     this.ready(key);
   }
@@ -251,6 +282,7 @@ export class ChunkHost {
     if (existing) deleteWorld(existing.world);
     const world = deserializeWorld(bytes.slice().buffer) as World;
     this.addChunk(cx, cy, world);
+    this.module.restored?.(world, { tick: this.tickCount, cx, cy, generated: false });
     this.ready(key);
   }
 
@@ -268,7 +300,7 @@ export class ChunkHost {
 
   private addChunk(cx: number, cy: number, world: World) {
     const key = chunkKey(cx, cy);
-    this.chunks.set(key, { key, cx, cy, world, phase: chunkHash(cx, cy) % this.module.warmEvery });
+    this.chunks.set(key, { key, cx, cy, world, phase: chunkHash(cx, cy) % this.module.warmEvery, lastStep: -1 });
     this.route.set(key, this.selfIndex);
     this.trackDirty = true;
   }
@@ -309,7 +341,9 @@ export class ChunkHost {
     for (const chunk of this.chunks.values()) {
       const hot = this.isHot(chunk.key);
       if (!hot && (tick + chunk.phase) % warmEvery !== 0) continue;
-      const ticks = hot ? 1 : warmEvery;
+      // Normally 1 (hot) or warmEvery (warm); more when the clock skipped ticks or a slot was missed.
+      const ticks = Math.max(hot ? 1 : warmEvery, chunk.lastStep < 0 ? 0 : tick - chunk.lastStep);
+      chunk.lastStep = tick;
       const ctx: StepContext = { tick, ticks, dt: ticks / tickRate, cx: chunk.cx, cy: chunk.cy };
       this.applyInputs(chunk, ctx);
       this.module.step(chunk.world, ctx);
@@ -510,10 +544,12 @@ export class ChunkHost {
     const dx = (fx - cx) * size;
     const dy = (fy - cy) * size;
     const [xs, ys] = this.positionColumns(chunk.world);
+    const arrived = this.module.arrived;
     const { added, rejected, rejectedCount } = putRows(chunk.world, this.module.components, rows, count, (_, eid) => {
       xs[eid] += dx;
       ys[eid] += dy;
     });
+    if (arrived) for (const eid of added) arrived(chunk.world, eid, dx, dy);
     if (returned) {
       for (const eid of added) this.bounce(chunk.world, eid);
     }

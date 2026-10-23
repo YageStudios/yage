@@ -279,5 +279,52 @@ describe("ChunkHost", () => {
     expect(client.all(Op.Transfer)).toHaveLength(0);
     expect(positionOf(host, 7)!.cx).toBe(0);
   });
-});
 
+  test("tells the module the current tick when a chunk is generated or loaded", () => {
+    const seen: string[] = [];
+    const module = testModule({ "0,0": [{ x: 10, y: 20, gid: 5 }] });
+    module.restored = (world, ctx) => seen.push(`${ctx.cx},${ctx.cy}@${ctx.tick}:${ctx.generated}:${world.entitySparseSet.dense.length}`);
+    const host = new ChunkHost(module);
+    const client = connect(host);
+    for (let i = 0; i < 3; i++) host.tick();
+    client.send(encodeGenerate(0, 0, 1));
+    client.send(encodeUnload(0, 0));
+    host.tick();
+    client.send(encodeLoad(0, 0, client.last(Op.Unloaded)!.bytes));
+    expect(seen).toEqual(["0,0@3:true:1", "0,0@4:false:1"]);
+  });
+
+  test("lets the module shift chunk-local fields of entities that arrive from a neighbour", () => {
+    const module = testModule({ "0,0": [{ x: 98, y: 50, vx: 10, gid: 7 }], "1,0": [] });
+    const shifts: number[][] = [];
+    module.arrived = (world, eid, dx, dy) => shifts.push([world(TestGid).store.id[eid], dx, dy]);
+    const host = new ChunkHost(module);
+    const client = connect(host);
+    client.send(encodeGenerate(0, 0, 1));
+    client.send(encodeGenerate(1, 0, 1));
+    client.send(encodeTier(0, 0, Tier.Hot, 1));
+    host.tick();
+    expect(shifts).toEqual([[7, -SIZE, 0]]);
+  });
+
+  test("a step covers ticks the clock skipped", () => {
+    const module = testModule({ "0,0": [{ x: 10, y: 10, vx: 1, gid: 1 }] });
+    const ticks: number[] = [];
+    const step = module.step;
+    module.step = (world, ctx) => {
+      ticks.push(ctx.ticks);
+      step(world, ctx);
+    };
+    const host = new ChunkHost(module);
+    const client = connect(host);
+    client.send(encodeGenerate(0, 0, 1));
+    client.send(encodeTier(0, 0, Tier.Hot, 1));
+    host.tick();
+    host.tick();
+    // What the tick loop does when it falls behind: skip tick numbers rather than drift.
+    host.tickCount += 5;
+    host.tick();
+    expect(ticks).toEqual([1, 1, 6]);
+    expect(positionOf(host, 1)!.x).toBe(18);
+  });
+});
