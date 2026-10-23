@@ -14,10 +14,11 @@
  * same build, e.g. a test) is trusted.
  *
  * Version 3 added Overlay: game-defined bytes sent with a hot chunk's snapshot.
+ * Version 4 widened snapshot sprite ids to u16 (65535 sprites per style: items, vehicles, cultures).
  */
 
 /** Wire format version. Bump on any layout change. */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 export enum Op {
   // client -> host
@@ -341,11 +342,13 @@ export type ArriveMessage = DepartMessage & { x: number; y: number };
 
 // ---------------------------------------------------------------------------------------------
 // Snapshot: header (16 bytes: op u8, pad u8, space u16, cx i16, cy i16, tick u32, count u32),
-// then gid u32[n], x i16[n], y i16[n], sprite u8[n], tint u8[n]. Arrays are indexed by entity
+// then gid u32[n], x i16[n], y i16[n], sprite u16[n], tint u8[n]. Arrays are indexed by entity
 // slot, so an entity keeps its index from one snapshot to the next.
 
 export const SNAPSHOT_HEADER = 16;
-export const snapshotBytes = (count: number) => SNAPSHOT_HEADER + count * 10;
+export const snapshotBytes = (count: number) => SNAPSHOT_HEADER + count * 11;
+/** Largest snapshot sprite id. */
+export const MAX_SPRITE = 65535;
 
 export type Snapshot = {
   space: number;
@@ -356,7 +359,8 @@ export type Snapshot = {
   gid: Uint32Array;
   x: Int16Array;
   y: Int16Array;
-  sprite: Uint8Array;
+  /** Sprite id: an index into the drawing style's atlas (u16). */
+  sprite: Uint16Array;
   tint: Uint8Array;
   /** The whole message, e.g. to forward or transfer it. */
   bytes: Uint8Array;
@@ -385,8 +389,8 @@ const snapshotViews = (bytes: Uint8Array, space: number, cx: number, cy: number,
   offset += count * 2;
   const y = new Int16Array(buffer, offset, count);
   offset += count * 2;
-  const sprite = new Uint8Array(buffer, offset, count);
-  offset += count;
+  const sprite = new Uint16Array(buffer, offset, count);
+  offset += count * 2;
   const tint = new Uint8Array(buffer, offset, count);
   return { space, cx, cy, tick, count, gid, x, y, sprite, tint, bytes };
 };

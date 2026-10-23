@@ -21,6 +21,7 @@ import { EMPTY_SLOT, POSITION_SCALE, type Snapshot } from "./protocol";
 const GL_FLOAT = 5126;
 const GL_SHORT = 5122;
 const GL_UNSIGNED_BYTE = 5121;
+const GL_UNSIGNED_SHORT = 5123;
 export { glowOf, glowUniforms, MAX_PALETTE, paletteArray, tintIndices, type GlowRange } from "./tint";
 const instanceHeader = `
 precision highp float;
@@ -416,7 +417,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     const prevY = empty16();
     const curX = empty16();
     const curY = empty16();
-    const sprite = empty8();
+    const sprite = new PIXI.Buffer(new Uint16Array(1), false);
     const tint = empty8();
     const geometry = new PIXI.Geometry()
       .addAttribute("aCorner", corners, 2, false, GL_FLOAT as PIXI.TYPES)
@@ -424,7 +425,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
       .addAttribute("aPrevY", prevY, 1, false, GL_SHORT as PIXI.TYPES, 0, 0, true)
       .addAttribute("aCurX", curX, 1, false, GL_SHORT as PIXI.TYPES, 0, 0, true)
       .addAttribute("aCurY", curY, 1, false, GL_SHORT as PIXI.TYPES, 0, 0, true)
-      .addAttribute("aSprite", sprite, 1, false, GL_UNSIGNED_BYTE as PIXI.TYPES, 0, 0, true)
+      .addAttribute("aSprite", sprite, 1, false, GL_UNSIGNED_SHORT as PIXI.TYPES, 0, 0, true)
       .addAttribute("aTint", tint, 1, false, GL_UNSIGNED_BYTE as PIXI.TYPES, 0, 0, true)
       .addIndex(new Uint16Array([0, 1, 2, 0, 2, 3]));
     geometry.instanceCount = 0;
