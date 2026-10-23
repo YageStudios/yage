@@ -87,6 +87,15 @@ describe("ChunkScene static instances", () => {
     scene.destroy();
   });
 
+  it("stacks taller instances' over parts above lower ones, keeping listing order otherwise", () => {
+    const scene = new ChunkScene({ chunkSize: 100, style });
+    scene.setStatics(0, 0, [{ ...spec("tower", 10, 10), z: 6 }, spec("shed", 20, 10), { ...spec("walkup", 30, 10), z: 3 }, spec("barn", 40, 10)]);
+    scene.overRoot.sortChildren();
+    const order = scene.overRoot.children.map((c) => [...scene.statics.items.values()].find((i) => i.over === c)!.spec.id);
+    expect(order).toEqual(["shed", "barn", "walkup", "tower"]);
+    scene.destroy();
+  });
+
   it("turns vector meshes into Pixi geometry", () => {
     const stroke = strokePolyline([{ x: 0, y: 0 }, { x: 10, y: 0 }], 2);
     const g = meshGeometry(stroke);

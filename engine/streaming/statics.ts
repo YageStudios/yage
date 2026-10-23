@@ -43,6 +43,9 @@ export type StaticSpec = {
   /** Local size, world units: bounds for culling and `at`. */
   w: number;
   h: number;
+  /** Stacking of the `over` part among other instances' (e.g. a building's height, so a tall roof and
+   *  the shadow it casts lie over a lower neighbour's). Equal heights keep listing order. */
+  z?: number;
   /** Builds the parts in local coordinates; called once, when the id is first listed. */
   build: () => StaticParts;
 };
@@ -94,6 +97,10 @@ export class StaticSet {
         if (parts.over) over.addChild(parts.over);
         place(under, spec);
         place(over, spec);
+        if (spec.z) {
+          over.zIndex = spec.z;
+          this.overRoot.sortableChildren = true;
+        }
         tintTree(under, this.tint);
         tintTree(over, this.tint);
         this.underRoot.addChild(under);
