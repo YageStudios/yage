@@ -350,7 +350,10 @@ class ElementBlock implements Block {
       this.first.dataset.uifId = id;
     }
     const focusable = props.focusable ?? nativeFocusable.has(this.spec.type);
-    this.first.tabIndex = focusable ? 0 : -1;
+    // Only controls carry a tabindex: -1 on a plain div or span would make it focusable by click.
+    if (focusable) this.first.tabIndex = 0;
+    else if (nativeFocusable.has(this.spec.type)) this.first.tabIndex = -1;
+    else this.first.removeAttribute("tabindex");
     if (focusable && !this.registered) {
       this.releaseFocus = this.ctx.focus.register({ id, element: this.first,
         players: () => this.spec.props.players === undefined ? undefined : read(this.spec.props.players),

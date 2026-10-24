@@ -83,6 +83,13 @@ test("removing a control the game blurred does not pull native focus back into t
   // Explicit focus into the UI still works afterwards.
   ui.focus.focus("b"); equal(document.activeElement, node(ui, "b"));
 });
+test("plain panels and text carry no tabindex, so clicking them cannot focus them", () => {
+  const ui = fixture(), focusable = signal(true);
+  ui.mount(h("column", { id: "panel" }, h("button", { id: "row" }, h("text", { id: "label", text: "Town" })), h("button", { id: "off", text: "Off", focusable: false }), dynamic(() => h("row", { id: "card", focusable: focusable.get() }))));
+  for (const id of ["panel", "label"]) { assert(!node(ui, id).hasAttribute("tabindex"), `${id} has no tabindex`); node(ui, id).focus(); assert(document.activeElement !== node(ui, id), `${id} not focusable`); }
+  equal(node(ui, "row").tabIndex, 0); equal(node(ui, "off").getAttribute("tabindex"), "-1");
+  equal(node(ui, "card").tabIndex, 0); focusable.set(false); ui.flush(); assert(!node(ui, "card").hasAttribute("tabindex"), "focusable: false on a row drops its tabindex");
+});
 test("Tab, explicit focus and activation skip CSS-hidden controls", () => {
   const ui = fixture(); ui.mount(h("column", {}, h("button", { id: "hidden", text: "Hidden", style: { display: "none" } }), h("button", { id: "a", text: "A" }), h("button", { id: "invisible", text: "Invisible", style: { visibility: "hidden" } }), h("button", { id: "b", text: "B" })));
   assert(!ui.focus.focus("hidden")); assert(!ui.focus.focus("invisible")); ui.focus.first(); equal(ui.focus.current(), "a");
