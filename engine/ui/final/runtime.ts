@@ -262,10 +262,19 @@ export class UIFinal {
     const handle: ModalHandle = { element: dialog, close: dispose };
     this.modals.push({ handle: options.dismissible === false ? { element: dialog, close: () => {} } : handle, dispose, wrapper });
     const cancel = (event: Event) => { event.preventDefault(); if (options.dismissible !== false) dispose(); };
+    // Games may disable root keyboard handling, but modal focus still owns plain Tab.
+    // Native dialogs can otherwise move focus to browser chrome after their last control.
+    const tab = (event: KeyboardEvent) => {
+      if (event.key !== "Tab" || event.defaultPrevented || event.isComposing || event.ctrlKey || event.metaKey || event.altKey || this.focus.currentModal !== dialog) return;
+      this.focus.navigate(event.shiftKey ? "previous" : "next");
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    dialog.addEventListener("keydown", tab);
     dialog.addEventListener("cancel", cancel);
     const close = () => dispose();
     dialog.addEventListener("close", close);
-    modalScope.add(() => { dialog.removeEventListener("cancel", cancel); dialog.removeEventListener("close", close); });
+    modalScope.add(() => { dialog.removeEventListener("keydown", tab); dialog.removeEventListener("cancel", cancel); dialog.removeEventListener("close", close); });
     try {
       dialog.showModal();
       if (!closed) for (const player of new Set([0, ...this.focus.focusedElements().map(([player]) => player)])) this.focus.first(player, dialog);

@@ -159,6 +159,34 @@ test("gamepad-style navigation realizes offscreen virtual rows synchronously", (
   ui.focus.first(); for (let index = 0; index < 40; index++) assert(ui.focus.navigate("down"), `navigation ${index}`);
   equal(ui.focus.currentElement().textContent, "40"); assert(node(ui, "list").scrollTop > 0); assert(ui.stats.realizedRows <= 10);
 });
+test("keyboard:false modals retain Tab focus without taking game keys or editable input", () => {
+  const ui = fixture({ keyboard: false });
+  ui.mount(h("button", { id: "invoker", text: "Open" }));
+  node(ui, "invoker").focus();
+  const closed = [];
+  const modal = ui.openModal(h("column", {}, h("input", { id: "field", label: "Name" }), h("button", { id: "hidden", text: "Hidden", hidden: true }), h("button", { id: "disabled", text: "Disabled", disabled: true }), h("button", { id: "last", text: "Last" })), { label: "First", onClose: () => closed.push("first") });
+  const key = (target, name, options = {}) => {
+    const event = new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true, ...options });
+    target.dispatchEvent(event); return event;
+  };
+  equal(document.activeElement, node(ui, "field"));
+  assert(key(node(ui, "field"), "Tab").defaultPrevented); equal(document.activeElement, node(ui, "last"));
+  key(node(ui, "last"), "Tab"); equal(document.activeElement, node(ui, "field"), "last control wraps");
+  key(node(ui, "field"), "Tab", { shiftKey: true }); equal(document.activeElement, node(ui, "last"), "Shift+Tab wraps backwards");
+  assert(!key(node(ui, "field"), "x").defaultPrevented, "typing keeps native input behavior");
+  const gameKeys = [];
+  const listen = event => gameKeys.push(event.key);
+  ui.root.parentElement.addEventListener("keydown", listen);
+  assert(!key(node(ui, "last"), "w").defaultPrevented);
+  assert(!key(node(ui, "last"), "$", { code: "Digit4", shiftKey: true }).defaultPrevented);
+  deep(gameKeys, ["w", "$"]);
+  ui.root.parentElement.removeEventListener("keydown", listen);
+  const top = ui.openModal(h("button", { id: "top", text: "Only" }), { label: "Top", onClose: () => closed.push("top") });
+  key(node(ui, "top"), "Tab"); equal(document.activeElement, node(ui, "top"), "topmost single control retains focus");
+  top.close(); equal(document.activeElement, node(ui, "last"));
+  modal.close(); equal(document.activeElement, node(ui, "invoker")); deep(closed, ["top", "first"]);
+});
+
 test("native modal traps Tab and restores the invoker", () => {
   const ui = fixture(); ui.mount(h("button", { id: "open", text: "Open" })); ui.focus.focus("open");
   const modal = ui.openModal(h("column", {}, h("button", { id: "cancel", text: "Cancel" }), h("button", { id: "ok", text: "Okay" })), { label: "Confirm" });
@@ -308,3 +336,12 @@ window.setupNativeUIFinalTest = () => {
   ));
 };
 window.cleanupUIFinalTests = cleanup;
+
+window.setupGameModalFocusTest = () => {
+  cleanup(); const ui = fixture({ keyboard: false });
+  const closed = [];
+  ui.mount(h("button", { id: "modal-invoker", text: "Open" }));
+  node(ui, "modal-invoker").focus();
+  const modal = ui.openModal(h("column", {}, h("input", { id: "modal-field", label: "Native editable field" }), h("button", { id: "modal-disabled", text: "Disabled", disabled: true }), h("button", { id: "modal-hidden", text: "Hidden", hidden: true }), h("button", { id: "modal-last", text: "Close", on: { activate: () => modal.close() } })), { label: "Game modal", onClose: () => closed.push("closed") });
+  window.gameModalFocus = { ui, modal, closed };
+};

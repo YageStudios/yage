@@ -42,6 +42,18 @@ try {
     const input = page.locator('[data-uif-id="native-input"]'); await input.focus(); await page.keyboard.type("Sky Harbor"); await page.keyboard.press("ArrowLeft"); await page.keyboard.type("!");
     if (await input.inputValue() !== "Sky Harbo!r") throw new Error(await input.inputValue());
   });
+  await page.evaluate(() => window.setupGameModalFocusTest());
+  await nativeTest("keyboard:false native Tab and Shift+Tab wrap inside the modal and preserve editing/focus return", async () => {
+    const focused = () => page.evaluate(() => document.activeElement?.dataset.uifId);
+    if (await focused() !== "modal-field") throw new Error("modal field did not receive initial focus");
+    await page.keyboard.type("native text");
+    if (await page.locator('[data-uif-id="modal-field"]').inputValue() !== "native text") throw new Error("native editing was intercepted");
+    await page.keyboard.press("Tab"); if (await focused() !== "modal-last") throw new Error("Tab failed to skip disabled and hidden controls");
+    await page.keyboard.press("Tab"); if (await focused() !== "modal-field") throw new Error("Tab left the modal");
+    await page.keyboard.press("Shift+Tab"); if (await focused() !== "modal-last") throw new Error("Shift+Tab left the modal");
+    await page.keyboard.press("Enter"); if (await focused() !== "modal-invoker") throw new Error("closing failed to restore invoker focus");
+    if (await page.evaluate(() => window.gameModalFocus.closed.length) !== 1) throw new Error("onClose did not run exactly once");
+  });
   await page.evaluate(() => window.cleanupUIFinalTests());
   await page.setViewportSize({ width: 1440, height: 980 });
   await page.addScriptTag({ content: browserBundle(root, "examples/ui-final/offline.mjs") });
