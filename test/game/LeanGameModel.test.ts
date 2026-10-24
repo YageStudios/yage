@@ -39,6 +39,10 @@ class LgmDraw extends DrawSystemImpl<LeanGameModel> {
 }
 
 describe("LeanGameModel", () => {
+  test("is a local scene by default: one local net id (PixiViewportCleanupSystem keeps its viewport)", () => {
+    expect(createLeanGameModel().localNetIds).toEqual(["local"]);
+    expect(createLeanGameModel({ localNetIds: [] }).localNetIds).toEqual([]);
+  });
   test("drives its own systems with GameModel-style accessors, honours paused, and cleans up on destroy", () => {
     const model = createLeanGameModel({ world: leanWorldType({ size: 16, systems: [LgmMove, LgmDraw] }), roomId: "scene" });
     const eid = model.addEntity();

@@ -75,6 +75,11 @@ export interface LeanGameModelOptions {
   roomId?: string;
   seed?: string;
   inputManager?: InputManager;
+  /**
+   * The local players' net ids. Default ["local"]: a lean model is a local scene, and yage's
+   * PixiViewportCleanupSystem hides the viewport of a model with none.
+   */
+  localNetIds?: string[];
 }
 
 const schemaOf = (world: World, type: SchemaRef): typeof Schema | undefined => {
@@ -91,7 +96,7 @@ export const createLeanGameModel = (options: LeanGameModelOptions = {}): LeanGam
     inputManager: options.inputManager,
     roomId: options.roomId ?? "",
     seed: options.seed ?? "",
-    localNetIds: [] as string[],
+    localNetIds: [...(options.localNetIds ?? ["local"])],
     paused: false,
     destroyed: false,
     timeElapsed: 0,
