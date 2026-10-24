@@ -72,7 +72,7 @@ describe("schema-backed transient world context", () => {
   });
 
   test("context accessors address schema slots and retire when context resets or disposes", () => {
-    let storage: ReturnType<typeof shape.create>;
+    let storage: ReturnType<typeof shape.create> | undefined;
     const owner = leanWorldType({ context: { components: [Memory], initialize(world, entity) {
       storage = world;
       world(Memory, entity).counts = new Map();
@@ -84,9 +84,10 @@ describe("schema-backed transient world context", () => {
     const map = new Map([[1, 2]]);
     const set = new Set([3]);
     old.buffer = buffer; old.counts = map; old.tags = set;
-    expect(storage!(Memory).store.buffer[0]).toBe(buffer);
-    expect(storage!(Memory).store.counts[0]).toBe(map);
-    expect(storage!(Memory).store.tags[0]).toBe(set);
+    if (!storage) throw new Error("Context initializer did not supply storage");
+    expect(storage(Memory).store.buffer[0]).toBe(buffer);
+    expect(storage(Memory).store.counts[0]).toBe(map);
+    expect(storage(Memory).store.tags[0]).toBe(set);
     expect(old.buffer).toBe(buffer);
     expect(old.counts).toBe(map);
     expect(old.tags).toBe(set);
@@ -142,7 +143,9 @@ describe("schema-backed transient world context", () => {
     const payload = bytes(first);
     host.load(0, 0, payload);
     expect(() => worldContext(first, Memory)).toThrow(/no live context/);
-    const back = host.chunks.values().next().value!.world;
+    const restored = host.chunks.values().next();
+    if (restored.done) throw new Error("Loaded chunk is missing");
+    const back = restored.value.world;
     expect(worldContext(back, Memory).tick).toBe(7);
     expect(host.unload(0, 0)).toBeInstanceOf(Uint8Array);
     expect(() => worldContext(back, Memory)).toThrow(/no live context/);
