@@ -164,6 +164,8 @@ Lean worlds register only the components and systems you list instead of everyth
 
 To spawn many entities alike, `addEntities(world, count, [Pos, { schema: Life, data: { role: 2 } }])` from `yage/world/spawn` validates the data once, fills each column per run of ids and joins queries per entity (about 9x faster than addComponent per component for flat numeric schemas); a compiled definition's `spawnMany(world, count, ctx?, each?)` uses it. Systems' `init` hooks see the whole entity. Non-numeric fields, delta-tracked worlds and dynamic values fall back to addComponent.
 
+A pause menu calls `setGamePaused(true)` (`yage/game/pause`, also exported from `yage`): GameInstance's loop and `LeanGameModel.step` hold, and the audio runtime's GameAudio pauses until `setGamePaused(false)`. `gameModel.paused` remains the connection's per-room flag.
+
 ```json5
 // player.json5
 {
