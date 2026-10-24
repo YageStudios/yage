@@ -11,7 +11,7 @@ export interface WorldContextSpec {
   initialize?(context: World, entity: number): void;
 }
 
-type Context = { spec: WorldContextSpec; world: World | null; entity: number };
+type Context = { spec: WorldContextSpec; world: World | null; entity: number; accessors: Map<Constructor<Schema>, Schema> };
 const CONTEXT = Symbol("yage world context");
 const DISPOSED = Symbol("yage disposed world");
 type ContextOwner = World & { [CONTEXT]?: Context; [DISPOSED]?: boolean };
@@ -30,7 +30,7 @@ export const initializeWorldContext = (world: World, spec: WorldContextSpec): vo
     deleteEcsWorld(context);
     throw error;
   }
-  owner[CONTEXT] = { spec, world: context, entity };
+  owner[CONTEXT] = { spec, world: context, entity, accessors: new Map() };
 };
 
 /** Access the actual schema component on the companion singleton entity. */
@@ -38,7 +38,24 @@ export const worldContext = <T extends Schema>(world: World, schema: Constructor
   const context = (world as ContextOwner)[CONTEXT];
   if (!context?.world) throw new Error("yage world context: no live context");
   if (!context.world.componentMap.has(schema as unknown as typeof Schema)) throw new Error(`yage world context: unregistered schema ${schema.name}`);
-  return context.world(schema, context.entity);
+  let accessor = context.accessors.get(schema) as T | undefined;
+  if (!accessor) {
+    const component = context.world(schema);
+    const metadata = component.schema.schema.properties;
+    accessor = new Proxy(context.world(schema, context.entity), {
+      set(target, field, value) {
+        // minECS copies typed-array assignments for ordinary entity accessors. Context object
+        // fields own replaceable buffers (and nullable terrain), so they replace the slot instead.
+        if (typeof field === "string" && metadata[field]?.type === "object") {
+          (component.store as Record<string, unknown[]>)[field][context.entity] = value;
+          return true;
+        }
+        return Reflect.set(target, field, value);
+      },
+    });
+    context.accessors.set(schema, accessor);
+  }
+  return accessor;
 };
 
 /** Dispose context storage once, retaining its declaration so it may be reset explicitly. */
@@ -47,6 +64,7 @@ export const disposeWorldContext = (world: World): void => {
   if (!context?.world) return;
   deleteEcsWorld(context.world);
   context.world = null;
+  context.accessors.clear();
 };
 
 /** Fresh schema defaults and initialization; old transient state is discarded. */

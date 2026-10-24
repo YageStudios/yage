@@ -15,10 +15,11 @@ class Person extends Schema {
 class Memory extends Schema {
   @type("number") @defaultValue(7) tick: number;
   @type("object") counts: Map<number, number>;
+  @type("object") buffer: Uint8Array | null;
 }
 const context: WorldContextSpec = {
   components: [Memory],
-  initialize(world, entity) { world(Memory, entity).counts = new Map(); },
+  initialize(world, entity) { world(Memory, entity).counts = new Map(); world(Memory, entity).buffer = null; },
 };
 const shape = leanWorldType({ components: [Person], systems: [], context });
 const bytes = (world: ReturnType<typeof shape.create>) => new Uint8Array(serializeWorld(SerialMode.BINARY, world) as ArrayBuffer);
@@ -35,6 +36,11 @@ describe("schema-backed transient world context", () => {
     expect(memory.tick).toBe(7);
     memory.tick = 99;
     memory.counts.set(1, 12);
+    memory.buffer = new Uint8Array([1]);
+    memory.buffer = new Uint8Array([2, 3]);
+    expect([...memory.buffer]).toEqual([2, 3]);
+    memory.buffer = null;
+    expect(memory.buffer).toBeNull();
     expect(worldContext(b, Memory).tick).toBe(7);
     expect(worldContext(b, Memory).counts.size).toBe(0);
     expect([...a.componentMap.keys()]).toEqual([Person]);
