@@ -168,6 +168,13 @@ type Connection = {
 export type ChunkHostOptions = {
   /** Start the tick loop immediately. Tests leave it off and call `tick()` themselves. */
   autoTick?: boolean;
+  /**
+   * Queue Generate requests and work through them one per task, chunks a client watches hot
+   * first, so ticks (and the hot chunks' snapshots and locations) run between slow generates
+   * instead of after the whole queue. A queued chunk anything else needs (a transfer, an
+   * arrival, an unload) is generated on the spot. Off: each is generated as it arrives.
+   */
+  deferGenerates?: boolean;
 };
 
 export class ChunkHost {
@@ -194,9 +201,44 @@ export class ChunkHost {
   speed = 1;
   /** Trip transactions already applied here, so a repeated Arrive adds nobody. */
   private readonly arrivals = new Map<number, number>();
+  /** Generate requests not yet run (`deferGenerates`), in arrival order. */
+  readonly pending = new Map<number, { cx: number; cy: number; seed: number; space: number }>();
+  private draining: ReturnType<typeof setTimeout> | null = null;
+  private readonly deferGenerates: boolean;
 
   constructor(readonly module: ChunkModule, options: ChunkHostOptions = {}) {
+    this.deferGenerates = !!options.deferGenerates;
     if (options.autoTick) this.start();
+  }
+
+  /** Generates a queued chunk now (something needs it). */
+  private need(key: number) {
+    const request = this.pending.get(key);
+    if (!request) return;
+    this.pending.delete(key);
+    this.generate(request.cx, request.cy, request.seed, request.space);
+  }
+
+  /** Runs the next queued generate: the first one a client watches hot, else the oldest. */
+  generateNext() {
+    let next: number | undefined;
+    for (const key of this.pending.keys()) {
+      if (this.isHot(key)) {
+        next = key;
+        break;
+      }
+      next ??= key;
+    }
+    if (next !== undefined) this.need(next);
+    return this.pending.size;
+  }
+
+  private drain() {
+    if (this.draining !== null) return;
+    this.draining = setTimeout(() => {
+      this.draining = null;
+      if (this.generateNext()) this.drain();
+    }, 0);
   }
 
   /** Adds a client. The first client is also the upstream for transfers to unknown hosts. */
@@ -265,6 +307,8 @@ export class ChunkHost {
   stop() {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
+    if (this.draining !== null) clearTimeout(this.draining);
+    this.draining = null;
   }
 
   // -------------------------------------------------------------------------------------------
@@ -293,12 +337,17 @@ export class ChunkHost {
     }
     switch (message.op) {
       case Op.Generate:
-        this.generate(message.cx, message.cy, message.seed, message.space);
+        if (this.deferGenerates && !this.chunks.has(spaceChunkKey(message.space, message.cx, message.cy))) {
+          this.pending.set(spaceChunkKey(message.space, message.cx, message.cy), message);
+          this.drain();
+        } else this.generate(message.cx, message.cy, message.seed, message.space);
         break;
       case Op.Load:
+        this.pending.delete(spaceChunkKey(message.space, message.cx, message.cy));
         this.load(message.cx, message.cy, message.bytes, message.space);
         break;
       case Op.Unload: {
+        this.need(spaceChunkKey(message.space, message.cx, message.cy));
         const bytes = this.unload(message.cx, message.cy, message.space);
         if (bytes && connection) connection.transport.send(encodeUnloaded(message.cx, message.cy, bytes, message.space), true);
         break;
@@ -369,6 +418,11 @@ export class ChunkHost {
       this.module.restored?.(world, { tick: this.tickCount, space, cx, cy, generated: true });
     }
     this.ready(key);
+    // Watched hot while it was queued: its static data could not go out then.
+    for (const connection of this.connections) {
+      const sub = connection.subscriptions.get(key);
+      if (sub) this.subscribe(connection, space, cx, cy, sub.tier, sub.snapshotEvery);
+    }
   }
 
   load(cx: number, cy: number, bytes: Uint8Array, space = 0) {
@@ -603,6 +657,7 @@ export class ChunkHost {
     for (const [target, eids] of leaving) {
       const tx = chunkX(target);
       const ty = chunkY(target);
+      this.need(target);
       const local = this.chunks.get(target);
       if (local) {
         const rows = takeRows(world, components, eids);
@@ -640,6 +695,7 @@ export class ChunkHost {
     sourceChunk?: Chunk
   ) {
     const key = spaceChunkKey(space, cx, cy);
+    this.need(key);
     const chunk = this.chunks.get(key);
     if (!chunk) {
       // The chunk moved or was never here. Forward it if someone else owns it, else send it back.
@@ -722,6 +778,7 @@ export class ChunkHost {
       reply(applied);
       return;
     }
+    this.need(spaceChunkKey(message.space, message.cx, message.cy));
     const chunk = this.chunks.get(spaceChunkKey(message.space, message.cx, message.cy));
     if (!chunk) {
       this.log(1, `Trip ${message.txn} arrived for a chunk this host doesn't hold`);
@@ -767,7 +824,7 @@ const hasPosition = (world: World, component: any, eid: number) =>
  * synchronously at the top level of the worker module so no early message is missed.
  */
 export const runChunkHostWorker = (module: ChunkModule) => {
-  const host = new ChunkHost(module);
+  const host = new ChunkHost(module, { deferGenerates: true });
   const scope = globalThis as unknown as Parameters<typeof portTransport>[0];
   const upstream = portTransport(scope, (data) => {
     const control = data as { type?: string; peers?: { index: number; port: MessagePort }[] };

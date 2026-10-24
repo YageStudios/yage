@@ -116,6 +116,36 @@ describe("ChunkHost", () => {
     expect(gidsIn(host, 0, 0)).toEqual([]);
   });
 
+  test("with deferred generates, runs hot chunks first, ticks between, and generates a queued chunk an entity walks into", () => {
+    const generated: string[] = [];
+    const module = testModule({ "0,0": [], "1,0": [{ x: 1, y: 50, vx: -10, gid: 7 }], "2,0": [] });
+    const generate = module.generate.bind(module);
+    module.generate = (seed, cx, cy, space) => {
+      generated.push(`${cx},${cy}`);
+      return generate(seed, cx, cy, space);
+    };
+    module.staticData = (_world, cx, cy) => new Uint8Array([cx, cy]);
+    const host = new ChunkHost(module, { deferGenerates: true });
+    const client = connect(host);
+    client.send(encodeGenerate(0, 0, 1));
+    client.send(encodeGenerate(1, 0, 1));
+    client.send(encodeGenerate(2, 0, 1));
+    client.send(encodeTier(1, 0, Tier.Hot, 1));
+    expect(generated).toEqual([]);
+    expect(client.all(Op.Ready)).toEqual([]);
+    expect(host.generateNext()).toBe(2);
+    expect(generated).toEqual(["1,0"]);
+    expect(client.last(Op.Ready)).toMatchObject({ cx: 1, cy: 0 });
+    // Watched hot before it existed: its static data goes out once it does.
+    expect(client.all(Op.Static).map((m) => [m.cx, m.cy])).toEqual([[1, 0]]);
+    host.tick();
+    expect(generated).toEqual(["1,0", "0,0"]);
+    expect(positionOf(host, 7)).toMatchObject({ cx: 0, cy: 0 });
+    expect(host.generateNext()).toBe(0);
+    expect(generated).toEqual(["1,0", "0,0", "2,0"]);
+    host.stop();
+  });
+
   test("an entity inside the overlap margin stays in its chunk", () => {
     const host = new ChunkHost(testModule({ "0,0": [{ x: 99, y: 50, vx: 3, gid: 7 }], "1,0": [] }));
     const client = connect(host);
