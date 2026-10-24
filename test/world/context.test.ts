@@ -198,3 +198,22 @@ test("throwing companion cleanup still frees storage and cannot run twice", () =
   expect(calls).toBe(2);
   freed.mockRestore();
 });
+
+test("failed initialization preserves both errors when cleanup also fails", () => {
+  const freed = vi.spyOn(ecs, "deleteWorld");
+  const initialization = new Error("initialization failed");
+  const cleanup = new Error("cleanup failed");
+  const shape = leanWorldType({ context: {
+    components: [Memory],
+    initialize() { throw initialization; },
+    dispose() { throw cleanup; },
+  } });
+  const before = freed.mock.calls.length;
+  let failure: unknown;
+  try { shape.create(1); } catch (error) { failure = error; }
+  expect(failure).toBeInstanceOf(AggregateError);
+  if (!(failure instanceof AggregateError)) throw new Error("Missing lifecycle errors");
+  expect(failure.errors).toEqual([initialization, cleanup]);
+  expect(freed.mock.calls.length - before).toBe(2);
+  freed.mockRestore();
+});

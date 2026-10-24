@@ -29,7 +29,13 @@ export const initializeWorldContext = (world: World, spec: WorldContextSpec): vo
     for (const schema of spec.components) addComponent(context, schema, entity);
     spec.initialize?.(context, entity);
   } catch (error) {
-    try { spec.dispose?.(context, entity); } finally { deleteEcsWorld(context); }
+    try {
+      spec.dispose?.(context, entity);
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], "yage world context: initialization and cleanup failed");
+    } finally {
+      deleteEcsWorld(context);
+    }
     throw error;
   }
   owner[CONTEXT] = { spec, world: context, entity, accessors: new Map() };
