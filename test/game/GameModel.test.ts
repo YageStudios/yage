@@ -4,6 +4,7 @@ import { GameModel } from "yage/game/GameModel";
 import { InputManager } from "yage/inputs/InputManager";
 import { PlayerEventManager } from "yage/inputs/PlayerEventManager";
 import { FIXED_TIMESTEP_MS } from "yage/game/Timing";
+import Description from "yage/schemas/core/Description";
 
 test("GameModel built in random", () => {
   const gameModel = GameModel({
@@ -55,4 +56,18 @@ test("GameModel random is deterministic", () => {
   expect(gameModel2.rand.int(10000)).toBe(3574);
   gameModel2.step();
   expect(gameModel2.rand.int(10000)).toBe(8669);
+});
+
+test("GameModel finds single entities (yage/world/single)", () => {
+  const gameModel = GameModel({
+    seed: "single",
+    roomId: "single",
+    world: createWorld(),
+    inputManager: new InputManager(),
+    playerEventManager: new PlayerEventManager(),
+  });
+  const eid = gameModel.addEntity();
+  gameModel.addComponent(Description, eid, { description: "the one" });
+  expect(gameModel.singleEntity(Description)).toBe(eid);
+  expect(gameModel.single(Description).description).toBe("the one");
 });

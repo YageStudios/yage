@@ -45,6 +45,7 @@ import { DoNotEject } from "yage/schemas/entity/DoNotEject";
 import { UiCleanupOnLeave } from "yage/schemas/render/UiCleanupOnLeave";
 import { FIXED_TIMESTEP_MS } from "yage/game/Timing";
 import { assertNoNullableTypedColumns } from "yage/world/columns";
+import { single, singleEntity, type SingleKey } from "yage/world/single";
 
 // @ts-expect-error - MineCS doesn't have a type for this
 type EntityWithComponent<T extends Schema> = number & { __hasComponent: T["type"] };
@@ -106,6 +107,10 @@ export type GameModel = World & {
     reset?: boolean
   ) => void;
   getComponentActives: (type: string | typeof Schema) => number[];
+  /** The one entity holding `key` (a schema, or schemas it holds all of); throws on none or several (yage/world/single). */
+  singleEntity: (key: SingleKey) => number;
+  /** `schema`'s data on the one entity holding it; throws on none or several (yage/world/single). */
+  single: <T extends Schema>(schema: Constructor<T>) => T;
   getCategory: (type: string | typeof Schema) => ComponentCategory;
   getComponentsByCategory: (category: number, entity?: number) => (typeof Schema)[];
   removeComponent: <T extends Schema>(type: Constructor<T> | string, entity: number) => void;
@@ -887,6 +892,8 @@ export const GameModel = ({
       }
       return defineQuery([component])(world);
     },
+    singleEntity: (key: SingleKey) => singleEntity(world, key),
+    single: <T extends Schema>(schema: Constructor<T>) => single(world, schema),
     isActive: (entity: number) => {
       return entityExists(world, entity);
     },
