@@ -149,6 +149,7 @@
     "build:ui-final": "node scripts/build-ui-final.mjs",
     "test:ui-final": "node scripts/test-ui-final.mjs",
     "test:ui-final:browser": "node scripts/test-ui-final-browser.mjs",
+    "test:pixi-viewport:browser": "node scripts/test-pixi-viewport-browser.mjs",
     "demo:ui-final:offline": "node scripts/build-ui-final-demo.mjs",
     "demo:ui-final:airport": "node scripts/build-ui-final-airport-demo.mjs",
     "test:ui-final:html": "node scripts/test-ui-final-html-browser.mjs",

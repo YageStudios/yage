@@ -114,7 +114,8 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
     canvas.style.left = "0px";
     canvas.style.top = "0px";
 
-    PixiViewportSystem.pixiApp.renderer.resize(window.innerWidth, (window.innerWidth * 9) / 16);
+    // resizeTo sizes the app itself; otherwise start at the 16:9 letterbox size.
+    if (!options.resizeTo) PixiViewportSystem.pixiApp.renderer.resize(window.innerWidth, (window.innerWidth * 9) / 16);
 
     // @ts-ignore
     document.body.appendChild(PixiViewportSystem.pixiApp.view);
