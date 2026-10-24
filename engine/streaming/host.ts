@@ -187,6 +187,11 @@ export class ChunkHost {
   /** Committed campaign tick (every host has completed it) and how far past it this host may run. */
   committed = 0;
   maxLead = 0;
+  /**
+   * How fast the clock runs against wall time (Op.Speed): 1 real time, 2 twice as fast, 0 paused.
+   * Only the tick rate changes; each tick still covers 1 / tickRate seconds of game time.
+   */
+  speed = 1;
   /** Trip transactions already applied here, so a repeated Arrive adds nobody. */
   private readonly arrivals = new Map<number, number>();
 
@@ -219,9 +224,21 @@ export class ChunkHost {
 
   start() {
     if (this.timer) return;
-    const interval = 1000 / this.module.tickRate;
+    let interval = 1000 / this.module.tickRate;
     let due = performance.now();
+    let speed = this.speed;
     const loop = () => {
+      if (this.speed !== speed) {
+        // A new speed starts from now: no burst of catch-up ticks, no skipped ones.
+        speed = this.speed;
+        due = performance.now();
+      }
+      if (speed <= 0) {
+        // Paused: nothing steps, nothing is skipped; resume where it stopped.
+        this.timer = setTimeout(loop, 50);
+        return;
+      }
+      interval = 1000 / (this.module.tickRate * speed);
       if (!this.canTick()) {
         // Held by the campaign clock: wait for the slow host instead of skipping ahead.
         due = performance.now() + interval;
@@ -288,6 +305,9 @@ export class ChunkHost {
       }
       case Op.Tier:
         if (connection) this.subscribe(connection, message.space, message.cx, message.cy, message.tier, message.snapshotEvery);
+        break;
+      case Op.Speed:
+        this.speed = message.speed;
         break;
       case Op.Commit:
         this.committed = Math.max(this.committed, message.tick);

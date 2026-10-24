@@ -18,7 +18,7 @@
  */
 
 /** Wire format version. Bump on any layout change. */
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
 
 export enum Op {
   // client -> host
@@ -38,6 +38,8 @@ export enum Op {
   Commit = 11,
   /** client -> host: entity rows of a trip arriving in a chunk (possibly in another space). */
   Arrive = 12,
+  /** client -> host: how fast the host's clock runs against wall time (0 pauses it). Added in v5. */
+  Speed = 13,
   // host -> client
   Snapshot = 20,
   Stats = 21,
@@ -260,6 +262,10 @@ export const encodeRoute = (self: number, entries: readonly RouteEntry[]) => {
  * ticks past it (0: unbounded), so a slow host holds the others back instead of them racing
  * ahead and committing trips or totals against a timeline the slow host hasn't reached.
  */
+/** Clock speed for a host: 1 is real time, 2 twice as fast, 0 paused (hundredths, up to 655). */
+export const encodeSpeed = (speed: number) =>
+  new ByteWriter(4).u8(Op.Speed).u8(0).u16(Math.max(0, Math.min(65535, Math.round(speed * 100)))).finish();
+
 export const encodeCommit = (tick: number, maxLead: number) =>
   new ByteWriter(8).u8(Op.Commit).u8(0).u16(maxLead).u32(tick).finish();
 
@@ -469,6 +475,7 @@ export type Message =
   | { op: Op.Track; gids: number[] }
   | { op: Op.Route; self: number; entries: RouteEntry[] }
   | { op: Op.Commit; tick: number; maxLead: number }
+  | { op: Op.Speed; speed: number }
   | ({ op: Op.Transfer } & TransferMessage)
   | ({ op: Op.Depart } & DepartMessage)
   | ({ op: Op.Arrive } & ArriveMessage)
@@ -521,6 +528,10 @@ export const decodeMessage = (bytes: Uint8Array): Message => {
       const entries: RouteEntry[] = [];
       for (let i = 0; i < count; i++) entries.push({ space: reader.u16(), cx: reader.i16(), cy: reader.i16(), host: reader.i16() });
       return { op, self, entries };
+    }
+    case Op.Speed: {
+      reader.u8();
+      return { op, speed: reader.u16() / 100 };
     }
     case Op.Commit: {
       reader.u8();

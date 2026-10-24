@@ -14,6 +14,7 @@ import {
   decodeMessage,
   encodeArrive,
   encodeCommit,
+  encodeSpeed,
   encodeConfig,
   encodeHello,
   encodeGenerate,
@@ -163,6 +164,7 @@ export class ChunkPool {
     transport.send(encodeHello());
     transport.send(encodeRoute(handle.index, []));
     if (this.maxLead > 0) transport.send(encodeCommit(this.committed, this.maxLead));
+    if (this.speed !== 1) transport.send(encodeSpeed(this.speed));
     if (this.tracked.length) transport.send(encodeTrack(this.tracked));
     if (this.lastConfig) transport.send(encodeConfig(this.lastConfig));
     return handle.index;
@@ -294,6 +296,15 @@ export class ChunkPool {
 
   // -------------------------------------------------------------------------------------------
   // Campaign clock
+
+  /** How fast every host's clock runs: 1 real time, 2 twice as fast, 0 paused (see ChunkHost.speed). */
+  speed = 1;
+
+  setSpeed(speed: number) {
+    this.speed = Math.max(0, speed);
+    const message = encodeSpeed(this.speed);
+    for (const host of this.hosts) host.transport.send(message);
+  }
 
   /** Bounds how far any host may run past the committed tick (0 lets each keep its own time). */
   setMaxLead(maxLead: number) {
