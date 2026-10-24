@@ -103,4 +103,5 @@ export const deserializeLeanWorld = (payload: ArrayBuffer | ArrayBufferView | st
   leanWorldType(spec).deserialize(payload);
 
 export { isComponentRegistered, serializeWorld, SerialMode, stepWorld, stepWorldDraw } from "minecs";
+export { saveWorld, savedQueryKeys } from "./save";
 export type { CreateWorldOptions };

@@ -16,8 +16,9 @@
  * With a committed campaign tick (Commit) the host never runs more than `maxLead` ticks ahead of
  * the slowest host, so every host's work is on one timeline.
  */
-import { deserializeWorld, SerialMode, serializeWorld, type Schema, type World } from "minecs";
+import { deserializeWorld, SerialMode, type Schema, type World } from "minecs";
 import { deleteWorld, leanWorldType, type LeanWorldSpec, type LeanWorldType } from "../world/lean";
+import { saveWorld } from "../world/save";
 import { chunkHash, chunkX, chunkY, spaceChunkKey } from "./coord";
 import {
   createSnapshot,
@@ -460,7 +461,7 @@ export class ChunkHost {
     const key = spaceChunkKey(space, cx, cy);
     const chunk = this.chunks.get(key);
     if (!chunk) return null;
-    const payload = serializeWorld(SerialMode.BINARY, chunk.world) as ArrayBuffer;
+    const payload = saveWorld(SerialMode.BINARY, chunk.world);
     deleteWorld(chunk.world);
     this.chunks.delete(key);
     this.route.delete(key);
