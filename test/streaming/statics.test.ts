@@ -118,6 +118,30 @@ describe("ChunkScene static instances", () => {
     plain.destroy();
   });
 
+  it("built when seen, builds each instance the first time a cull finds it in view, occluder included", () => {
+    const scene = new ChunkScene({ chunkSize: 100, style, roofDepth: true, buildStatics: "seen" });
+    const built: string[] = [];
+    scene.setStatics(0, 0, [spec("near", 10, 10, 0, built), spec("far", 90, 90, 0, built)]);
+    expect(built).toEqual([]);
+    const near = scene.statics.items.get("near")!;
+    expect(near.bounds.maxX).toBeGreaterThan(0);
+    expect(scene.statics.at(10, 10).map((i) => i.spec.id)).toEqual(["near"]);
+    scene.statics.setTint(0x808080);
+    scene.update({ minX: 0, minY: 0, maxX: 30, maxY: 30 });
+    expect(built).toEqual(["near"]);
+    expect(near.under.visible).toBe(true);
+    expect(near.occluder).not.toBeNull();
+    expect(near.over.children).toContain(near.occluder);
+    expect((near.under.children[0] as PIXI.Sprite).tint).toBe(0x808080);
+    expect(scene.statics.items.get("far")!.under.visible).toBe(false);
+    scene.update(everywhere);
+    scene.update(everywhere);
+    expect(built).toEqual(["near", "far"]);
+    scene.remove(0, 0);
+    expect(scene.statics.items.size).toBe(0);
+    scene.destroy();
+  });
+
   it("gives every roof point the depth of the footprint's near edge straight below it", () => {
     for (const angle of [0, 0.3, Math.PI / 4, 1.2, Math.PI / 2, 2.5, Math.PI, -0.7]) {
       const w = 40;

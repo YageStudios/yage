@@ -647,6 +647,12 @@ export type ChunkSceneOptions = {
    * over its roof and people inside stay under it. Drop shadows and glows are depth-tested too.
    */
   roofDepth?: boolean;
+  /**
+   * When static instances build their parts: "listed" (default) as soon as a chunk lists them,
+   * "seen" the first time one is in view, so a streamed-in ring of chunks costs nothing until the
+   * camera reaches it.
+   */
+  buildStatics?: "listed" | "seen";
 };
 
 type ChunkView = {
@@ -687,7 +693,7 @@ export class ChunkScene {
 
   constructor(options: ChunkSceneOptions) {
     this.options = options;
-    this.statics = new StaticSet(this.staticRoot, this.overRoot, !!options.roofDepth);
+    this.statics = new StaticSet(this.staticRoot, this.overRoot, !!options.roofDepth, options.buildStatics === "seen");
     this.entities = new LayerKind(options.style);
     const props = options.props ? (Array.isArray(options.props) ? options.props : [options.props]) : [];
     this.propKinds = props.map((style: ChunkLayerStyle) => new LayerKind(style));

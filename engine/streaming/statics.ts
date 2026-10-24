@@ -196,7 +196,28 @@ export class StaticSet {
     private readonly overRoot: PIXI.Container,
     /** Give every over part a depth occluder (ChunkScene's `roofDepth`). */
     private readonly occlude = false,
+    /**
+     * Build an instance's parts the first time a cull finds it in view instead of when it is first
+     * listed (ChunkScene's `buildStatics: "seen"`): instances never looked at cost nothing.
+     */
+    private readonly lazy = false,
   ) {}
+
+  /** Listed instances whose parts are not built yet (lazy only). */
+  private readonly unbuilt = new Set<StaticInstance>();
+
+  private build(item: StaticInstance) {
+    const parts = item.spec.build();
+    if (parts.under) item.under.addChild(parts.under);
+    if (parts.over) item.over.addChild(parts.over);
+    tintTree(item.under, this.tint);
+    tintTree(item.over, this.tint);
+    if (this.occlude && parts.over) {
+      const occluder = occluderMesh(item.spec.w, item.spec.h, item.spec.angle);
+      item.over.addChild(occluder);
+      (item as { occluder: PIXI.Mesh<PIXI.Shader> | null }).occluder = occluder;
+    }
+  }
 
   /** Replaces the instances listed by chunk `key`. */
   list(key: number, specs: readonly StaticSpec[]) {
@@ -207,28 +228,23 @@ export class StaticSet {
     for (const spec of specs) {
       let item = this.items.get(spec.id);
       if (!item) {
-        const parts = spec.build();
         const under = new PIXI.Container();
         const over = new PIXI.Container();
-        if (parts.under) under.addChild(parts.under);
-        if (parts.over) over.addChild(parts.over);
         place(under, spec);
         place(over, spec);
         if (spec.z) {
           over.zIndex = spec.z;
           this.overRoot.sortableChildren = true;
         }
-        tintTree(under, this.tint);
-        tintTree(over, this.tint);
-        let occluder: PIXI.Mesh<PIXI.Shader> | null = null;
-        if (this.occlude && parts.over) {
-          occluder = occluderMesh(spec.w, spec.h, spec.angle);
-          over.addChild(occluder);
-        }
         this.underRoot.addChild(under);
         this.overRoot.addChild(over);
-        item = { spec, under, over, occluder, bounds: rotatedBounds(spec.x, spec.y, spec.w, spec.h, spec.angle), holders: new Set() };
+        item = { spec, under, over, occluder: null, bounds: rotatedBounds(spec.x, spec.y, spec.w, spec.h, spec.angle), holders: new Set() };
         this.items.set(spec.id, item);
+        if (this.lazy) {
+          // Hidden until a cull sees it and builds it.
+          under.visible = over.visible = false;
+          this.unbuilt.add(item);
+        } else this.build(item);
       }
       item.holders.add(key);
     }
@@ -245,6 +261,7 @@ export class StaticSet {
     item.under.destroy({ children: true });
     item.over.destroy({ children: true });
     this.items.delete(item.spec.id);
+    this.unbuilt.delete(item);
   }
 
   /** Instances whose local rectangle contains the world point. */
@@ -264,6 +281,7 @@ export class StaticSet {
     for (const item of this.items.values()) {
       const b = item.bounds;
       const visible = b.maxX >= view.minX && b.minX <= view.maxX && b.maxY >= view.minY && b.minY <= view.maxY;
+      if (visible && this.unbuilt.delete(item)) this.build(item);
       item.under.visible = visible;
       item.over.visible = visible && item.over.children.length > 0;
       // A faded roof (someone inside) shows the people under it.
@@ -286,5 +304,6 @@ export class StaticSet {
       item.over.destroy({ children: true });
     }
     this.items.clear();
+    this.unbuilt.clear();
   }
 }
