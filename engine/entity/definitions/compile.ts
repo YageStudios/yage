@@ -4,6 +4,7 @@ import type { DependencyResolver } from "./order";
 import { orderComponents } from "./order";
 import type { ComponentData, EntityDefinition, EnumResolver, ValueContext } from "./types";
 import { hasDynamicValues, mapDefinitionValues } from "./values";
+import { addEntities } from "../../world/spawn";
 
 export type ComponentOverrides = Record<string, Record<string, unknown> | ((data: Record<string, unknown>) => Record<string, unknown>)>;
 
@@ -43,6 +44,13 @@ export interface CompiledEntity {
   apply(world: World, eid: number, ctx?: SpawnContext): void;
   /** addEntity, apply, then spawns children (with Child.parent set). Returns the root eid. */
   spawn(world: World, ctx?: SpawnContext): number;
+  /**
+   * spawn() `count` times and returns the root eids in order; `each` runs per entity once its
+   * components are in. A definition with static, flat-numeric data and no children (and overrides
+   * that are objects, not functions) spawns in bulk through yage/world/spawn's addEntities, where
+   * systems' init hooks see the whole entity; anything else spawns one by one.
+   */
+  spawnMany(world: World, count: number, ctx?: SpawnContext, each?: (eid: number, index: number) => void): number[];
 }
 
 const isPlainFlat = (data: Record<string, unknown>) => {
@@ -131,12 +139,32 @@ export const compileEntityDefinition = (definition: EntityDefinition, options: C
     return eid;
   };
 
+  const spawnMany = (world: World, count: number, ctx?: SpawnContext, each?: (eid: number, index: number) => void): number[] => {
+    const overrides = ctx?.overrides;
+    const bulk = !children.length && plans.every((p) => p.flat && typeof overrides?.[p.type] !== "function");
+    if (!bulk) {
+      const eids: number[] = [];
+      for (let i = 0; i < count; i++) {
+        const eid = spawnWith(world, ctx);
+        eids.push(eid);
+        each?.(eid, i);
+      }
+      return eids;
+    }
+    const components = plans.map((plan) => {
+      const override = overrides?.[plan.type] as Record<string, unknown> | undefined;
+      return { schema: plan.schema, data: override ? { ...plan.template, ...override } : plan.template };
+    });
+    return addEntities(world, count, components, { each });
+  };
+
   const compiled: CompiledInternal = {
     name: definition.name,
     definition,
     components: plans.map(({ type, schema, dynamic }) => ({ type, schema, dynamic })),
     apply: (world, eid, ctx) => apply(world, eid, ctx),
     spawn: (world, ctx) => spawnWith(world, ctx),
+    spawnMany,
     spawnUnder: (world, parent, ctx) => spawnWith(world, ctx === undefined ? undefined : { ...ctx, overrides: undefined }, parent),
   };
   return compiled;

@@ -162,6 +162,8 @@ JSON5 entity files import the same way in Web Workers: `yage()` adds its JSON5 t
 
 Lean worlds register only the components and systems you list instead of everything loaded: `const Chunk = leanWorldType({ systems: [MoveSystem], components: [Extra] })` from `yage/world/lean` (the components each system queries are added for you), then `Chunk.create()` and `Chunk.deserialize(bytes)`. A streaming `ChunkModule` takes the same type as `world` so loaded chunks come back lean. `yage/game/LeanGameModel` wraps a lean world in GameModel-style accessors (`createLeanGameModel({ world, roomId })`, `step`/`stepDraw`/`run`, `paused`) for scenes that bring their own systems; neither imports `yage/systems`, physics or the entity factory.
 
+To spawn many entities alike, `addEntities(world, count, [Pos, { schema: Life, data: { role: 2 } }])` from `yage/world/spawn` validates the data once, fills each column per run of ids and joins queries per entity (about 9x faster than addComponent per component for flat numeric schemas); a compiled definition's `spawnMany(world, count, ctx?, each?)` uses it. Systems' `init` hooks see the whole entity. Non-numeric fields, delta-tracked worlds and dynamic values fall back to addComponent.
+
 ```json5
 // player.json5
 {
