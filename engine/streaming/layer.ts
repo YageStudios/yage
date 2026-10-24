@@ -762,8 +762,13 @@ export class ChunkScene {
     return view;
   }
 
-  private createLayer(kind: LayerKind, cx: number, cy: number) {
-    const layer = new ChunkLayer(kind, this.options.chunkSize, this.options.snapshotInterval ?? 50);
+  /** An independently owned pawn layer for scene-authored figures, using this scene's style. */
+  createPawnLayer(cx: number, cy: number, expectedInterval = 50) {
+    return this.createLayer(this.entities, cx, cy, expectedInterval);
+  }
+
+  private createLayer(kind: LayerKind, cx: number, cy: number, expectedInterval = this.options.snapshotInterval ?? 50) {
+    const layer = new ChunkLayer(kind, this.options.chunkSize, expectedInterval);
     layer.setPosition(cx * this.options.chunkSize, cy * this.options.chunkSize);
     if (this.options.roofDepth) for (const pass of [layer.shadow, layer.glow]) if (pass) pass.state.depthTest = true;
     if (layer.shadow) this.shadowRoot.addChild(layer.shadow);
