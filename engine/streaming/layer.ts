@@ -448,7 +448,9 @@ class LayerKind {
     this.shared.uniforms.uLight = new Float32Array(light);
     this.shared.update();
     if (this.shadowShared) {
-      this.shadowShared.uniforms.uShadowAlpha = (this.style.shadow!.alpha ?? 0.3) * shadow;
+      const configuration = this.style.shadow;
+      if (!configuration) throw new Error("Chunk shadow uniforms require a shadow style");
+      this.shadowShared.uniforms.uShadowAlpha = (configuration.alpha ?? 0.3) * shadow;
       this.shadowShared.update();
     }
   }
@@ -508,22 +510,26 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     edgeState.blend = true;
     this.edges = new PIXI.Mesh(geometry, kind.shader(true), edgeState);
     if (kind.shadowProgram) {
+      const shared = kind.shadowShared;
+      if (!shared) throw new Error("Chunk shadow program requires shared uniforms");
       const shadowState = PIXI.State.for2d();
       shadowState.depthTest = false;
       shadowState.depthMask = false;
       shadowState.blend = true;
-      this.shadow = new PIXI.Mesh(geometry, new PIXI.Shader(kind.shadowProgram, { uAlpha: 1, shared: kind.shadowShared! }), shadowState);
+      this.shadow = new PIXI.Mesh(geometry, new PIXI.Shader(kind.shadowProgram, { uAlpha: 1, shared }), shadowState);
     } else {
       this.shadow = null;
     }
     if (kind.glowProgram) {
+      const shared = kind.glowShared;
+      if (!shared) throw new Error("Chunk glow program requires shared uniforms");
       const glowState = PIXI.State.for2d();
       glowState.depthTest = false;
       glowState.depthMask = false;
       glowState.blend = true;
       // Additive: halos read as light, and overlapping halos in a crowd brighten together.
       glowState.blendMode = PIXI.BLEND_MODES.ADD;
-      this.glow = new PIXI.Mesh(geometry, new PIXI.Shader(kind.glowProgram, { uAlpha: 1, uAtlas: kind.style.atlas, shared: kind.glowShared! }), glowState);
+      this.glow = new PIXI.Mesh(geometry, new PIXI.Shader(kind.glowProgram, { uAlpha: 1, uAtlas: kind.style.atlas, shared }), glowState);
     } else {
       this.glow = null;
     }
