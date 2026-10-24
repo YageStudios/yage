@@ -30,6 +30,7 @@ import type { InputManager } from "yage/inputs/InputManager";
 import { FIXED_TIMESTEP_MS } from "yage/game/Timing";
 import { isGamePaused } from "yage/game/pause";
 import { deleteWorld, leanWorldType, type LeanWorldSpec, type LeanWorldType } from "yage/world/lean";
+import { single, singleEntity, type SingleKey } from "yage/world/single";
 
 type SchemaRef<T extends Schema = Schema> = Constructor<T> | string;
 
@@ -65,6 +66,10 @@ export type LeanGameModel = World & {
   getComponentActives(type: SchemaRef): number[];
   getSystem<T extends typeof SystemImpl<any>>(system: T): InstanceType<T>;
   getSystemsByType(type: SchemaRef, entity?: number): SystemImpl<any>[];
+  /** The one entity holding `key` (a schema, or schemas it holds all of); throws on none or several (yage/world/single). */
+  singleEntity(key: SingleKey): number;
+  /** `schema`'s data on the one entity holding it; throws on none or several (yage/world/single). */
+  single<T extends Schema>(schema: Constructor<T>): T;
   destroy(): void;
 };
 
@@ -154,6 +159,8 @@ export const createLeanGameModel = (options: LeanGameModelOptions = {}): LeanGam
       );
       return entity === undefined ? systems : systems.filter((system) => system.query.has(world, entity));
     },
+    singleEntity: (key: SingleKey) => singleEntity(world, key),
+    single: <T extends Schema>(schema: Constructor<T>) => single(world, schema),
     destroy() {
       if (model.destroyed) return;
       // Remove entities first (newest first, like GameModel) so systems' cleanup hooks run.
