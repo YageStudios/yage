@@ -7,7 +7,7 @@
  * (before its hand-off lands) still draws in the right order. Ground layers draw first and don't
  * touch the depth buffer.
  *
- * Draw order: ground, soft drop shadows (blended, no depth), opaque sprite cores (depth-tested and
+ * Draw order: ground, (depth-sorted roofs, see `roofDepth`), soft drop shadows (blended, no depth), opaque sprite cores (depth-tested and
  * written), then the sprites' anti-aliased edges (blended, depth-tested, not written) so smooth
  * art keeps soft outlines without sorting. Static props (trees, lamps…) use the same machinery
  * with their own atlas, so people walk behind and in front of them correctly.
@@ -203,7 +203,9 @@ void main() {
   vLocal = vec2(aCorner.x, aCorner.y + 0.5) * 2.0;
   mat3 m = projectionMatrix * translationMatrix;
   vec3 clip = m * vec3(foot + (vLocal * 0.5 * uShadowSize + uShadowOffset) * grow, 1.0);
-  gl_Position = vec4(clip.xy, 0.0, 1.0);
+  // The feet's depth: only tested with depth-sorted roofs (a roof hides the shadows behind it).
+  vec3 clipFoot = m * vec3(foot, 1.0);
+  gl_Position = vec4(clip.xy, clamp(clipFoot.y * 0.5, -0.999, 0.999), 1.0);
 }
 `;
 
@@ -280,7 +282,8 @@ void main() {
   vec2 corner = aCorner * (1.0 + 2.0 * margin) + vec2(0.0, -margin.y);
   mat3 m = projectionMatrix * translationMatrix;
   vec3 clip = m * vec3(foot + posedOf(corner, size), 1.0);
-  gl_Position = vec4(clip.xy, 0.0, 1.0);
+  vec3 clipFoot = m * vec3(foot, 1.0);
+  gl_Position = vec4(clip.xy, clamp(clipFoot.y * 0.5, -0.999, 0.999), 1.0);
   float column = floor(mod(aSprite + 0.5, uGrid.x));
   vec2 cell = vec2(column, floor((aSprite + 0.5) / uGrid.x));
   vUv = (cell + vec2(corner.x + 0.5, corner.y + 1.0)) / uGrid;
@@ -648,6 +651,12 @@ export type ChunkSceneOptions = {
   props?: ChunkLayerStyle | readonly ChunkLayerStyle[];
   /** Expected milliseconds between snapshots, used until real arrivals are measured. */
   snapshotInterval?: number;
+  /**
+   * Depth-sorted roofs: static instances' over parts draw before the sprites, each hiding the
+   * sprites behind its near edge by depth (see statics.ts), so people in front of a building draw
+   * over its roof and people inside stay under it. Drop shadows and glows are depth-tested too.
+   */
+  roofDepth?: boolean;
 };
 
 type ChunkView = {
@@ -680,7 +689,7 @@ export class ChunkScene {
   /** Static instances' upper parts (roofs), over every sprite. */
   readonly overRoot = new PIXI.Container();
   /** Static instances placed at any position and angle; see `setStatics`. */
-  readonly statics = new StaticSet(this.staticRoot, this.overRoot);
+  readonly statics: StaticSet;
   readonly views = new Map<number, ChunkView>();
   private readonly entities: LayerKind;
   private readonly propKinds: LayerKind[];
@@ -688,10 +697,12 @@ export class ChunkScene {
 
   constructor(options: ChunkSceneOptions) {
     this.options = options;
+    this.statics = new StaticSet(this.staticRoot, this.overRoot, !!options.roofDepth);
     this.entities = new LayerKind(options.style);
     const props = options.props ? (Array.isArray(options.props) ? options.props : [options.props]) : [];
     this.propKinds = props.map((style: ChunkLayerStyle) => new LayerKind(style));
-    this.root.addChild(this.groundRoot, this.decalRoot, this.staticRoot, this.shadowRoot, this.entityRoot, this.edgeRoot, this.overRoot);
+    if (options.roofDepth) this.root.addChild(this.groundRoot, this.decalRoot, this.staticRoot, this.overRoot, this.shadowRoot, this.entityRoot, this.edgeRoot);
+    else this.root.addChild(this.groundRoot, this.decalRoot, this.staticRoot, this.shadowRoot, this.entityRoot, this.edgeRoot, this.overRoot);
   }
 
   setPalette(palette: number[]) {
@@ -758,6 +769,7 @@ export class ChunkScene {
   private createLayer(kind: LayerKind, cx: number, cy: number) {
     const layer = new ChunkLayer(kind, this.options.chunkSize, this.options.snapshotInterval ?? 50);
     layer.setPosition(cx * this.options.chunkSize, cy * this.options.chunkSize);
+    if (this.options.roofDepth) for (const pass of [layer.shadow, layer.glow]) if (pass) pass.state.depthTest = true;
     if (layer.shadow) this.shadowRoot.addChild(layer.shadow);
     if (layer.glow) this.shadowRoot.addChild(layer.glow);
     this.entityRoot.addChild(layer);

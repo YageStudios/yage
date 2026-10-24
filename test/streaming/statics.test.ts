@@ -4,7 +4,7 @@ vi.unmock("pixi.js");
 import * as PIXI from "pixi.js";
 import { describe, expect, it } from "vitest";
 import { ChunkScene, type ChunkLayerStyle } from "yage/streaming/layer";
-import { fillPolygon, meshGeometry, type StaticSpec } from "yage/streaming/statics";
+import { fillPolygon, meshGeometry, occluderSlabs, type StaticSpec } from "yage/streaming/statics";
 import { meshArea, strokePolyline } from "yage/streaming/vector";
 
 HTMLCanvasElement.prototype.getContext = (() => null) as never;
@@ -94,6 +94,66 @@ describe("ChunkScene static instances", () => {
     const order = scene.overRoot.children.map((c) => [...scene.statics.items.values()].find((i) => i.over === c)!.spec.id);
     expect(order).toEqual(["shed", "barn", "walkup", "tower"]);
     scene.destroy();
+  });
+
+  it("with depth-sorted roofs draws over parts before the sprites, each with an occluder that a faded roof drops", () => {
+    const scene = new ChunkScene({ chunkSize: 100, style, roofDepth: true });
+    const roots = scene.root.children;
+    expect(roots.indexOf(scene.staticRoot)).toBeLessThan(roots.indexOf(scene.overRoot));
+    expect(roots.indexOf(scene.overRoot)).toBeLessThan(roots.indexOf(scene.shadowRoot));
+    expect(roots.indexOf(scene.overRoot)).toBeLessThan(roots.indexOf(scene.entityRoot));
+    scene.setStatics(0, 0, [spec("house", 20, 20, 0.4)]);
+    const house = scene.statics.items.get("house")!;
+    expect(house.occluder).not.toBeNull();
+    expect(house.over.children).toContain(house.occluder);
+    scene.update(everywhere);
+    expect(house.occluder!.visible).toBe(true);
+    house.over.alpha = 0.1;
+    scene.update(everywhere);
+    expect(house.occluder!.visible).toBe(false);
+    scene.destroy();
+    const plain = new ChunkScene({ chunkSize: 100, style });
+    plain.setStatics(0, 0, [spec("house", 20, 20)]);
+    expect(plain.statics.items.get("house")!.occluder).toBeNull();
+    plain.destroy();
+  });
+
+  it("gives every roof point the depth of the footprint's near edge straight below it", () => {
+    for (const angle of [0, 0.3, Math.PI / 4, 1.2, Math.PI / 2, 2.5, Math.PI, -0.7]) {
+      const w = 40;
+      const h = 20;
+      const c = Math.cos(angle);
+      const s = Math.sin(angle);
+      const toWorld = (p: { x: number; y: number }) => ({ x: p.x * c - p.y * s, y: p.x * s + p.y * c });
+      const corners = [toWorld({ x: 0, y: 0 }), toWorld({ x: w, y: 0 }), toWorld({ x: w, y: h }), toWorld({ x: 0, y: h })];
+      // The footprint's lowest-on-screen point at world x: where its edges cross that column.
+      const bottom = (x: number) => {
+        let best = -Infinity;
+        for (let i = 0; i < 4; i++) {
+          const a = corners[i];
+          const b = corners[(i + 1) % 4];
+          if (x < Math.min(a.x, b.x) - 1e-3 || x > Math.max(a.x, b.x) + 1e-3) continue;
+          if (Math.abs(b.x - a.x) < 1e-3) best = Math.max(best, a.y, b.y);
+          else best = Math.max(best, a.y + ((b.y - a.y) * (x - a.x)) / (b.x - a.x));
+        }
+        return best;
+      };
+      const slabs = occluderSlabs(w, h, angle);
+      expect(slabs.length).toBeGreaterThan(0);
+      let area = 0;
+      for (const slab of slabs) {
+        const pts = slab.corners.map(toWorld);
+        for (let k = 0; k < 4; k++) {
+          const near = toWorld(slab.near[k]);
+          expect(near.x).toBeCloseTo(pts[k].x, 4);
+          expect(near.y).toBeGreaterThanOrEqual(pts[k].y - 1e-6);
+          expect(Math.abs(near.y - bottom(near.x))).toBeLessThan(0.1);
+        }
+        for (let k = 0; k < 4; k++) area += (pts[k].x * pts[(k + 1) % 4].y - pts[(k + 1) % 4].x * pts[k].y) / 2;
+      }
+      // The slabs tile the footprint exactly.
+      expect(Math.abs(area)).toBeCloseTo(w * h, 3);
+    }
   });
 
   it("turns vector meshes into Pixi geometry", () => {

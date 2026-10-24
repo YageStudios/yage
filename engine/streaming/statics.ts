@@ -9,6 +9,12 @@
  *    stable id: it is built once, on its first listing, and destroyed when no chunk lists it.
  *    Each has an `under` part (floors, walls; under every sprite) and an optional `over` part
  *    (roofs; over every sprite, so it can fade when someone is inside).
+ *
+ * With depth-sorted roofs (ChunkScene's `roofDepth`) the `over` parts draw before the sprites
+ * instead, each with a depth occluder over its rectangle (`occluderMesh`): every point of the roof
+ * takes the depth of the footprint's near (screen-bottom) edge below it, so a sprite whose feet are
+ * nearer than that edge (someone on the pavement in front) draws over the roof and one whose feet
+ * are behind it (someone inside) stays hidden. A faded roof (alpha ≤ 0.6) drops its occluder.
  */
 import * as PIXI from "pixi.js";
 import { rotatedBounds, toLocal, type Point, type Rect, type VectorMesh } from "./vector";
@@ -54,6 +60,8 @@ export type StaticInstance = {
   readonly spec: StaticSpec;
   readonly under: PIXI.Container;
   readonly over: PIXI.Container;
+  /** The over part's depth occluder (depth-sorted roofs only). */
+  readonly occluder: PIXI.Mesh<PIXI.Shader> | null;
   readonly bounds: Rect;
   /** Chunk keys that list the instance. */
   readonly holders: Set<number>;
@@ -71,6 +79,113 @@ export const tintTree = (object: PIXI.DisplayObject, rgb: number) => {
   if (object instanceof PIXI.Container) for (const child of object.children) tintTree(child, rgb);
 };
 
+const occluderVertex = `
+attribute vec2 aVertexPosition;
+attribute vec2 aNear;
+uniform mat3 projectionMatrix;
+uniform mat3 translationMatrix;
+
+void main() {
+  mat3 m = projectionMatrix * translationMatrix;
+  vec3 clip = m * vec3(aVertexPosition, 1.0);
+  vec3 near = m * vec3(aNear, 1.0);
+  // The same depth a sprite with its feet at \`near\` gets (layer.ts): lower on screen is nearer.
+  gl_Position = vec4(clip.xy, clamp(near.y * 0.5, -0.999, 0.999), 1.0);
+}
+`;
+const occluderFragment = `
+precision mediump float;
+void main() {
+  gl_FragColor = vec4(0.0);
+}
+`;
+let occluderProgram: PIXI.Program | null = null;
+
+/**
+ * The depth-slab polygons of a w × h local rectangle turned by `angle` (world: local +x along
+ * (cos, sin)): the rectangle cut into vertical strips at its corners' x, each with its corners and,
+ * per corner, the point of the rectangle's lower (screen-bottom) edge straight below it. Local units.
+ */
+export const occluderSlabs = (w: number, h: number, angle: number) => {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  const world = [
+    [0, 0],
+    [w, 0],
+    [w, h],
+    [0, h],
+  ].map(([x, y]) => ({ x: x * c - y * s, y: x * s + y * c }));
+  const local = (p: Point): Point => ({ x: p.x * c + p.y * s, y: -p.x * s + p.y * c });
+  // Lowest and highest world y of the rectangle at world x.
+  const span = (x: number) => {
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let i = 0; i < 4; i++) {
+      const a = world[i];
+      const b = world[(i + 1) % 4];
+      const x0 = Math.min(a.x, b.x);
+      const x1 = Math.max(a.x, b.x);
+      if (x < x0 - 1e-6 || x > x1 + 1e-6) continue;
+      if (x1 - x0 < 1e-4) {
+        lo = Math.min(lo, a.y, b.y);
+        hi = Math.max(hi, a.y, b.y);
+        continue;
+      }
+      const y = a.y + ((b.y - a.y) * (x - a.x)) / (b.x - a.x);
+      lo = Math.min(lo, y);
+      hi = Math.max(hi, y);
+    }
+    return { lo, hi };
+  };
+  const xs = world.map((p) => p.x).sort((a, b) => a - b);
+  const slabs: { corners: Point[]; near: Point[] }[] = [];
+  for (let i = 0; i + 1 < xs.length; i++) {
+    const xa = xs[i];
+    const xb = xs[i + 1];
+    if (xb - xa < 1e-4) continue;
+    const a = span(xa);
+    const b = span(xb);
+    const corners = [
+      { x: xa, y: a.lo },
+      { x: xb, y: b.lo },
+      { x: xb, y: b.hi },
+      { x: xa, y: a.hi },
+    ];
+    const near = [
+      { x: xa, y: a.hi },
+      { x: xb, y: b.hi },
+      { x: xb, y: b.hi },
+      { x: xa, y: a.hi },
+    ];
+    slabs.push({ corners: corners.map(local), near: near.map(local) });
+  }
+  return slabs;
+};
+
+/** A depth-only mesh over a static's local rectangle; see the module notes. */
+export const occluderMesh = (w: number, h: number, angle: number) => {
+  occluderProgram ??= PIXI.Program.from(occluderVertex, occluderFragment, "yage-static-occluder");
+  const positions: number[] = [];
+  const near: number[] = [];
+  const indices: number[] = [];
+  for (const slab of occluderSlabs(w, h, angle)) {
+    const base = positions.length / 2;
+    for (let k = 0; k < 4; k++) {
+      positions.push(slab.corners[k].x, slab.corners[k].y);
+      near.push(slab.near[k].x, slab.near[k].y);
+    }
+    indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+  const geometry = new PIXI.Geometry().addAttribute("aVertexPosition", new Float32Array(positions), 2).addAttribute("aNear", new Float32Array(near), 2).addIndex(new Uint16Array(indices));
+  const state = PIXI.State.for2d();
+  state.depthTest = true;
+  state.depthMask = true;
+  state.blend = true;
+  const mesh = new PIXI.Mesh(geometry, new PIXI.Shader(occluderProgram, {}), state);
+  mesh.eventMode = "none";
+  return mesh;
+};
+
 /** The instances of a scene; see ChunkScene.setStatics. */
 export class StaticSet {
   readonly items = new Map<string | number, StaticInstance>();
@@ -79,6 +194,8 @@ export class StaticSet {
   constructor(
     private readonly underRoot: PIXI.Container,
     private readonly overRoot: PIXI.Container,
+    /** Give every over part a depth occluder (ChunkScene's `roofDepth`). */
+    private readonly occlude = false,
   ) {}
 
   /** Replaces the instances listed by chunk `key`. */
@@ -103,9 +220,14 @@ export class StaticSet {
         }
         tintTree(under, this.tint);
         tintTree(over, this.tint);
+        let occluder: PIXI.Mesh<PIXI.Shader> | null = null;
+        if (this.occlude && parts.over) {
+          occluder = occluderMesh(spec.w, spec.h, spec.angle);
+          over.addChild(occluder);
+        }
         this.underRoot.addChild(under);
         this.overRoot.addChild(over);
-        item = { spec, under, over, bounds: rotatedBounds(spec.x, spec.y, spec.w, spec.h, spec.angle), holders: new Set() };
+        item = { spec, under, over, occluder, bounds: rotatedBounds(spec.x, spec.y, spec.w, spec.h, spec.angle), holders: new Set() };
         this.items.set(spec.id, item);
       }
       item.holders.add(key);
@@ -144,6 +266,8 @@ export class StaticSet {
       const visible = b.maxX >= view.minX && b.minX <= view.maxX && b.maxY >= view.minY && b.minY <= view.maxY;
       item.under.visible = visible;
       item.over.visible = visible && item.over.children.length > 0;
+      // A faded roof (someone inside) shows the people under it.
+      if (item.occluder) item.occluder.visible = item.over.alpha > 0.6;
     }
   }
 
