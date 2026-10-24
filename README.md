@@ -156,6 +156,10 @@ QuickStart({
 
 Entities are defined in `.json5` files. The `EntityFactory` automatically registers these definitions, injects components, and loads associated assets (sprites, sounds, ui, maps).
 
+The definitions themselves live in a pure core, `yage/entity/definitions` (inheritance, `rand:`/`randint:`/`enum:`/`rgb:` value mapping, dependency ordering, a non-singleton `EntityDefinitionRegistry` and `compile(name)` spawners). It loads no assets and holds no global state, so workers and lean worlds use it directly; `EntityFactory` wraps it for `GameModel`.
+
+JSON5 entity files import the same way in Web Workers: `yage()` adds its JSON5 transform to `worker.plugins` (keeping any worker plugins you list, and skipping it if you already list `yageJson5()`). Dev servers and vitest need nothing extra. Use `worker: { format: "es" }` when a worker code-splits.
+
 ```json5
 // player.json5
 {

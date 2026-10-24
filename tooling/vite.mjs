@@ -94,6 +94,31 @@ export function yageJson5(options = {}) {
   };
 }
 
+const flatPlugins = async (plugins) => {
+  const out = [];
+  for (const plugin of await plugins) {
+    if (Array.isArray(plugin) || (plugin && typeof plugin.then === "function")) out.push(...(await flatPlugins(Array.isArray(plugin) ? plugin : [await plugin])));
+    else if (plugin) out.push(plugin);
+  }
+  return out;
+};
+
+/**
+ * Worker bundles (production builds) get only `worker.plugins`, not the main plugin list. Keep the
+ * caller's worker plugins and add the JSON5 transform once (skipped if they already list it), so
+ * `new Worker(new URL("./sim.worker.ts", import.meta.url), { type: "module" })` can import entity
+ * JSON5 the same way the page does. Dev servers and vitest already run the main plugins on workers.
+ */
+export function withWorkerJson5(userPlugins, options = {}) {
+  return () => [
+    (async () => {
+      const plugins = await flatPlugins(userPlugins?.() ?? []);
+      if (!plugins.some((plugin) => plugin?.name === "yage:json5")) plugins.push(yageJson5(options));
+      return plugins;
+    })(),
+  ];
+}
+
 /** Source-first by default; use source:false to exercise built/packed exports. */
 export function yage({ source = true, reload = true, json5 = true, hotReload = false } = {}) {
   const watchRoots = [join(engineRoot, "engine"), join(engineRoot, "assets")];
@@ -129,6 +154,9 @@ export function yage({ source = true, reload = true, json5 = true, hotReload = f
           preserveSymlinks: false,
           dedupe: unique([...(config.resolve?.dedupe ?? []), ...sharedDependencies(root)]),
         },
+        ...(json5 ? {
+          worker: { plugins: withWorkerJson5(config.worker?.plugins, typeof json5 === "object" ? json5 : {}) },
+        } : {}),
         ...(source ? {
           server: {
             fs: { allow: unique([...(config.server?.fs?.allow ?? [root]), normalize(engineRoot)]) },

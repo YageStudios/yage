@@ -6,10 +6,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
-import { yage, yageJson5 } from "../../tooling/vite.mjs";
+import { readFileSync } from "node:fs";
+import { yage, yageJson5, withWorkerJson5 } from "../../tooling/vite.mjs";
 
 const engineRoot = fileURLToPath(new URL("../../", import.meta.url));
-function fixture(t, version = "0.0.24") {
+const enginePeer = JSON.parse(readFileSync(join(engineRoot, "package.json"), "utf8")).peerDependencies.minecs;
+function fixture(t, version = enginePeer) {
   const root = mkdtempSync(join(tmpdir(), "yage game with spaces-"));
   t.after(() => rmSync(root, { force: true, recursive: true }));
   const packages = {
@@ -75,7 +77,7 @@ test("compiled-package mode does not select source or add a source watcher", (t)
 });
 
 test("an incompatible ECS peer gives an actionable error", (t) => {
-  assert.throws(() => yage()[0].config({ root: fixture(t, "0.0.22") }), /requires 0\.0\.24/);
+  assert.throws(() => yage()[0].config({ root: fixture(t, "0.0.22") }), new RegExp(`requires ${enginePeer.replaceAll(".", "\\.")}`));
 });
 
 test("missing game peers are not silently resolved from the engine's private dependencies", (t) => {
@@ -138,4 +140,15 @@ test("reconfiguration and reload:false do not leave extra watcher listeners", ()
   plugin.closeBundle(); assert.equal(s.watcher.listenerCount("all"), 0);
   yage({ reload: false })[0].configureServer(s);
   assert.equal(s.watcher.listenerCount("all"), 0);
+});
+
+test("worker bundles get the JSON5 transform once, after the caller's worker plugins", async (t) => {
+  const own = { name: "game:worker" };
+  const config = yage()[0].config({ root: fixture(t), worker: { plugins: () => [own] } });
+  const flatten = async (list) => (await Promise.all(list)).flat(Infinity);
+  const plugins = await flatten(config.worker.plugins());
+  assert.deepEqual(plugins.map((p) => p.name), ["game:worker", "yage:json5"]);
+  const already = await flatten(withWorkerJson5(() => [yageJson5()])());
+  assert.deepEqual(already.map((p) => p.name), ["yage:json5"]);
+  assert.equal(yage({ json5: false })[0].config({ root: fixture(t) }).worker, undefined);
 });
