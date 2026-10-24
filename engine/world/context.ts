@@ -43,7 +43,12 @@ export const worldContext = <T extends Schema>(world: World, schema: Constructor
     const component = context.world(schema);
     const metadata = component.schema.schema.properties;
     accessor = new Proxy(context.world(schema, context.entity), {
+      get(target, field) {
+        if (!context.world) throw new Error("yage world context: accessor belongs to a disposed context");
+        return Reflect.get(target, field);
+      },
       set(target, field, value) {
+        if (!context.world) throw new Error("yage world context: accessor belongs to a disposed context");
         // minECS copies typed-array assignments for ordinary entity accessors. Context object
         // fields own replaceable buffers (and nullable terrain), so they replace the slot instead.
         if (typeof field === "string" && metadata[field]?.type === "object") {

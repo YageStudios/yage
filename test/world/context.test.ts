@@ -16,10 +16,11 @@ class Memory extends Schema {
   @type("number") @defaultValue(7) tick: number;
   @type("object") counts: Map<number, number>;
   @type("object") buffer: Uint8Array | null;
+  @type("object") tags: Set<number>;
 }
 const context: WorldContextSpec = {
   components: [Memory],
-  initialize(world, entity) { world(Memory, entity).counts = new Map(); world(Memory, entity).buffer = null; },
+  initialize(world, entity) { world(Memory, entity).counts = new Map(); world(Memory, entity).buffer = null; world(Memory, entity).tags = new Set(); },
 };
 const shape = leanWorldType({ components: [Person], systems: [], context });
 const bytes = (world: ReturnType<typeof shape.create>) => new Uint8Array(serializeWorld(SerialMode.BINARY, world) as ArrayBuffer);
@@ -68,6 +69,38 @@ describe("schema-backed transient world context", () => {
       expect(worldContext(good, Memory).tick).toBe(7);
       shape.dispose(good);
     } finally { freed.mockRestore(); }
+  });
+
+  test("context accessors address schema slots and retire when context resets or disposes", () => {
+    let storage: ReturnType<typeof shape.create>;
+    const owner = leanWorldType({ context: { components: [Memory], initialize(world, entity) {
+      storage = world;
+      world(Memory, entity).counts = new Map();
+      world(Memory, entity).tags = new Set();
+      world(Memory, entity).buffer = null;
+    } }, systems: [] }).create(1);
+    const old = worldContext(owner, Memory);
+    const buffer = new Uint8Array([1, 2, 3]);
+    const map = new Map([[1, 2]]);
+    const set = new Set([3]);
+    old.buffer = buffer; old.counts = map; old.tags = set;
+    expect(storage!(Memory).store.buffer[0]).toBe(buffer);
+    expect(storage!(Memory).store.counts[0]).toBe(map);
+    expect(storage!(Memory).store.tags[0]).toBe(set);
+    expect(old.buffer).toBe(buffer);
+    expect(old.counts).toBe(map);
+    expect(old.tags).toBe(set);
+    resetWorldContext(owner);
+    expect(() => old.tick).toThrow(/disposed context/);
+    expect(() => { old.buffer = null; }).toThrow(/disposed context/);
+    map.set(8, 9); set.add(10); buffer[0] = 5;
+    const fresh = worldContext(owner, Memory);
+    expect(fresh.counts.size).toBe(0);
+    expect(fresh.tags.size).toBe(0);
+    expect(fresh.buffer).toBeNull();
+    disposeWorldContext(owner);
+    expect(() => fresh.counts).toThrow(/disposed context/);
+    deleteWorld(owner);
   });
 
   test("reset/dispose are explicit and repeat-safe, and deletion prevents recreation", () => {
