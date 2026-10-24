@@ -117,6 +117,7 @@ export interface ChunkModule {
    * effect events or extra per-slot values (index them by entity slot, like the snapshot).
    * Called at most once per chunk per tick, only on ticks that build a snapshot of it; return
    * null to send nothing. Events drained here reach every client sent that tick's snapshot.
+   * The work can live in systems: a named stack (yage/world/stacks) the hook runs with runStack.
    */
   overlay?(world: World, snapshot: Snapshot): Uint8Array | null;
   /** Small per-chunk stats (population, counts…) sent after each step. */
@@ -135,6 +136,7 @@ export interface ChunkModule {
    * Called after a chunk's world is generated or loaded, with the host's current tick. A module
    * whose state is a function of time uses it to bring the chunk up to date (e.g. put people
    * where their schedules say they are now) instead of simulating the time it was away.
+   * The catch-up can live in systems: a named stack (yage/world/stacks) the hook runs with runStack.
    */
   restored?(world: World, ctx: RestoreContext): void;
   /**

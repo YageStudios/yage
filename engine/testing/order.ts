@@ -26,6 +26,29 @@ export const assertRunOrder = (systems: readonly SystemClass[], label = "systems
   );
 };
 
+type StackClass = SystemClass & { stack?: string; stackDepth?: number };
+
+/** `systems` sorted the way `runStack` (yage/world/stacks) runs a named stack: by stackDepth, ties by class name. */
+export const stackRunOrder = (systems: readonly SystemClass[]): SystemClass[] =>
+  systems
+    .map((system, index) => ({ system: system as StackClass, index }))
+    .sort((a, b) => (a.system.stackDepth ?? 0) - (b.system.stackDepth ?? 0) || nameOf(a.system).localeCompare(nameOf(b.system)) || a.index - b.index)
+    .map(({ system }) => system);
+
+/** Throws unless `systems` all belong to stack `stack` and are listed in the order runStack runs them. */
+export const assertStackOrder = (systems: readonly SystemClass[], stack: string, label = `stack ${stack}`): void => {
+  const stray = systems.find((system) => (system as StackClass).stack !== stack || system.depth >= 0);
+  if (stray) throw new Error(`${label}: ${nameOf(stray)} is not a "${stack}" stack system (stack ${(stray as StackClass).stack ?? "unset"}, depth ${stray.depth})`);
+  const ordered = stackRunOrder(systems);
+  const at = ordered.findIndex((system, i) => system !== systems[i]);
+  if (at < 0) return;
+  const depthOf = (s: SystemClass) => (s as StackClass).stackDepth ?? 0;
+  throw new Error(
+    `${label}: listed ${nameOf(systems[at])} (stackDepth ${depthOf(systems[at])}) at ${at}, but ${nameOf(ordered[at])} (stackDepth ${depthOf(ordered[at])}) runs there. ` +
+      `Run order: ${ordered.map((s) => `${nameOf(s)}@${depthOf(s)}`).join(", ")}`
+  );
+};
+
 export interface CountingRandom {
   /** Draws from the source and counts the draw. */
   random: () => number;
