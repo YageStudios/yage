@@ -84,13 +84,21 @@ export class LeanBody extends Schema {
   @defaultValue(0)
   slack: number;
 
+  /**
+   * Rapier dominance group (-127..127): a body is never pushed by bodies of a lower group, and
+   * pushes them as a kinematic body would. Equal groups push each other.
+   */
+  @type("int8")
+  @defaultValue(0)
+  dominance: number;
+
   /** Output: the share of last step's way to its position the body made (1 when it was already there). */
   @type("float32")
   @defaultValue(1)
   reach: number;
 }
 
-type BodyEntry = { body: RAPIER.RigidBody; collider: RAPIER.Collider; kind: number; ghost: boolean };
+type BodyEntry = { body: RAPIER.RigidBody; collider: RAPIER.Collider; kind: number; ghost: boolean; dominance: number };
 
 @Component("LeanPhysics")
 export class LeanPhysics extends Schema {
@@ -215,13 +223,14 @@ const bodyTypeOf = (kind: number) => (kind === LeanBodyKind.Dynamic ? RAPIER.Rig
 
 const createBody = (physics: RAPIER.World, shape: any, eid: number, x: number, y: number): BodyEntry => {
   const kind = shape.kind[eid];
-  const desc = new RAPIER.RigidBodyDesc(bodyTypeOf(kind)).setTranslation(x, y).lockRotations();
+  const dominance = shape.dominance[eid];
+  const desc = new RAPIER.RigidBodyDesc(bodyTypeOf(kind)).setTranslation(x, y).lockRotations().setDominanceGroup(dominance);
   const body = physics.createRigidBody(desc);
   const radius = shape.radius[eid];
   const colliderDesc = radius > 0 ? RAPIER.ColliderDesc.ball(radius) : RAPIER.ColliderDesc.cuboid(Math.max(shape.hw[eid], 1e-3), Math.max(shape.hh[eid], 1e-3));
   const collider = physics.createCollider(colliderDesc.setCollisionGroups(SOLID_BODY).setFriction(0), body);
   if (kind === LeanBodyKind.Off) collider.setEnabled(false);
-  return { body, collider, kind, ghost: false };
+  return { body, collider, kind, ghost: false, dominance };
 };
 
 const setKind = (entry: BodyEntry, kind: number) => {
@@ -267,6 +276,11 @@ export const stepLeanPhysics = (world: World, binding: LeanPhysicsBinding, entit
     }
     const kind = shape.kind[eid];
     setKind(entry, kind);
+    const dominance = shape.dominance[eid];
+    if (entry.dominance !== dominance) {
+      entry.body.setDominanceGroup(dominance);
+      entry.dominance = dominance;
+    }
     const at = entry.body.translation();
     from[i * 4] = at.x;
     from[i * 4 + 1] = at.y;

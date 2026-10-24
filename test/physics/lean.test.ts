@@ -123,6 +123,17 @@ describe("lean physics", () => {
     Kind.dispose(world);
   });
 
+  test("a dominant body holds its spot against walkers; they go round it", () => {
+    const world = Kind.create();
+    const seated = spawn(world, 0, 0, 0, 0, { dominance: 1 });
+    const walker = spawn(world, -6, 0.2, 6, 0.2);
+    for (let i = 0; i < 40; i++) step(world);
+    const pos = world(PhysicsTestPos).store;
+    expect(Math.hypot(pos.x[seated], pos.y[seated])).toBeLessThan(0.05);
+    expect(pos.x[walker]).toBeGreaterThan(5);
+    Kind.dispose(world);
+  });
+
   test("a body past its slack catches up through fixed colliders", () => {
     const world = Kind.create();
     const eid = spawn(world, 0, 0, 20, 0, { slack: 4 });
