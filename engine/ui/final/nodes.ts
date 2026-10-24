@@ -8,7 +8,7 @@ export type NodeType = "panel" | "row" | "column" | "grid" | "text" | "button" |
   "image" | "scroll" | "progress" | "slider" | "toggle";
 export type StyleValue = string | number | null | undefined;
 export type Style = Readonly<Record<string, Value<StyleValue>>>;
-export type UIEventType = "activate" | "input" | "change" | "submit" | "cancel" | "focus" | "blur" |
+export type UIEventType = "activate" | "doubleClick" | "input" | "change" | "submit" | "cancel" | "focus" | "blur" |
   "pointerDown" | "pointerUp" | "pointerMove" | "pointerCancel" | "keyDown" | "keyUp";
 export interface UIEvent {
   readonly type: UIEventType;

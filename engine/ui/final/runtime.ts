@@ -1,7 +1,7 @@
 import { composedContains, composedParent, eventElement } from "./dom";
 import type { HTMLPolicy } from "./html";
 import { FocusManager, isEditable } from "./focus";
-import { Scope, Scheduler, signal, effect, type Dispose, type SchedulerOptions } from "./reactive";
+import { Scope, Scheduler, signal, effect, type Dispose, type Readable, type SchedulerOptions } from "./reactive";
 import { View, type RenderContext, type RenderStats } from "./render";
 import { baseCSS, defaultTheme, applyTheme, type Theme } from "./theme";
 import type { Child, NavigationAction } from "./nodes";
@@ -10,8 +10,13 @@ export interface UIFinalOptions {
   /** UI Final creates and owns a child root; it never clears this host. Defaults to document.body. */
   host?: HTMLElement;
   document?: Document;
-  /** Overlay is a full host-sized pointer-transparent layer. Inline participates in normal document flow. */
-  placement?: "overlay" | "inline";
+  /** Overlay is a full host-sized pointer-transparent layer; fixed is the same layer over the viewport.
+   * Inline participates in normal document flow. */
+  placement?: "overlay" | "fixed" | "inline";
+  /** Application stylesheet owned by this root (unlayered, so it wins over the defaults); removed with it. */
+  styles?: string;
+  /** Classes for the content element that mounted children render into. */
+  class?: string;
   zIndex?: number;
   scheduler?: Scheduler;
   scheduling?: SchedulerOptions["mode"];
@@ -26,6 +31,10 @@ export interface UIFinalOptions {
 export interface ModalOptions {
   label: string;
   dismissible?: boolean;
+  /** A press on the dialog's backdrop (outside its content) closes a dismissible dialog. */
+  dismissOnBackdrop?: boolean;
+  /** Classes for the dialog element, for the application's stylesheet. */
+  class?: string;
   onClose?: () => void;
 }
 export interface ModalHandle { readonly element: HTMLElement; close(): void; }
@@ -74,17 +83,24 @@ export class UIFinal {
     // A keyboard runtime takes focus on a press anywhere in it (its keys then reach the UI). A game's
     // UI (keyboard: false) does not: a press on plain content leaves native focus where it was.
     if (options.keyboard !== false) this.root.tabIndex = -1;
-    this.root.style.position = options.placement === "inline" ? "relative" : "absolute";
+    this.root.style.position = options.placement === "inline" ? "relative" : options.placement === "fixed" ? "fixed" : "absolute";
     if (options.placement !== "inline") this.root.style.inset = "0";
     this.root.style.zIndex = String(options.zIndex ?? 20);
     this.content = document.createElement("div");
     this.content.dataset.uifContent = "";
+    if (options.class) this.content.className = options.class;
     this.content.style.width = "100%"; this.content.style.height = "100%";
     const style = document.createElement("style");
     if (options.styleNonce) style.nonce = options.styleNonce;
     // Layered so any unlayered game stylesheet wins over the defaults (as html.ts does in shadow roots).
     style.textContent = `@layer ui-final-defaults { ${baseCSS} }`;
     this.root.appendChild(style);
+    if (options.styles) {
+      const app = document.createElement("style");
+      if (options.styleNonce) app.nonce = options.styleNonce;
+      app.textContent = options.styles;
+      this.root.appendChild(app);
+    }
     this.root.appendChild(this.content);
     this.liveRegion = document.createElement("div");
     this.liveRegion.setAttribute("aria-live", "polite");
@@ -187,6 +203,14 @@ export class UIFinal {
     for (const key of this.themeKeys) if (!(key in merged)) this.root.style.removeProperty(key);
     this.themeKeys = new Set(Object.keys(merged));
   }
+  /** A media query as a readable, live until the runtime is disposed (false without matchMedia). */
+  media(query: string): Readable<boolean> {
+    this.check();
+    const list = this.root.ownerDocument.defaultView?.matchMedia?.(query);
+    const matches = signal(list?.matches ?? false);
+    if (list) this.listen(list, "change", () => matches.set(list.matches));
+    return matches;
+  }
   setReducedMotion(reduced: boolean): void {
     this.reducedMotion.set(reduced);
     if (reduced) this.root.dataset.uifReducedMotion = ""; else delete this.root.dataset.uifReducedMotion;
@@ -225,6 +249,7 @@ export class UIFinal {
     if (!dialog.showModal) throw new Error("UIF_PLATFORM: native HTML dialog support is required");
     dialog.dataset.uifDialog = "";
     dialog.setAttribute("aria-modal", "true"); dialog.setAttribute("aria-label", options.label);
+    if (options.class) dialog.className = options.class;
     wrapper.appendChild(dialog);
     this.root.appendChild(wrapper);
     const modalScope = new Scope(this.scope);
@@ -272,9 +297,12 @@ export class UIFinal {
     };
     dialog.addEventListener("keydown", tab);
     dialog.addEventListener("cancel", cancel);
+    // A native dialog's backdrop is the dialog element itself: a press there targets the dialog.
+    const backdrop = (event: Event) => { if (event.target === dialog && options.dismissible !== false) dispose(); };
+    if (options.dismissOnBackdrop) dialog.addEventListener("pointerdown", backdrop);
     const close = () => dispose();
     dialog.addEventListener("close", close);
-    modalScope.add(() => { dialog.removeEventListener("keydown", tab); dialog.removeEventListener("cancel", cancel); dialog.removeEventListener("close", close); });
+    modalScope.add(() => { dialog.removeEventListener("keydown", tab); dialog.removeEventListener("cancel", cancel); dialog.removeEventListener("close", close); dialog.removeEventListener("pointerdown", backdrop); });
     try {
       dialog.showModal();
       if (!closed) for (const player of new Set([0, ...this.focus.focusedElements().map(([player]) => player)])) this.focus.first(player, dialog);

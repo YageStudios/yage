@@ -112,7 +112,7 @@ ui.frame(deltaMilliseconds);
 ui.dispose();
 ```
 
-`mount` and `update` reconcile into the same owned content root. The supplied host is never cleared. A runtime creates its own root, content element, scoped stylesheet and live region. `placement: "overlay"` is the default absolute layer; its positioning context must be established by the host. `placement: "inline"` participates in normal document flow. The default z-index is 20, configurable by the host.
+`mount` and `update` reconcile into the same owned content root. The supplied host is never cleared. A runtime creates its own root, content element, scoped stylesheet and live region. `placement: "overlay"` is the default absolute layer; its positioning context must be established by the host. `placement: "fixed"` is the same layer fixed over the viewport. `placement: "inline"` participates in normal document flow. The default z-index is 20, configurable by the host. `class` sets the content element's classes. `styles` adds an application stylesheet inside the root, unlayered so it wins over the defaults, and removed with the root. `media(query)` returns a readable boolean for a media query, kept live until the runtime is disposed.
 
 The root is pointer-transparent by default. Native controls, scrolling containers and explicitly `interactive` elements receive pointer input. An empty HUD panel therefore does not automatically swallow gameplay clicks across the entire canvas. A full-screen menu that needs to block clicks must deliberately expose a hit-testing surface or use a modal.
 
@@ -282,7 +282,7 @@ Source data and its key index remain O(N). Realized controls remain O(V), where 
 
 Use native buttons, inputs, textareas, checkboxes, ranges and progress elements instead of generic clickable divs wherever possible. Events expose `type`, `player`, `target`, `currentTarget`, the native event, value, checked state and composition state. Handlers can prevent default, stop propagation, stop immediate propagation and request/release pointer capture.
 
-`on` handles bubbling; `onCapture` handles capture. `activate` normalizes native click and controller-generated activation. Native Enter and Space already activate a button; UI Final must not synthesize another click for the same keyboard action. The tests cover single activation from real Chromium keyboard and touch input.
+`on` handles bubbling; `onCapture` handles capture. `activate` normalizes native click and controller-generated activation. `doubleClick` is the native double click. Native Enter and Space already activate a button; UI Final must not synthesize another click for the same keyboard action. The tests cover single activation from real Chromium keyboard and touch input.
 
 Pointer capture belongs to the original element and native pointer lifecycle. Removing a control removes its listeners and lets the browser end associated native capture. Gesture recognition, draggable inventory semantics and drag/drop transaction policy are composed above these events; there is no bespoke drag/drop framework hidden in the base runtime.
 
@@ -324,9 +324,9 @@ Removing a focused node or setting supported hidden/disabled/ownership propertie
 
 ### 11.1 Modal contract
 
-`openModal(content, { label, dismissible?, onClose? })` creates a **native HTML dialog** and calls `showModal()`. A nonempty accessible label is required. The native top layer makes background document content inert, including other roots and legacy DOM—not merely siblings inside Final's root. A document-level ownership stack additionally blocks engine/synthetic UI actions in background Final runtimes.
+`openModal(content, { label, dismissible?, dismissOnBackdrop?, class?, onClose? })` creates a **native HTML dialog** and calls `showModal()`. A nonempty accessible label is required. The native top layer makes background document content inert, including other roots and legacy DOM—not merely siblings inside Final's root. A document-level ownership stack additionally blocks engine/synthetic UI actions in background Final runtimes.
 
-The runtime snapshots per-player focus, marks its underlying content and older modal wrappers inert, focuses dialog content, traps modal navigation and restores the invoker or another eligible control on close. Nested dialogs and out-of-order disposal are covered by tests. The returned handle's `close()` explicitly closes even a nondismissible dialog; `dismissible: false` blocks ordinary Escape/cancel dismissal, not programmatic shutdown.
+The runtime snapshots per-player focus, marks its underlying content and older modal wrappers inert, focuses dialog content, traps modal navigation and restores the invoker or another eligible control on close. Nested dialogs and out-of-order disposal are covered by tests. The returned handle's `close()` explicitly closes even a nondismissible dialog; `dismissible: false` blocks ordinary Escape/cancel dismissal, not programmatic shutdown. `dismissOnBackdrop` also closes a dismissible dialog on a press on its backdrop (the dialog element itself, outside its content); `class` sets the dialog element's classes for the application's stylesheet.
 
 Place a visible cancel/close action in dismissible dialogs and prefer the least destructive initial action for consequential choices. Do not put `aria-modal` on a merely floating panel. This implementation follows the modal interaction model described by W3C APG and uses the native dialog approach documented in W3C technique H102; these references are design guidance, not certification of a game's accessibility.
 

@@ -46,7 +46,7 @@ const attributeMap: Record<string, string> = { label: "aria-label", describedBy:
 const propertyKeys = new Set(["value", "checked", "indeterminate", "disabled", "hidden", "readOnly", "placeholder", "title", "lang", "dir", "alt", "min", "max", "step", "maxLength", "name"]);
 const booleanKeys = new Set(["checked", "indeterminate", "disabled", "hidden", "readOnly"]);
 const eventNames: Record<UIEventType, readonly string[]> = {
-  activate: ["click", "uif-activate"], input: ["input"], change: ["change"], submit: ["submit"], cancel: ["uif-cancel"],
+  activate: ["click", "uif-activate"], doubleClick: ["dblclick"], input: ["input"], change: ["change"], submit: ["submit"], cancel: ["uif-cancel"],
   focus: ["focusin"], blur: ["focusout"], pointerDown: ["pointerdown"], pointerUp: ["pointerup"], pointerMove: ["pointermove"],
   pointerCancel: ["pointercancel"], keyDown: ["keydown"], keyUp: ["keyup"],
 };

@@ -206,6 +206,29 @@ test("non-dismissible modal consumes cancel but supports explicit close", () => 
   const modal = ui.openModal(h("button", { id: "wait", text: "Wait" }), { label: "Saving", dismissible: false });
   ui.focus.navigate("cancel"); assert(modal.element.open); modal.close(); assert(!modal.element.isConnected);
 });
+test("modal class and backdrop dismissal: a backdrop press closes a dismissible dialog only", () => {
+  const ui = fixture(); const closed = [];
+  const modal = ui.openModal(h("button", { id: "inside", text: "Inside" }), { label: "Help", class: "game-modal wide", dismissOnBackdrop: true, onClose: () => closed.push("help") });
+  equal(modal.element.className, "game-modal wide");
+  node(ui, "inside").dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })); assert(modal.element.open, "a press on the content keeps it open");
+  modal.element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })); assert(!modal.element.isConnected, "a backdrop press closes it"); deep(closed, ["help"]);
+  const fixed = ui.openModal(h("button", { id: "end", text: "End" }), { label: "End", dismissible: false, dismissOnBackdrop: true });
+  fixed.element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })); assert(fixed.element.open, "a nondismissible dialog stays"); fixed.close();
+  const plain = ui.openModal(h("button", { id: "plain", text: "Plain" }), { label: "Plain" });
+  plain.element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })); assert(plain.element.open, "backdrop dismissal is opt-in"); plain.close();
+});
+test("doubleClick handlers receive native double clicks", () => {
+  const ui = fixture(); let doubles = 0;
+  ui.mount(h("button", { id: "pick", text: "Pick", on: { doubleClick: () => doubles++ } }));
+  node(ui, "pick").dispatchEvent(new MouseEvent("dblclick", { bubbles: true, detail: 2 })); equal(doubles, 1);
+});
+test("fixed placement, a content class, an owned application stylesheet and live media queries", () => {
+  const ui = fixture({ placement: "fixed", styles: ".uif-app-probe{padding:7px}", class: "game-hud" });
+  equal(ui.root.style.position, "fixed"); equal(ui.root.style.inset, "0px"); equal(ui.content.className, "game-hud");
+  ui.mount(h("button", { id: "p", class: "uif-app-probe", text: "p" })); equal(getComputedStyle(node(ui, "p")).paddingTop, "7px");
+  equal(ui.media("(min-width: 1px)").get(), true); equal(ui.media("(max-width: 1px)").get(), false);
+  ui.dispose(); equal(document.querySelectorAll("style").length > 0 && [...document.querySelectorAll("style")].some((s) => s.textContent.includes("uif-app-probe")), false, "the stylesheet leaves with its root");
+});
 test("document-wide modality prevents synthetic activation in a second UI root", () => {
   const one = fixture(), two = fixture(); let clicks = 0;
   one.mount(h("button", { id: "one", text: "One", on: { activate: () => clicks++ } })); two.mount(h("button", { id: "two", text: "Two" }));
