@@ -16,6 +16,13 @@ function cleanup() { while (disposals.length) disposals.pop()(); }
 const asset = root => ({ schema: "ui-final/1", root });
 const node = (ui, id) => { const element = ui.element(id); assert(element, `missing element ${id}`); return element; };
 
+test("game stylesheets win over the layered UI Final defaults", () => {
+  const sheet = document.createElement("style"); sheet.textContent = ".uif-layer-probe { padding:0px; border-radius:0px; white-space:normal; }"; document.head.appendChild(sheet);
+  disposals.push(() => sheet.remove());
+  const ui = fixture(); ui.mount(h("column", {}, h("button", { id: "b", class: "uif-layer-probe", text: "x" }), h("text", { id: "t", class: "uif-layer-probe", text: "y" }), h("text", { id: "h", hidden: true, text: "z" })));
+  const button = getComputedStyle(node(ui, "b")); equal(button.paddingTop, "0px", "button padding"); equal(button.borderTopLeftRadius, "0px", "button radius");
+  equal(getComputedStyle(node(ui, "t")).whiteSpace, "normal", "text white-space"); equal(getComputedStyle(node(ui, "h")).display, "none", "hidden stays hidden");
+});
 test("retained property updates do not reconstruct unrelated nodes", () => {
   const ui = fixture(), score = signal(1), gold = signal(5);
   ui.mount(h("row", {}, h("text", { id: "score", text: score }), h("text", { id: "gold", text: gold })));

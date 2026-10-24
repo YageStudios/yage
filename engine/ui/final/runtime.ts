@@ -80,7 +80,8 @@ export class UIFinal {
     this.content.style.width = "100%"; this.content.style.height = "100%";
     const style = document.createElement("style");
     if (options.styleNonce) style.nonce = options.styleNonce;
-    style.textContent = baseCSS;
+    // Layered so any unlayered game stylesheet wins over the defaults (as html.ts does in shadow roots).
+    style.textContent = `@layer ui-final-defaults { ${baseCSS} }`;
     this.root.appendChild(style);
     this.root.appendChild(this.content);
     this.liveRegion = document.createElement("div");
