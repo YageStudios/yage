@@ -30,20 +30,12 @@ const SIT_DROP = 0.12;
 /** How much of a sleeper shows above the covers (of its height, from the top). */
 const TUCKED = 0.55;
 
-/** How much a hunched figure is shortened (of its height). */
-export const HUNCH_HEIGHT = 0.88;
-/** A hunched figure's top shakes side to side (cough, retch) by this share of its height. */
-export const HUNCH_SHAKE = 0.05;
-/**
- * The shake added to a hunched figure's lean at `seconds` (the layer's clock) for a figure whose
- * feet are at (x, y) in position units (as the shader has them), so overlays such as masks can follow.
- */
-export const hunchShake = (seconds: number, x: number, y: number) => HUNCH_SHAKE * Math.sin((seconds % 1000) * 31 + x * 0.71 + y * 0.53);
 
 /**
  * How an entity is posed; see `ChunkLayer.setPoses`. SitLeft is a sitter facing left (drawn
  * mirrored). Fallen lies turned like Lie but uncovered (down on the ground, not in a bed). Hunch is
- * bent over: shortened, its top leaning sideways by `turn` (of its height; negative leans left).
+ * bent over: the whole figure tilted rigidly about its feet by `turn` radians (negative leans left);
+ * never sheared or squashed, and never animated by the layer (callers swap poses or move parts).
  */
 export const POSE = { Stand: 0, Lie: 1, Sit: 2, SitLeft: 3, Fallen: 4, Hunch: 5 } as const;
 export type PoseKind = (typeof POSE)[keyof typeof POSE];
@@ -73,15 +65,14 @@ vec2 footOf() {
 // A pose (see ChunkLayer.setPoses) moves the sprite's corners about its feet: lying, the quad
 // turns by aPose.y about its middle, which lands on the feet (a sleeper centred on the bed);
 // sitting, it is shortened onto the seat, mirrored when it faces left; fallen, it turns like a
-// sleeper but nothing covers it; hunched, it is shortened and its top leans by aPose.y.
+// sleeper but nothing covers it; hunched, it tilts rigidly about its feet by aPose.y radians.
 vec2 posedOf(vec2 corner, vec2 size) {
   vec2 p = corner * size;
   float kind = floor(aPose.x + 0.5);
   if (kind > 4.5) {
-    p.y *= ${HUNCH_HEIGHT.toFixed(2)};
-    // The top leans by aPose.y and shakes quickly (each figure out of step with the others).
-    p.x -= p.y * (aPose.y + ${HUNCH_SHAKE.toFixed(3)} * sin(uTime * 31.0 + aCurX * 0.71 + aCurY * 0.53));
-    return p;
+    float s = sin(aPose.y);
+    float k = cos(aPose.y);
+    return vec2(k * p.x - s * p.y, s * p.x + k * p.y);
   }
   if (kind == 1.0 || kind == 4.0) {
     vec2 c = p + vec2(0.0, 0.5 * size.y);
@@ -440,7 +431,6 @@ class LayerKind {
 
   /** Animation clock for pulsing glows, in seconds. */
   setTime(seconds: number) {
-    // Hunched figures shake on this clock (posedOf); every program that poses reads it.
     const t = seconds % 1000;
     this.shared.uniforms.uTime = t;
     this.shared.update();
