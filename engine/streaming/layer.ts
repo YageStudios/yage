@@ -31,7 +31,14 @@ const SIT_DROP = 0.12;
 const TUCKED = 0.55;
 
 /** How much a hunched figure is shortened (of its height). */
-const HUNCH_HEIGHT = 0.88;
+export const HUNCH_HEIGHT = 0.88;
+/** A hunched figure's top shakes side to side (cough, retch) by this share of its height. */
+export const HUNCH_SHAKE = 0.05;
+/**
+ * The shake added to a hunched figure's lean at `seconds` (the layer's clock) for a figure whose
+ * feet are at (x, y) in position units (as the shader has them), so overlays such as masks can follow.
+ */
+export const hunchShake = (seconds: number, x: number, y: number) => HUNCH_SHAKE * Math.sin((seconds % 1000) * 31 + x * 0.71 + y * 0.53);
 
 /**
  * How an entity is posed; see `ChunkLayer.setPoses`. SitLeft is a sitter facing left (drawn
@@ -44,6 +51,7 @@ export type PoseEntry = { slot: number; pose: PoseKind; turn: number };
 
 const instanceHeader = `
 precision highp float;
+uniform float uTime;
 attribute vec2 aCorner;
 attribute float aPrevX;
 attribute float aPrevY;
@@ -71,7 +79,8 @@ vec2 posedOf(vec2 corner, vec2 size) {
   float kind = floor(aPose.x + 0.5);
   if (kind > 4.5) {
     p.y *= ${HUNCH_HEIGHT.toFixed(2)};
-    p.x -= p.y * aPose.y;
+    // The top leans by aPose.y and shakes quickly (each figure out of step with the others).
+    p.x -= p.y * (aPose.y + ${HUNCH_SHAKE.toFixed(3)} * sin(uTime * 31.0 + aCurX * 0.71 + aCurY * 0.53));
     return p;
   }
   if (kind == 1.0 || kind == 4.0) {
@@ -379,6 +388,7 @@ class LayerKind {
       uFields: new Float32Array(style.mask && style.fields ? style.fields : [0, 0, 0]),
       uMasked: style.mask ? 1 : 0,
       uLight: new Float32Array([1, 1, 1]),
+      uTime: 0,
     });
     if (style.shadow) {
       this.shadowProgram = PIXI.Program.from(shadowVertex, shadowFragment, "yage-chunk-shadow");
@@ -390,6 +400,7 @@ class LayerKind {
         uShadowSize: new Float32Array(style.shadow.size),
         uShadowOffset: new Float32Array(style.shadow.offset ?? [0, 0]),
         uShadowAlpha: alpha,
+        uTime: 0,
       });
     } else {
       this.shadowProgram = null;
@@ -407,6 +418,7 @@ class LayerKind {
         uGlowShape: glow.shape,
         uGlowRamp: glow.ramp,
         uGlowTime: 0,
+        uTime: 0,
         uGlowRadius: style.glow.radius,
         uGlowMinPixels: style.glow.minPixels ?? 2,
       });
@@ -425,8 +437,17 @@ class LayerKind {
 
   /** Animation clock for pulsing glows, in seconds. */
   setTime(seconds: number) {
+    // Hunched figures shake on this clock (posedOf); every program that poses reads it.
+    const t = seconds % 1000;
+    this.shared.uniforms.uTime = t;
+    this.shared.update();
+    if (this.shadowShared) {
+      this.shadowShared.uniforms.uTime = t;
+      this.shadowShared.update();
+    }
     if (!this.glowShared) return;
-    this.glowShared.uniforms.uGlowTime = seconds % 1000;
+    this.glowShared.uniforms.uGlowTime = t;
+    this.glowShared.uniforms.uTime = t;
     this.glowShared.update();
   }
 
