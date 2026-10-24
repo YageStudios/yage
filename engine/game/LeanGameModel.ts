@@ -10,7 +10,6 @@
 import {
   addComponent,
   addEntity,
-  deleteWorld,
   defineQuery,
   entityExists,
   getComponentByType,
@@ -30,7 +29,7 @@ import {
 import type { InputManager } from "yage/inputs/InputManager";
 import { FIXED_TIMESTEP_MS } from "yage/game/Timing";
 import { isGamePaused } from "yage/game/pause";
-import { leanWorldType, type LeanWorldSpec, type LeanWorldType } from "yage/world/lean";
+import { deleteWorld, leanWorldType, type LeanWorldSpec, type LeanWorldType } from "yage/world/lean";
 
 type SchemaRef<T extends Schema = Schema> = Constructor<T> | string;
 

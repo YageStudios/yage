@@ -16,8 +16,8 @@
  * With a committed campaign tick (Commit) the host never runs more than `maxLead` ticks ahead of
  * the slowest host, so every host's work is on one timeline.
  */
-import { deleteWorld, deserializeWorld, SerialMode, serializeWorld, type Schema, type World } from "minecs";
-import { leanWorldType, type LeanWorldSpec, type LeanWorldType } from "../world/lean";
+import { deserializeWorld, SerialMode, serializeWorld, type Schema, type World } from "minecs";
+import { deleteWorld, leanWorldType, type LeanWorldSpec, type LeanWorldType } from "../world/lean";
 import { chunkHash, chunkX, chunkY, keySpace, spaceChunkKey } from "./coord";
 import {
   createSnapshot,

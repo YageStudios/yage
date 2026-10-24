@@ -18,9 +18,15 @@ import {
   type World,
 } from "minecs";
 
+import { initializeWorldContext, deleteWorld, type WorldContextSpec } from "./context";
+export { worldContext, initializeWorldContext, resetWorldContext, disposeWorldContext, deleteWorld } from "./context";
+export type { WorldContextSpec } from "./context";
+
 type AnySystem = typeof SystemImpl<any> | typeof DrawSystemImpl<any>;
 
 export interface LeanWorldSpec {
+  /** Schema-backed singleton state, recreated on deserialize; excluded from person rows and saves. */
+  context?: WorldContextSpec;
   /** Entity capacity of each world. Default 1000 (minecs' default). */
   size?: number;
   /** Components to register. The components each listed system queries are added for you. */
@@ -37,6 +43,8 @@ export interface LeanWorldType {
   readonly options: CreateWorldOptions;
   /** A new empty world. `size` overrides the spec's size. */
   create(size?: number): World;
+  /** Frees the world and its transient companion state. */
+  dispose(world: World): void;
   /** A world read from serializeWorld output (binary, base64 or JSON), registering only this spec. */
   deserialize(payload: ArrayBuffer | ArrayBufferView | string | object): World;
 }
@@ -66,12 +74,17 @@ export const leanWorldType = (spec: LeanWorldSpec = {}): LeanWorldType => {
     }
   }
   const options: CreateWorldOptions = Object.freeze({ components, systems });
+  const attach = (world: World): World => {
+    if (spec.context) initializeWorldContext(world, spec.context);
+    return world;
+  };
   return Object.freeze({
     components,
     systems,
     options,
-    create: (size?: number) => createWorld(size ?? spec.size, options),
-    deserialize: (payload: ArrayBuffer | ArrayBufferView | string | object) => deserializeWorld(payload as any, options) as World,
+    create: (size?: number) => attach(createWorld(size ?? spec.size, options)),
+    dispose: deleteWorld,
+    deserialize: (payload: ArrayBuffer | ArrayBufferView | string | object) => attach(deserializeWorld(payload as any, options) as World),
   });
 };
 
@@ -82,5 +95,5 @@ export const createLeanWorld = (spec: LeanWorldSpec = {}): World => leanWorldTyp
 export const deserializeLeanWorld = (payload: ArrayBuffer | ArrayBufferView | string | object, spec: LeanWorldSpec = {}): World =>
   leanWorldType(spec).deserialize(payload);
 
-export { isComponentRegistered, serializeWorld, SerialMode, deleteWorld, stepWorld, stepWorldDraw } from "minecs";
+export { isComponentRegistered, serializeWorld, SerialMode, stepWorld, stepWorldDraw } from "minecs";
 export type { CreateWorldOptions };
