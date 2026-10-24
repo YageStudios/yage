@@ -18,7 +18,7 @@
  */
 import { deserializeWorld, SerialMode, serializeWorld, type Schema, type World } from "minecs";
 import { deleteWorld, leanWorldType, type LeanWorldSpec, type LeanWorldType } from "../world/lean";
-import { chunkHash, chunkX, chunkY, keySpace, spaceChunkKey } from "./coord";
+import { chunkHash, chunkX, chunkY, spaceChunkKey } from "./coord";
 import {
   createSnapshot,
   decodeMessage,
