@@ -5,6 +5,7 @@ import "./style.css";
 export { QuickStart, type QuickStartOptions } from "./game/QuickStart";
 export { GameInstance, type GameInstanceOptions } from "./game/GameInstance";
 export { GameModel, type ReadOnlyGameModel, type GameModelState } from "./game/GameModel";
+export { isGamePaused, setGamePaused, toggleGamePaused, onGamePause, type PauseListener } from "./game/pause";
 export { EntityFactory, type EntityDefinition, type FlexibleEntityDefinition } from "./entity/EntityFactory";
 export { default as AssetLoader } from "./loader/AssetLoader";
 export { InputManager, InputEventType, MappedKeys } from "./inputs/InputManager";

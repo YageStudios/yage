@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
 import { createLeanGameModel, type LeanGameModel } from "yage/game/LeanGameModel";
 import { leanWorldType } from "yage/world/lean";
+import { setGamePaused } from "yage/game/pause";
 
 @Component("LgmPos")
 class LgmPos extends Schema {
@@ -53,6 +54,11 @@ describe("LeanGameModel", () => {
     model.run(10);
     expect(model.getTypedUnsafe(LgmPos, eid).x).toBe(11);
     model.paused = false;
+    // The engine pause (yage/game/pause) holds every model too.
+    setGamePaused(true);
+    model.run(10);
+    expect(model.getTypedUnsafe(LgmPos, eid).x).toBe(11);
+    setGamePaused(false);
 
     expect([...model.getComponentActives(LgmPos)]).toEqual([eid]);
     expect(model.getComponentActives("PlayerType")).toEqual([]);
@@ -81,7 +87,7 @@ describe("LeanGameModel", () => {
     const entry = fileURLToPath(new URL("../../engine/game/LeanGameModel.ts", import.meta.url));
     const result = await build({ entryPoints: [entry], bundle: true, write: false, metafile: true, format: "esm", platform: "browser", conditions: ["yage-source"], logLevel: "silent", alias: { yage: fileURLToPath(new URL("../../engine", import.meta.url)) } });
     const engine = Object.keys(result.metafile!.inputs).filter((p) => p.includes("engine/")).map((p) => p.slice(p.indexOf("engine/"))).sort();
-    expect(engine).toEqual(["engine/game/LeanGameModel.ts", "engine/game/Timing.ts", "engine/world/lean.ts"]);
+    expect(engine).toEqual(["engine/game/LeanGameModel.ts", "engine/game/Timing.ts", "engine/game/pause.ts", "engine/world/lean.ts"]);
     expect(Object.keys(result.metafile!.inputs).some((p) => /rapier|pixi/.test(p))).toBe(false);
   });
 });

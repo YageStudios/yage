@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { GameAudio } from '../../.audio-build/engine.js';
 import { SpatialPlayback } from '../../.audio-build/SpatialPlayback.js';
 import * as runtime from '../../.audio-build/runtime.js';
+import { setGamePaused, isGamePaused } from '../../.audio-build/game/pause.js';
 import { registerAirportSounds, AIRPORT_CATEGORIES, AIRPORT_PARAMS } from '../../.audio-build/presets/airport.js';
 import { FakeAudioContext, FakeOfflineContext } from '../../.audio-build/helpers/fake-audio.js';
 const setup = () => { const ctx = new FakeOfflineContext(); return { ctx, audio: new GameAudio({ context: ctx, maxVoices: 8192 }) }; };
@@ -73,6 +74,23 @@ test('runtime is lazy, unlocks on gesture, respects mute, and disposes its conte
   runtime.setAudioEnabled(true); assert.equal(audio.volume, 0.8);
   await runtime.disposeAudio(); assert.equal(audio.ctx.state, 'closed'); assert.equal(runtime.getAudio(), undefined);
   await runtime.disposeAudio(); delete globalThis.AudioContext;
+});
+
+test('runtime audio follows the engine pause (yage/game/pause), but not over a pause() of its own', async () => {
+  globalThis.AudioContext = FakeAudioContext;
+  setGamePaused(true);
+  const audio = runtime.unlockAudio();
+  assert.equal(audio.paused, true, 'created under the engine pause');
+  setGamePaused(false); assert.equal(audio.paused, false); assert.equal(isGamePaused(), false);
+  setGamePaused(true); assert.equal(audio.paused, true);
+  runtime.unlockAudio(); assert.equal(audio.paused, true, 'a gesture does not unpause the game');
+  setGamePaused(false); assert.equal(audio.paused, false);
+  await audio.pause(); setGamePaused(true); setGamePaused(false);
+  assert.equal(audio.paused, true, 'the game resuming leaves its own pause()');
+  audio.resume();
+  await runtime.disposeAudio();
+  setGamePaused(true); assert.equal(audio.paused, false, 'unsubscribed on dispose');
+  setGamePaused(false); delete globalThis.AudioContext;
 });
 
 test('pause keeps the context suspended through play() until resume()', async () => {

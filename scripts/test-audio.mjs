@@ -17,6 +17,9 @@ function compile(directory, target) {
 }
 compile('engine/audio', out);
 compile('test/helpers', out + '/helpers');
+// The engine pause, which the runtime follows through a shared globalThis key (no import).
+fs.mkdirSync(out + '/game', { recursive: true });
+fs.writeFileSync(out + '/game/pause.js', ts.transpileModule(fs.readFileSync('engine/game/pause.ts', 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText);
 fs.writeFileSync(out + '/package.json', '{"type":"module"}');
 const result = spawnSync(process.execPath, ['--test', '--experimental-test-coverage',
   '--test-coverage-include=.audio-build/SpatialPlayback.js', '--test-coverage-include=.audio-build/runtime.js',

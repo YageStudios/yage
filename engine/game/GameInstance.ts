@@ -7,6 +7,7 @@ import Ticker from "./Ticker";
 import type { SceneTimestep } from "./Scene";
 import type { BackgroundFrameFlow } from "yage/connection/BackgroundFrameFlow";
 import { FIXED_TIMESTEP_HZ, FIXED_TIMESTEP_MS } from "./Timing";
+import { isGamePaused } from "./pause";
 
 let yageLoopLogCount = 0;
 
@@ -335,7 +336,7 @@ export class GameInstance<T> {
   }
 
   runGameLoop(gameModel: GameModel, draw = true): boolean {
-    if (!gameModel || gameModel.paused) {
+    if (!gameModel || gameModel.paused || isGamePaused()) {
       return false;
     }
     try {

@@ -29,6 +29,7 @@ import {
 } from "minecs";
 import type { InputManager } from "yage/inputs/InputManager";
 import { FIXED_TIMESTEP_MS } from "yage/game/Timing";
+import { isGamePaused } from "yage/game/pause";
 import { leanWorldType, type LeanWorldSpec, type LeanWorldType } from "yage/world/lean";
 
 type SchemaRef<T extends Schema = Schema> = Constructor<T> | string;
@@ -46,7 +47,7 @@ export type LeanGameModel = World & {
   frameDt: number;
   /** Always -1: a lean model has no core entity. */
   coreEntity: number;
-  /** Runs the simulation systems once (skipped while paused). `dt` defaults to the fixed timestep. */
+  /** Runs the simulation systems once (skipped while paused or under the engine pause, yage/game/pause). `dt` defaults to the fixed timestep. */
   step(dt?: number): void;
   /** Runs the draw systems once. */
   stepDraw(): void;
@@ -97,7 +98,7 @@ export const createLeanGameModel = (options: LeanGameModelOptions = {}): LeanGam
     frameDt: FIXED_TIMESTEP_MS,
     coreEntity: -1,
     step(dt?: number) {
-      if (model.paused || model.destroyed) return;
+      if (model.paused || model.destroyed || isGamePaused()) return;
       const elapsed = dt ?? FIXED_TIMESTEP_MS;
       model.timeElapsed += elapsed;
       model.frameDt = elapsed;
