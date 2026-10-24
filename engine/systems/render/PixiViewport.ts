@@ -7,6 +7,25 @@ import * as PIXI from "pixi.js";
 import { DEPTHS } from "yage/constants/enums";
 import { setGlobalSingleton } from "yage/global";
 
+export interface PixiViewportOptions {
+  /** Renderer clear colour (e.g. 0x10140f). Default: Pixi's default (black). */
+  background?: number;
+  /** Keep the drawing buffer between frames (needed for canvas screenshots). Default true. */
+  preserveDrawingBuffer?: boolean;
+  /** Scale the view so 1920 world units span the screen width. false keeps zoom 1. Default true. */
+  baseZoom?: boolean;
+  /** Keep Pixi's accessibility plugin (it adds a DOM overlay and listens to Tab). Default true. */
+  accessibility?: boolean;
+  /**
+   * Use this application instead of creating one. The caller owns its canvas, placement and size
+   * (the viewport follows `renderer.screen`), and it is not destroyed with the last viewport.
+   * `background`/`preserveDrawingBuffer` are then the caller's to set.
+   */
+  app?: PIXI.Application;
+  /** Create the app with Pixi's resizeTo (e.g. window): the canvas fills it and the viewport follows `renderer.screen`. */
+  resizeTo?: Window | HTMLElement;
+}
+
 @System(PixiViewport)
 export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
   static depth = DEPTHS.DRAW + 10000;
@@ -17,6 +36,33 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
   private static instanceCount = 0;
   private static activeRoomId = "";
   private static drawLogCount = 0;
+  private static options: PixiViewportOptions = {};
+
+  /** Configure the shared Pixi app. Call before the first PixiViewport entity is created. */
+  static configure(options: PixiViewportOptions): void {
+    if (PixiViewportSystem.pixiApp) throw new Error("PixiViewportSystem.configure must run before the first PixiViewport is created");
+    PixiViewportSystem.options = { ...options };
+  }
+
+  /** The shared Pixi application (undefined until the first PixiViewport initializes). */
+  static get app(): PIXI.Application | undefined {
+    return PixiViewportSystem.pixiApp;
+  }
+
+  /** The viewport for a room (undefined when that room has no PixiViewport). */
+  static viewportFor(roomId: string): Viewport | undefined {
+    return PixiViewportSystem.viewports.get(roomId);
+  }
+
+  private static removeAccessibility(): void {
+    const plugins = (PixiViewportSystem.pixiApp.renderer as any).plugins;
+    plugins?.accessibility?.destroy?.();
+    if (plugins) delete plugins.accessibility;
+  }
+
+  private static zoom(scale: number): number {
+    return PixiViewportSystem.options.baseZoom === false ? 1 : scale;
+  }
 
   // Instance properties
   private roomId: string;
@@ -37,12 +83,29 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
     PixiViewportSystem.instanceCount++;
   }
 
+  /** The app's size is managed outside the 16:9 letterbox (a caller's app, or resizeTo). */
+  private static get managedSize(): boolean {
+    return !!(PixiViewportSystem.options.app || PixiViewportSystem.options.resizeTo);
+  }
+
   private initializeSharedPixi = () => {
     console.info("[yage-pixi] initialize start");
+    if (PixiViewportSystem.options.app) {
+      PixiViewportSystem.pixiApp = PixiViewportSystem.options.app;
+      if (PixiViewportSystem.options.accessibility === false) PixiViewportSystem.removeAccessibility();
+      return;
+    }
     document.querySelectorAll(".pixi-canvas").forEach((el) => el.remove());
 
-    PixiViewportSystem.pixiApp = new PIXI.Application({ autoStart: false, preserveDrawingBuffer: true });
+    const options = PixiViewportSystem.options;
+    PixiViewportSystem.pixiApp = new PIXI.Application({
+      autoStart: false,
+      preserveDrawingBuffer: options.preserveDrawingBuffer ?? true,
+      ...(options.background !== undefined ? { backgroundColor: options.background } : {}),
+      ...(options.resizeTo ? { resizeTo: options.resizeTo } : {}),
+    });
     PixiViewportSystem.pixiApp.stop();
+    if (options.accessibility === false) PixiViewportSystem.removeAccessibility();
     const canvas = PixiViewportSystem.pixiApp.renderer.view as HTMLCanvasElement;
     canvas.className = "pixi-canvas";
     canvas.style.position = "fixed";
@@ -113,7 +176,7 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
     PixiViewportSystem.pixiApp.stage.addChild(viewport as any);
     PixiViewportSystem.viewports.set(this.roomId, viewport);
 
-    this.baseZoom = window.innerWidth / 1920;
+    this.baseZoom = PixiViewportSystem.zoom(window.innerWidth / 1920);
     setGlobalSingleton("PIXI_BASE_ZOOM", this.baseZoom);
 
     // Initial viewport update
@@ -133,6 +196,14 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
   };
 
   private updatePixiViewport = (viewport: Viewport) => {
+    if (PixiViewportSystem.managedSize) {
+      const { width, height } = PixiViewportSystem.pixiApp.renderer.screen;
+      viewport.resize(width, height, viewport.worldWidth, viewport.worldHeight);
+      const scale = PixiViewportSystem.zoom(width / 1920);
+      if (PixiViewportSystem.options.baseZoom !== false) viewport.setZoom(scale, true);
+      setGlobalSingleton("PIXI_BASE_ZOOM", scale);
+      return;
+    }
     if (this.fillScreen) {
       const windowWidth = Math.min(window.innerWidth, window.outerWidth);
       const windowHeight = Math.min(window.innerHeight, window.outerHeight);
@@ -150,6 +221,7 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
       if (windowWidth < this.minWidth) {
         scale = (this.minWidth / windowWidth) * scale;
       }
+      scale = PixiViewportSystem.zoom(scale);
       viewport.setZoom(scale, true);
       setGlobalSingleton("PIXI_BASE_ZOOM", scale);
     } else {
@@ -160,9 +232,10 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
         width = (window.innerHeight * 16) / 9;
       }
 
-      const scale = Math.min(width / 1920, height / 1080);
-      const scaledWidth = 1920 * scale;
-      const scaledHeight = 1080 * scale;
+      const fit = Math.min(width / 1920, height / 1080);
+      const scaledWidth = 1920 * fit;
+      const scaledHeight = 1080 * fit;
+      const scale = PixiViewportSystem.zoom(fit);
       const canvas = PixiViewportSystem.pixiApp.renderer.view as HTMLCanvasElement;
 
       canvas.style.width = `${scaledWidth}px`;
@@ -181,6 +254,10 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
     const viewport = PixiViewportSystem.viewports.get(this.roomId);
 
     if (viewport) {
+      if (PixiViewportSystem.managedSize) {
+        const screen = PixiViewportSystem.pixiApp.renderer.screen;
+        if (viewport.screenWidth !== screen.width || viewport.screenHeight !== screen.height) this.updatePixiViewport(viewport);
+      }
       if (PixiViewportSystem.drawLogCount < 3) {
         PixiViewportSystem.drawLogCount += 1;
         console.info("[yage-pixi] draw", {
@@ -212,7 +289,7 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
 
     // Clean up shared resources if this is the last instance
     if (PixiViewportSystem.instanceCount === 0) {
-      PixiViewportSystem.pixiApp?.destroy(true);
+      if (!PixiViewportSystem.options.app) PixiViewportSystem.pixiApp?.destroy(true);
       // @ts-ignore
       PixiViewportSystem.pixiApp = null;
       PixiViewportSystem.viewports.clear();
