@@ -74,3 +74,17 @@ test('runtime is lazy, unlocks on gesture, respects mute, and disposes its conte
   await runtime.disposeAudio(); assert.equal(audio.ctx.state, 'closed'); assert.equal(runtime.getAudio(), undefined);
   await runtime.disposeAudio(); delete globalThis.AudioContext;
 });
+
+test('pause keeps the context suspended through play() until resume()', async () => {
+  const ctx = new FakeAudioContext(); let resumes = 0, suspends = 0;
+  ctx.resume = () => { resumes++; ctx.state = 'running'; return Promise.resolve(); };
+  ctx.suspend = () => { suspends++; ctx.state = 'suspended'; return Promise.resolve(); };
+  const audio = new GameAudio({ context: ctx });
+  audio.define('blip', () => {});
+  await audio.pause();
+  assert.equal(audio.paused, true); assert.equal(suspends, 1);
+  audio.play('blip'); assert.equal(resumes, 0); assert.equal(ctx.state, 'suspended');
+  audio.resume(); assert.equal(audio.paused, false); assert.equal(resumes, 1);
+  await audio.pause(); audio.play('blip'); assert.equal(resumes, 1);
+  await audio.dispose();
+});

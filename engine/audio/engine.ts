@@ -31,6 +31,7 @@ export class GameAudio {
   private _voiceSeed: () => number;
   private _ownsContext: boolean;
   private _closed = false;
+  private _paused = false;
   private _output: AudioNode;
   private _disposeCallbacks: Array<() => void> = [];
   private _buses: Map<string, Bus>;
@@ -151,12 +152,24 @@ export class GameAudio {
 
   /**
    * Resume the AudioContext. Browsers require a user gesture before audio can
-   * start; call this from your first input handler (play() also calls it).
+   * start; call this from your first input handler (play() also wakes the context, unless paused).
+   * Also ends a pause().
    */
   resume(): this {
+    this._paused = false;
+    return this._wake();
+  }
+  private _wake(): this {
     if (this._closed || this.ctx.state === "closed") throw new Error("bleep-bloop: this audio instance is disposed or its context is closed");
-    if (this.ctx.state === "suspended" && !("startRendering" in this.ctx)) void this.ctx.resume().catch(() => {});
+    if (!this._paused && this.ctx.state === "suspended" && !("startRendering" in this.ctx)) void this.ctx.resume().catch(() => {});
     return this;
+  }
+  /** True between pause() and resume(): play() and gesture unlocks then leave the context suspended. */
+  get paused(): boolean { return this._paused; }
+  /** Game pause: suspends the context and keeps it suspended until resume(), whatever plays meanwhile. */
+  pause(): Promise<void> {
+    this._paused = true;
+    return "startRendering" in this.ctx ? Promise.resolve() : this.suspend();
   }
   suspend(): Promise<void> {
     if ("startRendering" in this.ctx) return Promise.reject(new Error("bleep-bloop: suspend offline contexts directly with a time"));
@@ -509,7 +522,7 @@ export class GameAudio {
    * @returns {Handle}
    */
   play(sound: string | SoundPlay, opts: VoiceOptions & { switch?: string } = {}): Handle {
-    this.resume();
+    this._wake();
     if (typeof sound === "string" && this._events.has(sound)) return this._playEvent(sound, opts);
     const def: (Partial<SoundDefinition> & { play: SoundPlay }) | undefined =
       typeof sound === "function" ? { play: sound } : this._defs.get(sound);

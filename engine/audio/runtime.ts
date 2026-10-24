@@ -17,7 +17,7 @@ export function unlockAudio(): GameAudio | undefined {
   if (!enabled || typeof globalThis.AudioContext === "undefined") return undefined;
   if (!instance) instance = new GameAudio({ presets: registrar, maxVoices: 64 });
   unlocked = true;
-  instance.resume();
+  if (!instance.paused) instance.resume();
   return instance;
 }
 export function getAudio(): GameAudio | undefined { return instance; }
