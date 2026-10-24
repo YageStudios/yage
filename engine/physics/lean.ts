@@ -261,6 +261,7 @@ export const stepLeanPhysics = (world: World, binding: LeanPhysicsBinding, entit
   const xs: Float32Array | Float64Array = store[binding.position.x];
   const ys: Float32Array | Float64Array = store[binding.position.y];
 
+  const substeps = Math.max(1, Math.ceil(dt / state.maxStep - 1e-9));
   const sorted = entities.slice().sort(byNumber);
   const n = sorted.length;
   // Where each body started this step, and its way to the entity's position.
@@ -313,9 +314,11 @@ export const stepLeanPhysics = (world: World, binding: LeanPhysicsBinding, entit
     if (cap > 0 && speed > cap) speed = cap;
     const scale = distance > 0 ? speed / distance : 0;
     entry.body.setLinvel({ x: dx * scale, y: dy * scale }, true);
+    // Contact is predicted as far as the body goes in a substep, so a quick body stops at a wall
+    // instead of sinking into it and being pushed back out over the next steps.
+    entry.body.setSoftCcdPrediction((speed * dt) / substeps);
   }
 
-  const substeps = Math.max(1, Math.ceil(dt / state.maxStep - 1e-9));
   physics.timestep = dt / substeps;
   for (let s = 0; s < substeps; s++) physics.step();
 
