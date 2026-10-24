@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vitest";
-import { ChunkHost } from "yage/streaming/host";
+import { addComponent, addEntity } from "minecs";
+import { ChunkHost, type ChunkModule } from "yage/streaming/host";
+import { leanWorldType } from "yage/world/lean";
 import {
   decodeMessage,
   encodeConfig,
@@ -20,7 +22,7 @@ import {
   type Message,
 } from "yage/streaming/protocol";
 import { memoryTransportPair } from "yage/streaming/transport";
-import { SIZE, testModule, TestGid, TestPos, type Walker } from "./fixture";
+import { SIZE, testModule, TestGid, TestPos, TestVel, type Walker } from "./fixture";
 
 const connect = (host: ChunkHost) => {
   const [client, hostSide] = memoryTransportPair();
@@ -257,6 +259,45 @@ describe("ChunkHost", () => {
     otherClient.send(encodeLoad(2, 3, unloaded.bytes));
     expect(otherClient.last(Op.Ready)).toMatchObject({ cx: 2, cy: 3, population: 1 });
     expect(positionOf(other, 5)).toEqual({ cx: 2, cy: 3, x: 10, y: 20 });
+  });
+
+  test("a module's lean world type shapes loaded chunks, and deserialize overrides it", () => {
+    const Chunk = leanWorldType({ size: 16, components: [TestPos, TestVel, TestGid] });
+    const leanModule = (): ChunkModule => {
+      const base = testModule({});
+      return {
+        ...base,
+        world: Chunk,
+        generate(_seed, cx, cy) {
+          const world = Chunk.create();
+          if (cx === 2 && cy === 3) {
+            const eid = addEntity(world);
+            addComponent(world, TestPos, eid, { x: 10, y: 20 });
+            addComponent(world, TestVel, eid);
+            addComponent(world, TestGid, eid, { id: 5 });
+          }
+          return world;
+        },
+      };
+    };
+    const host = new ChunkHost(leanModule());
+    const client = connect(host);
+    client.send(encodeGenerate(2, 3, 1));
+    expect([...host.chunks.values()][0].world.componentMap.size).toBe(3);
+    client.send(encodeUnload(2, 3));
+    const bytes = client.last(Op.Unloaded)!.bytes;
+
+    const other = new ChunkHost(leanModule());
+    connect(other).send(encodeLoad(2, 3, bytes));
+    const loaded = [...other.chunks.values()][0].world;
+    expect(new Set(loaded.componentMap.keys())).toEqual(new Set([TestPos, TestVel, TestGid]));
+    expect(positionOf(other, 5)).toEqual({ cx: 2, cy: 3, x: 10, y: 20 });
+
+    const calls: number[][] = [];
+    const custom = new ChunkHost({ ...leanModule(), deserialize: (b, cx, cy, space) => (calls.push([cx, cy, space]), Chunk.deserialize(b.slice().buffer)) });
+    connect(custom).send(encodeLoad(2, 3, bytes));
+    expect(calls).toEqual([[2, 3, 0]]);
+    expect(positionOf(custom, 5)).toEqual({ cx: 2, cy: 3, x: 10, y: 20 });
   });
 
   test("tracks an entity across a hand-off and routes its input to the right chunk", () => {

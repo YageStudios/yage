@@ -17,6 +17,7 @@
  * the slowest host, so every host's work is on one timeline.
  */
 import { deleteWorld, deserializeWorld, SerialMode, serializeWorld, type Schema, type World } from "minecs";
+import { leanWorldType, type LeanWorldSpec, type LeanWorldType } from "../world/lean";
 import { chunkHash, chunkX, chunkY, keySpace, spaceChunkKey } from "./coord";
 import {
   createSnapshot,
@@ -97,6 +98,14 @@ export interface ChunkModule {
    * `space` says which map the chunk belongs to: chunk (0, 0) of two spaces are different places.
    */
   generate(seed: number, cx: number, cy: number, space: number): World;
+  /**
+   * The shape of loaded chunk worlds: `load` deserializes into a lean world registering only these
+   * components and systems (a `yage/world/lean` spec or leanWorldType). Without it, loaded worlds
+   * register every loaded @Component and @System. Make `generate` use the same type.
+   */
+  world?: LeanWorldSpec | LeanWorldType;
+  /** Turns saved chunk bytes into a world. Wins over `world`. */
+  deserialize?(bytes: Uint8Array, cx: number, cy: number, space: number): World;
   step(world: World, ctx: StepContext): void;
   /**
    * Fills a snapshot. Slots arrive with `tint` set to EMPTY_SLOT; write every live entity that
@@ -429,10 +438,20 @@ export class ChunkHost {
     const key = spaceChunkKey(space, cx, cy);
     const existing = this.chunks.get(key);
     if (existing) deleteWorld(existing.world);
-    const world = deserializeWorld(bytes.slice().buffer) as World;
+    const world = this.deserializeChunk(bytes, cx, cy, space);
     this.addChunk(space, cx, cy, world);
     this.module.restored?.(world, { tick: this.tickCount, space, cx, cy, generated: false });
     this.ready(key);
+  }
+
+  private chunkWorldType?: LeanWorldType;
+
+  private deserializeChunk(bytes: Uint8Array, cx: number, cy: number, space: number): World {
+    if (this.module.deserialize) return this.module.deserialize(bytes, cx, cy, space);
+    const spec = this.module.world;
+    if (!spec) return deserializeWorld(bytes.slice().buffer) as World;
+    this.chunkWorldType ??= "deserialize" in spec ? spec : leanWorldType(spec);
+    return this.chunkWorldType.deserialize(bytes.slice().buffer);
   }
 
   unload(cx: number, cy: number, space = 0): Uint8Array | null {
