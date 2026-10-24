@@ -1,4 +1,5 @@
 import * as ecs from "minecs";
+import type { World } from "minecs";
 import { Component, Schema, addComponent, addEntity, defaultValue, type } from "minecs";
 import { describe, expect, test, vi } from "vitest";
 import { createLeanGameModel } from "yage/game/LeanGameModel";
@@ -150,4 +151,50 @@ describe("schema-backed transient world context", () => {
     expect(host.unload(0, 0)).toBeInstanceOf(Uint8Array);
     expect(() => worldContext(back, Memory)).toThrow(/no live context/);
   });
+});
+
+test("companion cleanup releases borrowed resources once on reset, deletion and failed init", () => {
+  const calls: number[] = [];
+  const spec = {
+    components: [Memory],
+    initialize(world: World, entity: number) { world(Memory, entity).tick = 11; },
+    dispose(world: World, entity: number) { calls.push(world(Memory, entity).tick); },
+  };
+  const shape = leanWorldType({ context: spec, systems: [] });
+  const world = shape.create(1);
+  resetWorldContext(world);
+  resetWorldContext(world);
+  shape.dispose(world);
+  shape.dispose(world);
+  expect(calls).toEqual([11, 11, 11]);
+  expect(() => leanWorldType({ context: { ...spec, initialize(storage, entity) {
+    storage(Memory, entity).tick = 12;
+    throw new Error("invalid borrowed setup");
+  } } }).create(1)).toThrow(/invalid borrowed setup/);
+  expect(calls).toEqual([11, 11, 11, 12]);
+});
+
+
+test("throwing companion cleanup still frees storage and cannot run twice", () => {
+  const freed = vi.spyOn(ecs, "deleteWorld");
+  let calls = 0;
+  const shape = leanWorldType({context:{components:[Memory], dispose(storage, entity) {
+    expect(storage(Memory,entity).tick).toBe(7);
+    calls++;
+    throw new Error("cleanup failed");
+  }}});
+  const owner=shape.create(1);
+  const before=freed.mock.calls.length;
+  expect(()=>shape.dispose(owner)).toThrow(/cleanup failed/);
+  expect(freed.mock.calls.length-before).toBe(2);
+  expect(()=>shape.dispose(owner)).not.toThrow();
+  expect(calls).toBe(1);
+  const resetting=shape.create(1);
+  const resetBefore=freed.mock.calls.length;
+  expect(()=>resetWorldContext(resetting)).toThrow(/cleanup failed/);
+  expect(freed.mock.calls.length-resetBefore).toBe(1);
+  expect(()=>worldContext(resetting,Memory)).toThrow(/no live context/);
+  expect(()=>shape.dispose(resetting)).not.toThrow();
+  expect(calls).toBe(2);
+  freed.mockRestore();
 });

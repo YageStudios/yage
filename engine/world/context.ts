@@ -9,6 +9,8 @@ export interface WorldContextSpec {
   components: readonly (typeof Schema)[];
   /** Populate object fields and other runtime state after schema defaults have been applied. */
   initialize?(context: World, entity: number): void;
+  /** Release borrowed runtime resources before the companion storage is freed. */
+  dispose?(context: World, entity: number): void;
 }
 
 type Context = { spec: WorldContextSpec; world: World | null; entity: number; accessors: Map<Constructor<Schema>, Schema> };
@@ -27,7 +29,7 @@ export const initializeWorldContext = (world: World, spec: WorldContextSpec): vo
     for (const schema of spec.components) addComponent(context, schema, entity);
     spec.initialize?.(context, entity);
   } catch (error) {
-    deleteEcsWorld(context);
+    try { spec.dispose?.(context, entity); } finally { deleteEcsWorld(context); }
     throw error;
   }
   owner[CONTEXT] = { spec, world: context, entity, accessors: new Map() };
@@ -67,9 +69,10 @@ export const worldContext = <T extends Schema>(world: World, schema: Constructor
 export const disposeWorldContext = (world: World): void => {
   const context = (world as ContextOwner)[CONTEXT];
   if (!context?.world) return;
-  deleteEcsWorld(context.world);
+  const storage = context.world;
   context.world = null;
   context.accessors.clear();
+  try { context.spec.dispose?.(storage, context.entity); } finally { deleteEcsWorld(storage); }
 };
 
 /** Fresh schema defaults and initialization; old transient state is discarded. */
@@ -86,7 +89,6 @@ export const resetWorldContext = (world: World): void => {
 export const deleteWorld = (world: World): void => {
   const owner = world as ContextOwner;
   if (owner[DISPOSED]) return;
-  disposeWorldContext(world);
-  deleteEcsWorld(world);
   owner[DISPOSED] = true;
+  try { disposeWorldContext(world); } finally { deleteEcsWorld(world); }
 };
