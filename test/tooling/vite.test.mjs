@@ -143,11 +143,17 @@ test("reconfiguration and reload:false do not leave extra watcher listeners", ()
 });
 
 test("worker bundles get the JSON5 transform once, after the caller's worker plugins", async (t) => {
-  const own = { name: "game:worker" };
-  const config = yage()[0].config({ root: fixture(t), worker: { plugins: () => [own] } });
+  const { mergeConfig } = await import("vite");
   const flatten = async (list) => (await Promise.all(list)).flat(Infinity);
-  const plugins = await flatten(config.worker.plugins());
-  assert.deepEqual(plugins.map((p) => p.name), ["game:worker", "yage:json5"]);
+  // Vite appends a config hook's worker.plugins to the user's (mergeConfig), so check the merged result.
+  const workerNames = async (userPlugins) => {
+    const user = { root: fixture(t), worker: { plugins: userPlugins } };
+    const merged = mergeConfig(user, yage()[0].config(user));
+    return (await flatten(merged.worker.plugins())).map((p) => p.name);
+  };
+  assert.deepEqual(await workerNames(() => [{ name: "game:worker" }]), ["game:worker", "yage:json5"]);
+  assert.deepEqual(await workerNames(() => [yageJson5(), { name: "game:worker" }]), ["yage:json5", "game:worker"]);
+  assert.deepEqual(await workerNames(undefined), ["yage:json5"]);
   const already = await flatten(withWorkerJson5(() => [yageJson5()])());
   assert.deepEqual(already.map((p) => p.name), ["yage:json5"]);
   assert.equal(yage({ json5: false })[0].config({ root: fixture(t) }).worker, undefined);

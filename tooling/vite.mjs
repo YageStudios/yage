@@ -108,6 +108,7 @@ const flatPlugins = async (plugins) => {
  * caller's worker plugins and add the JSON5 transform once (skipped if they already list it), so
  * `new Worker(new URL("./sim.worker.ts", import.meta.url), { type: "module" })` can import entity
  * JSON5 the same way the page does. Dev servers and vitest already run the main plugins on workers.
+ * For a config without yage(); yage() adds the transform to worker bundles itself.
  */
 export function withWorkerJson5(userPlugins, options = {}) {
   return () => [
@@ -118,6 +119,15 @@ export function withWorkerJson5(userPlugins, options = {}) {
     })(),
   ];
 }
+
+// Vite concatenates a config hook's worker.plugins after the user's own, so the hook returns only
+// the JSON5 transform, and only when the user's worker plugins don't already include it.
+const workerJson5Addition = (userPlugins, options) => () => [
+  (async () => {
+    const plugins = await flatPlugins(userPlugins?.() ?? []);
+    return plugins.some((plugin) => plugin?.name === "yage:json5") ? [] : [yageJson5(options)];
+  })(),
+];
 
 /** Source-first by default; use source:false to exercise built/packed exports. */
 export function yage({ source = true, reload = true, json5 = true, hotReload = false } = {}) {
@@ -155,7 +165,7 @@ export function yage({ source = true, reload = true, json5 = true, hotReload = f
           dedupe: unique([...(config.resolve?.dedupe ?? []), ...sharedDependencies(root)]),
         },
         ...(json5 ? {
-          worker: { plugins: withWorkerJson5(config.worker?.plugins, typeof json5 === "object" ? json5 : {}) },
+          worker: { plugins: workerJson5Addition(config.worker?.plugins, typeof json5 === "object" ? json5 : {}) },
         } : {}),
         ...(source ? {
           server: {
