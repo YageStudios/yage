@@ -78,6 +78,8 @@ export class FocusManager {
   private virtuals = new Set<VirtualFocus>();
   private cancel?: () => void;
   private pendingRepair = new Set<number>();
+  /** The UI element holding native (player 0) focus, or undefined once focus left the UI. */
+  private domFocus?: HTMLElement;
   constructor(readonly host: HTMLElement, private beforeRead: () => void = () => {}, private externalAllowed: () => boolean = () => true) {}
   setCancelHandler(handler: () => void): void { this.cancel = handler; }
   register(entry: FocusEntry): Dispose {
@@ -86,10 +88,25 @@ export class FocusManager {
     entry.element.dataset.uifFocusId = entry.id;
     return () => {
       if (this.entries.get(entry.id) !== entry) return;
-      for (const [player, id] of [...this.focused]) if (id === entry.id) { this.setCurrent(player, undefined); this.pendingRepair.add(player); }
+      for (const [player, id] of [...this.focused]) if (id === entry.id) {
+        this.setCurrent(player, undefined);
+        if (this.refocuses(player, entry.element)) this.pendingRepair.add(player);
+      }
       this.entries.delete(entry.id);
       delete entry.element.dataset.uifFocusId;
     };
+  }
+  /** Runtime focusin: native focus is on `element` inside the UI. */
+  noteFocusIn(element: HTMLElement): void { this.domFocus = element; }
+  /** Runtime focusout: native focus moved to `next` (null when it left the document's focusable elements). */
+  noteFocusOut(next: Element | null): void { if (!next || !composedContains(this.host, next as HTMLElement)) this.domFocus = undefined; }
+  /**
+   * Whether losing `element` should move player 0's native focus to another control. Only when
+   * native focus was on it (or inside it), or a modal holds focus: a game that blurred the UI to
+   * keep its keys must not get focus pulled back. Controller players (> 0) always repair.
+   */
+  private refocuses(player: number, element: HTMLElement): boolean {
+    return player !== 0 || this.modals.length > 0 || (!!this.domFocus && composedContains(element, this.domFocus));
   }
   registerVirtual(controller: VirtualFocus): Dispose { this.virtuals.add(controller); return () => this.virtuals.delete(controller); }
   get currentModal(): HTMLElement | undefined { return this.modals[this.modals.length - 1]?.element; }
@@ -150,7 +167,7 @@ export class FocusManager {
       const entry = this.entries.get(id);
       if (!entry || !this.allows(entry.element, player)) {
         this.setCurrent(player, undefined);
-        this.first(player);
+        if (!entry || this.refocuses(player, entry.element)) this.first(player);
       }
     }
   }
@@ -222,5 +239,5 @@ export class FocusManager {
       }
     };
   }
-  dispose(): void { this.entries.clear(); this.focused.clear(); this.modals = []; this.virtuals.clear(); this.pendingRepair.clear(); }
+  dispose(): void { this.domFocus = undefined; this.entries.clear(); this.focused.clear(); this.modals = []; this.virtuals.clear(); this.pendingRepair.clear(); }
 }

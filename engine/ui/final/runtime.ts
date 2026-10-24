@@ -105,9 +105,11 @@ export class UIFinal {
     this.setTheme(options.theme ?? {});
     this.listen(this.root, "focusin", event => {
       const target = eventElement(event) ?? this.root;
+      this.focus.noteFocusIn(target);
       if (this.focus.allows(target)) this.focus.adopt(target);
       else if (this.focus.currentModal) this.focus.first(0, this.focus.currentModal);
     });
+    this.listen(this.root, "focusout", event => this.focus.noteFocusOut((event as FocusEvent).relatedTarget as Element | null));
     this.listen(this.root, "pointerdown", event => {
       const target = eventElement(event) ?? this.root;
       if (!this.focus.allows(target)) { event.preventDefault(); event.stopImmediatePropagation(); }

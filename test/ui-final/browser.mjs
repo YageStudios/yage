@@ -74,6 +74,15 @@ test("removing a focused node repairs focus to a remaining control", () => {
   ui.mount(h("column", {}, dynamic(() => visible.get() ? h("button", { id: "a", text: "A" }) : null), h("button", { id: "b", text: "B" })));
   ui.focus.focus("a"); visible.set(false); ui.flush(); equal(ui.focus.current(), "b"); equal(document.activeElement, node(ui, "b"));
 });
+test("removing a control the game blurred does not pull native focus back into the UI", () => {
+  const ui = fixture({ keyboard: false }), visible = signal(true);
+  ui.mount(h("column", {}, dynamic(() => visible.get() ? h("button", { id: "a", text: "A", on: { activate: () => { node(ui, "a").blur(); visible.set(false); } } }) : null), h("button", { id: "b", text: "B" })));
+  const a = node(ui, "a"); a.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, composed: true })); a.focus(); equal(ui.focus.current(), "a");
+  a.click(); ui.flush();
+  assert(!ui.element("a"), "a removed"); equal(ui.focus.current(), undefined, "player 0 current"); assert(document.activeElement !== node(ui, "b"), "native focus stayed out of the UI");
+  // Explicit focus into the UI still works afterwards.
+  ui.focus.focus("b"); equal(document.activeElement, node(ui, "b"));
+});
 test("Tab, explicit focus and activation skip CSS-hidden controls", () => {
   const ui = fixture(); ui.mount(h("column", {}, h("button", { id: "hidden", text: "Hidden", style: { display: "none" } }), h("button", { id: "a", text: "A" }), h("button", { id: "invisible", text: "Invisible", style: { visibility: "hidden" } }), h("button", { id: "b", text: "B" })));
   assert(!ui.focus.focus("hidden")); assert(!ui.focus.focus("invisible")); ui.focus.first(); equal(ui.focus.current(), "a");
