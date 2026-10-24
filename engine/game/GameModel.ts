@@ -44,6 +44,7 @@ import { ShareOnEject } from "yage/schemas/share/ShareOnEject";
 import { DoNotEject } from "yage/schemas/entity/DoNotEject";
 import { UiCleanupOnLeave } from "yage/schemas/render/UiCleanupOnLeave";
 import { FIXED_TIMESTEP_MS } from "yage/game/Timing";
+import { assertNoNullableTypedColumns } from "yage/world/columns";
 
 // @ts-expect-error - MineCS doesn't have a type for this
 type EntityWithComponent<T extends Schema> = number & { __hasComponent: T["type"] };
@@ -399,6 +400,7 @@ export const GameModel = ({
   inputManager: InputManager;
   playerEventManager: PlayerEventManager;
 }): GameModel => {
+  assertNoNullableTypedColumns(world.componentMap.keys(), "yage GameModel");
   registerHotWorld(world);
   const allocateEntity = () => {
     try {

@@ -1,9 +1,8 @@
-import { Component, Schema, defaultValue, nullable, type } from "minecs";
+import { Component, Schema, defaultValue, type } from "minecs";
 
 @Component("NullTest")
 export class NullTest extends Schema {
   @type("number")
-  @nullable()
   @defaultValue(5)
   nullCheck: number;
 }

@@ -18,6 +18,7 @@ import {
   type World,
 } from "minecs";
 
+import { assertNoNullableTypedColumns } from "./columns";
 import { initializeWorldContext, deleteWorld, type WorldContextSpec } from "./context";
 export { worldContext, initializeWorldContext, resetWorldContext, disposeWorldContext, deleteWorld } from "./context";
 export type { WorldContextSpec } from "./context";
@@ -73,6 +74,7 @@ export const leanWorldType = (spec: LeanWorldSpec = {}): LeanWorldType => {
       throw new Error(`yage lean world: ${String(component)} is not a @Component schema`);
     }
   }
+  assertNoNullableTypedColumns(components, "yage lean world");
   const options: CreateWorldOptions = Object.freeze({ components, systems });
   const attach = (world: World): World => {
     try {

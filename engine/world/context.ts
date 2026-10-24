@@ -4,6 +4,7 @@
  * simulation world's ids, queries or wire format. Restoring a world initializes fresh context.
  */
 import { addComponent, addEntity, createWorld, deleteWorld as deleteEcsWorld, type Constructor, type Schema, type World } from "minecs";
+import { assertNoNullableTypedColumns } from "./columns";
 
 export interface WorldContextSpec {
   components: readonly (typeof Schema)[];
@@ -23,6 +24,7 @@ export const initializeWorldContext = (world: World, spec: WorldContextSpec): vo
   const owner = world as ContextOwner;
   if (owner[DISPOSED]) throw new Error("yage world context: world is disposed");
   if (owner[CONTEXT]) return;
+  assertNoNullableTypedColumns(spec.components, "yage world context");
   const context = createWorld(1, { components: [...spec.components], systems: [] });
   const entity = addEntity(context);
   try {
