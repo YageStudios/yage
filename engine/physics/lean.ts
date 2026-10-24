@@ -13,12 +13,12 @@
  * - LeanPhysics: the per-world resource (the Rapier world, body handles and fixed colliders). Add
  *   it to the world's context spec (yage/world/lean) and call releaseLeanPhysicsState from the
  *   spec's dispose, so the Rapier world is freed with the lean world.
- * - leanPhysicsSystem(binding): the system that steps it, bound to the game's position columns.
- *   It only steps on steps the game armed with armLeanPhysics, so other steps of the same world
- *   (cheaper tiers, tests) never touch Rapier.
+ * - LeanPhysicsSystem: the system that steps it, subclassed by the game with its position
+ *   columns. It only steps on steps the game armed with armLeanPhysics, so other steps of the
+ *   same world (cheaper tiers, tests) never touch Rapier.
  */
 import RAPIER from "@dimforge/rapier2d-deterministic-compat";
-import { Component, defaultValue, nullable, Schema, System, SystemImpl, type, type World } from "minecs";
+import { Component, defaultValue, nullable, Schema, SystemImpl, type, type World } from "minecs";
 import { worldContext } from "../world/context";
 
 // -------------------------------------------------------------------------------------------
@@ -213,11 +213,7 @@ export const addFixedBox = (state: LeanPhysics, x: number, y: number, hw: number
 // Stepping
 
 /** Where an entity's position lives: its component and its x and y fields. */
-export type LeanPhysicsBinding = {
-  position: { component: typeof Schema; x: string; y: string };
-  /** The system's depth in the world's step order. */
-  depth: number;
-};
+export type LeanPosition = { component: typeof Schema; x: string; y: string };
 
 const bodyTypeOf = (kind: number) => (kind === LeanBodyKind.Dynamic ? RAPIER.RigidBodyType.Dynamic : RAPIER.RigidBodyType.KinematicPositionBased);
 
@@ -247,9 +243,9 @@ const byNumber = (a: number, b: number) => a - b;
 /**
  * Steps the world's bodies once: creates the missing ones (in entity order, so runs repeat
  * exactly), heads each for its entity's position, runs Rapier, and writes the resolved
- * positions back. Called by the bound system on armed steps.
+ * positions back. Called by the game's LeanPhysicsSystem on armed steps.
  */
-export const stepLeanPhysics = (world: World, binding: LeanPhysicsBinding, entities: readonly number[]): void => {
+export const stepLeanPhysics = (world: World, position: LeanPosition, entities: readonly number[]): void => {
   const state = leanPhysicsOf(world);
   const physics = state.world;
   const dt = state.dt;
@@ -257,9 +253,9 @@ export const stepLeanPhysics = (world: World, binding: LeanPhysicsBinding, entit
   if (!physics || !(dt > 0)) return;
   const bodies = state.bodies!;
   const shape = world(LeanBody).store as any;
-  const store = (world as any)(binding.position.component).store;
-  const xs: Float32Array | Float64Array = store[binding.position.x];
-  const ys: Float32Array | Float64Array = store[binding.position.y];
+  const store = (world as any)(position.component).store;
+  const xs: Float32Array | Float64Array = store[position.x];
+  const ys: Float32Array | Float64Array = store[position.y];
 
   const substeps = Math.max(1, Math.ceil(dt / state.maxStep - 1e-9));
   const sorted = entities.slice().sort(byNumber);
@@ -340,7 +336,7 @@ export const stepLeanPhysics = (world: World, binding: LeanPhysicsBinding, entit
   }
 };
 
-/** Removes an entity's body, if it has one (the bound system does it when the entity goes). */
+/** Removes an entity's body, if it has one (LeanPhysicsSystem does it when the entity goes). */
 export const removeLeanBody = (world: World, eid: number): void => {
   let state: LeanPhysics;
   try {
@@ -356,20 +352,25 @@ export const removeLeanBody = (world: World, eid: number): void => {
 };
 
 /**
- * The system that steps a world's lean physics at `binding.depth`, for entities with LeanBody and
- * the bound position component. Make it once per game and list it with the world's systems.
+ * The system that steps a world's lean physics. A game subclasses it once, bound to its own
+ * position component, and lists it with the world's systems:
+ *
+ *   @System(LeanBody, Pos)
+ *   export class MyPhysicsSystem extends LeanPhysicsSystem {
+ *     static depth = 90;
+ *     static position = { component: Pos, x: "x", y: "y" };
+ *   }
  */
-export const leanPhysicsSystem = (binding: LeanPhysicsBinding): typeof SystemImpl<World> => {
-  @System(LeanBody, binding.position.component)
-  class LeanPhysicsSystem extends SystemImpl<World> {
-    static depth = binding.depth;
-    static runEmpty = true;
-    cleanup(world: World, eid: number) {
-      removeLeanBody(world, eid);
-    }
-    runAll(world: World) {
-      stepLeanPhysics(world, binding, this.query(world));
-    }
+export class LeanPhysicsSystem extends SystemImpl<World> {
+  /** The position columns bodies head for and are written back to. */
+  static position: LeanPosition;
+  static runEmpty = true;
+  cleanup(world: World, eid: number) {
+    removeLeanBody(world, eid);
   }
-  return LeanPhysicsSystem;
-};
+  runAll(world: World) {
+    const position = (this.constructor as typeof LeanPhysicsSystem).position;
+    if (!position) throw new Error(`yage lean physics: ${this.constructor.name} has no static position`);
+    stepLeanPhysics(world, position, this.query(world));
+  }
+}

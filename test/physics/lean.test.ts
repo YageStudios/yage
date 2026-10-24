@@ -1,4 +1,4 @@
-import { addComponent, addEntity, Component, defaultValue, removeEntity, Schema, SerialMode, serializeWorld, stepWorld, type, type World } from "minecs";
+import { addComponent, addEntity, Component, defaultValue, removeEntity, Schema, SerialMode, serializeWorld, stepWorld, System, type, type World } from "minecs";
 import { beforeAll, describe, expect, test, vi } from "vitest";
 import {
   addFixedBox,
@@ -7,7 +7,7 @@ import {
   LeanBodyKind,
   leanPhysicsLive,
   leanPhysicsOf,
-  leanPhysicsSystem,
+  LeanPhysicsSystem,
   LeanPhysics,
   liveLeanPhysicsWorlds,
   loadRapier,
@@ -30,7 +30,11 @@ class PhysicsTestGoal extends Schema {
   @type("float32") @defaultValue(0) y: number;
 }
 
-const Physics = leanPhysicsSystem({ position: { component: PhysicsTestPos, x: "x", y: "y" }, depth: 10 });
+@System(LeanBody, PhysicsTestPos)
+class Physics extends LeanPhysicsSystem {
+  static depth = 10;
+  static position = { component: PhysicsTestPos, x: "x", y: "y" };
+}
 
 const Kind = leanWorldType({
   size: 64,
