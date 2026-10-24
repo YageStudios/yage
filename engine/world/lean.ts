@@ -75,8 +75,13 @@ export const leanWorldType = (spec: LeanWorldSpec = {}): LeanWorldType => {
   }
   const options: CreateWorldOptions = Object.freeze({ components, systems });
   const attach = (world: World): World => {
-    if (spec.context) initializeWorldContext(world, spec.context);
-    return world;
+    try {
+      if (spec.context) initializeWorldContext(world, spec.context);
+      return world;
+    } catch (error) {
+      deleteWorld(world);
+      throw error;
+    }
   };
   return Object.freeze({
     components,

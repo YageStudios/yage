@@ -1,5 +1,6 @@
+import * as ecs from "minecs";
 import { Component, Schema, addComponent, addEntity, defaultValue, type } from "minecs";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { createLeanGameModel } from "yage/game/LeanGameModel";
 import { ChunkHost } from "yage/streaming";
 import { deleteWorld, disposeWorldContext, initializeWorldContext, leanWorldType, resetWorldContext, SerialMode, serializeWorld, worldContext, type WorldContextSpec } from "yage/world/lean";
@@ -45,6 +46,22 @@ describe("schema-backed transient world context", () => {
     initializeWorldContext(a, context);
     expect(worldContext(a, Memory).tick).toBe(99);
     for (const world of [a, b, restored]) shape.dispose(world);
+  });
+
+  test("failed context initialization releases both worlds, and subsequent defaults stay fresh", () => {
+    const freed = vi.spyOn(ecs, "deleteWorld");
+    try {
+      const broken = leanWorldType({ components: [Person], systems: [], context: {
+        components: [Memory], initialize() { throw new Error("bad context"); },
+      } });
+      expect(() => broken.create(4)).toThrow("bad context");
+      expect(freed.mock.calls).toHaveLength(2);
+      expect(freed.mock.calls[0][0].componentMap.has(Memory)).toBe(true);
+      expect(freed.mock.calls[1][0].componentMap.has(Person)).toBe(true);
+      const good = shape.create(4);
+      expect(worldContext(good, Memory).tick).toBe(7);
+      shape.dispose(good);
+    } finally { freed.mockRestore(); }
   });
 
   test("reset/dispose are explicit and repeat-safe, and deletion prevents recreation", () => {
