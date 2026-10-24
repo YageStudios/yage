@@ -91,7 +91,7 @@ describe("LeanGameModel", () => {
     const entry = fileURLToPath(new URL("../../engine/game/LeanGameModel.ts", import.meta.url));
     const result = await build({ entryPoints: [entry], bundle: true, write: false, metafile: true, format: "esm", platform: "browser", conditions: ["yage-source"], logLevel: "silent", alias: { yage: fileURLToPath(new URL("../../engine", import.meta.url)) } });
     const engine = Object.keys(result.metafile!.inputs).filter((p) => p.includes("engine/")).map((p) => p.slice(p.indexOf("engine/"))).sort();
-    expect(engine).toEqual(["engine/game/LeanGameModel.ts", "engine/game/Timing.ts", "engine/game/pause.ts", "engine/world/lean.ts"]);
+    expect(engine).toEqual(["engine/game/LeanGameModel.ts", "engine/game/Timing.ts", "engine/game/pause.ts", "engine/world/context.ts", "engine/world/lean.ts"]);
     expect(Object.keys(result.metafile!.inputs).some((p) => /rapier|pixi/.test(p))).toBe(false);
   });
 });
