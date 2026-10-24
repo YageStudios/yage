@@ -30,8 +30,15 @@ const SIT_DROP = 0.12;
 /** How much of a sleeper shows above the covers (of its height, from the top). */
 const TUCKED = 0.55;
 
-/** How an entity is posed; see `ChunkLayer.setPoses`. SitLeft is a sitter facing left (drawn mirrored). */
-export const POSE = { Stand: 0, Lie: 1, Sit: 2, SitLeft: 3 } as const;
+/** How much a hunched figure is shortened (of its height). */
+const HUNCH_HEIGHT = 0.88;
+
+/**
+ * How an entity is posed; see `ChunkLayer.setPoses`. SitLeft is a sitter facing left (drawn
+ * mirrored). Fallen lies turned like Lie but uncovered (down on the ground, not in a bed). Hunch is
+ * bent over: shortened, its top leaning sideways by `turn` (of its height; negative leans left).
+ */
+export const POSE = { Stand: 0, Lie: 1, Sit: 2, SitLeft: 3, Fallen: 4, Hunch: 5 } as const;
 export type PoseKind = (typeof POSE)[keyof typeof POSE];
 export type PoseEntry = { slot: number; pose: PoseKind; turn: number };
 
@@ -57,18 +64,25 @@ vec2 footOf() {
 }
 // A pose (see ChunkLayer.setPoses) moves the sprite's corners about its feet: lying, the quad
 // turns by aPose.y about its middle, which lands on the feet (a sleeper centred on the bed);
-// sitting, it is shortened onto the seat, mirrored when it faces left.
+// sitting, it is shortened onto the seat, mirrored when it faces left; fallen, it turns like a
+// sleeper but nothing covers it; hunched, it is shortened and its top leans by aPose.y.
 vec2 posedOf(vec2 corner, vec2 size) {
   vec2 p = corner * size;
-  if (aPose.x > 0.5 && aPose.x < 1.5) {
+  float kind = floor(aPose.x + 0.5);
+  if (kind > 4.5) {
+    p.y *= ${HUNCH_HEIGHT.toFixed(2)};
+    p.x -= p.y * aPose.y;
+    return p;
+  }
+  if (kind == 1.0 || kind == 4.0) {
     vec2 c = p + vec2(0.0, 0.5 * size.y);
     float s = sin(aPose.y);
     float k = cos(aPose.y);
     return vec2(k * c.x - s * c.y, s * c.x + k * c.y);
   }
-  if (aPose.x > 1.5) {
+  if (kind == 2.0 || kind == 3.0) {
     p.y = p.y * ${SIT_HEIGHT.toFixed(2)} + ${SIT_DROP.toFixed(2)} * size.y;
-    if (aPose.x > 2.5) p.x = -p.x;
+    if (kind == 3.0) p.x = -p.x;
   }
   return p;
 }
@@ -170,7 +184,7 @@ uniform vec2 uShadowOffset;
 varying vec2 vLocal;
 
 void main() {
-  if (aTint > ${EMPTY_SLOT - 0.5} || (aPose.x > 0.5 && aPose.x < 1.5)) {
+  if (aTint > ${EMPTY_SLOT - 0.5} || (aPose.x > 0.5 && aPose.x < 1.5) || (aPose.x > 3.5 && aPose.x < 4.5)) {
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
     vLocal = vec2(9.0);
     return;
