@@ -100,6 +100,8 @@ export class FocusManager {
   noteFocusIn(element: HTMLElement): void { this.domFocus = element; }
   /** Runtime focusout: native focus moved to `next` (null when it left the document's focusable elements). */
   noteFocusOut(next: Element | null): void { if (!next || !composedContains(this.host, next as HTMLElement)) this.domFocus = undefined; }
+  /** Drops `player`'s current control (and its focus marker) without moving focus anywhere. */
+  release(player = 0): void { this.setCurrent(player, undefined); }
   /**
    * Whether losing `element` should move player 0's native focus to another control. Only when
    * native focus was on it (or inside it), or a modal holds focus: a game that blurred the UI to
@@ -221,19 +223,25 @@ export class FocusManager {
     target.dispatchEvent(new EventClass(type, { bubbles: true, composed: true, cancelable: true, detail: { player } }));
     return true;
   }
-  pushModal(element: HTMLElement, autoFocus = true): Dispose {
+  /**
+   * Holds focus in `element` until the returned function pops it, which restores each player's
+   * previous control (or the first one). `restoreNative: false` leaves player 0 with no control:
+   * native focus was outside the UI when the modal opened and goes back there instead.
+   */
+  pushModal(element: HTMLElement, autoFocus = true): (restoreNative?: boolean) => void {
     const modal = { element, previous: new Map(this.focused) };
     this.modals.push(modal);
     if (autoFocus) for (const player of new Set([0, ...this.focused.keys()])) {
       this.setCurrent(player, undefined);
       this.first(player, element);
     }
-    return () => {
+    return (restoreNative = true) => {
       const top = this.modals[this.modals.length - 1] === modal;
       this.modals = this.modals.filter(item => item !== modal);
       if (!top) return;
       for (const player of new Set([0, ...this.focused.keys(), ...modal.previous.keys()])) {
         this.setCurrent(player, undefined);
+        if (player === 0 && !restoreNative) continue;
         const previous = modal.previous.get(player);
         if (!previous || !this.focus(previous, player)) this.first(player);
       }

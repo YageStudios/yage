@@ -83,6 +83,38 @@ test("removing a control the game blurred does not pull native focus back into t
   // Explicit focus into the UI still works afterwards.
   ui.focus.focus("b"); equal(document.activeElement, node(ui, "b"));
 });
+test("a keyboard:false root takes no focus, so a press on plain content leaves focus where it was", () => {
+  const game = fixture({ keyboard: false }), keys = fixture();
+  game.mount(h("column", { id: "panel" }, h("text", { text: "Map" })));
+  assert(!game.root.hasAttribute("tabindex")); game.root.focus(); assert(document.activeElement !== game.root, "game root not focusable");
+  // Control: a keyboard runtime's root still takes focus (its keys then reach the UI).
+  equal(keys.root.tabIndex, -1); keys.root.focus(); equal(document.activeElement, keys.root); keys.root.blur();
+});
+test("keyboard:false: native focus leaving the UI clears player 0's control and its marker", () => {
+  const game = fixture({ keyboard: false }), keys = fixture();
+  game.mount(h("button", { id: "g", text: "G" })); keys.mount(h("button", { id: "k", text: "K" }));
+  const g = node(game, "g"); g.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, composed: true })); g.focus();
+  equal(game.focus.current(), "g"); equal(g.dataset.uifPlayers, "0");
+  g.blur(); equal(game.focus.current(), undefined); assert(!("uifPlayers" in g.dataset), "marker cleared");
+  // Control: a keyboard runtime keeps player 0's control (keyboard navigation resumes from it).
+  keys.focus.focus("k"); node(keys, "k").blur(); equal(keys.focus.current(), "k"); equal(node(keys, "k").dataset.uifPlayers, "0");
+});
+test("a modal opened while the game had focus gives it back on close and on Escape", () => {
+  const ui = fixture({ keyboard: false }); ui.mount(h("button", { id: "help", text: "Help" }));
+  /** @type {HTMLElement} */ (document.activeElement)?.blur?.(); equal(document.activeElement, document.body);
+  const first = ui.openModal(h("button", { id: "a", text: "A" }), { label: "One" }); equal(document.activeElement, node(ui, "a"));
+  first.close(); equal(document.activeElement, document.body); equal(ui.focus.current(), undefined);
+  const second = ui.openModal(h("button", { id: "b", text: "B" }), { label: "Two" });
+  // Escape without UI keys is the dialog's native cancel.
+  second.element.dispatchEvent(new Event("cancel", { cancelable: true }));
+  assert(!second.element.isConnected, "cancel closed it"); equal(document.activeElement, document.body); equal(ui.focus.current(), undefined);
+  // An outside control the game had focused gets focus back.
+  const outside = document.createElement("input"); document.body.appendChild(outside);
+  try { outside.focus(); ui.openModal(h("button", { id: "c", text: "C" }), { label: "Three" }).close(); equal(document.activeElement, outside); }
+  finally { outside.remove(); }
+  // Control: opened from a UI control, closing restores that control.
+  ui.focus.focus("help"); ui.openModal(h("button", { id: "d", text: "D" }), { label: "Four" }).close(); equal(document.activeElement, node(ui, "help"));
+});
 test("plain panels and text carry no tabindex, so clicking them cannot focus them", () => {
   const ui = fixture(), focusable = signal(true);
   ui.mount(h("column", { id: "panel" }, h("button", { id: "row" }, h("text", { id: "label", text: "Town" })), h("button", { id: "off", text: "Off", focusable: false }), dynamic(() => h("row", { id: "card", focusable: focusable.get() }))));

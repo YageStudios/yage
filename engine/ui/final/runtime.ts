@@ -71,7 +71,9 @@ export class UIFinal {
     const host = options.host ?? document.body;
     this.root = document.createElement("div");
     this.root.dataset.uifRoot = String(++rootSequence);
-    this.root.tabIndex = -1;
+    // A keyboard runtime takes focus on a press anywhere in it (its keys then reach the UI). A game's
+    // UI (keyboard: false) does not: a press on plain content leaves native focus where it was.
+    if (options.keyboard !== false) this.root.tabIndex = -1;
     this.root.style.position = options.placement === "inline" ? "relative" : "absolute";
     if (options.placement !== "inline") this.root.style.inset = "0";
     this.root.style.zIndex = String(options.zIndex ?? 20);
@@ -109,7 +111,12 @@ export class UIFinal {
       if (this.focus.allows(target)) this.focus.adopt(target);
       else if (this.focus.currentModal) this.focus.first(0, this.focus.currentModal);
     });
-    this.listen(this.root, "focusout", event => this.focus.noteFocusOut((event as FocusEvent).relatedTarget as Element | null));
+    this.listen(this.root, "focusout", event => {
+      const next = (event as FocusEvent).relatedTarget as Element | null;
+      this.focus.noteFocusOut(next);
+      // Without UI keys, player 0's control is native focus: once that leaves the UI, so does its marker.
+      if (options.keyboard === false && !this.focus.currentModal && (!next || !composedContains(this.root, next as HTMLElement))) this.focus.release(0);
+    });
     this.listen(this.root, "pointerdown", event => {
       const target = eventElement(event) ?? this.root;
       if (!this.focus.allows(target)) { event.preventDefault(); event.stopImmediatePropagation(); }
@@ -231,6 +238,9 @@ export class UIFinal {
     const token = {};
     const owners = modalOwners.get(document) ?? [];
     owners.push({ owner: this, token }); modalOwners.set(document, owners);
+    // Where native focus was: outside the UI (the game had it), closing gives it back there.
+    const invoker = document.activeElement as HTMLElement | null;
+    const outside = !invoker || !composedContains(this.root, invoker);
     const pop = this.focus.pushModal(dialog, false);
     let closed = false;
     const dispose = () => {
@@ -241,7 +251,13 @@ export class UIFinal {
       this.content.inert = this.modals.length > 0 || this.modalBaseInert;
       for (const modal of this.modals) modal.wrapper.inert = modal !== this.modals[this.modals.length - 1];
       if (dialog.open) dialog.close();
-      pop(); modalScope.dispose(); options.onClose?.();
+      pop(!outside);
+      if (outside) {
+        const active = document.activeElement as HTMLElement | null;
+        if (invoker && invoker !== document.body && invoker.isConnected) invoker.focus({ preventScroll: true });
+        else if (active && composedContains(this.root, active)) active.blur();
+      }
+      modalScope.dispose(); options.onClose?.();
     };
     const handle: ModalHandle = { element: dialog, close: dispose };
     this.modals.push({ handle: options.dismissible === false ? { element: dialog, close: () => {} } : handle, dispose, wrapper });
