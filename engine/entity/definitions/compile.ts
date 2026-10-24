@@ -5,12 +5,15 @@ import { orderComponents } from "./order";
 import type { ComponentData, EntityDefinition, EnumResolver, ValueContext } from "./types";
 import { hasDynamicValues, mapDefinitionValues } from "./values";
 import { addEntities } from "../../world/spawn";
+import { OwnedBy } from "../../world/owner";
 
 export type ComponentOverrides = Record<string, Record<string, unknown> | ((data: Record<string, unknown>) => Record<string, unknown>)>;
 
 export interface SpawnContext extends ValueContext {
   /** Per component type: fields merged over the definition's data (or a function of it). */
   overrides?: ComponentOverrides;
+  /** The entity this one belongs to: the root gets OwnedBy { owner } (yage/world/owner). Children keep Child.parent instead. */
+  owner?: number;
 }
 
 export interface CompileOptions {
@@ -126,6 +129,7 @@ export const compileEntityDefinition = (definition: EntityDefinition, options: C
       if (parent !== undefined && plan.schema === Child) data = { ...data, parent };
       addComponent(world, plan.schema as any, eid, data as any);
     }
+    if (parent === undefined && ctx.owner !== undefined) addComponent(world, OwnedBy as any, eid, { owner: ctx.owner } as any);
     if (parent !== undefined) {
       if (Transform && !plans.some((p) => p.schema === Transform)) addComponent(world, Transform as any, eid, { x: 0, y: 0 } as any);
       if (!plans.some((p) => p.schema === Child)) addComponent(world, Child as any, eid, { parent } as any);
@@ -141,7 +145,7 @@ export const compileEntityDefinition = (definition: EntityDefinition, options: C
 
   const spawnMany = (world: World, count: number, ctx?: SpawnContext, each?: (eid: number, index: number) => void): number[] => {
     const overrides = ctx?.overrides;
-    const bulk = !children.length && plans.every((p) => p.flat && typeof overrides?.[p.type] !== "function");
+    const bulk = ctx?.owner === undefined && !children.length && plans.every((p) => p.flat && typeof overrides?.[p.type] !== "function");
     if (!bulk) {
       const eids: number[] = [];
       for (let i = 0; i < count; i++) {
@@ -165,7 +169,7 @@ export const compileEntityDefinition = (definition: EntityDefinition, options: C
     apply: (world, eid, ctx) => apply(world, eid, ctx),
     spawn: (world, ctx) => spawnWith(world, ctx),
     spawnMany,
-    spawnUnder: (world, parent, ctx) => spawnWith(world, ctx === undefined ? undefined : { ...ctx, overrides: undefined }, parent),
+    spawnUnder: (world, parent, ctx) => spawnWith(world, ctx === undefined ? undefined : { ...ctx, overrides: undefined, owner: undefined }, parent),
   };
   return compiled;
 };
