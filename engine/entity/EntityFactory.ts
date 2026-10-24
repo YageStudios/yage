@@ -1,34 +1,30 @@
 import type { ComponentData } from "../systems/types";
 import { isEntityHotReloadEnabled, queueEntityDefaultsPatch, setEntityReloadHandler } from "../dev/hotReload";
 import { applyEntityDefaults, trackEntityTemplate } from "./hotDefaults";
-import { EnemyTypeEnum, EntityTypeEnum } from "../constants/enums";
+import { EntityTypeEnum } from "../constants/enums";
 import type { GameModel } from "yage/game/GameModel";
-import { clone } from "yage/utils/clone";
 import { StringToEnum } from "yage/utils/typehelpers";
 import { getEnum } from "yage/constants/";
 import AssetLoader from "yage/loader/AssetLoader";
 import type { EntityAsset } from "./EntityAssets";
 import { getGlobalSingleton, setGlobalSingleton } from "yage/global";
 import { cloneDeep } from "lodash";
-import { hexToRgbNumber } from "yage/utils/colors";
 import { ListenEntityCreationSystem } from "yage/systems/core/ListenEntityCreation";
 import { ListenEntityCreation } from "yage/schemas/core/ListenEntityCreation";
 import { componentList } from "minecs";
-import toposort from "toposort";
 import { flags } from "yage/console/flags";
+import {
+  EntityDefinitionRegistry,
+  mapDefinitionValues,
+  orderComponents,
+  yageTypeComponents,
+  type EntityDefinition,
+  type FlexibleEntityDefinition as CoreFlexibleEntityDefinition,
+} from "./definitions";
 
-export interface EntityDefinition {
-  name: string;
-  type?: string;
-  children?: string[];
-  components?: ComponentData[];
-  inherits?: string[] | string;
-}
+export type { EntityDefinition } from "./definitions";
 
-export type FlexibleEntityDefinition = EntityDefinition & {
-  components?: (ComponentData | string)[];
-  assets?: EntityAsset[];
-};
+export type FlexibleEntityDefinition = CoreFlexibleEntityDefinition<EntityAsset>;
 
 export type EntityComponentDTO = {
   template?: string;
@@ -36,134 +32,57 @@ export type EntityComponentDTO = {
   components: ComponentData[];
 };
 
+const loadAssets = (assets: EntityAsset[]) => {
+  assets.forEach((asset) => {
+    switch (asset.type) {
+      case "image":
+        AssetLoader.getInstance().loadImage(asset.key, asset.url);
+        break;
+      case "spritesheet": {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { key, url, type, ...spriteOptions } = asset;
+        AssetLoader.getInstance().loadSprite(key, url, spriteOptions);
+        break;
+      }
+      case "sound": {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { key, url, type, ...soundOptions } = asset;
+        AssetLoader.getInstance().loadSound(key, url, soundOptions);
+        break;
+      }
+      case "ui":
+        AssetLoader.getInstance().loadUi(asset.key, asset.url);
+        break;
+      case "spine":
+        AssetLoader.getInstance().loadSpine(asset.key, asset.url);
+        break;
+      case "map":
+        AssetLoader.getInstance().loadMap(asset.key, asset.url);
+        break;
+      case "mapskin":
+        AssetLoader.getInstance().loadMapSkin(asset.key, asset.url);
+        break;
+    }
+  });
+};
+
+/**
+ * GameModel-facing wrapper over the pure definitions core (yage/entity/definitions): adds asset
+ * loading, the global singleton, hot reload and GameModel-driven value mapping and ordering.
+ */
 export class EntityFactory {
-  entityDefinitionMap = new Map<string, EntityDefinition>();
+  readonly registry: EntityDefinitionRegistry;
+  entityDefinitionMap: Map<string, EntityDefinition>;
   entityDefinitionStringMap = new Map<string, string>();
 
   constructor(entityDefinitions: FlexibleEntityDefinition[]) {
-    let list = entityDefinitions.slice();
-    let inheritanceFailureCount = 0;
-    let inheritanceList: FlexibleEntityDefinition[] = [];
-    while (list.length && inheritanceFailureCount++ < 100) {
-      inheritanceList = [];
-      list.forEach((entityDefinition) => {
-        if (entityDefinition.inherits) {
-          let parentLoaded = true;
-          // check if the parent is already loaded
-          if (typeof entityDefinition.inherits === "string") {
-            if (!this.entityDefinitionMap.has(entityDefinition.inherits.toLowerCase())) {
-              inheritanceList.push(entityDefinition);
-              parentLoaded = false;
-            }
-          } else {
-            entityDefinition.inherits.every((x) => {
-              if (!this.entityDefinitionMap.has(x.toLowerCase())) {
-                inheritanceList.push(entityDefinition);
-                parentLoaded = false;
-                return false;
-              }
-              return true;
-            });
-          }
-          if (!parentLoaded) {
-            return;
-          }
-        }
-
-        this.entityDefinitionMap.set(entityDefinition.name.toLowerCase(), JSON.parse(JSON.stringify(entityDefinition)));
-      });
-      list = inheritanceList;
-    }
-    if (inheritanceFailureCount >= 100) {
-      console.error(inheritanceList.map((x) => x.name));
-      throw new Error("Inheritance failure count exceeded 100!");
-    }
-    const definitions = Array.from(this.entityDefinitionMap.values());
-
-    definitions.forEach((x: FlexibleEntityDefinition) => {
-      let inherits;
-      x.components = (x.components || []).map((c) => {
-        return typeof c === "string" ? { type: c } : c;
-      });
-      if (x.assets) {
-        x.assets.forEach((asset) => {
-          switch (asset.type) {
-            case "image":
-              AssetLoader.getInstance().loadImage(asset.key, asset.url);
-              break;
-            case "spritesheet": {
-              // eslint-disable-next-line @typescript-eslint/no-unused-vars
-              const { key, url, type, ...spriteOptions } = asset;
-              AssetLoader.getInstance().loadSprite(key, url, spriteOptions);
-              break;
-            }
-            case "sound": {
-              // eslint-disable-next-line @typescript-eslint/no-unused-vars
-              const { key, url, type, ...soundOptions } = asset;
-              AssetLoader.getInstance().loadSound(key, url, soundOptions);
-              break;
-            }
-            case "ui":
-              AssetLoader.getInstance().loadUi(asset.key, asset.url);
-              break;
-            case "spine":
-              AssetLoader.getInstance().loadSpine(asset.key, asset.url);
-              break;
-            case "map":
-              AssetLoader.getInstance().loadMap(asset.key, asset.url);
-              break;
-            case "mapskin":
-              AssetLoader.getInstance().loadMapSkin(asset.key, asset.url);
-              break;
-          }
-        });
-      }
-      if (x.inherits) {
-        if (typeof x.inherits === "string") {
-          inherits = [x.inherits];
-        } else {
-          inherits = x.inherits;
-        }
-      }
-      if (inherits) {
-        inherits.forEach((inheritable) => {
-          const toInherit = this.entityDefinitionMap.get(inheritable.toLowerCase());
-          if (!toInherit) {
-            console.error(`Could not find inheritable ${inheritable} in map!`);
-            return;
-          } else {
-            // console.log(`Found inheritable ${inheritable} for definition ${x.name}`);
-          }
-          const definitionCopy = JSON.parse(JSON.stringify(x));
-          definitionCopy.type = definitionCopy.type ?? toInherit.type;
-          definitionCopy.children = [...(toInherit.children ?? []), ...(definitionCopy.children ?? [])];
-          if (
-            toInherit.components &&
-            toInherit.components.length > 0 &&
-            definitionCopy.components &&
-            definitionCopy.components.length > 0
-          ) {
-            definitionCopy.components = Object.values(
-              clone(toInherit.components)
-                .concat(definitionCopy.components)
-                .reduce((acc: any, x: any) => {
-                  return { ...acc, [x.type]: x };
-                }, {})
-            );
-          } else if (toInherit.components && toInherit.components.length > 0) {
-            definitionCopy.components = clone(toInherit.components);
-          } else {
-            // definitionCopy.components = [];
-          }
-          this.entityDefinitionMap.set(x.name.toLowerCase(), definitionCopy);
-        });
-      }
+    this.registry = new EntityDefinitionRegistry(entityDefinitions, { enums: (name) => getEnum(name) as any });
+    this.entityDefinitionMap = this.registry.definitions;
+    entityDefinitions.forEach((definition) => {
+      if (definition.assets) loadAssets(definition.assets);
     });
-
-    const finalDefinitions = Array.from(this.entityDefinitionMap.values());
-
-    finalDefinitions.forEach((x) => {
-      this.entityDefinitionStringMap.set(x.name.toLowerCase(), JSON.stringify(x));
+    this.entityDefinitionMap.forEach((x, key) => {
+      this.entityDefinitionStringMap.set(key, JSON.stringify(x));
     });
 
     setGlobalSingleton("EntityFactory", this);
@@ -194,59 +113,11 @@ export class EntityFactory {
   }
 
   mapComplexValues(data: any, gameModel: GameModel): any {
-    if (Array.isArray(data)) {
-      return data.map((d) => this.mapComplexValues(d, gameModel));
-    } else if (typeof data === "object") {
-      for (const key in data) {
-        const mappedkey = this.mapComplexValues(key, gameModel).toString();
-        data[mappedkey] = this.mapComplexValues(data[key], gameModel);
-        if (mappedkey !== key) {
-          delete data[key];
-        }
-      }
-    } else if (typeof data === "string") {
-      if (data.startsWith("enum:")) {
-        const enumClassName = data.substring(5).split(".");
-        // @ts-ignore
-        return StringToEnum<any>(enumClassName[1], getEnum(enumClassName[0]));
-      }
-      if (data.includes("::enum::")) {
-        const enumClassName = data.substring(5).split(".");
-        const [prefix, suffix] = data.split("::enum::");
-        // @ts-ignore
-        return prefix + StringToEnum<any>(enumClassName[1], getEnum(enumClassName[0])) + suffix;
-      }
-      if (data.startsWith("rgb:")) {
-        return hexToRgbNumber(data.substring(4));
-      }
-      if (data.startsWith("rand:")) {
-        const randValue = gameModel.rand.number();
-        const [min, max] = data.substring("rand:".length).split(":");
-        if (min) {
-          if (max) {
-            return randValue * (parseInt(max) - parseInt(min)) + parseInt(min);
-          }
-          return randValue * parseInt(min);
-        }
-        return randValue;
-      } else if (data.startsWith("randint:")) {
-        const [min, max] = data.substring("randint:".length).split(":");
-
-        const randValue = gameModel.rand.int(parseInt(min), max ? parseInt(max) : undefined);
-        return randValue;
-      } else if (data.startsWith("randdzint:")) {
-        const [min, max] = data.substring("randdzint:".length).split(":");
-        const randValue =
-          gameModel.rand.int(parseInt(min), max ? parseInt(max) : undefined) * (gameModel.rand.number() > 0.5 ? 1 : -1);
-        return randValue;
-      } else if (data.startsWith("playercount:")) {
-        const [multiplier] = data.substring("playercount:".length).split(":");
-        return Math.max(gameModel.players.length, 0) * (multiplier ? parseInt(multiplier) : 1);
-      } else {
-        return data;
-      }
-    }
-    return data;
+    return mapDefinitionValues(data, {
+      rand: gameModel.rand,
+      enums: (name) => getEnum(name) as any,
+      playerCount: gameModel.players?.length ?? 0,
+    });
   }
 
   getEntityType = (entityName: string): EntityTypeEnum => {
@@ -357,33 +228,11 @@ export class EntityFactory {
       }
     }
 
-    const dependencyOrder = [];
-    const graphList: [string, string][] = [];
-    const dependencyDict: { [key: string]: ComponentData } = {};
-    entityComponents.components.forEach((c) => {
-      dependencyDict[c.type] = c;
-      const systems = gameModel.getSystemsByType(c.type) as { dependencies?: string[] }[];
-      const dependencies = systems
+    const finalComponentList = orderComponents(entityComponents.components, (type) =>
+      (gameModel.getSystemsByType(type) as unknown as { dependencies?: string[] }[])
         .flat()
-        .flatMap((s) => s.dependencies)
-        .filter((d) => d && d !== c.type) as string[];
-      if (!dependencies.length) {
-        dependencyOrder.push(c.type);
-      } else {
-        for (let i = 0; i < dependencies.length; i++) {
-          graphList.push([c.type, dependencies[i]]);
-        }
-      }
-    });
-
-    dependencyOrder.push(...toposort(graphList).reverse());
-
-    const finalComponentList: ComponentData[] = [];
-    dependencyOrder.forEach((c) => {
-      if (dependencyDict[c]) {
-        finalComponentList.push(dependencyDict[c]);
-      }
-    });
+        .flatMap((s) => s.dependencies ?? [])
+    );
     entityComponents.components = finalComponentList;
 
     if (entityDefinition.children) {
@@ -461,69 +310,9 @@ export class EntityFactory {
 
   generateComponents = (definition: EntityDefinition): EntityComponentDTO => {
     const components: ComponentData[] = definition.components ?? [];
-
-    const type = StringToEnum<EntityTypeEnum>(definition.type, EntityTypeEnum) ?? EntityTypeEnum.ENTITY;
-
-    const mapComponent = (name: string, data: any) => {
-      const component = {
-        type: name,
-        data: data,
-      };
-      if (!components.find((c) => c.type === name)) {
-        components.push(component);
-      }
-    };
-
-    if (type === EntityTypeEnum.PLAYER) {
-      mapComponent("EntityType", { type: "EntityType", entityType: EntityTypeEnum.ALLY });
-    } else {
-      mapComponent("EntityType", { type: "EntityType", entityType: type });
+    for (const implicit of yageTypeComponents(definition)) {
+      if (!components.find((c) => c.type === implicit.type)) components.push(implicit);
     }
-
-    mapComponent("Description", {
-      type: "Description",
-      description: definition.name,
-    });
-
-    switch (type) {
-      case EntityTypeEnum.PLAYER:
-        mapComponent("PlayerType", { type: "PlayerType" });
-        mapComponent("AllyType", { type: "AllyType" });
-        break;
-      case EntityTypeEnum.ALLY:
-        mapComponent("AllyType", { type: "AllyType" });
-        break;
-      case EntityTypeEnum.ENEMY: {
-        const enemyType = EnemyTypeEnum.U_DEF;
-        mapComponent("EnemyType", {
-          type: "EnemyType",
-          enemyType: enemyType,
-        });
-        break;
-      }
-      case EntityTypeEnum.ALTAR:
-        mapComponent("AltarType", { type: "AltarType" });
-        break;
-      case EntityTypeEnum.PICKUP:
-        mapComponent("PickupType", { type: "PickupType" });
-        break;
-      case EntityTypeEnum.PROJECTILE:
-        mapComponent("ProjectileType", { type: "ProjectileType" });
-        break;
-      case EntityTypeEnum.INTERACTABLE:
-        mapComponent("InteractableType", { type: "InteractableType" });
-        break;
-      case EntityTypeEnum.WALL:
-        mapComponent("WallType", { type: "WallType" });
-        break;
-      case EntityTypeEnum.DOOR:
-        mapComponent("DoorType", { type: "DoorType" });
-        break;
-      case EntityTypeEnum.WEAPON:
-        // mapComponent("WeaponType", { type: "WeaponType" });
-        break;
-    }
-
     return {
       components: components,
       children: [],

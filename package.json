@@ -87,6 +87,12 @@
       "import": "./dist/streaming/server.js",
       "default": "./dist/streaming/server.js"
     },
+    "./entity/definitions": {
+      "yage-source": "./engine/entity/definitions/index.ts",
+      "types": "./dist/entity/definitions/index.d.ts",
+      "import": "./dist/entity/definitions/index.js",
+      "default": "./dist/entity/definitions/index.js"
+    },
     "./*": {
       "yage-source": "./engine/*.ts",
       "types": "./dist/*.d.ts",
