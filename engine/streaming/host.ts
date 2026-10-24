@@ -474,7 +474,8 @@ export class ChunkHost {
   }
 
   private ready(key: number) {
-    const chunk = this.chunks.get(key)!;
+    const chunk = this.chunks.get(key);
+    if (!chunk) throw new Error("ChunkHost: ready chunk is missing");
     const population = this.module.population?.(chunk.world) ?? chunk.world.entitySparseSet.dense.length;
     this.broadcast(encodeReady(chunk.cx, chunk.cy, population, chunk.space));
   }
@@ -596,7 +597,8 @@ export class ChunkHost {
     for (const gid of tracked) {
       const location = this.locate(gid);
       if (!location) continue;
-      const chunk = this.chunks.get(location.key)!;
+      const chunk = this.chunks.get(location.key);
+      if (!chunk) throw new Error("ChunkHost: located entity's chunk is missing");
       const [xs, ys] = this.positionColumns(chunk.world);
       entries.push({
         gid,
@@ -642,7 +644,9 @@ export class ChunkHost {
     const remaining = new Map<Snapshot, number>();
     for (const [, snapshot] of sends) remaining.set(snapshot, (remaining.get(snapshot) ?? 0) + 1);
     for (const [connection, snapshot] of sends) {
-      const left = remaining.get(snapshot)! - 1;
+      const pending = remaining.get(snapshot);
+      if (pending === undefined) throw new Error("ChunkHost: snapshot send count is missing");
+      const left = pending - 1;
       remaining.set(snapshot, left);
       connection.transport.send(snapshot.bytes, left === 0);
     }

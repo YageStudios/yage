@@ -50,7 +50,9 @@ describe("LeanGameModel", () => {
     model.addComponent("LgmSprite", eid);
     model.run(10);
     expect(model.getTypedUnsafe(LgmPos, eid).x).toBe(11);
-    expect(model.getTyped(LgmSprite, eid)!.drawn).toBe(11);
+    const sprite = model.getTyped(LgmSprite, eid);
+    if (!sprite) throw new Error("Missing registered sprite component");
+    expect(sprite.drawn).toBe(11);
     expect(model.frameDt).toBe(10);
     expect(model.timeElapsed).toBe(10);
 
@@ -90,8 +92,10 @@ describe("LeanGameModel", () => {
   test("imports no engine registry, physics or entity factory", async () => {
     const entry = fileURLToPath(new URL("../../engine/game/LeanGameModel.ts", import.meta.url));
     const result = await build({ entryPoints: [entry], bundle: true, write: false, metafile: true, format: "esm", platform: "browser", conditions: ["yage-source"], logLevel: "silent", alias: { yage: fileURLToPath(new URL("../../engine", import.meta.url)) } });
-    const engine = Object.keys(result.metafile!.inputs).filter((p) => p.includes("engine/")).map((p) => p.slice(p.indexOf("engine/"))).sort();
+    const metadata = result.metafile;
+    if (!metadata) throw new Error("Build did not return its requested metadata");
+    const engine = Object.keys(metadata.inputs).filter((p) => p.includes("engine/")).map((p) => p.slice(p.indexOf("engine/"))).sort();
     expect(engine).toEqual(["engine/game/LeanGameModel.ts", "engine/game/Timing.ts", "engine/game/pause.ts", "engine/world/context.ts", "engine/world/lean.ts"]);
-    expect(Object.keys(result.metafile!.inputs).some((p) => /rapier|pixi/.test(p))).toBe(false);
+    expect(Object.keys(metadata.inputs).some((p) => /rapier|pixi/.test(p))).toBe(false);
   });
 });
