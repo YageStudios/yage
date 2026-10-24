@@ -76,6 +76,28 @@ export class InputManager {
     this.pointerState.active = true;
   }
 
+  private wheel = { x: 0, y: 0 };
+
+  /** The pointer left the element (or was cancelled): keeps its last position, clears buttons. */
+  public setPointerInactive(): void {
+    this.pointerState.buttons = 0;
+    this.pointerState.active = false;
+  }
+
+  /** Accumulates wheel movement in pixels until consumeWheelDelta(). */
+  public addWheelDelta(x: number, y: number): void {
+    this.wheel.x += x;
+    this.wheel.y += y;
+  }
+
+  /** The wheel movement since the last call (pixels; +y scrolls down), then resets it. */
+  public consumeWheelDelta(): { x: number; y: number } {
+    const delta = { x: this.wheel.x, y: this.wheel.y };
+    this.wheel.x = 0;
+    this.wheel.y = 0;
+    return delta;
+  }
+
   public getPointerState(): PointerState {
     return {
       mousePosition: { ...this.pointerState.mousePosition },
