@@ -83,6 +83,11 @@ export type StepContext = {
   space: number;
   cx: number;
   cy: number;
+  /**
+   * Lockstep: what a post made now waits before it lands (ChunkModule.post); 0 or absent when the
+   * host runs free. Anything shared between chunks must go through posts while it is set.
+   */
+  lead?: number;
 };
 
 /** Passed to `ChunkModule.restored` when a chunk's world appears on a host. */
@@ -94,6 +99,8 @@ export type RestoreContext = {
   cy: number;
   /** True for a freshly generated world, false for one loaded from bytes. */
   generated: boolean;
+  /** Lockstep: as StepContext.lead. */
+  lead?: number;
 };
 
 export interface ChunkModule {
@@ -623,7 +630,7 @@ export class ChunkHost {
     if (!this.chunks.has(key)) {
       const world = this.module.generate(seed, cx, cy, space);
       this.addChunk(space, cx, cy, world);
-      this.module.restored?.(world, { tick: this.tickCount, space, cx, cy, generated: true });
+      this.module.restored?.(world, { tick: this.tickCount, space, cx, cy, generated: true, lead: this.lead });
     }
     this.ready(key);
     // Watched hot while it was queued: its static data could not go out then.
@@ -639,7 +646,7 @@ export class ChunkHost {
     if (existing) deleteWorld(existing.world);
     const world = this.deserializeChunk(bytes, cx, cy, space);
     this.addChunk(space, cx, cy, world);
-    this.module.restored?.(world, { tick: this.tickCount, space, cx, cy, generated: false });
+    this.module.restored?.(world, { tick: this.tickCount, space, cx, cy, generated: false, lead: this.lead });
     this.ready(key);
   }
 
@@ -735,7 +742,7 @@ export class ChunkHost {
       // Normally 1 (hot) or warmEvery (warm); more when the clock skipped ticks or a slot was missed.
       const ticks = Math.max(hot ? 1 : warmEvery, chunk.lastStep < 0 ? 0 : tick - chunk.lastStep);
       chunk.lastStep = tick;
-      const ctx: StepContext = { tick, ticks, dt: ticks / tickRate, hot, space: chunk.space, cx: chunk.cx, cy: chunk.cy };
+      const ctx: StepContext = { tick, ticks, dt: ticks / tickRate, hot, space: chunk.space, cx: chunk.cx, cy: chunk.cy, lead: this.lead };
       this.applyInputs(chunk, ctx);
       this.module.step(chunk.world, ctx);
       this.depart(chunk, ctx);
