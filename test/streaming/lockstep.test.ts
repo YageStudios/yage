@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { addComponent, addEntity, createWorld, type World } from "minecs";
 import { ChunkHost, type ChunkModule } from "yage/streaming/host";
+import { spaceChunkKey } from "yage/streaming/coord";
 import { ChunkPool } from "yage/streaming/pool";
 import { Tier } from "yage/streaming/protocol";
 import type { ChunkTransport } from "yage/streaming/transport";
@@ -9,6 +10,8 @@ import { SIZE, TestGid, TestPos, TestVel } from "./fixture";
 const GRID = 4;
 const PASS = 5;
 const TICKS = 120;
+
+const inGrid = (cx: number, cy: number) => cx >= 0 && cy >= 0 && cx < GRID && cy < GRID;
 
 const mix = (...values: number[]) => {
   let h = 2166136261;
@@ -42,7 +45,7 @@ const walkModule = (): ChunkModule => {
         addComponent(world, TestGid, eid);
         world(TestPos).store.x[eid] = 10 + i * 9;
         world(TestPos).store.y[eid] = 50;
-        world(TestGid).store.id[eid] = 1 + (cy * GRID + cx) * 100 + i;
+        world(TestGid).store.id[eid] = 1 + (inGrid(cx, cy) ? cy * GRID + cx : 1000 + cy * GRID + cx) * 100 + i;
       }
       return world;
     },
@@ -73,7 +76,7 @@ const walkModule = (): ChunkModule => {
     input(world, eid, bytes) {
       world(TestVel).store.vx[eid] = bytes[0] - 128;
     },
-    simulates: (_space, cx, cy) => cx >= 0 && cy >= 0 && cx < GRID && cy < GRID,
+    simulates: (_space, cx, cy) => inGrid(cx, cy),
   };
 };
 
@@ -111,12 +114,15 @@ const seeded = (seed: number) => () => {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 };
 
-/** Runs the walk on `hosts` hosts (chunk placement and the order of everything shuffled by `seed`). */
-const run = async (hosts: number, seed: number) => {
+/**
+ * Runs the walk on `hosts` hosts (chunk placement and the order of everything shuffled by `seed`).
+ * With `view`, a view wanders past the grid's east edge: chunks there come and go as it says.
+ */
+const run = async (hosts: number, seed: number, view = false) => {
   const rng = seeded(seed);
   const net = network(rng);
   const placementOf = new Map<string, number>();
-  const pool = new ChunkPool((cx, cy) => placementOf.get(`${cx},${cy}`)!);
+  const pool = new ChunkPool((cx, cy) => placementOf.get(`${cx},${cy}`) ?? Math.floor(rng() * hosts));
   pool.lead = 1;
   const list = Array.from({ length: hosts }, () => new ChunkHost(walkModule()));
   for (let a = 0; a < hosts; a++) {
@@ -132,7 +138,7 @@ const run = async (hosts: number, seed: number) => {
     pool.addHost(client, "local");
   }
   const stats = new Map<string, number>();
-  pool.on({ stats: (entries, _host, tick) => entries.forEach((e) => stats.set(`${tick}:${e.cx},${e.cy}`, e.bytes[0])) });
+  pool.on({ stats: (entries, _host, tick) => entries.forEach((e) => inGrid(e.cx, e.cy) && stats.set(`${tick}:${e.cx},${e.cy}`, e.bytes[0])) });
   const keys = Array.from({ length: GRID * GRID }, (_, i) => [i % GRID, Math.floor(i / GRID)] as const).sort(() => rng() - 0.5);
   keys.forEach(([cx, cy]) => placementOf.set(`${cx},${cy}`, Math.floor(rng() * hosts)));
   for (const [cx, cy] of keys) pool.generate(cx, cy, 1);
@@ -145,14 +151,30 @@ const run = async (hosts: number, seed: number) => {
     while (pool.committed >= pass * PASS && pass * PASS <= TICKS) {
       if (pass % 3 === 1) pool.configure(new Uint8Array([1 + (pass % 2)]));
       if (pass === 2) pool.input(1 + 5 * 100 + 3, new Uint8Array([150]));
-      if (pass === 3) pool.setSimTier(1, 1, Tier.Hot);
-      if (pass === 9) pool.setSimTier(1, 1, Tier.Warm);
+      // Watched hot steps hot (setTier stamps it): the same for every run, as the view is.
+      if (pass === 3) pool.setTier(1, 1, Tier.Hot);
+      if (pass === 9) pool.setTier(1, 1, Tier.Warm);
+      if (pass === 6) pool.setSimTier(2, 2, Tier.Hot);
       pool.setLimit(Math.min(TICKS, pass * PASS + 2 * PASS));
       pass++;
     }
   };
   page();
+  const outside = new Set<string>();
+  const wander = () => {
+    if (!view || rng() > 0.05) return;
+    const cy = Math.floor(rng() * GRID);
+    const key = `${GRID},${cy}`;
+    if (!outside.has(key)) {
+      outside.add(key);
+      pool.generate(GRID, cy, 1);
+    } else if (pool.chunks.get(spaceChunkKey(0, GRID, cy))?.ready) {
+      outside.delete(key);
+      void pool.unload(GRID, cy);
+    }
+  };
   for (let guard = 0; guard < 1e6; guard++) {
+    wander();
     const ready = list.filter((h) => h.canTick());
     if (ready.length && rng() < 0.5) ready[Math.floor(rng() * ready.length)].tick();
     else if (!net.deliverOne() && ready.length) ready[0].tick();
@@ -163,6 +185,7 @@ const run = async (hosts: number, seed: number) => {
   for (const host of list) {
     expect(host.tickCount).toBe(TICKS);
     for (const chunk of host.chunks.values()) {
+      if (!inGrid(chunk.cx, chunk.cy)) continue;
       const { x, y } = chunk.world(TestPos).store;
       const id = chunk.world(TestGid).store.id;
       for (const eid of chunk.world.entitySparseSet.dense) walkers.push(`${id[eid]}@${chunk.cx},${chunk.cy}:${x[eid].toFixed(4)},${y[eid].toFixed(4)}`);
@@ -182,8 +205,8 @@ describe("lockstep", () => {
       return `${home % GRID},${Math.floor(home / GRID)}` !== at;
     });
     expect(moved.length).toBeGreaterThan(20);
-    for (const [hosts, seed] of [[3, 2], [4, 3], [4, 4], [2, 5]]) {
-      const other = await run(hosts, seed);
+    for (const [hosts, seed, view] of [[3, 2, false], [4, 3, true], [4, 4, false], [2, 5, true], [1, 6, true]] as const) {
+      const other = await run(hosts, seed, view);
       expect(other.walkers).toEqual(alone.walkers);
       expect(other.stats).toEqual(alone.stats);
       expect(other.dropped).toBe(alone.dropped);

@@ -28,7 +28,9 @@
  *   runs tick t only once every peer has finished t - lead, so nothing it needs can still be on
  *   the way.
  * - Chunks step in key order, ticks are never skipped (a slow host slows the clock), and walking
- *   into a chunk the module doesn't simulate (ChunkModule.simulates) always bounces.
+ *   into a chunk the module doesn't simulate (ChunkModule.simulates) always bounces. A chunk it
+ *   doesn't simulate is still stepped (for whoever watches it) but sealed: nobody walks out of it
+ *   and its posts are dropped, so when the view loads or drops it changes nothing simulated.
  * Trips (Depart / Arrive) are not covered yet.
  */
 import { deserializeWorld, SerialMode, type Schema, type World } from "minecs";
@@ -190,7 +192,10 @@ export interface ChunkModule {
    * and the tick it applies at, at least 1), held at tick 0 until the client's first Limit.
    */
   lockstep?: number;
-  /** Lockstep: the chunks entities may walk into; walking anywhere else bounces, loaded or not. Defaults to all. */
+  /**
+   * Lockstep: the chunks entities may walk into; walking anywhere else bounces, loaded or not.
+   * Any other chunk is sealed: its people bounce at its edges and its posts are dropped. Defaults to all.
+   */
   simulates?(space: number, cx: number, cy: number): boolean;
 }
 
@@ -747,8 +752,9 @@ export class ChunkHost {
       this.module.step(chunk.world, ctx);
       this.depart(chunk, ctx);
       if (lockstep) {
+        // Drained either way: what a sealed chunk queued must not ride out on the next one's post.
         const bytes = this.module.post?.(chunk.world, ctx);
-        if (bytes) this.post(PostKind.Module, chunk.key, null, bytes);
+        if (bytes && !this.sealed(chunk)) this.post(PostKind.Module, chunk.key, null, bytes);
       }
       stepped.push(chunk);
     }
@@ -886,6 +892,11 @@ export class ChunkHost {
   // -------------------------------------------------------------------------------------------
   // Hand-off
 
+  /** Lockstep: a loaded chunk the module doesn't simulate (see ChunkModule.simulates). */
+  private sealed(chunk: Chunk) {
+    return !!this.module.simulates && !this.module.simulates(chunk.space, chunk.cx, chunk.cy);
+  }
+
   private handOff(chunk: Chunk) {
     const { chunkSize: size, margin, components } = this.module;
     const world = chunk.world;
@@ -912,7 +923,7 @@ export class ChunkHost {
       const ty = chunkY(target);
       if (this.lead > 0) {
         const host = this.chunks.has(target) || this.pending.has(target) ? this.selfIndex : this.route.get(target);
-        if ((this.module.simulates && !this.module.simulates(chunk.space, tx, ty)) || host === undefined || host === NO_HOST) {
+        if (this.sealed(chunk) || (this.module.simulates && !this.module.simulates(chunk.space, tx, ty)) || host === undefined || host === NO_HOST) {
           for (const eid of eids) this.bounce(world, eid);
           continue;
         }
