@@ -15,6 +15,21 @@
  *
  * With a committed campaign tick (Commit) the host never runs more than `maxLead` ticks ahead of
  * the slowest host, so every host's work is on one timeline.
+ *
+ * Lockstep (Op.Lockstep, protocol v6) makes a run a pure function of its chunks and what the
+ * client sends, wherever chunks run and whenever messages arrive:
+ * - The client sets a tick limit (Op.Limit) the host never runs past, and stamps each message that
+ *   changes the simulation with the tick it applies at (Op.At, never below the limit it set), so a
+ *   message lands on the same tick however late it arrives. Stamped Tier sets which chunks step
+ *   hot; a plain Tier only chooses what is sent to that client.
+ * - Hand-offs and the module's posts (ChunkModule.post) apply `lead` ticks after the tick they are
+ *   made, on whichever host has the chunk, sorted by source chunk and order made; a host's own
+ *   hand-offs take the same road as a peer's. A host closes each tick with Done to every peer and
+ *   runs tick t only once every peer has finished t - lead, so nothing it needs can still be on
+ *   the way.
+ * - Chunks step in key order, ticks are never skipped (a slow host slows the clock), and walking
+ *   into a chunk the module doesn't simulate (ChunkModule.simulates) always bounces.
+ * Trips (Depart / Arrive) are not covered yet.
  */
 import { deserializeWorld, SerialMode, type Schema, type World } from "minecs";
 import { deleteWorld, leanWorldType, type LeanWorldSpec, type LeanWorldType } from "../world/lean";
@@ -40,6 +55,9 @@ import {
   PROTOCOL_VERSION,
   Tier,
   type ArriveMessage,
+  encodeDone,
+  encodePost,
+  PostKind,
   type LocateEntry,
   type Message,
   type Snapshot,
@@ -153,7 +171,24 @@ export interface ChunkModule {
    * arrival chunk; they are removed from this world.
    */
   departing?(world: World, ctx: StepContext): { txn: number; eids: number[] }[];
+  /**
+   * Lockstep: bytes every host receives (`receive`), made after this chunk's step, e.g. what it
+   * added to state shared across chunks. Null sends nothing.
+   */
+  post?(world: World, ctx: StepContext): Uint8Array | null;
+  /** Lockstep: a chunk's post, at the start of the tick `lead` after it was made, in source-chunk order. */
+  receive?(bytes: Uint8Array, tick: number): void;
+  /**
+   * Runs the host in lockstep from the start, with this lead (ticks between a hand-off or post
+   * and the tick it applies at, at least 1), held at tick 0 until the client's first Limit.
+   */
+  lockstep?: number;
+  /** Lockstep: the chunks entities may walk into; walking anywhere else bounces, loaded or not. Defaults to all. */
+  simulates?(space: number, cx: number, cy: number): boolean;
 }
+
+/** A hand-off or module post waiting for its tick. */
+type Post = { kind: PostKind; source: number; seq: number; bytes: Uint8Array };
 
 type Chunk = {
   key: number;
@@ -211,6 +246,26 @@ export class ChunkHost {
    * Only the tick rate changes; each tick still covers 1 / tickRate seconds of game time.
    */
   speed = 1;
+  /** Lockstep (Op.Lockstep): hand-offs and posts apply this many ticks after they're made; 0 is off. */
+  lead = 0;
+  /** In lockstep, the first tick this host may not run yet (Op.Limit). */
+  limit = 0;
+  /** In lockstep, the client messages stamped for each tick (Op.At), in arrival order. */
+  private readonly stamped = new Map<number, { connection: Connection | null; bytes: Uint8Array }[]>();
+  /** In lockstep, the posts to apply at each tick, this host's and its peers'. */
+  private readonly posts = new Map<number, Post[]>();
+  /** In lockstep, the last tick each peer finished (Op.Done). */
+  private readonly peerDone = new Map<number, number>();
+  /** In lockstep, the chunks stepped hot (stamped Tier). */
+  private readonly simHot = new Set<number>();
+  /** In lockstep, each chunk's next post number this tick. */
+  private readonly seqs = new Map<number, number>();
+  /** Chunks in key order (lockstep steps them so), rebuilt when chunks come or go. */
+  private ordered: Chunk[] | null = null;
+  /** The tick being run, while it runs. */
+  private running = -1;
+  /** The tick loop, parked while lockstep holds the host; a Limit or Done wakes it. */
+  private parked: (() => void) | null = null;
   /** Trip transactions already applied here, so a repeated Arrive adds nobody. */
   private readonly arrivals = new Map<number, number>();
   /** Generate requests not yet run (`deferGenerates`), in arrival order. */
@@ -220,6 +275,7 @@ export class ChunkHost {
 
   constructor(readonly module: ChunkModule, options: ChunkHostOptions = {}) {
     this.deferGenerates = !!options.deferGenerates;
+    this.lead = module.lockstep ?? 0;
     if (options.autoTick) this.start();
   }
 
@@ -273,7 +329,10 @@ export class ChunkHost {
   /** Adds a direct link to another host, used for hand-offs to chunks it owns. */
   addPeer(index: number, transport: ChunkTransport) {
     this.peers.set(index, transport);
-    transport.onMessage((bytes) => this.receive(null, bytes));
+    transport.onMessage((bytes) => {
+      if (bytes[0] === Op.Done || bytes[0] === Op.Post) this.receivePeer(index, bytes);
+      else this.receive(null, bytes);
+    });
   }
 
   start() {
@@ -296,12 +355,25 @@ export class ChunkHost {
       if (!this.canTick()) {
         // Held by the campaign clock: wait for the slow host instead of skipping ahead.
         due = performance.now() + interval;
+        if (this.lead > 0) {
+          // Held by lockstep: the Limit or Done that frees it wakes the loop at once.
+          this.parked = () => {
+            this.parked = null;
+            if (this.timer) clearTimeout(this.timer);
+            due = Math.max(due, performance.now());
+            this.timer = setTimeout(loop, Math.max(0, due - performance.now()));
+          };
+          this.timer = setTimeout(loop, 50);
+          return;
+        }
         this.timer = setTimeout(loop, interval);
         return;
       }
       this.tick();
       due += interval;
       const now = performance.now();
+      // In lockstep a tick is never skipped: behind, the clock slows instead.
+      if (this.lead > 0 && due < now - interval) due = now;
       // Fall behind gracefully: never queue a burst of catch-up ticks. Skip the missed tick
       // numbers instead, so the clock keeps to wall time and hosts started together agree on it;
       // each chunk's next step covers the skipped ticks.
@@ -367,6 +439,24 @@ export class ChunkHost {
       case Op.Tier:
         if (connection) this.subscribe(connection, message.space, message.cx, message.cy, message.tier, message.snapshotEvery);
         break;
+      case Op.Lockstep:
+        this.lead = message.lead;
+        break;
+      case Op.Limit:
+        this.limit = Math.max(this.limit, message.tick);
+        this.parked?.();
+        break;
+      case Op.At: {
+        if (message.tick < this.tickCount) {
+          this.log(2, `Lockstep: a message for tick ${message.tick} came after it ran (now ${this.tickCount}); applied now`);
+          this.applyStamped(connection, message.bytes);
+          break;
+        }
+        let list = this.stamped.get(message.tick);
+        if (!list) this.stamped.set(message.tick, (list = []));
+        list.push({ connection, bytes: message.bytes.slice() });
+        break;
+      }
       case Op.Speed:
         this.speed = message.speed;
         break;
@@ -407,6 +497,112 @@ export class ChunkHost {
       default:
         this.log(1, `Host ignored op ${message.op}`);
     }
+  }
+
+  /** A peer's lockstep message: a post to queue for its tick, or the end of one of its ticks. */
+  private receivePeer(index: number, bytes: Uint8Array) {
+    const message = decodeMessage(bytes);
+    if (message.op === Op.Done) {
+      this.peerDone.set(index, Math.max(this.peerDone.get(index) ?? -1, message.tick));
+      this.parked?.();
+    } else if (message.op === Op.Post) {
+      if (message.tick < this.tickCount) this.log(2, `Lockstep: a post for tick ${message.tick} came after it ran (now ${this.tickCount})`);
+      this.queuePost(message.tick, { kind: message.kind, source: message.source, seq: message.seq, bytes: message.bytes.slice() });
+    }
+  }
+
+  /** A stamped client message, on its tick: a Tier sets the chunk's simulated tier, the rest apply as sent. */
+  private applyStamped(connection: Connection | null, bytes: Uint8Array) {
+    if (bytes[0] !== Op.Tier) {
+      this.receive(connection, bytes);
+      return;
+    }
+    const message = decodeMessage(bytes) as Extract<Message, { op: Op.Tier }>;
+    const key = spaceChunkKey(message.space, message.cx, message.cy);
+    if (message.tier === Tier.Hot) this.simHot.add(key);
+    else this.simHot.delete(key);
+  }
+
+  private queuePost(tick: number, post: Post) {
+    let list = this.posts.get(tick);
+    if (!list) this.posts.set(tick, (list = []));
+    list.push(post);
+  }
+
+  /**
+   * Posts `bytes` from chunk `source` (made on the running tick) for `lead` ticks on: to the host
+   * that has chunk `to`, or with `to` null to every host, this one included.
+   */
+  private post(kind: PostKind, source: number, to: number | null, bytes: Uint8Array) {
+    const tick = this.running + this.lead;
+    const seq = this.seqs.get(source) ?? 0;
+    this.seqs.set(source, seq + 1);
+    const host = to === null ? null : this.chunks.has(to) ? this.selfIndex : this.route.get(to);
+    if (to === null || host === this.selfIndex) this.queuePost(tick, { kind, source, seq, bytes });
+    const message = encodePost(tick, kind, source, seq, bytes);
+    if (to === null) {
+      for (const peer of this.peers.values()) peer.send(message);
+      return;
+    }
+    if (host === this.selfIndex) return;
+    const peer = host === undefined || host === null ? undefined : this.peers.get(host);
+    if (peer) peer.send(message, true);
+    else this.log(2, `Lockstep: no link to the host of chunk ${to}; a hand-off was lost`);
+  }
+
+  /** The posts for `tick`, in source-chunk order: hand-offs land, module posts reach the module. */
+  private applyPosts(tick: number) {
+    const list = this.posts.get(tick);
+    if (!list) return;
+    this.posts.delete(tick);
+    list.sort((a, b) => a.source - b.source || a.seq - b.seq);
+    for (const post of list) {
+      if (post.kind === PostKind.Module) {
+        this.module.receive?.(post.bytes, tick);
+        continue;
+      }
+      const message = decodeMessage(post.bytes) as Extract<Message, { op: Op.Transfer }>;
+      this.land(message);
+    }
+  }
+
+  /** A posted hand-off lands in its chunk; what it can't take goes back, posted like any hand-off. */
+  private land(message: Extract<Message, { op: Op.Transfer }>) {
+    const { space, cx, cy, fx, fy, returned } = message;
+    const key = spaceChunkKey(space, cx, cy);
+    const chunk = this.chunks.get(key);
+    const back = (count: number, rows: Uint8Array) => {
+      if (returned) this.dropped += count;
+      else this.post(PostKind.Transfer, key, spaceChunkKey(space, fx, fy), encodeTransfer(fx, fy, fx, fy, true, count, rows, space));
+    };
+    if (!chunk) {
+      back(message.count, message.rows);
+      return;
+    }
+    const size = this.module.chunkSize;
+    const dx = (fx - cx) * size;
+    const dy = (fy - cy) * size;
+    const [xs, ys] = this.positionColumns(chunk.world);
+    const { added, rejected, rejectedCount } = putRows(chunk.world, this.module.components, message.rows, message.count, (_, eid) => {
+      xs[eid] += dx;
+      ys[eid] += dy;
+    });
+    if (this.module.arrived) for (const eid of added) this.module.arrived(chunk.world, eid, dx, dy);
+    if (returned) for (const eid of added) this.bounce(chunk.world, eid);
+    this.noteArrivals(chunk, added);
+    if (rejectedCount) back(rejectedCount, rejected);
+  }
+
+  /** Lockstep: the rows handed to this host's chunks that haven't landed yet. */
+  inFlight(): number {
+    let rows = 0;
+    for (const list of this.posts.values())
+      for (const post of list) if (post.kind === PostKind.Transfer) rows += (decodeMessage(post.bytes) as Extract<Message, { op: Op.Transfer }>).count;
+    return rows;
+  }
+
+  private inOrder(): Chunk[] {
+    return (this.ordered ??= [...this.chunks.values()].sort((a, b) => a.key - b.key));
   }
 
   private broadcast(bytes: Uint8Array) {
@@ -464,6 +660,7 @@ export class ChunkHost {
     const payload = saveWorld(SerialMode.BINARY, chunk.world);
     deleteWorld(chunk.world);
     this.chunks.delete(key);
+    this.ordered = null;
     this.route.delete(key);
     for (const connection of this.connections) connection.sentStatic.delete(key);
     return new Uint8Array(payload);
@@ -472,6 +669,7 @@ export class ChunkHost {
   private addChunk(space: number, cx: number, cy: number, world: World) {
     const key = spaceChunkKey(space, cx, cy);
     this.chunks.set(key, { key, space, cx, cy, world, phase: chunkHash(cx, cy, space) % this.module.warmEvery, lastStep: -1 });
+    this.ordered = null;
     this.route.set(key, this.selfIndex);
     this.trackDirty = true;
   }
@@ -505,6 +703,11 @@ export class ChunkHost {
 
   /** False while the campaign clock holds this host (it is `maxLead` ticks past the committed tick). */
   canTick() {
+    if (this.lead > 0) {
+      if (this.tickCount >= this.limit) return false;
+      for (const index of this.peers.keys()) if ((this.peerDone.get(index) ?? -1) < this.tickCount - this.lead) return false;
+      return true;
+    }
     return this.maxLead <= 0 || this.tickCount < this.committed + this.maxLead;
   }
 
@@ -516,9 +719,18 @@ export class ChunkHost {
     const { warmEvery, tickRate } = this.module;
     const stats: StatsEntry[] = [];
     const stepped: Chunk[] = [];
+    const lockstep = this.lead > 0;
+    if (lockstep) {
+      this.running = tick;
+      this.seqs.clear();
+      const stamped = this.stamped.get(tick);
+      this.stamped.delete(tick);
+      for (const { connection, bytes } of stamped ?? []) this.applyStamped(connection, bytes);
+      this.applyPosts(tick);
+    }
 
-    for (const chunk of this.chunks.values()) {
-      const hot = this.isHot(chunk.key);
+    for (const chunk of lockstep ? this.inOrder() : this.chunks.values()) {
+      const hot = lockstep ? this.simHot.has(chunk.key) : this.isHot(chunk.key);
       if (!hot && (tick + chunk.phase) % warmEvery !== 0) continue;
       // Normally 1 (hot) or warmEvery (warm); more when the clock skipped ticks or a slot was missed.
       const ticks = Math.max(hot ? 1 : warmEvery, chunk.lastStep < 0 ? 0 : tick - chunk.lastStep);
@@ -527,6 +739,10 @@ export class ChunkHost {
       this.applyInputs(chunk, ctx);
       this.module.step(chunk.world, ctx);
       this.depart(chunk, ctx);
+      if (lockstep) {
+        const bytes = this.module.post?.(chunk.world, ctx);
+        if (bytes) this.post(PostKind.Module, chunk.key, null, bytes);
+      }
       stepped.push(chunk);
     }
     // Hand-offs run after every chunk has stepped, so an entity moves at most once per tick.
@@ -542,6 +758,10 @@ export class ChunkHost {
     this.sendLocations(tick);
     this.lastBusyMs = performance.now() - start;
     this.broadcast(encodeStats(tick, this.lastBusyMs, stats));
+    if (lockstep) {
+      for (const peer of this.peers.values()) peer.send(encodeDone(tick));
+      this.running = -1;
+    }
     return true;
   }
 
@@ -683,6 +903,17 @@ export class ChunkHost {
     for (const [target, eids] of leaving) {
       const tx = chunkX(target);
       const ty = chunkY(target);
+      if (this.lead > 0) {
+        const host = this.chunks.has(target) || this.pending.has(target) ? this.selfIndex : this.route.get(target);
+        if ((this.module.simulates && !this.module.simulates(chunk.space, tx, ty)) || host === undefined || host === NO_HOST) {
+          for (const eid of eids) this.bounce(world, eid);
+          continue;
+        }
+        this.need(target);
+        const rows = takeRows(world, components, eids);
+        this.post(PostKind.Transfer, chunk.key, target, encodeTransfer(tx, ty, chunk.cx, chunk.cy, false, eids.length, rows, chunk.space));
+        continue;
+      }
       this.need(target);
       const local = this.chunks.get(target);
       if (local) {

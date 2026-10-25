@@ -13,7 +13,10 @@ import { chunkX, chunkY, keySpace, spaceChunkKey } from "./coord";
 import {
   decodeMessage,
   encodeArrive,
+  encodeAt,
   encodeCommit,
+  encodeLimit,
+  encodeLockstep,
   encodeSpeed,
   encodeConfig,
   encodeHello,
@@ -97,6 +100,8 @@ export type LocalPoolOptions = {
   /** Defaults to hardwareConcurrency - 1, at least 1. */
   workers?: number;
   placement?: Placement;
+  /** Lockstep lead (see ChunkHost): set before any host is added, so no host ticks outside it. */
+  lockstep?: number;
 };
 
 /** Spreads chunks in bands of rows, so most borders are between chunks on the same host. */
@@ -136,6 +141,7 @@ export class ChunkPool {
   static local(options: LocalPoolOptions): ChunkPool {
     const count = Math.max(1, options.workers ?? (globalThis.navigator?.hardwareConcurrency ?? 4) - 1);
     const pool = new ChunkPool(options.placement);
+    pool.lead = options.lockstep ?? 0;
     const workers = Array.from({ length: count }, () => options.createWorker());
     const peers: { index: number; port: MessagePort }[][] = workers.map(() => []);
     for (let a = 0; a < count; a++) {
@@ -164,6 +170,10 @@ export class ChunkPool {
     transport.send(encodeHello());
     transport.send(encodeRoute(handle.index, []));
     if (this.maxLead > 0) transport.send(encodeCommit(this.committed, this.maxLead));
+    if (this.lead > 0) {
+      transport.send(encodeLockstep(this.lead));
+      transport.send(encodeLimit(this.limit));
+    }
     if (this.speed !== 1) transport.send(encodeSpeed(this.speed));
     if (this.tracked.length) transport.send(encodeTrack(this.tracked));
     if (this.lastConfig) transport.send(encodeConfig(this.lastConfig));
@@ -199,6 +209,16 @@ export class ChunkPool {
     this.flushRoutes();
     this.hosts[host].transport.send(encodeGenerate(cx, cy, seed, space));
     return state;
+  }
+
+  /**
+   * Lockstep: whether chunk (cx, cy) steps hot, from the limit's tick on (setTier only chooses
+   * what this client is sent). Ignored outside lockstep, where setTier decides both.
+   */
+  setSimTier(cx: number, cy: number, tier: Tier, space = 0) {
+    const state = this.chunks.get(spaceChunkKey(space, cx, cy));
+    if (!state || this.lead <= 0) return;
+    this.hosts[state.host].transport.send(encodeAt(this.limit, encodeTier(cx, cy, tier, 0, space)));
   }
 
   setTier(cx: number, cy: number, tier: Tier, snapshotEvery = 1, space = 0) {
@@ -277,14 +297,20 @@ export class ChunkPool {
     this.flushRoutes();
   }
 
+  /** In lockstep, `bytes` stamped with the tick it applies at: the limit, the first tick no host has run. */
+  private stamp(bytes: Uint8Array) {
+    return this.lead > 0 ? encodeAt(this.limit, bytes) : bytes;
+  }
+
   configure(bytes: Uint8Array) {
     this.lastConfig = bytes.slice();
-    for (const host of this.hosts) host.transport.send(encodeConfig(bytes));
+    const message = this.stamp(encodeConfig(bytes));
+    for (const host of this.hosts) host.transport.send(message);
   }
 
   /** Sends input for a controlled entity to whichever host holds it; empty bytes release it. */
   input(gid: number, bytes: Uint8Array) {
-    const message = encodeInput(gid, bytes);
+    const message = this.stamp(encodeInput(gid, bytes));
     for (const host of this.hosts) host.transport.send(message);
   }
 
@@ -303,6 +329,28 @@ export class ChunkPool {
   setSpeed(speed: number) {
     this.speed = Math.max(0, speed);
     const message = encodeSpeed(this.speed);
+    for (const host of this.hosts) host.transport.send(message);
+  }
+
+  /** Lockstep lead (0: off). */
+  lead = 0;
+  /** In lockstep, the first tick no host may run yet; whatever changes the simulation is stamped with it. */
+  limit = 0;
+
+  /** Turns lockstep on (`lead` ≥ 1) for every host; hosts added later join it. */
+  setLockstep(lead: number) {
+    this.lead = lead;
+    for (const host of this.hosts) {
+      host.transport.send(encodeLockstep(lead));
+      host.transport.send(encodeLimit(this.limit));
+    }
+  }
+
+  /** Lockstep: lets every host run up to (not including) `tick`. Never goes back. */
+  setLimit(tick: number) {
+    if (tick <= this.limit) return;
+    this.limit = tick;
+    const message = encodeLimit(tick);
     for (const host of this.hosts) host.transport.send(message);
   }
 
@@ -339,7 +387,7 @@ export class ChunkPool {
     const state = this.chunks.get(spaceChunkKey(space, cx, cy));
     if (!trip || !state || state.moving) return false;
     trip.sent = true;
-    this.hosts[state.host].transport.send(encodeArrive(txn, space, cx, cy, x, y, trip.count, trip.rows));
+    this.hosts[state.host].transport.send(this.stamp(encodeArrive(txn, space, cx, cy, x, y, trip.count, trip.rows)));
     return true;
   }
 
@@ -375,7 +423,8 @@ export class ChunkPool {
       const entries: RouteEntry[] = [];
       for (const [key, host] of this.routeChanges) entries.push({ space: keySpace(key), cx: chunkX(key), cy: chunkY(key), host });
       this.routeChanges.clear();
-      for (const host of this.hosts) host.transport.send(encodeRoute(host.index, entries));
+      // In lockstep a route change lands on every host on the same tick, so hand-offs see the same map.
+      for (const host of this.hosts) host.transport.send(this.stamp(encodeRoute(host.index, entries)));
     });
   }
 

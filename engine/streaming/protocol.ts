@@ -15,10 +15,11 @@
  *
  * Version 3 added Overlay: game-defined bytes sent with a hot chunk's snapshot.
  * Version 4 widened snapshot sprite ids to u16 (65535 sprites per style: items, vehicles, cultures).
+ * Version 6 added lockstep (Lockstep / Limit / At / Post / Done): see ChunkHost's lockstep notes.
  */
 
 /** Wire format version. Bump on any layout change. */
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 
 export enum Op {
   // client -> host
@@ -40,6 +41,16 @@ export enum Op {
   Arrive = 12,
   /** client -> host: how fast the host's clock runs against wall time (0 pauses it). Added in v5. */
   Speed = 13,
+  /** client -> host: lockstep on, with hand-offs and posts applying `lead` ticks after they're made. Added in v6. */
+  Lockstep = 14,
+  /** client -> host: in lockstep, the first tick the host may not run yet. Added in v6. */
+  Limit = 15,
+  /** client -> host: in lockstep, a client message to apply at the start of `tick` (in arrival order). Added in v6. */
+  At = 16,
+  /** host -> host: in lockstep, a hand-off or module post made by chunk `source`, applied at the start of `tick`. Added in v6. */
+  Post = 17,
+  /** host -> host: in lockstep, the sender finished `tick` and has sent every post it made then. Added in v6. */
+  Done = 18,
   // host -> client
   Snapshot = 20,
   Stats = 21,
@@ -270,6 +281,30 @@ export const encodeCommit = (tick: number, maxLead: number) =>
   new ByteWriter(8).u8(Op.Commit).u8(0).u16(maxLead).u32(tick).finish();
 
 // ---------------------------------------------------------------------------------------------
+// Lockstep (v6). The client holds every host to a tick limit, stamps what it sends with the tick
+// it applies at, and hosts post hand-offs and module posts to each other to apply `lead` ticks
+// later, each closing a tick with Done: so when anything arrives never changes what happens.
+
+export const encodeLockstep = (lead: number) => new ByteWriter(4).u8(Op.Lockstep).u8(0).u16(lead).finish();
+
+export const encodeLimit = (tick: number) => new ByteWriter(8).u8(Op.Limit).u8(0).u16(0).u32(tick).finish();
+
+/** `bytes` (a client -> host message) applied at the start of `tick`. */
+export const encodeAt = (tick: number, bytes: Uint8Array) => new ByteWriter(bytes.byteLength + 8).u8(Op.At).u8(0).u16(0).u32(tick).raw(bytes).finish();
+
+/** What a Post carries: a hand-off (Transfer bytes) or the module's own bytes (ChunkModule.post). */
+export enum PostKind {
+  Transfer = 0,
+  Module = 1,
+}
+
+/** Post `seq` of chunk `source` (a space chunk key) made on its tick, applied at the start of `tick`. */
+export const encodePost = (tick: number, kind: PostKind, source: number, seq: number, bytes: Uint8Array) =>
+  new ByteWriter(bytes.byteLength + 24).u8(Op.Post).u8(kind).u16(0).u32(tick).f64(source).u32(seq).raw(bytes).finish();
+
+export const encodeDone = (tick: number) => new ByteWriter(8).u8(Op.Done).u8(0).u16(0).u32(tick).finish();
+
+// ---------------------------------------------------------------------------------------------
 // Transfer: entity rows walking into chunk (cx, cy) of `space`. Row positions are local to chunk
 // (fx, fy) of the same space, so the receiver shifts them by (fx - cx, fy - cy) chunks.
 // `returned` marks rows sent back to the chunk they left because the destination could not take
@@ -476,6 +511,11 @@ export type Message =
   | { op: Op.Route; self: number; entries: RouteEntry[] }
   | { op: Op.Commit; tick: number; maxLead: number }
   | { op: Op.Speed; speed: number }
+  | { op: Op.Lockstep; lead: number }
+  | { op: Op.Limit; tick: number }
+  | { op: Op.At; tick: number; bytes: Uint8Array }
+  | { op: Op.Post; tick: number; kind: PostKind; source: number; seq: number; bytes: Uint8Array }
+  | { op: Op.Done; tick: number }
   | ({ op: Op.Transfer } & TransferMessage)
   | ({ op: Op.Depart } & DepartMessage)
   | ({ op: Op.Arrive } & ArriveMessage)
@@ -533,6 +573,27 @@ export const decodeMessage = (bytes: Uint8Array): Message => {
       reader.u8();
       return { op, speed: reader.u16() / 100 };
     }
+    case Op.Lockstep:
+      reader.u8();
+      return { op, lead: reader.u16() };
+    case Op.Limit:
+      reader.u8();
+      reader.u16();
+      return { op, tick: reader.u32() };
+    case Op.At: {
+      reader.u8();
+      reader.u16();
+      return { op, tick: reader.u32(), bytes: reader.rest() };
+    }
+    case Op.Post: {
+      const kind = reader.u8() as PostKind;
+      reader.u16();
+      return { op, kind, tick: reader.u32(), source: reader.f64(), seq: reader.u32(), bytes: reader.rest() };
+    }
+    case Op.Done:
+      reader.u8();
+      reader.u16();
+      return { op, tick: reader.u32() };
     case Op.Commit: {
       reader.u8();
       const maxLead = reader.u16();
