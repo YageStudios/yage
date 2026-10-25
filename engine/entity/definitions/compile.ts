@@ -121,8 +121,10 @@ export const compileEntityDefinition = (definition: EntityDefinition, options: C
     if (parent === undefined && ctx.owner !== undefined) addComponent(world, OwnedBy as any, eid, { owner: ctx.owner } as any);
     for (let i = 0; i < plans.length; i++) {
       const plan = plans[i];
+      // A copy even when flat: addComponent fills the schema's defaults into the object it is given,
+      // and a shared template would hand every spawn the same default arrays and objects.
       let data: Record<string, unknown> = plan.flat
-        ? plan.template
+        ? { ...plan.template }
         : plan.dynamic
         ? mapDefinitionValues(deepCopy(plan.template), { enums: options.enums, ...ctx })
         : deepCopy(plan.template);

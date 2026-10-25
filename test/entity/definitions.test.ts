@@ -130,6 +130,14 @@ describe("registry and compile", () => {
     expect(world(DefsTestBag, b).items).toEqual(["a"]);
   });
 
+  test("flat data with a defaulted array gives each spawn its own array", () => {
+    const world = createWorld(16);
+    const spawn = compileEntityDefinition({ name: "Tinted", components: [{ type: "DefsTestBag", tint: 3 }] });
+    const [a, b] = [spawn.spawn(world), spawn.spawn(world)];
+    world(DefsTestBag, a).items.push("z");
+    expect(world(DefsTestBag, b).items).toEqual([]);
+  });
+
   test("an unknown component is an error unless skipped", () => {
     const def = { name: "Bad", components: [{ type: "NoSuchSchema" }] };
     expect(() => compileEntityDefinition(def)).toThrow(/no registered schema/);
