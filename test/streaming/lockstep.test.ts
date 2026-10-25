@@ -114,6 +114,9 @@ const seeded = (seed: number) => () => {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 };
 
+/** The chunk generated mid-run, on hosts that defer generating: it is born on its stamped tick, wherever it lands. */
+const LATE = [GRID - 1, GRID - 1] as const;
+
 /**
  * Runs the walk on `hosts` hosts (chunk placement and the order of everything shuffled by `seed`).
  * With `view`, a view wanders past the grid's east edge: chunks there come and go as it says.
@@ -124,7 +127,7 @@ const run = async (hosts: number, seed: number, view = false) => {
   const placementOf = new Map<string, number>();
   const pool = new ChunkPool((cx, cy) => placementOf.get(`${cx},${cy}`) ?? Math.floor(rng() * hosts));
   pool.lead = 1;
-  const list = Array.from({ length: hosts }, () => new ChunkHost(walkModule()));
+  const list = Array.from({ length: hosts }, () => new ChunkHost(walkModule(), { deferGenerates: true }));
   for (let a = 0; a < hosts; a++) {
     for (let b = a + 1; b < hosts; b++) {
       const [ab, ba] = net.pair();
@@ -141,7 +144,7 @@ const run = async (hosts: number, seed: number, view = false) => {
   pool.on({ stats: (entries, _host, tick) => entries.forEach((e) => inGrid(e.cx, e.cy) && stats.set(`${tick}:${e.cx},${e.cy}`, e.bytes[0])) });
   const keys = Array.from({ length: GRID * GRID }, (_, i) => [i % GRID, Math.floor(i / GRID)] as const).sort(() => rng() - 0.5);
   keys.forEach(([cx, cy]) => placementOf.set(`${cx},${cy}`, Math.floor(rng() * hosts)));
-  for (const [cx, cy] of keys) pool.generate(cx, cy, 1);
+  for (const [cx, cy] of keys) if (cx !== LATE[0] || cy !== LATE[1]) pool.generate(cx, cy, 1);
   await Promise.resolve();
   while (net.deliverOne());
 
@@ -149,6 +152,7 @@ const run = async (hosts: number, seed: number, view = false) => {
   let pass = 0;
   const page = () => {
     while (pool.committed >= pass * PASS && pass * PASS <= TICKS) {
+      if (pass === 4) pool.generate(LATE[0], LATE[1], 1);
       if (pass % 3 === 1) pool.configure(new Uint8Array([1 + (pass % 2)]));
       if (pass === 2) pool.input(1 + 5 * 100 + 3, new Uint8Array([150]));
       // Watched hot steps hot (setTier stamps it): the same for every run, as the view is.

@@ -467,6 +467,13 @@ export class ChunkHost {
         let list = this.stamped.get(message.tick);
         if (!list) this.stamped.set(message.tick, (list = []));
         list.push({ connection, bytes: message.bytes.slice() });
+        // For the tick an idle host runs next: nothing it simulates comes between, so it applies now
+        // (what came before it first), as at the tick's start. A world generated before the first tick
+        // is then there before it, while the client holds the hosts at their start.
+        if (message.tick === this.tickCount && this.running < 0) {
+          this.stamped.delete(message.tick);
+          for (const { connection, bytes } of list) this.applyStamped(connection, bytes);
+        }
         break;
       }
       case Op.Speed:
@@ -523,8 +530,17 @@ export class ChunkHost {
     }
   }
 
-  /** A stamped client message, on its tick: a Tier sets the chunk's simulated tier, the rest apply as sent. */
+  /**
+   * A stamped client message, on its tick: a Tier sets the chunk's simulated tier, a Generate builds
+   * the chunk now (never deferred: the tick it is born on is the simulation's), the rest apply as sent.
+   */
   private applyStamped(connection: Connection | null, bytes: Uint8Array) {
+    if (bytes[0] === Op.Generate) {
+      const message = decodeMessage(bytes) as Extract<Message, { op: Op.Generate }>;
+      this.pending.delete(spaceChunkKey(message.space, message.cx, message.cy));
+      this.generate(message.cx, message.cy, message.seed, message.space);
+      return;
+    }
     if (bytes[0] !== Op.Tier) {
       this.receive(connection, bytes);
       return;

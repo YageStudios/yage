@@ -207,7 +207,8 @@ export class ChunkPool {
     this.hosts[host].chunks++;
     this.setRoute(key, host);
     this.flushRoutes();
-    this.hosts[host].transport.send(encodeGenerate(cx, cy, seed, space));
+    // In lockstep a chunk is born on a stamped tick, so its clock is the same however it is placed or timed.
+    this.hosts[host].transport.send(this.stamp(encodeGenerate(cx, cy, seed, space)));
     return state;
   }
 
@@ -354,6 +355,8 @@ export class ChunkPool {
   /** Lockstep: lets every host run up to (not including) `tick`. Never goes back. */
   setLimit(tick: number) {
     if (tick <= this.limit) return;
+    // Route changes queued under the old limit carry it, as the generates and moves that made them do.
+    this.sendRoutes();
     this.limit = tick;
     const message = encodeLimit(tick);
     for (const host of this.hosts) host.transport.send(message);
@@ -424,13 +427,17 @@ export class ChunkPool {
     this.routeFlushQueued = true;
     queueMicrotask(() => {
       this.routeFlushQueued = false;
-      if (!this.routeChanges.size) return;
-      const entries: RouteEntry[] = [];
-      for (const [key, host] of this.routeChanges) entries.push({ space: keySpace(key), cx: chunkX(key), cy: chunkY(key), host });
-      this.routeChanges.clear();
-      // In lockstep a route change lands on every host on the same tick, so hand-offs see the same map.
-      for (const host of this.hosts) host.transport.send(this.stamp(encodeRoute(host.index, entries)));
+      this.sendRoutes();
     });
+  }
+
+  private sendRoutes() {
+    if (!this.routeChanges.size) return;
+    const entries: RouteEntry[] = [];
+    for (const [key, host] of this.routeChanges) entries.push({ space: keySpace(key), cx: chunkX(key), cy: chunkY(key), host });
+    this.routeChanges.clear();
+    // In lockstep a route change lands on every host on the same tick, so hand-offs see the same map.
+    for (const host of this.hosts) host.transport.send(this.stamp(encodeRoute(host.index, entries)));
   }
 
   // -------------------------------------------------------------------------------------------
