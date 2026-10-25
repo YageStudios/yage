@@ -117,6 +117,8 @@ export const compileEntityDefinition = (definition: EntityDefinition, options: C
 
   const apply = (world: World, eid: number, ctx: SpawnContext = {}, parent?: number) => {
     const overrides = ctx.overrides;
+    // The owner first, so the definition's systems can reach it from their init.
+    if (parent === undefined && ctx.owner !== undefined) addComponent(world, OwnedBy as any, eid, { owner: ctx.owner } as any);
     for (let i = 0; i < plans.length; i++) {
       const plan = plans[i];
       let data: Record<string, unknown> = plan.flat
@@ -129,7 +131,6 @@ export const compileEntityDefinition = (definition: EntityDefinition, options: C
       if (parent !== undefined && plan.schema === Child) data = { ...data, parent };
       addComponent(world, plan.schema as any, eid, data as any);
     }
-    if (parent === undefined && ctx.owner !== undefined) addComponent(world, OwnedBy as any, eid, { owner: ctx.owner } as any);
     if (parent !== undefined) {
       if (Transform && !plans.some((p) => p.schema === Transform)) addComponent(world, Transform as any, eid, { x: 0, y: 0 } as any);
       if (!plans.some((p) => p.schema === Child)) addComponent(world, Child as any, eid, { parent } as any);

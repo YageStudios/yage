@@ -1,4 +1,4 @@
-import { Component, defaultValue, Schema, type } from "minecs";
+import { Component, defaultValue, DrawSystemImpl, Schema, System, type } from "minecs";
 import { describe, expect, test } from "vitest";
 import { compileEntityDefinition } from "yage/entity/definitions";
 import { createLeanGameModel } from "yage/game/LeanGameModel";
@@ -47,6 +47,22 @@ describe("owners", () => {
     panel.apply(model, eid, { owner: cam });
     const many = panel.spawnMany(model, 3, { owner: cam });
     for (const e of [eid, ...many]) expect(ownerOf(model, e)).toBe(cam);
+    model.destroy();
+  });
+
+  test("the owner is set before the definition's components, so their systems' init can reach it", () => {
+    const seen: number[] = [];
+    @System(Panel)
+    class PanelInit extends DrawSystemImpl {
+      init(world: any, eid: number) {
+        seen.push(ownedBy(world, eid, Camera).zoom);
+      }
+    }
+    const model = createLeanGameModel({ world: { components: [Camera, Panel, OwnedBy], systems: [PanelInit] } });
+    const cam = camera.spawn(model);
+    panel.spawn(model, { owner: cam });
+    panel.apply(model, model.addEntity(), { owner: cam });
+    expect(seen).toEqual([4, 4]);
     model.destroy();
   });
 });
