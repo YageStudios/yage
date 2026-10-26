@@ -11,3 +11,4 @@ export * from "./host";
 export * from "./pool";
 export * from "./interp";
 export * from "./streamer";
+export * from "./hotset";

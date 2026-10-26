@@ -119,7 +119,8 @@ const LATE = [GRID - 1, GRID - 1] as const;
 
 /**
  * Runs the walk on `hosts` hosts (chunk placement and the order of everything shuffled by `seed`).
- * With `view`, a view wanders past the grid's east edge: chunks there come and go as it says.
+ * With `view`, a view wanders past the grid's east edge (chunks there come and go as it says) and
+ * watches grid chunks closely now and then, which changes nothing simulated.
  * With `save`, a checkpoint saves every grid chunk mid-run (pool.save), stamped like the rest.
  * With `from`, the hosts start from a checkpoint instead: resumed at its tick, its chunks loaded.
  */
@@ -161,9 +162,9 @@ const run = async (hosts: number, seed: number, view = false, save = false, from
       if (pass === 4) pool.generate(LATE[0], LATE[1], 1);
       if (pass % 3 === 1) pool.configure(new Uint8Array([1 + (pass % 2)]));
       if (pass === 2) pool.input(1 + 5 * 100 + 3, new Uint8Array([150]));
-      // Watched hot steps hot (setTier stamps it): the same for every run, as the view is.
-      if (pass === 3) pool.setTier(1, 1, Tier.Hot);
-      if (pass === 9) pool.setTier(1, 1, Tier.Warm);
+      // What steps hot is the run's (setSimTier, stamped), the same for every run.
+      if (pass === 3) pool.setSimTier(1, 1, Tier.Hot);
+      if (pass === 9) pool.setSimTier(1, 1, Tier.Warm);
       if (pass === 6) pool.setSimTier(2, 2, Tier.Hot);
       if (pass === 5 && save) saving = pool.save(keys.map(([cx, cy]) => ({ cx, cy })));
       pool.setLimit(Math.min(TICKS, pass * PASS + 2 * PASS));
@@ -174,6 +175,8 @@ const run = async (hosts: number, seed: number, view = false, save = false, from
   const outside = new Set<string>();
   const wander = () => {
     if (!view || rng() > 0.05) return;
+    // What a view watches closely (whenever its frames fall) changes nothing simulated.
+    if (rng() < 0.5) return pool.setTier(Math.floor(rng() * GRID), Math.floor(rng() * GRID), rng() < 0.5 ? Tier.Hot : Tier.Warm);
     const cy = Math.floor(rng() * GRID);
     const key = `${GRID},${cy}`;
     if (!outside.has(key)) {

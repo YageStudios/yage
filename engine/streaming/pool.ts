@@ -222,9 +222,10 @@ export class ChunkPool {
   }
 
   /**
-   * Lockstep: whether chunk (cx, cy) steps hot, from the limit's tick on. setTier calls it when
-   * what this client watches goes hot or stops being hot. Ignored outside lockstep, where the
-   * watched tier decides both.
+   * Lockstep: whether chunk (cx, cy) steps hot, from the limit's tick on. The simulation's, not a
+   * view's: whoever owns the run decides it (e.g. from every player's HotSet), so what a client
+   * happens to watch never changes what is simulated. Ignored outside lockstep, where the watched
+   * tier decides both.
    */
   setSimTier(cx: number, cy: number, tier: Tier, space = 0) {
     const state = this.chunks.get(spaceChunkKey(space, cx, cy));
@@ -236,13 +237,11 @@ export class ChunkPool {
     const state = this.chunks.get(spaceChunkKey(space, cx, cy));
     if (!state) return;
     if (state.tier === tier && state.snapshotEvery === snapshotEvery) return;
-    const stepping = state.tier === Tier.Hot;
     state.tier = tier;
     state.snapshotEvery = snapshotEvery;
     if (state.moving) return;
+    // What this client is sent; in lockstep what steps hot is setSimTier's alone.
     this.hosts[state.host].transport.send(encodeTier(cx, cy, tier, snapshotEvery, space));
-    // In lockstep what is watched hot also steps hot, from a stamped tick (setSimTier).
-    if (stepping !== (tier === Tier.Hot)) this.setSimTier(cx, cy, tier === Tier.Hot ? Tier.Hot : Tier.Warm, space);
   }
 
   /** Unloads a chunk and resolves with its serialized world. */
