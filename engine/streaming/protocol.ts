@@ -23,12 +23,15 @@
  * simulates that no host has go to the client, which can put people into a loaded chunk on a tick
  * (Enter) and send a chunk the game's own bytes on a tick (Command); and Survey / Surveyed: what the
  * game knows of a chunk without making it (ChunkModule.survey), e.g. its residents as counts.
+ * Version 11 added Saved's shared state and pending posts, and Restore: in lockstep a checkpoint keeps
+ * what every host holds alike from posts (ChunkModule.saveShared) and the posts still to land, and a
+ * load gives them back before the first tick.
  */
 
 import type { ChunkAddress } from "./coord";
 
 /** Wire format version. Bump on any layout change. */
-export const PROTOCOL_VERSION = 10;
+export const PROTOCOL_VERSION = 11;
 
 export enum Op {
   // client -> host
@@ -93,6 +96,8 @@ export enum Op {
   Survey = 35,
   /** host -> client: a Survey's answer. Added in v10. */
   Surveyed = 36,
+  /** client -> host: in lockstep, before the first tick, a checkpoint's shared state and the posts still to land here. Added in v11. */
+  Restore = 37,
 }
 
 /** Positions in snapshots are int16 fixed point: world units × POSITION_SCALE. */
@@ -348,14 +353,40 @@ export const encodeSave = (id: number, chunks: readonly SaveAddress[]) => {
   return writer.finish();
 };
 
-/** The answer to Save `id`: taken at the start of `tick` (every tick before it had run). */
-export const encodeSaved = (id: number, tick: number, chunks: readonly SavedChunk[]) => {
-  let size = 16;
+/**
+ * A post made before a save that lands on or after its tick: kept with the checkpoint and queued
+ * again on a load (Restore), so a run continued from it lands everything the straight run did.
+ */
+export type PendingPost = { tick: number; kind: PostKind; source: number; seq: number; bytes: Uint8Array };
+
+const postsSize = (posts: readonly PendingPost[]) => posts.reduce((n, post) => n + 21 + post.bytes.byteLength, 4);
+const writePosts = (writer: ByteWriter, posts: readonly PendingPost[]) => {
+  writer.u32(posts.length);
+  for (const post of posts) writer.u32(post.tick).u8(post.kind).f64(post.source).u32(post.seq).block(post.bytes);
+  return writer;
+};
+const readPosts = (reader: ByteReader) => {
+  const posts: PendingPost[] = [];
+  const count = reader.u32();
+  for (let i = 0; i < count; i++) posts.push({ tick: reader.u32(), kind: reader.u8() as PostKind, source: reader.f64(), seq: reader.u32(), bytes: reader.block() });
+  return posts;
+};
+
+/**
+ * The answer to Save `id`: taken at the start of `tick` (every tick before it had run), with the
+ * module's shared state (ChunkModule.saveShared; empty: none) and the posts queued here then (v11).
+ */
+export const encodeSaved = (id: number, tick: number, chunks: readonly SavedChunk[], shared: Uint8Array = new Uint8Array(0), posts: readonly PendingPost[] = []) => {
+  let size = 20 + shared.byteLength + postsSize(posts);
   for (const chunk of chunks) size += 10 + chunk.bytes.byteLength;
   const writer = new ByteWriter(size).u8(Op.Saved).u8(0).u16(0).u32(id).u32(tick).u32(chunks.length);
   for (const chunk of chunks) writer.u16(chunk.space).i16(chunk.cx).i16(chunk.cy).block(chunk.bytes);
-  return writer.finish();
+  return writePosts(writer.block(shared), posts).finish();
 };
+
+/** A checkpoint's shared state (empty: none) and the posts to queue on this host (v11). */
+export const encodeRestore = (shared: Uint8Array, posts: readonly PendingPost[]) =>
+  writePosts(new ByteWriter(12 + shared.byteLength + postsSize(posts)).u8(Op.Restore).u8(0).u16(0).block(shared), posts).finish();
 
 // ---------------------------------------------------------------------------------------------
 // Transfer: entity rows walking into chunk (cx, cy) of `space`. Row positions are local to chunk
@@ -589,7 +620,8 @@ export type Message =
   | { op: Op.Post; tick: number; kind: PostKind; source: number; seq: number; bytes: Uint8Array }
   | { op: Op.Done; tick: number }
   | { op: Op.Save; id: number; chunks: ChunkAddress[] }
-  | { op: Op.Saved; id: number; tick: number; chunks: SavedChunk[] }
+  | { op: Op.Saved; id: number; tick: number; chunks: SavedChunk[]; shared: Uint8Array; posts: PendingPost[] }
+  | { op: Op.Restore; shared: Uint8Array; posts: PendingPost[] }
   | ({ op: Op.Transfer } & TransferMessage)
   | ({ op: Op.Depart } & DepartMessage)
   | ({ op: Op.Arrive } & ArriveMessage)
@@ -691,7 +723,14 @@ export const decodeMessage = (bytes: Uint8Array): Message => {
       const count = reader.u32();
       const chunks: SavedChunk[] = [];
       for (let i = 0; i < count; i++) chunks.push({ space: reader.u16(), cx: reader.i16(), cy: reader.i16(), bytes: reader.block() });
-      return { op, id, tick, chunks };
+      const shared = reader.block();
+      return { op, id, tick, chunks, shared, posts: readPosts(reader) };
+    }
+    case Op.Restore: {
+      reader.u8();
+      reader.u16();
+      const shared = reader.block();
+      return { op, shared, posts: readPosts(reader) };
     }
     case Op.Commit: {
       reader.u8();

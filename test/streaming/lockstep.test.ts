@@ -2,9 +2,9 @@ import { describe, expect, test } from "vitest";
 import { addComponent, addEntity, createWorld, deserializeWorld, type World } from "minecs";
 import { ChunkHost, type ChunkModule } from "yage/streaming/host";
 import { spaceChunkKey } from "yage/streaming/coord";
-import { ChunkPool } from "yage/streaming/pool";
+import { ChunkPool, type SavedState } from "yage/streaming/pool";
 import { ShadowIsland } from "yage/streaming/shadow";
-import { Tier, type ExitedMessage, type SavedChunk } from "yage/streaming/protocol";
+import { Tier, type ExitedMessage } from "yage/streaming/protocol";
 import type { ChunkTransport } from "yage/streaming/transport";
 import { SIZE, TestGid, TestPos, TestVel } from "./fixture";
 
@@ -72,6 +72,10 @@ const walkModule = (exits = false): ChunkModule => {
     receive(bytes) {
       shared += bytes[0];
     },
+    saveShared: () => new Uint8Array(new Float64Array([shared]).buffer),
+    loadShared(bytes) {
+      shared = new Float64Array(bytes.slice().buffer)[0];
+    },
     configure(bytes) {
       scale = bytes[0];
     },
@@ -130,7 +134,9 @@ const CYCLED = [1, 2] as const;
  * With `view`, a view wanders past the grid's east edge (chunks there come and go as it says) and
  * watches grid chunks closely now and then, which changes nothing simulated.
  * With `save`, a checkpoint saves every grid chunk mid-run (pool.save), stamped like the rest.
- * With `from`, the hosts start from a checkpoint instead: resumed at its tick, its chunks loaded.
+ * With `from`, the hosts start from a checkpoint instead: resumed at its tick, its chunks loaded, its
+ * shared state and pending posts restored, and what the page had sent before it sent again (the hot
+ * chunk, the input), with the limit where the saving run's page had it.
  * With `cycle`, the run unloads a grid chunk mid-run (stamped) and later generates it again with
  * init bytes counting the walkers it had. With `exits` too, walkers who walk into it while it is gone
  * leave for the page (Exited), which holds them and, once it is back, puts them in (Enter) on its
@@ -139,7 +145,7 @@ const CYCLED = [1, 2] as const;
  * shadow host: peeked grid chunks and generated ones off the grid, run up to the run's committed
  * tick, dropped and opened again; which changes nothing of the run.
  */
-const run = async (hosts: number, seed: number, view = false, save = false, from?: { tick: number; chunks: SavedChunk[] }, cycle = false, exits = false, shadow = false) => {
+const run = async (hosts: number, seed: number, view = false, save = false, from?: SavedState, cycle = false, exits = false, shadow = false) => {
   const rng = seeded(seed);
   const net = network(rng);
   const placementOf = new Map<string, number>();
@@ -177,13 +183,17 @@ const run = async (hosts: number, seed: number, view = false, save = false, from
   if (from) {
     pool.resume(from.tick);
     for (const chunk of from.chunks) pool.load(chunk.cx, chunk.cy, chunk.bytes);
+    pool.restore(from.shared, from.posts);
+    if (from.tick > 3 * PASS && from.tick <= 9 * PASS) pool.setSimTier(1, 1, Tier.Hot);
+    if (from.tick > 2 * PASS) pool.input(1 + 5 * 100 + 3, new Uint8Array([150]));
+    pool.setLimit(from.tick + PASS);
   } else for (const [cx, cy] of keys) if (cx !== LATE[0] || cy !== LATE[1]) pool.generate(cx, cy, 1);
   await Promise.resolve();
   while (net.deliverOne());
 
   // The page's passes: every PASS committed ticks it acts, stamped with the limit, then lets the hosts run on.
   let pass = from ? from.tick / PASS : 0;
-  let saving: Promise<{ tick: number; chunks: SavedChunk[] }> | undefined;
+  let saving: Promise<SavedState> | undefined;
   const page = () => {
     while (pool.committed >= pass * PASS && pass * PASS <= TICKS) {
       if (cycle && pass === 5) void pool.unload(CYCLED[0], CYCLED[1]);
@@ -402,16 +412,21 @@ describe("lockstep", () => {
     expect(leaving.walkers).toEqual(alone.walkers);
   });
 
-  test("hosts resumed at a checkpoint's tick run on from it the same on any hosts in any order; a host that has run refuses", async () => {
-    const { saved } = await run(1, 7, false, true);
-    const first = await run(1, 10, false, false, saved!);
-    // Rows in flight when it was taken aren't in it; the rest walk on.
-    expect(first.walkers.length).toBeGreaterThan(GRID * GRID * 6);
+  test("hosts resumed at a checkpoint's tick, with its shared state and pending posts, run on from it as the straight run did, on any hosts in any order; a host that has run refuses", async () => {
+    const straight = await run(1, 7, false, true);
+    const saved = straight.saved!;
+    // Posts were on their way when it was taken, and the module had built up shared state.
+    expect(saved.posts.length).toBeGreaterThan(0);
+    expect(saved.shared).not.toBeNull();
+    const first = await run(1, 10, false, false, saved);
+    // With the shared state and the pending posts back, it runs on as the straight run did.
+    expect(first.walkers).toEqual(straight.walkers);
+    for (const [key, value] of first.stats) expect(straight.stats.get(key), key).toBe(value);
     // Nothing before the checkpoint's tick ran again.
     const ticks = [...first.stats.keys()].map((key) => Number(key.split(":")[0]));
-    expect(Math.min(...ticks)).toBe(saved!.tick);
+    expect(Math.min(...ticks)).toBe(saved.tick);
     for (const [hosts, seed, view] of [[3, 11, false], [4, 12, true]] as const) {
-      const other = await run(hosts, seed, view, false, saved!);
+      const other = await run(hosts, seed, view, false, saved);
       expect(other.walkers).toEqual(first.walkers);
       expect(other.stats).toEqual(first.stats);
       expect(other.dropped).toBe(first.dropped);

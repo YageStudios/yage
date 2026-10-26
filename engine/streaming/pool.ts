@@ -17,6 +17,7 @@ import {
   encodeCommit,
   encodeLimit,
   encodeResume,
+  encodeRestore,
   encodeLockstep,
   encodeSpeed,
   encodeConfig,
@@ -35,6 +36,7 @@ import {
   encodeUnload,
   NO_HOST,
   Op,
+  PostKind,
   PROTOCOL_VERSION,
   Tier,
   type DepartMessage,
@@ -43,6 +45,7 @@ import {
   type OverlayMessage,
   type RouteEntry,
   type SaveAddress,
+  type PendingPost,
   type SavedChunk,
   type Snapshot,
   type StatsEntry,
@@ -63,6 +66,9 @@ export type ChunkHostHandle = {
   /** Protocol version from the host's Hello; null until it answers. */
   version: number | null;
 };
+
+/** A save's answer (ChunkPool.save): the chunks, the tick they were taken at the start of, and in lockstep the shared state and pending posts. */
+export type SavedState = { tick: number; chunks: SavedChunk[]; shared: Uint8Array | null; posts: PendingPost[] };
 
 export type ChunkState = {
   space: number;
@@ -136,7 +142,7 @@ export class ChunkPool {
   private readonly unloadWaiters = new Map<number, (bytes: Uint8Array) => void>();
   private readonly surveyWaiters = new Map<number, ((bytes: Uint8Array) => void)[]>();
   /** Save requests waiting on their hosts' answers, by request id. */
-  private readonly saveWaiters = new Map<number, (tick: number, chunks: SavedChunk[]) => void>();
+  private readonly saveWaiters = new Map<number, (tick: number, chunks: SavedChunk[], shared: Uint8Array, posts: PendingPost[]) => void>();
   private saveId = 0;
   /** Transfers for chunks that are moving, delivered once the chunk lands. */
   private readonly heldTransfers = new Map<number, Uint8Array[]>();
@@ -290,10 +296,14 @@ export class ChunkPool {
    * In lockstep each host takes them at the start of the limit's tick, before running it, so they
    * are the chunks as every tick before it left them; outside lockstep, when each host gets the
    * request. Resolves with them in key order and the (latest) tick they were taken at. Chunks not
-   * loaded, or moving, are left out.
+   * loaded, or moving, are left out. In lockstep every host answers, with what posts built up on it
+   * (ChunkModule.saveShared: the first host's, as every host holds the same) and the posts still to
+   * land (each once, in landing order): a load gives both back (`restore`).
    */
-  save(chunks: readonly SaveAddress[]): Promise<{ tick: number; chunks: SavedChunk[] }> {
+  save(chunks: readonly SaveAddress[]): Promise<SavedState> {
+    const lockstep = this.lead > 0;
     const byHost = new Map<number, SaveAddress[]>();
+    if (lockstep) for (let host = 0; host < this.hosts.length; host++) byHost.set(host, []);
     for (const chunk of chunks) {
       const state = this.chunks.get(spaceChunkKey(chunk.space ?? 0, chunk.cx, chunk.cy));
       if (!state || state.moving) continue;
@@ -301,21 +311,49 @@ export class ChunkPool {
       if (!list) byHost.set(state.host, (list = []));
       list.push(chunk);
     }
-    if (!byHost.size) return Promise.resolve({ tick: this.lead > 0 ? this.limit : 0, chunks: [] });
-    const answers = [...byHost].map(
+    if (!byHost.size) return Promise.resolve({ tick: lockstep ? this.limit : 0, chunks: [], shared: null, posts: [] });
+    const answers = [...byHost].sort(([a], [b]) => a - b).map(
       ([host, list]) =>
-        new Promise<{ tick: number; chunks: SavedChunk[] }>((resolve) => {
+        new Promise<{ tick: number; chunks: SavedChunk[]; shared: Uint8Array; posts: PendingPost[] }>((resolve) => {
           const id = ++this.saveId;
-          this.saveWaiters.set(id, (tick, saved) => resolve({ tick, chunks: saved }));
+          this.saveWaiters.set(id, (tick, saved, shared, posts) => resolve({ tick, chunks: saved, shared, posts }));
           this.hosts[host].transport.send(this.stamp(encodeSave(id, list)), true);
         })
     );
-    return Promise.all(answers).then((all) => ({
-      tick: all.reduce((max, a) => Math.max(max, a.tick), 0),
-      chunks: all
-        .flatMap((a) => a.chunks)
-        .sort((a, b) => spaceChunkKey(a.space, a.cx, a.cy) - spaceChunkKey(b.space, b.cx, b.cy)),
-    }));
+    return Promise.all(answers).then((all) => {
+      const posts = new Map<string, PendingPost>();
+      for (const answer of all) for (const post of answer.posts) posts.set(`${post.tick}:${post.source}:${post.seq}:${post.kind}`, post);
+      return {
+        tick: all.reduce((max, a) => Math.max(max, a.tick), 0),
+        chunks: all
+          .flatMap((a) => a.chunks)
+          .sort((a, b) => spaceChunkKey(a.space, a.cx, a.cy) - spaceChunkKey(b.space, b.cx, b.cy)),
+        shared: all.find((a) => a.shared.byteLength)?.shared ?? null,
+        posts: [...posts.values()].sort((a, b) => a.tick - b.tick || a.source - b.source || a.seq - b.seq || a.kind - b.kind),
+      };
+    });
+  }
+
+  /**
+   * Lockstep, on a load after `resume` and the chunks' loads, before the limit moves: a save's shared
+   * state to every host, and its pending posts where they land: a module post on every host, a
+   * hand-off on the host that has its chunk now (however the chunks are split this time).
+   */
+  restore(shared: Uint8Array | null, posts: readonly PendingPost[]) {
+    if (this.lead <= 0) throw new Error("ChunkPool.restore: lockstep is off");
+    const byHost = this.hosts.map((): PendingPost[] => []);
+    for (const post of posts) {
+      if (post.kind === PostKind.Module) {
+        for (const list of byHost) list.push(post);
+        continue;
+      }
+      // A chunk no host has: it lands where it would have, sent back to the chunk it left.
+      const transfer = decodeMessage(post.bytes) as TransferMessage;
+      const state = this.chunks.get(spaceChunkKey(transfer.space, transfer.cx, transfer.cy)) ?? this.chunks.get(spaceChunkKey(transfer.space, transfer.fx, transfer.fy));
+      byHost[state?.host ?? 0].push(post);
+    }
+    const bytes = shared ?? new Uint8Array(0);
+    this.hosts.forEach((host, i) => host.transport.send(encodeRestore(bytes, byHost[i])));
   }
 
   /**
@@ -654,7 +692,12 @@ export class ChunkPool {
       case Op.Saved: {
         const waiter = this.saveWaiters.get(message.id);
         this.saveWaiters.delete(message.id);
-        waiter?.(message.tick, message.chunks.map((chunk) => ({ ...chunk, bytes: chunk.bytes.slice() })));
+        waiter?.(
+          message.tick,
+          message.chunks.map((chunk) => ({ ...chunk, bytes: chunk.bytes.slice() })),
+          message.shared.slice(),
+          message.posts.map((post) => ({ ...post, bytes: post.bytes.slice() }))
+        );
         break;
       }
       case Op.Transfer:

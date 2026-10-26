@@ -68,6 +68,7 @@ import {
   PostKind,
   type LocateEntry,
   type Message,
+  type PendingPost,
   type SavedChunk,
   type Snapshot,
   type StatsEntry,
@@ -200,6 +201,13 @@ export interface ChunkModule {
   post?(world: World, ctx: StepContext): Uint8Array | null;
   /** Lockstep: a chunk's post, at the start of the tick `lead` after it was made, in source-chunk order. */
   receive?(bytes: Uint8Array, tick: number): void;
+  /**
+   * Lockstep: what posts (`receive`) have built up on this host, which every host holds alike, as
+   * bytes for a checkpoint (taken at the start of a tick, between steps); null when there is none.
+   */
+  saveShared?(): Uint8Array | null;
+  /** Lockstep: a checkpoint's `saveShared` bytes, given back before the host runs its first tick. */
+  loadShared?(bytes: Uint8Array): void;
   /**
    * Runs the host in lockstep from the start, with this lead (ticks between a hand-off or post
    * and the tick it applies at, at least 1), held at tick 0 until the client's first Limit.
@@ -492,9 +500,25 @@ export class ChunkHost {
         }
         // Inside a tick, a stamped Save runs before anything of it has (the tick is already counted).
         const tick = this.running >= 0 ? this.running : this.tickCount;
-        connection?.transport.send(encodeSaved(message.id, tick, chunks), true);
+        // In lockstep, what posts built up here and the posts made before this tick still to land
+        // (a peer that already ran it may have sent this host later ones: those are made again).
+        const shared = this.lead > 0 ? this.module.saveShared?.() ?? null : null;
+        const posts: PendingPost[] = [];
+        if (this.lead > 0)
+          for (const [at, list] of this.posts)
+            if (at >= tick && at < tick + this.lead) for (const post of list) posts.push({ tick: at, ...post });
+        connection?.transport.send(encodeSaved(message.id, tick, chunks, shared ?? new Uint8Array(0), posts), true);
         break;
       }
+      case Op.Restore:
+        // Before the first tick (a checkpoint's load): the shared state, then the posts still to land.
+        if (this.tickCount !== this.startTick || this.running >= 0) {
+          this.log(2, `Lockstep: Restore after the host has run (now ${this.tickCount}); ignored`);
+          break;
+        }
+        if (message.shared.byteLength) this.module.loadShared?.(message.shared.slice());
+        for (const { tick, ...post } of message.posts) this.queuePost(tick, { ...post, bytes: post.bytes.slice() });
+        break;
       case Op.Tier:
         if (connection) this.subscribe(connection, message.space, message.cx, message.cy, message.tier, message.snapshotEvery);
         break;
