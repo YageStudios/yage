@@ -193,9 +193,9 @@ describe("protocol versions", () => {
     const [client, hostSide] = memoryTransportPair();
     pool.addHost(client, "local");
     hostSide.onMessage(() => {});
-    hostSide.send(encodeHello(7));
-    expect(pool.hosts[0].version).toBe(7);
-    expect(logs[0]).toMatch(/v7/);
+    hostSide.send(encodeHello(99));
+    expect(pool.hosts[0].version).toBe(99);
+    expect(logs[0]).toMatch(/v99/);
   });
 });
 

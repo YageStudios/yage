@@ -1,9 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { addComponent, addEntity, createWorld, type World } from "minecs";
+import { addComponent, addEntity, createWorld, deserializeWorld, type World } from "minecs";
 import { ChunkHost, type ChunkModule } from "yage/streaming/host";
 import { spaceChunkKey } from "yage/streaming/coord";
 import { ChunkPool } from "yage/streaming/pool";
-import { Tier } from "yage/streaming/protocol";
+import { Tier, type SavedChunk } from "yage/streaming/protocol";
 import type { ChunkTransport } from "yage/streaming/transport";
 import { SIZE, TestGid, TestPos, TestVel } from "./fixture";
 
@@ -120,8 +120,9 @@ const LATE = [GRID - 1, GRID - 1] as const;
 /**
  * Runs the walk on `hosts` hosts (chunk placement and the order of everything shuffled by `seed`).
  * With `view`, a view wanders past the grid's east edge: chunks there come and go as it says.
+ * With `save`, a checkpoint saves every grid chunk mid-run (pool.save), stamped like the rest.
  */
-const run = async (hosts: number, seed: number, view = false) => {
+const run = async (hosts: number, seed: number, view = false, save = false) => {
   const rng = seeded(seed);
   const net = network(rng);
   const placementOf = new Map<string, number>();
@@ -150,6 +151,7 @@ const run = async (hosts: number, seed: number, view = false) => {
 
   // The page's passes: every PASS committed ticks it acts, stamped with the limit, then lets the hosts run on.
   let pass = 0;
+  let saving: Promise<{ tick: number; chunks: SavedChunk[] }> | undefined;
   const page = () => {
     while (pool.committed >= pass * PASS && pass * PASS <= TICKS) {
       if (pass === 4) pool.generate(LATE[0], LATE[1], 1);
@@ -159,6 +161,7 @@ const run = async (hosts: number, seed: number, view = false) => {
       if (pass === 3) pool.setTier(1, 1, Tier.Hot);
       if (pass === 9) pool.setTier(1, 1, Tier.Warm);
       if (pass === 6) pool.setSimTier(2, 2, Tier.Hot);
+      if (pass === 5 && save) saving = pool.save(keys.map(([cx, cy]) => ({ cx, cy })));
       pool.setLimit(Math.min(TICKS, pass * PASS + 2 * PASS));
       pass++;
     }
@@ -185,17 +188,30 @@ const run = async (hosts: number, seed: number, view = false) => {
     page();
     if (list.every((h) => h.tickCount >= TICKS) && !net.deliverOne()) break;
   }
-  const walkers: string[] = [];
-  for (const host of list) {
-    expect(host.tickCount).toBe(TICKS);
-    for (const chunk of host.chunks.values()) {
+  const walkersOf = (chunks: { cx: number; cy: number; world: World }[]) => {
+    const walkers: string[] = [];
+    for (const chunk of chunks) {
       if (!inGrid(chunk.cx, chunk.cy)) continue;
       const { x, y } = chunk.world(TestPos).store;
       const id = chunk.world(TestGid).store.id;
       for (const eid of chunk.world.entitySparseSet.dense) walkers.push(`${id[eid]}@${chunk.cx},${chunk.cy}:${x[eid].toFixed(4)},${y[eid].toFixed(4)}`);
     }
-  }
-  return { walkers: walkers.sort(), stats, dropped: list.reduce((n, h) => n + h.dropped, 0), inFlight: list.reduce((n, h) => n + h.inFlight(), 0) };
+    return walkers.sort();
+  };
+  for (const host of list) expect(host.tickCount).toBe(TICKS);
+  const saved = saving && (await saving);
+  const checkpoint = saved && {
+    tick: saved.tick,
+    chunks: saved.chunks.map((c) => `${c.cx},${c.cy}`),
+    walkers: walkersOf(saved.chunks.map((c) => ({ ...c, world: deserializeWorld(c.bytes.slice().buffer) as World }))),
+  };
+  return {
+    walkers: walkersOf(list.flatMap((host) => [...host.chunks.values()])),
+    stats,
+    dropped: list.reduce((n, h) => n + h.dropped, 0),
+    inFlight: list.reduce((n, h) => n + h.inFlight(), 0),
+    checkpoint,
+  };
 };
 
 describe("lockstep", () => {
@@ -216,5 +232,22 @@ describe("lockstep", () => {
       expect(other.dropped).toBe(alone.dropped);
       expect(other.inFlight).toBe(alone.inFlight);
     }
+  });
+
+  test("a save mid-run takes every chunk at the start of its stamped tick, on any host in any order, and changes nothing", async () => {
+    const alone = await run(1, 1);
+    const first = await run(1, 7, false, true);
+    // The limit when it was asked: every chunk as the ticks before it left them, none unloaded.
+    expect(first.checkpoint!.tick).toBe(6 * PASS);
+    expect(first.checkpoint!.chunks.length).toBe(GRID * GRID);
+    expect(first.checkpoint!.walkers.length).toBeGreaterThan(GRID * GRID * 6);
+    for (const [hosts, seed, view] of [[3, 8, false], [4, 9, true]] as const) {
+      const other = await run(hosts, seed, view, true);
+      expect(other.checkpoint).toEqual(first.checkpoint);
+      expect(other.walkers).toEqual(alone.walkers);
+      expect(other.stats).toEqual(alone.stats);
+    }
+    expect(first.walkers).toEqual(alone.walkers);
+    expect(first.checkpoint!.walkers).not.toEqual(alone.walkers);
   });
 });

@@ -16,10 +16,13 @@
  * Version 3 added Overlay: game-defined bytes sent with a hot chunk's snapshot.
  * Version 4 widened snapshot sprite ids to u16 (65535 sprites per style: items, vehicles, cultures).
  * Version 6 added lockstep (Lockstep / Limit / At / Post / Done): see ChunkHost's lockstep notes.
+ * Version 7 added Save / Saved: chunks' worlds serialized where they run, without unloading them.
  */
 
+import type { ChunkAddress } from "./coord";
+
 /** Wire format version. Bump on any layout change. */
-export const PROTOCOL_VERSION = 6;
+export const PROTOCOL_VERSION = 7;
 
 export enum Op {
   // client -> host
@@ -51,6 +54,8 @@ export enum Op {
   Post = 17,
   /** host -> host: in lockstep, the sender finished `tick` and has sent every post it made then. Added in v6. */
   Done = 18,
+  /** client -> host: serialize these chunks as Unload would, keeping them loaded (stamped in lockstep). Added in v7. */
+  Save = 19,
   // host -> client
   Snapshot = 20,
   Stats = 21,
@@ -68,6 +73,8 @@ export enum Op {
    * with the entities (load fields, effect events, extra per-slot values…). See ChunkModule.overlay.
    */
   Overlay = 29,
+  /** host -> client: the chunks a Save asked for, and the tick they were taken at the start of. Added in v7. */
+  Saved = 30,
 }
 
 /** Positions in snapshots are int16 fixed point: world units × POSITION_SCALE. */
@@ -305,6 +312,31 @@ export const encodePost = (tick: number, kind: PostKind, source: number, seq: nu
 export const encodeDone = (tick: number) => new ByteWriter(8).u8(Op.Done).u8(0).u16(0).u32(tick).finish();
 
 // ---------------------------------------------------------------------------------------------
+// Save (v7): a checkpoint's chunks, taken where they run without unloading them. Each chunk's
+// bytes are exactly what Unload gives (and Load takes). In lockstep the client stamps Save for a
+// tick no host has run, so every host takes its chunks at the start of that tick, before stepping it.
+
+/** A chunk to save; the space defaults to 0. */
+export type SaveAddress = Omit<ChunkAddress, "space"> & { space?: number };
+export type SavedChunk = ChunkAddress & { bytes: Uint8Array };
+
+/** Request `id`: the chunks to serialize; the host skips any it doesn't have. */
+export const encodeSave = (id: number, chunks: readonly SaveAddress[]) => {
+  const writer = new ByteWriter(12 + chunks.length * 6).u8(Op.Save).u8(0).u16(0).u32(id).u32(chunks.length);
+  for (const chunk of chunks) writer.u16(chunk.space ?? 0).i16(chunk.cx).i16(chunk.cy);
+  return writer.finish();
+};
+
+/** The answer to Save `id`: taken at the start of `tick` (every tick before it had run). */
+export const encodeSaved = (id: number, tick: number, chunks: readonly SavedChunk[]) => {
+  let size = 16;
+  for (const chunk of chunks) size += 10 + chunk.bytes.byteLength;
+  const writer = new ByteWriter(size).u8(Op.Saved).u8(0).u16(0).u32(id).u32(tick).u32(chunks.length);
+  for (const chunk of chunks) writer.u16(chunk.space).i16(chunk.cx).i16(chunk.cy).block(chunk.bytes);
+  return writer.finish();
+};
+
+// ---------------------------------------------------------------------------------------------
 // Transfer: entity rows walking into chunk (cx, cy) of `space`. Row positions are local to chunk
 // (fx, fy) of the same space, so the receiver shifts them by (fx - cx, fy - cy) chunks.
 // `returned` marks rows sent back to the chunk they left because the destination could not take
@@ -516,6 +548,8 @@ export type Message =
   | { op: Op.At; tick: number; bytes: Uint8Array }
   | { op: Op.Post; tick: number; kind: PostKind; source: number; seq: number; bytes: Uint8Array }
   | { op: Op.Done; tick: number }
+  | { op: Op.Save; id: number; chunks: ChunkAddress[] }
+  | { op: Op.Saved; id: number; tick: number; chunks: SavedChunk[] }
   | ({ op: Op.Transfer } & TransferMessage)
   | ({ op: Op.Depart } & DepartMessage)
   | ({ op: Op.Arrive } & ArriveMessage)
@@ -594,6 +628,25 @@ export const decodeMessage = (bytes: Uint8Array): Message => {
       reader.u8();
       reader.u16();
       return { op, tick: reader.u32() };
+    case Op.Save: {
+      reader.u8();
+      reader.u16();
+      const id = reader.u32();
+      const count = reader.u32();
+      const chunks: ChunkAddress[] = [];
+      for (let i = 0; i < count; i++) chunks.push({ space: reader.u16(), cx: reader.i16(), cy: reader.i16() });
+      return { op, id, chunks };
+    }
+    case Op.Saved: {
+      reader.u8();
+      reader.u16();
+      const id = reader.u32();
+      const tick = reader.u32();
+      const count = reader.u32();
+      const chunks: SavedChunk[] = [];
+      for (let i = 0; i < count; i++) chunks.push({ space: reader.u16(), cx: reader.i16(), cy: reader.i16(), bytes: reader.block() });
+      return { op, id, tick, chunks };
+    }
     case Op.Commit: {
       reader.u8();
       const maxLead = reader.u16();

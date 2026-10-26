@@ -32,6 +32,9 @@
  *   doesn't simulate is still stepped (for whoever watches it) but sealed: nobody walks out of it
  *   and its posts are dropped, so when the view loads or drops it changes nothing simulated.
  * Trips (Depart / Arrive) are not covered yet.
+ *
+ * Save (v7) serializes chunks without unloading them, for a checkpoint: stamped in lockstep, a
+ * host takes them at the start of the stamped tick, before stepping it, and answers with Saved.
  */
 import { deserializeWorld, SerialMode, type Schema, type World } from "minecs";
 import { deleteWorld, leanWorldType, type LeanWorldSpec, type LeanWorldType } from "../world/lean";
@@ -52,6 +55,7 @@ import {
   encodeStats,
   encodeTransfer,
   encodeUnloaded,
+  encodeSaved,
   NO_HOST,
   Op,
   PROTOCOL_VERSION,
@@ -62,6 +66,7 @@ import {
   PostKind,
   type LocateEntry,
   type Message,
+  type SavedChunk,
   type Snapshot,
   type StatsEntry,
 } from "./protocol";
@@ -448,6 +453,19 @@ export class ChunkHost {
         if (bytes && connection) connection.transport.send(encodeUnloaded(message.cx, message.cy, bytes, message.space), true);
         break;
       }
+      case Op.Save: {
+        const chunks: SavedChunk[] = [];
+        for (const { space, cx, cy } of message.chunks) {
+          const key = spaceChunkKey(space, cx, cy);
+          this.need(key);
+          const chunk = this.chunks.get(key);
+          if (chunk) chunks.push({ space, cx, cy, bytes: this.serialize(chunk) });
+        }
+        // Inside a tick, a stamped Save runs before anything of it has (the tick is already counted).
+        const tick = this.running >= 0 ? this.running : this.tickCount;
+        connection?.transport.send(encodeSaved(message.id, tick, chunks), true);
+        break;
+      }
       case Op.Tier:
         if (connection) this.subscribe(connection, message.space, message.cx, message.cy, message.tier, message.snapshotEvery);
         break;
@@ -685,13 +703,18 @@ export class ChunkHost {
     const key = spaceChunkKey(space, cx, cy);
     const chunk = this.chunks.get(key);
     if (!chunk) return null;
-    const payload = saveWorld(SerialMode.BINARY, chunk.world);
+    const payload = this.serialize(chunk);
     deleteWorld(chunk.world);
     this.chunks.delete(key);
     this.ordered = null;
     this.route.delete(key);
     for (const connection of this.connections) connection.sentStatic.delete(key);
-    return new Uint8Array(payload);
+    return payload;
+  }
+
+  /** A chunk's world as bytes, as Unload sends it and Load takes it. */
+  private serialize(chunk: Chunk): Uint8Array {
+    return new Uint8Array(saveWorld(SerialMode.BINARY, chunk.world));
   }
 
   private addChunk(space: number, cx: number, cy: number, world: World) {

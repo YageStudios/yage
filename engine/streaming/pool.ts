@@ -24,6 +24,7 @@ import {
   encodeInput,
   encodeLoad,
   encodeRoute,
+  encodeSave,
   encodeTier,
   encodeTrack,
   encodeTransfer,
@@ -36,6 +37,8 @@ import {
   type LocateEntry,
   type OverlayMessage,
   type RouteEntry,
+  type SaveAddress,
+  type SavedChunk,
   type Snapshot,
   type StatsEntry,
   type TransferMessage,
@@ -121,6 +124,9 @@ export class ChunkPool {
   private readonly routeChanges = new Map<number, number>();
   private routeFlushQueued = false;
   private readonly unloadWaiters = new Map<number, (bytes: Uint8Array) => void>();
+  /** Save requests waiting on their hosts' answers, by request id. */
+  private readonly saveWaiters = new Map<number, (tick: number, chunks: SavedChunk[]) => void>();
+  private saveId = 0;
   /** Transfers for chunks that are moving, delivered once the chunk lands. */
   private readonly heldTransfers = new Map<number, Uint8Array[]>();
   private tracked: number[] = [];
@@ -253,10 +259,47 @@ export class ChunkPool {
     });
   }
 
+  /**
+   * The worlds of loaded chunks as `unload` gives them, without unloading them: for a checkpoint.
+   * In lockstep each host takes them at the start of the limit's tick, before running it, so they
+   * are the chunks as every tick before it left them; outside lockstep, when each host gets the
+   * request. Resolves with them in key order and the (latest) tick they were taken at. Chunks not
+   * loaded, or moving, are left out.
+   */
+  save(chunks: readonly SaveAddress[]): Promise<{ tick: number; chunks: SavedChunk[] }> {
+    const byHost = new Map<number, SaveAddress[]>();
+    for (const chunk of chunks) {
+      const state = this.chunks.get(spaceChunkKey(chunk.space ?? 0, chunk.cx, chunk.cy));
+      if (!state || state.moving) continue;
+      let list = byHost.get(state.host);
+      if (!list) byHost.set(state.host, (list = []));
+      list.push(chunk);
+    }
+    if (!byHost.size) return Promise.resolve({ tick: this.lead > 0 ? this.limit : 0, chunks: [] });
+    const answers = [...byHost].map(
+      ([host, list]) =>
+        new Promise<{ tick: number; chunks: SavedChunk[] }>((resolve) => {
+          const id = ++this.saveId;
+          this.saveWaiters.set(id, (tick, saved) => resolve({ tick, chunks: saved }));
+          this.hosts[host].transport.send(this.stamp(encodeSave(id, list)), true);
+        })
+    );
+    return Promise.all(answers).then((all) => ({
+      tick: all.reduce((max, a) => Math.max(max, a.tick), 0),
+      chunks: all
+        .flatMap((a) => a.chunks)
+        .sort((a, b) => spaceChunkKey(a.space, a.cx, a.cy) - spaceChunkKey(b.space, b.cx, b.cy)),
+    }));
+  }
+
+  /** Loads a chunk from `unload`'s (or `save`'s) bytes; in lockstep it joins on the limit's tick. */
   load(cx: number, cy: number, bytes: Uint8Array, host?: number, space = 0) {
     const key = spaceChunkKey(space, cx, cy);
-    host ??= this.placement(cx, cy, this, space);
-    const state: ChunkState = this.chunks.get(key) ?? {
+    const loaded = this.chunks.get(key);
+    // A loaded chunk is replaced where it runs (its host's Load swaps the world); `move` changes hosts.
+    if (loaded && host !== undefined && host !== loaded.host) throw new Error(`Chunk ${cx},${cy} runs on host ${loaded.host}; move it instead`);
+    host ??= loaded?.host ?? this.placement(cx, cy, this, space);
+    const state: ChunkState = loaded ?? {
       space,
       cx,
       cy,
@@ -269,10 +312,10 @@ export class ChunkPool {
     };
     state.host = host;
     this.chunks.set(key, state);
-    this.hosts[host].chunks++;
+    if (!loaded) this.hosts[host].chunks++;
     this.setRoute(key, host);
     this.flushRoutes();
-    this.hosts[host].transport.send(encodeLoad(cx, cy, bytes, space));
+    this.hosts[host].transport.send(this.stamp(encodeLoad(cx, cy, bytes, space)));
     return state;
   }
 
@@ -485,6 +528,12 @@ export class ChunkPool {
         const waiter = this.unloadWaiters.get(key);
         this.unloadWaiters.delete(key);
         waiter?.(message.bytes.slice());
+        break;
+      }
+      case Op.Saved: {
+        const waiter = this.saveWaiters.get(message.id);
+        this.saveWaiters.delete(message.id);
+        waiter?.(message.tick, message.chunks.map((chunk) => ({ ...chunk, bytes: chunk.bytes.slice() })));
         break;
       }
       case Op.Transfer:
