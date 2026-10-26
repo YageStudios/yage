@@ -16,6 +16,7 @@ import {
   encodeAt,
   encodeCommit,
   encodeLimit,
+  encodeResume,
   encodeLockstep,
   encodeSpeed,
   encodeConfig,
@@ -178,6 +179,7 @@ export class ChunkPool {
     if (this.maxLead > 0) transport.send(encodeCommit(this.committed, this.maxLead));
     if (this.lead > 0) {
       transport.send(encodeLockstep(this.lead));
+      if (this.startTick > 0) transport.send(encodeResume(this.startTick));
       transport.send(encodeLimit(this.limit));
     }
     if (this.speed !== 1) transport.send(encodeSpeed(this.speed));
@@ -351,6 +353,11 @@ export class ChunkPool {
     return this.lead > 0 ? encodeAt(this.limit, bytes) : bytes;
   }
 
+  /** The bytes the hosts were last configured with (null: never); a checkpoint keeps them. */
+  get configured(): Uint8Array | null {
+    return this.lastConfig;
+  }
+
   configure(bytes: Uint8Array) {
     this.lastConfig = bytes.slice();
     const message = this.stamp(encodeConfig(bytes));
@@ -393,6 +400,24 @@ export class ChunkPool {
       host.transport.send(encodeLockstep(lead));
       host.transport.send(encodeLimit(this.limit));
     }
+  }
+
+  /** The tick lockstep started at (resume); hosts added later start there too. */
+  startTick = 0;
+
+  /**
+   * Lockstep: before any host has run a tick, starts every host's clock at `tick` (a checkpoint's
+   * worker tick), as if all of them had run every tick before it. The limit and the committed tick
+   * move there, so what is sent next is stamped for `tick`. Throws once a host has run.
+   */
+  resume(tick: number) {
+    if (this.lead <= 0) throw new Error("ChunkPool.resume: lockstep is off");
+    if (this.startTick !== 0 || this.limit !== 0 || this.hosts.some((host) => host.tick >= 0)) throw new Error("ChunkPool.resume: the hosts have already run");
+    this.sendRoutes();
+    this.startTick = this.limit = this.committed = tick;
+    for (const host of this.hosts) host.tick = tick - 1;
+    const message = encodeResume(tick);
+    for (const host of this.hosts) host.transport.send(message);
   }
 
   /** Lockstep: lets every host run up to (not including) `tick`. Never goes back. */

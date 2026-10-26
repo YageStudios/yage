@@ -121,8 +121,9 @@ const LATE = [GRID - 1, GRID - 1] as const;
  * Runs the walk on `hosts` hosts (chunk placement and the order of everything shuffled by `seed`).
  * With `view`, a view wanders past the grid's east edge: chunks there come and go as it says.
  * With `save`, a checkpoint saves every grid chunk mid-run (pool.save), stamped like the rest.
+ * With `from`, the hosts start from a checkpoint instead: resumed at its tick, its chunks loaded.
  */
-const run = async (hosts: number, seed: number, view = false, save = false) => {
+const run = async (hosts: number, seed: number, view = false, save = false, from?: { tick: number; chunks: SavedChunk[] }) => {
   const rng = seeded(seed);
   const net = network(rng);
   const placementOf = new Map<string, number>();
@@ -145,12 +146,15 @@ const run = async (hosts: number, seed: number, view = false, save = false) => {
   pool.on({ stats: (entries, _host, tick) => entries.forEach((e) => inGrid(e.cx, e.cy) && stats.set(`${tick}:${e.cx},${e.cy}`, e.bytes[0])) });
   const keys = Array.from({ length: GRID * GRID }, (_, i) => [i % GRID, Math.floor(i / GRID)] as const).sort(() => rng() - 0.5);
   keys.forEach(([cx, cy]) => placementOf.set(`${cx},${cy}`, Math.floor(rng() * hosts)));
-  for (const [cx, cy] of keys) if (cx !== LATE[0] || cy !== LATE[1]) pool.generate(cx, cy, 1);
+  if (from) {
+    pool.resume(from.tick);
+    for (const chunk of from.chunks) pool.load(chunk.cx, chunk.cy, chunk.bytes);
+  } else for (const [cx, cy] of keys) if (cx !== LATE[0] || cy !== LATE[1]) pool.generate(cx, cy, 1);
   await Promise.resolve();
   while (net.deliverOne());
 
   // The page's passes: every PASS committed ticks it acts, stamped with the limit, then lets the hosts run on.
-  let pass = 0;
+  let pass = from ? from.tick / PASS : 0;
   let saving: Promise<{ tick: number; chunks: SavedChunk[] }> | undefined;
   const page = () => {
     while (pool.committed >= pass * PASS && pass * PASS <= TICKS) {
@@ -211,6 +215,7 @@ const run = async (hosts: number, seed: number, view = false, save = false) => {
     dropped: list.reduce((n, h) => n + h.dropped, 0),
     inFlight: list.reduce((n, h) => n + h.inFlight(), 0),
     checkpoint,
+    saved,
   };
 };
 
@@ -249,5 +254,29 @@ describe("lockstep", () => {
     }
     expect(first.walkers).toEqual(alone.walkers);
     expect(first.checkpoint!.walkers).not.toEqual(alone.walkers);
+  });
+
+  test("hosts resumed at a checkpoint's tick run on from it the same on any hosts in any order; a host that has run refuses", async () => {
+    const { saved } = await run(1, 7, false, true);
+    const first = await run(1, 10, false, false, saved!);
+    // Rows in flight when it was taken aren't in it; the rest walk on.
+    expect(first.walkers.length).toBeGreaterThan(GRID * GRID * 6);
+    // Nothing before the checkpoint's tick ran again.
+    const ticks = [...first.stats.keys()].map((key) => Number(key.split(":")[0]));
+    expect(Math.min(...ticks)).toBe(saved!.tick);
+    for (const [hosts, seed, view] of [[3, 11, false], [4, 12, true]] as const) {
+      const other = await run(hosts, seed, view, false, saved!);
+      expect(other.walkers).toEqual(first.walkers);
+      expect(other.stats).toEqual(first.stats);
+      expect(other.dropped).toBe(first.dropped);
+    }
+    const pool = new ChunkPool();
+    pool.lead = 1;
+    const host = new ChunkHost(walkModule());
+    const [client, side] = network(() => 0).pair();
+    host.attach(side);
+    pool.addHost(client, "local");
+    pool.setLimit(1);
+    expect(() => pool.resume(5)).toThrow(/already run/);
   });
 });

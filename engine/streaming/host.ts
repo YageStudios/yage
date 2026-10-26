@@ -273,6 +273,8 @@ export class ChunkHost {
   private readonly posts = new Map<number, Post[]>();
   /** In lockstep, the last tick each peer finished (Op.Done). */
   private readonly peerDone = new Map<number, number>();
+  /** The tick this host's clock started at (Op.Resume): every peer counts as having finished the ticks before it. */
+  private startTick = 0;
   /** In lockstep, the chunks stepped hot (stamped Tier). */
   private readonly simHot = new Set<number>();
   /** In lockstep, each chunk's next post number this tick. */
@@ -476,6 +478,9 @@ export class ChunkHost {
         this.limit = Math.max(this.limit, message.tick);
         this.parked?.();
         break;
+      case Op.Resume:
+        this.resume(message.tick);
+        break;
       case Op.At: {
         if (message.tick < this.tickCount) {
           this.log(2, `Lockstep: a message for tick ${message.tick} came after it ran (now ${this.tickCount}); applied now`);
@@ -639,6 +644,28 @@ export class ChunkHost {
     if (rejectedCount) back(rejectedCount, rejected);
   }
 
+  /**
+   * Lockstep: a host that hasn't run a tick runs `tick` next, as if it and its peers had run every
+   * tick before it (a checkpoint's worker tick). Its chunks step from there as if just loaded, and
+   * what was stamped for the ticks it skips applies now, in tick order. A host that has run refuses.
+   */
+  private resume(tick: number) {
+    if (this.tickCount !== 0 || this.startTick !== 0 || this.running >= 0) {
+      this.log(2, `Lockstep: Resume at ${tick} after the host has run (now ${this.tickCount}); ignored`);
+      return;
+    }
+    const skipped = [...this.stamped.keys()].filter((at) => at < tick).sort((a, b) => a - b);
+    this.tickCount = this.startTick = tick;
+    this.limit = Math.max(this.limit, tick);
+    for (const at of skipped) {
+      const list = this.stamped.get(at)!;
+      this.stamped.delete(at);
+      for (const { connection, bytes } of list) this.applyStamped(connection, bytes);
+    }
+    for (const chunk of this.chunks.values()) chunk.lastStep = -1;
+    this.parked?.();
+  }
+
   /** Lockstep: the rows handed to this host's chunks that haven't landed yet. */
   inFlight(): number {
     let rows = 0;
@@ -756,7 +783,7 @@ export class ChunkHost {
   canTick() {
     if (this.lead > 0) {
       if (this.tickCount >= this.limit) return false;
-      for (const index of this.peers.keys()) if ((this.peerDone.get(index) ?? -1) < this.tickCount - this.lead) return false;
+      for (const index of this.peers.keys()) if (Math.max(this.peerDone.get(index) ?? -1, this.startTick - 1) < this.tickCount - this.lead) return false;
       return true;
     }
     return this.maxLead <= 0 || this.tickCount < this.committed + this.maxLead;

@@ -17,12 +17,13 @@
  * Version 4 widened snapshot sprite ids to u16 (65535 sprites per style: items, vehicles, cultures).
  * Version 6 added lockstep (Lockstep / Limit / At / Post / Done): see ChunkHost's lockstep notes.
  * Version 7 added Save / Saved: chunks' worlds serialized where they run, without unloading them.
+ * Version 8 added Resume: a lockstep host that hasn't run a tick starts its clock at a checkpoint's tick.
  */
 
 import type { ChunkAddress } from "./coord";
 
 /** Wire format version. Bump on any layout change. */
-export const PROTOCOL_VERSION = 7;
+export const PROTOCOL_VERSION = 8;
 
 export enum Op {
   // client -> host
@@ -75,6 +76,8 @@ export enum Op {
   Overlay = 29,
   /** host -> client: the chunks a Save asked for, and the tick they were taken at the start of. Added in v7. */
   Saved = 30,
+  /** client -> host: in lockstep, before the host has run a tick, start its clock at `tick` (a checkpoint's). Added in v8. */
+  Resume = 31,
 }
 
 /** Positions in snapshots are int16 fixed point: world units × POSITION_SCALE. */
@@ -311,6 +314,9 @@ export const encodePost = (tick: number, kind: PostKind, source: number, seq: nu
 
 export const encodeDone = (tick: number) => new ByteWriter(8).u8(Op.Done).u8(0).u16(0).u32(tick).finish();
 
+/** A host that hasn't run a tick runs `tick` next, as if every tick before it had run (v8). */
+export const encodeResume = (tick: number) => new ByteWriter(8).u8(Op.Resume).u8(0).u16(0).u32(tick).finish();
+
 // ---------------------------------------------------------------------------------------------
 // Save (v7): a checkpoint's chunks, taken where they run without unloading them. Each chunk's
 // bytes are exactly what Unload gives (and Load takes). In lockstep the client stamps Save for a
@@ -545,6 +551,7 @@ export type Message =
   | { op: Op.Speed; speed: number }
   | { op: Op.Lockstep; lead: number }
   | { op: Op.Limit; tick: number }
+  | { op: Op.Resume; tick: number }
   | { op: Op.At; tick: number; bytes: Uint8Array }
   | { op: Op.Post; tick: number; kind: PostKind; source: number; seq: number; bytes: Uint8Array }
   | { op: Op.Done; tick: number }
@@ -611,6 +618,7 @@ export const decodeMessage = (bytes: Uint8Array): Message => {
       reader.u8();
       return { op, lead: reader.u16() };
     case Op.Limit:
+    case Op.Resume:
       reader.u8();
       reader.u16();
       return { op, tick: reader.u32() };
