@@ -128,14 +128,15 @@ describe("ChunkPool", () => {
     const host = new ChunkHost(module);
     const [client, hostSide] = memoryTransportPair();
     host.attach(hostSide);
-    const located: number[] = [];
-    pool.on({ locate: (entry) => located.push(entry.gid) });
+    const located: [number, number][] = [];
+    pool.on({ locate: (entry, _host, tick) => located.push([entry.gid, tick]) });
     pool.addHost(client, "remote");
     pool.generate(0, 0, 1);
     pool.setTier(0, 0, Tier.Hot);
     await flush();
     host.tick();
     expect(where([host], 5)!.x).toBe(13);
-    expect(located).toContain(5);
+    // Found after the host's first step, and said so.
+    expect(located).toContainEqual([5, host.tickCount - 1]);
   });
 });

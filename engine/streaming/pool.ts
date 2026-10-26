@@ -78,7 +78,8 @@ export type ChunkPoolEvents = {
   /** Game-defined bytes that came with a hot chunk's snapshot (ChunkModule.overlay). */
   overlay?: (overlay: OverlayMessage, host: number) => void;
   stats?: (entries: StatsEntry[], host: number, tick: number) => void;
-  locate?: (entry: LocateEntry, host: number) => void;
+  /** A tracked or controlled entity as `host` found it after stepping `tick`. */
+  locate?: (entry: LocateEntry, host: number, tick: number) => void;
   ready?: (chunk: ChunkState) => void;
   staticData?: (cx: number, cy: number, bytes: Uint8Array, space: number) => void;
   log?: (level: number, text: string, host: number) => void;
@@ -537,7 +538,7 @@ export class ChunkPool {
         this.commit();
         break;
       case Op.Locate:
-        for (const entry of message.entries) this.events.locate?.(entry, host.index);
+        for (const entry of message.entries) this.events.locate?.(entry, host.index, message.tick);
         break;
       case Op.Ready: {
         const state = this.chunks.get(spaceChunkKey(message.space, message.cx, message.cy));
