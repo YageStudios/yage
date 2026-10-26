@@ -18,12 +18,17 @@
  * Version 6 added lockstep (Lockstep / Limit / At / Post / Done): see ChunkHost's lockstep notes.
  * Version 7 added Save / Saved: chunks' worlds serialized where they run, without unloading them.
  * Version 8 added Resume: a lockstep host that hasn't run a tick starts its clock at a checkpoint's tick.
+ * Version 9 added Generate's init bytes: the game's own payload for the chunk it generates (empty: none).
+ * Version 10 added Exited / Enter / Command: in lockstep, people handed off into a chunk the module
+ * simulates that no host has go to the client, which can put people into a loaded chunk on a tick
+ * (Enter) and send a chunk the game's own bytes on a tick (Command); and Survey / Surveyed: what the
+ * game knows of a chunk without making it (ChunkModule.survey), e.g. its residents as counts.
  */
 
 import type { ChunkAddress } from "./coord";
 
 /** Wire format version. Bump on any layout change. */
-export const PROTOCOL_VERSION = 8;
+export const PROTOCOL_VERSION = 10;
 
 export enum Op {
   // client -> host
@@ -78,6 +83,16 @@ export enum Op {
   Saved = 30,
   /** client -> host: in lockstep, before the host has run a tick, start its clock at `tick` (a checkpoint's). Added in v8. */
   Resume = 31,
+  /** host -> client: in lockstep, people handed off on `tick` into chunk (cx, cy) that no host has, from (fx, fy). Added in v10. */
+  Exited = 32,
+  /** client -> host (stamped): people put into loaded chunk (cx, cy), their positions relative to (fx, fy). Added in v10. */
+  Enter = 33,
+  /** client -> host (stamped): the game's own bytes for loaded chunk (cx, cy) (ChunkModule.command). Added in v10. */
+  Command = 34,
+  /** client -> host: what the game knows of chunk (cx, cy) without making it (ChunkModule.survey). Added in v10. */
+  Survey = 35,
+  /** host -> client: a Survey's answer. Added in v10. */
+  Surveyed = 36,
 }
 
 /** Positions in snapshots are int16 fixed point: world units × POSITION_SCALE. */
@@ -247,8 +262,8 @@ export class ByteReader {
 
 export const encodeHello = (version = PROTOCOL_VERSION) => new ByteWriter(4).u8(Op.Hello).u8(0).u16(version).finish();
 
-export const encodeGenerate = (cx: number, cy: number, seed: number, space = 0) =>
-  new ByteWriter(16).u8(Op.Generate).u8(0).u16(space).i16(cx).i16(cy).u32(seed >>> 0).finish();
+export const encodeGenerate = (cx: number, cy: number, seed: number, space = 0, init?: Uint8Array) =>
+  new ByteWriter(16 + (init?.byteLength ?? 0)).u8(Op.Generate).u8(0).u16(space).i16(cx).i16(cy).u32(seed >>> 0).raw(init ?? new Uint8Array(0)).finish();
 
 export const encodeLoad = (cx: number, cy: number, bytes: Uint8Array, space = 0) =>
   new ByteWriter(bytes.byteLength + 8).u8(Op.Load).u8(0).u16(space).i16(cx).i16(cy).raw(bytes).finish();
@@ -369,6 +384,24 @@ export const encodeTransfer = (
     .u32(count)
     .raw(rows)
     .finish();
+
+/** People that left chunk (fx, fy) on `tick` for chunk (cx, cy), which no host has. */
+export type ExitedMessage = { tick: number; space: number; cx: number; cy: number; fx: number; fy: number; count: number; rows: Uint8Array };
+
+export const encodeExited = ({ tick, space, cx, cy, fx, fy, count, rows }: ExitedMessage) =>
+  new ByteWriter(rows.byteLength + 24).u8(Op.Exited).u8(0).u16(space).u32(tick).i16(cx).i16(cy).i16(fx).i16(fy).u32(count).raw(rows).finish();
+
+export const encodeEnter = (space: number, cx: number, cy: number, fx: number, fy: number, count: number, rows: Uint8Array) =>
+  new ByteWriter(rows.byteLength + 20).u8(Op.Enter).u8(0).u16(space).i16(cx).i16(cy).i16(fx).i16(fy).u32(count).raw(rows).finish();
+
+export const encodeCommand = (space: number, cx: number, cy: number, bytes: Uint8Array) =>
+  new ByteWriter(bytes.byteLength + 8).u8(Op.Command).u8(0).u16(space).i16(cx).i16(cy).raw(bytes).finish();
+
+export const encodeSurvey = (space: number, cx: number, cy: number, seed: number) =>
+  new ByteWriter(12).u8(Op.Survey).u8(0).u16(space).i16(cx).i16(cy).u32(seed >>> 0).finish();
+
+export const encodeSurveyed = (space: number, cx: number, cy: number, bytes: Uint8Array) =>
+  new ByteWriter(bytes.byteLength + 8).u8(Op.Surveyed).u8(0).u16(space).i16(cx).i16(cy).raw(bytes).finish();
 
 export type TransferMessage = {
   space: number;
@@ -539,7 +572,7 @@ export const encodeReady = (cx: number, cy: number, population: number, space = 
 
 export type Message =
   | { op: Op.Hello; version: number }
-  | { op: Op.Generate; space: number; cx: number; cy: number; seed: number }
+  | { op: Op.Generate; space: number; cx: number; cy: number; seed: number; init: Uint8Array }
   | { op: Op.Load; space: number; cx: number; cy: number; bytes: Uint8Array }
   | { op: Op.Unload; space: number; cx: number; cy: number }
   | { op: Op.Tier; space: number; cx: number; cy: number; tier: Tier; snapshotEvery: number }
@@ -568,7 +601,12 @@ export type Message =
   | { op: Op.Static; space: number; cx: number; cy: number; bytes: Uint8Array }
   | { op: Op.Log; level: number; text: string }
   | { op: Op.Ready; space: number; cx: number; cy: number; population: number }
-  | ({ op: Op.Overlay } & OverlayMessage);
+  | ({ op: Op.Overlay } & OverlayMessage)
+  | ({ op: Op.Exited } & ExitedMessage)
+  | { op: Op.Enter; space: number; cx: number; cy: number; fx: number; fy: number; count: number; rows: Uint8Array }
+  | { op: Op.Command; space: number; cx: number; cy: number; bytes: Uint8Array }
+  | { op: Op.Survey; space: number; cx: number; cy: number; seed: number }
+  | { op: Op.Surveyed; space: number; cx: number; cy: number; bytes: Uint8Array };
 
 /** Reads the (pad, space, cx, cy) prefix shared by chunk-addressed messages. */
 const address = (reader: ByteReader) => {
@@ -586,7 +624,7 @@ export const decodeMessage = (bytes: Uint8Array): Message => {
       reader.u8();
       return { op, version: reader.u16() };
     case Op.Generate:
-      return { op, ...address(reader), seed: reader.u32() };
+      return { op, ...address(reader), seed: reader.u32(), init: reader.rest() };
     case Op.Load:
       return { op, ...address(reader), bytes: reader.rest() };
     case Op.Unload:
@@ -709,6 +747,19 @@ export const decodeMessage = (bytes: Uint8Array): Message => {
     }
     case Op.Unloaded:
       return { op, ...address(reader), bytes: reader.rest() };
+    case Op.Exited: {
+      reader.u8();
+      const space = reader.u16();
+      const tick = reader.u32();
+      return { op, tick, space, cx: reader.i16(), cy: reader.i16(), fx: reader.i16(), fy: reader.i16(), count: reader.u32(), rows: reader.rest() };
+    }
+    case Op.Enter:
+      return { op, ...address(reader), fx: reader.i16(), fy: reader.i16(), count: reader.u32(), rows: reader.rest() };
+    case Op.Command:
+    case Op.Surveyed:
+      return { op, ...address(reader), bytes: reader.rest() };
+    case Op.Survey:
+      return { op, ...address(reader), seed: reader.u32() };
     case Op.Locate: {
       const tick = reader.u32();
       const count = reader.u32();

@@ -141,6 +141,33 @@ describe("ChunkStreamer", () => {
     expect(log.filter((l) => l.startsWith("unload"))).toEqual([]);
   });
 
+  test("owned chunks are the run's: never generated, loaded or unloaded here, heated once the run loads them", async () => {
+    const { pool, log, settle } = fakePool();
+    const owned = (cx: number) => cx < 10;
+    const streamer = new ChunkStreamer(pool, { chunkSize: SIZE, seed: 1, ring: 0, warmRing: 0, hysteresis: 0, owned });
+    streamer.update(at(0.5, 0.5));
+    expect(log).toEqual([]);
+    expect(streamer.hot.size).toBe(0);
+    // The run loads it: the view heats it.
+    pool.generate(0, 0, 1);
+    log.length = 0;
+    streamer.update(at(0.5, 0.5));
+    expect(log).toEqual(["hot 0,0"]);
+    // The run unloads it while in view: no longer hot, and heated again once back.
+    pool.chunks.delete(chunkKey(0, 0));
+    streamer.update(at(0.5, 0.5));
+    expect(streamer.hot.size).toBe(0);
+    pool.generate(0, 0, 1);
+    log.length = 0;
+    streamer.update(at(0.5, 0.5));
+    expect(log).toEqual(["hot 0,0"]);
+    // The view leaves: cooled, never unloaded; an unowned chunk it passes is the streamer's as before.
+    streamer.update(at(20.5, 0.5));
+    streamer.update(at(40.5, 0.5));
+    await settle();
+    expect(log).toEqual(["hot 0,0", "warm 0,0", "generate 20,0", "hot 20,0", "warm 20,0", "generate 40,0", "hot 40,0", "unload 20,0"]);
+  });
+
   test("a chunk wanted while it unloads waits for the bytes instead of regenerating", async () => {
     const { pool, log, settle } = fakePool();
     const streamer = new ChunkStreamer(pool, { chunkSize: SIZE, seed: 1, ring: 0, warmRing: 0, hysteresis: 0 });

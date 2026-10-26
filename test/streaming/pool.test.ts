@@ -120,6 +120,20 @@ describe("ChunkPool", () => {
     expect(pool.hosts.map((h) => h.chunks)).toEqual([0, 1]);
   });
 
+  test("surveys a chunk on the host it would be placed on, without making it", async () => {
+    const { pool, hosts } = setup({});
+    // One module on both hosts: which host answered shows in its call count.
+    const asked: number[] = [];
+    hosts[0].module.survey = (seed, cx, cy) => (asked.push(cx), new Uint8Array([seed, cx + 10, cy + 10]));
+    const [a, b, again] = await Promise.all([pool.survey(0, 2, 7), pool.survey(1, 3, 7), pool.survey(1, 3, 7)]);
+    expect([...a]).toEqual([7, 10, 12]);
+    expect([...b]).toEqual([7, 11, 13]);
+    expect([...again]).toEqual([...b]);
+    expect(asked.slice(0, 2)).toEqual([0, 1]);
+    expect(pool.chunks.size).toBe(0);
+    expect(hosts.every((host) => host.chunks.size === 0)).toBe(true);
+  });
+
   test("late hosts get the current config and tracking", async () => {
     const module = testModule({ "0,0": [{ x: 10, y: 10, vx: 1, gid: 5 }] });
     const pool = new ChunkPool(() => 0);

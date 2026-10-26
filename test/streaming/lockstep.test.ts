@@ -3,7 +3,7 @@ import { addComponent, addEntity, createWorld, deserializeWorld, type World } fr
 import { ChunkHost, type ChunkModule } from "yage/streaming/host";
 import { spaceChunkKey } from "yage/streaming/coord";
 import { ChunkPool } from "yage/streaming/pool";
-import { Tier, type SavedChunk } from "yage/streaming/protocol";
+import { Tier, type ExitedMessage, type SavedChunk } from "yage/streaming/protocol";
 import type { ChunkTransport } from "yage/streaming/transport";
 import { SIZE, TestGid, TestPos, TestVel } from "./fixture";
 
@@ -24,7 +24,7 @@ const mix = (...values: number[]) => {
  * time; chunks hold few, so hand-offs get turned away; every chunk posts its head count and every
  * host's walkers speed up with the running total, so a post landing a tick early or late shows.
  */
-const walkModule = (): ChunkModule => {
+const walkModule = (exits = false): ChunkModule => {
   let scale = 1;
   let shared = 0;
   return {
@@ -36,9 +36,10 @@ const walkModule = (): ChunkModule => {
     components: [TestPos, TestVel, TestGid],
     position: { component: TestPos, x: "x", y: "y" },
     gid: { component: TestGid, field: "id" },
-    generate(_seed, cx, cy) {
+    generate(_seed, cx, cy, _space, init) {
       const world = createWorld(14) as World;
-      for (let i = 0; i < 9; i++) {
+      // Generated with init bytes (mid-run, after an unload): as many walkers as they say.
+      for (let i = 0; i < (init ? init[0] : 9); i++) {
         const eid = addEntity(world);
         addComponent(world, TestPos, eid);
         addComponent(world, TestVel, eid);
@@ -77,6 +78,10 @@ const walkModule = (): ChunkModule => {
       world(TestVel).store.vx[eid] = bytes[0] - 128;
     },
     simulates: (_space, cx, cy) => inGrid(cx, cy),
+    exits,
+    command(world, bytes) {
+      for (const eid of world.entitySparseSet.dense) world(TestVel).store.vx[eid] = bytes[0] - 128;
+    },
   };
 };
 
@@ -116,6 +121,8 @@ const seeded = (seed: number) => () => {
 
 /** The chunk generated mid-run, on hosts that defer generating: it is born on its stamped tick, wherever it lands. */
 const LATE = [GRID - 1, GRID - 1] as const;
+/** The chunk `cycle` unloads and generates again. */
+const CYCLED = [1, 2] as const;
 
 /**
  * Runs the walk on `hosts` hosts (chunk placement and the order of everything shuffled by `seed`).
@@ -123,14 +130,18 @@ const LATE = [GRID - 1, GRID - 1] as const;
  * watches grid chunks closely now and then, which changes nothing simulated.
  * With `save`, a checkpoint saves every grid chunk mid-run (pool.save), stamped like the rest.
  * With `from`, the hosts start from a checkpoint instead: resumed at its tick, its chunks loaded.
+ * With `cycle`, the run unloads a grid chunk mid-run (stamped) and later generates it again with
+ * init bytes counting the walkers it had. With `exits` too, walkers who walk into it while it is gone
+ * leave for the page (Exited), which holds them and, once it is back, puts them in (Enter) on its
+ * passes in (tick, from-chunk) order, then sends it a Command.
  */
-const run = async (hosts: number, seed: number, view = false, save = false, from?: { tick: number; chunks: SavedChunk[] }) => {
+const run = async (hosts: number, seed: number, view = false, save = false, from?: { tick: number; chunks: SavedChunk[] }, cycle = false, exits = false) => {
   const rng = seeded(seed);
   const net = network(rng);
   const placementOf = new Map<string, number>();
   const pool = new ChunkPool((cx, cy) => placementOf.get(`${cx},${cy}`) ?? Math.floor(rng() * hosts));
   pool.lead = 1;
-  const list = Array.from({ length: hosts }, () => new ChunkHost(walkModule(), { deferGenerates: true }));
+  const list = Array.from({ length: hosts }, () => new ChunkHost(walkModule(exits), { deferGenerates: true }));
   for (let a = 0; a < hosts; a++) {
     for (let b = a + 1; b < hosts; b++) {
       const [ab, ba] = net.pair();
@@ -144,7 +155,19 @@ const run = async (hosts: number, seed: number, view = false, save = false, from
     pool.addHost(client, "local");
   }
   const stats = new Map<string, number>();
-  pool.on({ stats: (entries, _host, tick) => entries.forEach((e) => inGrid(e.cx, e.cy) && stats.set(`${tick}:${e.cx},${e.cy}`, e.bytes[0])) });
+  let unloaded: Uint8Array | null = null;
+  const held: ExitedMessage[] = [];
+  let exited = 0;
+  pool.on({
+    exited: (exit) => {
+      held.push(exit);
+      exited += exit.count;
+    },
+    stats: (entries, _host, tick) => entries.forEach((e) => inGrid(e.cx, e.cy) && stats.set(`${tick}:${e.cx},${e.cy}`, e.bytes[0])),
+    unloaded: (cx, cy, bytes) => {
+      if (cx === CYCLED[0] && cy === CYCLED[1]) unloaded = bytes;
+    },
+  });
   const keys = Array.from({ length: GRID * GRID }, (_, i) => [i % GRID, Math.floor(i / GRID)] as const).sort(() => rng() - 0.5);
   keys.forEach(([cx, cy]) => placementOf.set(`${cx},${cy}`, Math.floor(rng() * hosts)));
   if (from) {
@@ -159,6 +182,20 @@ const run = async (hosts: number, seed: number, view = false, save = false, from
   let saving: Promise<{ tick: number; chunks: SavedChunk[] }> | undefined;
   const page = () => {
     while (pool.committed >= pass * PASS && pass * PASS <= TICKS) {
+      if (cycle && pass === 5) void pool.unload(CYCLED[0], CYCLED[1]);
+      // Its bytes are in by the time the hosts have run past the tick it went on.
+      if (cycle && pass === 8) {
+        const walkers = (deserializeWorld(unloaded!.slice().buffer) as World).entitySparseSet.dense.length;
+        pool.generate(CYCLED[0], CYCLED[1], 1, undefined, 0, new Uint8Array([walkers]));
+      }
+      if (exits && pass >= 9) {
+        const due = held.filter((e) => e.tick < pass * PASS).sort((a, b) => a.tick - b.tick || a.fx - b.fx || a.fy - b.fy);
+        for (const e of due) {
+          held.splice(held.indexOf(e), 1);
+          expect(pool.enter(0, e.cx, e.cy, e.fx, e.fy, e.count, e.rows)).toBe(true);
+        }
+        if (pass === 12) expect(pool.command(CYCLED[0], CYCLED[1], new Uint8Array([200]))).toBe(true);
+      }
       if (pass === 4) pool.generate(LATE[0], LATE[1], 1);
       if (pass % 3 === 1) pool.configure(new Uint8Array([1 + (pass % 2)]));
       if (pass === 2) pool.input(1 + 5 * 100 + 3, new Uint8Array([150]));
@@ -217,6 +254,9 @@ const run = async (hosts: number, seed: number, view = false, save = false, from
     stats,
     dropped: list.reduce((n, h) => n + h.dropped, 0),
     inFlight: list.reduce((n, h) => n + h.inFlight(), 0),
+    exited,
+    held: held.reduce((n, e) => n + e.count, 0),
+    unloaded: unloaded && (deserializeWorld((unloaded as Uint8Array).slice().buffer) as World).entitySparseSet.dense.length,
     checkpoint,
     saved,
   };
@@ -239,6 +279,44 @@ describe("lockstep", () => {
       expect(other.stats).toEqual(alone.stats);
       expect(other.dropped).toBe(alone.dropped);
       expect(other.inFlight).toBe(alone.inFlight);
+    }
+  });
+
+  test("a chunk unloaded mid-run goes on its stamped tick, and one generated with init bytes is born from them, the same on any hosts in any order", async () => {
+    const alone = await run(1, 1);
+    const first = await run(1, 13, false, false, undefined, true);
+    expect(first.unloaded).toBeGreaterThan(0);
+    // Gone from its stamped tick (the limit pass 5 found, pass 6's) until it was born again on pass 9's: no counts for it between.
+    expect([...first.stats.keys()].filter((k) => k.endsWith(`:${CYCLED[0]},${CYCLED[1]}`)).every((k) => {
+      const tick = Number(k.split(":")[0]);
+      return tick < 6 * PASS || tick >= 9 * PASS;
+    })).toBe(true);
+    expect([...first.stats.keys()].some((k) => k.endsWith(`:${CYCLED[0]},${CYCLED[1]}`) && Number(k.split(":")[0]) >= 9 * PASS)).toBe(true);
+    expect([...first.stats.keys()].some((k) => k.endsWith(`:${CYCLED[0]},${CYCLED[1]}`) && Number(k.split(":")[0]) < 6 * PASS)).toBe(true);
+    expect(first.walkers).not.toEqual(alone.walkers);
+    for (const [hosts, seed, view] of [[3, 14, false], [4, 15, true], [2, 16, true]] as const) {
+      const other = await run(hosts, seed, view, false, undefined, true);
+      expect(other.unloaded, `${hosts} ${seed}`).toBe(first.unloaded);
+      expect(other.walkers).toEqual(first.walkers);
+      expect(other.stats).toEqual(first.stats);
+      expect(other.dropped).toBe(first.dropped);
+    }
+  });
+
+  test("walkers into a gone chunk of the map leave for the page, which puts them back in once it is there again, the same on any hosts in any order", async () => {
+    const bounced = await run(1, 13, false, false, undefined, true);
+    const first = await run(1, 13, false, false, undefined, true, true);
+    expect(first.exited).toBeGreaterThan(0);
+    // Nobody lost: walking into the gone chunk takes them off the map until the page puts them back.
+    expect(first.walkers.length + first.dropped + first.inFlight + first.held).toBe(GRID * GRID * 9);
+    expect(first.walkers).not.toEqual(bounced.walkers);
+    for (const [hosts, seed, view] of [[3, 17, false], [4, 18, true], [2, 19, true]] as const) {
+      const other = await run(hosts, seed, view, false, undefined, true, true);
+      expect(other.exited, `${hosts} ${seed}`).toBe(first.exited);
+      expect(other.held).toBe(first.held);
+      expect(other.walkers).toEqual(first.walkers);
+      expect(other.stats).toEqual(first.stats);
+      expect(other.dropped).toBe(first.dropped);
     }
   });
 

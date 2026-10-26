@@ -3,7 +3,9 @@
  *
  * - hot: in view plus `ring` chunks. Stepped every tick and snapshotted for drawing.
  * - warm: loaded and stepped on a stagger, with stats only. Chunks the game keeps warm
- *   (`keepWarm`) never go further; others stay warm while within `warmRing` of the view.
+ *   (`keepWarm`) never go further; others stay warm while within `warmRing` of the view. Chunks
+ *   the run owns (`owned`: in lockstep, whoever owns the run loads and unloads them on its steps)
+ *   the streamer never generates, loads or unloads: it only heats them for this view once loaded.
  * - cold: unloaded to bytes kept in `cold` (the streamer's own map, or the `cold` store its owner
  *   gives it, which outlives the streamer), or never generated (generation is a pure function of
  *   the seed, so a chunk that was never touched needs no bytes).
@@ -43,6 +45,8 @@ export type ChunkStreamerOptions = {
   exists?: (cx: number, cy: number) => boolean;
   /** Chunks that stay loaded and warm wherever the camera is. Default: none. */
   keepWarm?: (cx: number, cy: number) => boolean;
+  /** Chunks the run loads and unloads itself: never generated, loaded or unloaded here. Default: none. */
+  owned?: (cx: number, cy: number) => boolean;
   /** Called when a chunk turns hot, and when it stops being hot. */
   onHot?: (cx: number, cy: number) => void;
   onCool?: (cx: number, cy: number) => void;
@@ -83,6 +87,7 @@ export class ChunkStreamer {
       snapshotEvery: 1,
       exists: () => true,
       keepWarm: () => false,
+      owned: () => false,
       ...options,
     };
   }
@@ -102,6 +107,7 @@ export class ChunkStreamer {
   /** Makes a chunk loaded, within the budget. Returns false if the budget ran out. */
   private ensure(key: number, budget: { left: number }) {
     if (this.loaded(key)) return true;
+    if (this.options.owned(chunkX(key), chunkY(key))) return false;
     if (this.unloading.has(key) || budget.left <= 0) return false;
     budget.left--;
     const cx = chunkX(key);
@@ -117,18 +123,18 @@ export class ChunkStreamer {
   }
 
   update(bounds: Bounds) {
-    const { chunkSize, ring, warmRing, hysteresis, exists, keepWarm, space } = this.options;
+    const { chunkSize, ring, warmRing, hysteresis, exists, keepWarm, owned, space } = this.options;
     const enter = rectAround(bounds, chunkSize, ring);
     const stay = rectAround(bounds, chunkSize, ring + hysteresis);
     const centreX = (bounds.minX + bounds.maxX) / 2 / chunkSize - 0.5;
     const centreY = (bounds.minY + bounds.maxY) / 2 / chunkSize - 0.5;
     const budget = { left: this.options.budget };
 
-    // Cool hot chunks the view has clearly left.
+    // Cool hot chunks the view has clearly left, and owned ones the run unloaded (heated again once back).
     for (const key of this.hot) {
-      if (inside(stay, chunkX(key), chunkY(key))) continue;
+      if (inside(stay, chunkX(key), chunkY(key)) && this.pool.chunks.has(key)) continue;
       this.hot.delete(key);
-      this.pool.setTier(chunkX(key), chunkY(key), Tier.Warm, 0, space);
+      if (this.pool.chunks.has(key)) this.pool.setTier(chunkX(key), chunkY(key), Tier.Warm, 0, space);
       this.options.onCool?.(chunkX(key), chunkY(key));
     }
 
@@ -153,7 +159,7 @@ export class ChunkStreamer {
     const warm = rectAround(bounds, chunkSize, warmRing + hysteresis);
     for (const [key, state] of this.pool.chunks) {
       if (keySpace(key) !== space || this.hot.has(key) || this.unloading.has(key) || !state.ready) continue;
-      if (keepWarm(state.cx, state.cy) || inside(warm, state.cx, state.cy)) continue;
+      if (keepWarm(state.cx, state.cy) || owned(state.cx, state.cy) || inside(warm, state.cx, state.cy)) continue;
       this.unloading.add(key);
       this.pool.unload(state.cx, state.cy, space).then(
         (bytes) => {

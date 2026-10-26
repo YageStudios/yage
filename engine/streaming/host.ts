@@ -53,6 +53,8 @@ import {
   encodeReady,
   encodeStatic,
   encodeStats,
+  encodeExited,
+  encodeSurveyed,
   encodeTransfer,
   encodeUnloaded,
   encodeSaved,
@@ -129,8 +131,10 @@ export interface ChunkModule {
   /**
    * Creates the chunk's world. Must be a pure function of the arguments (and configuration).
    * `space` says which map the chunk belongs to: chunk (0, 0) of two spaces are different places.
+   * `init` is what the client generated it with (ChunkPool.generate), if anything: the game's own
+   * account of what the chunk holds now (e.g. who of its people are ill), for a chunk born mid-run.
    */
-  generate(seed: number, cx: number, cy: number, space: number): World;
+  generate(seed: number, cx: number, cy: number, space: number, init?: Uint8Array): World;
   /**
    * The shape of loaded chunk worlds: `load` deserializes into a lean world registering only these
    * components and systems (a `yage/world/lean` spec or leanWorldType). Without it, loaded worlds
@@ -202,6 +206,15 @@ export interface ChunkModule {
    * Any other chunk is sealed: its people bounce at its edges and its posts are dropped. Defaults to all.
    */
   simulates?(space: number, cx: number, cy: number): boolean;
+  /**
+   * Lockstep: people walking into a chunk it simulates that no host has leave for the client
+   * (Exited) instead of bouncing; the client holds them as the game's own (e.g. a coarser tier).
+   */
+  exits?: boolean;
+  /** A client's Command for a loaded chunk, on its stamped tick (the game's own bytes). */
+  command?(world: World, bytes: Uint8Array, tick: number): void;
+  /** What the game knows of a chunk without making it (a Survey's answer): a pure function of the seed. */
+  survey?(seed: number, cx: number, cy: number, space: number): Uint8Array;
 }
 
 /** A hand-off or module post waiting for its tick. */
@@ -288,7 +301,7 @@ export class ChunkHost {
   /** Trip transactions already applied here, so a repeated Arrive adds nobody. */
   private readonly arrivals = new Map<number, number>();
   /** Generate requests not yet run (`deferGenerates`), in arrival order. */
-  readonly pending = new Map<number, { cx: number; cy: number; seed: number; space: number }>();
+  readonly pending = new Map<number, { cx: number; cy: number; seed: number; space: number; init?: Uint8Array }>();
   private draining: ReturnType<typeof setTimeout> | null = null;
   private readonly deferGenerates: boolean;
 
@@ -303,7 +316,7 @@ export class ChunkHost {
     const request = this.pending.get(key);
     if (!request) return;
     this.pending.delete(key);
-    this.generate(request.cx, request.cy, request.seed, request.space);
+    this.generate(request.cx, request.cy, request.seed, request.space, request.init);
   }
 
   /** Runs the next queued generate: the first one a client watches hot, else the oldest. */
@@ -441,9 +454,9 @@ export class ChunkHost {
     switch (message.op) {
       case Op.Generate:
         if (this.deferGenerates && !this.chunks.has(spaceChunkKey(message.space, message.cx, message.cy))) {
-          this.pending.set(spaceChunkKey(message.space, message.cx, message.cy), message);
+          this.pending.set(spaceChunkKey(message.space, message.cx, message.cy), { ...message, init: message.init.slice() });
           this.drain();
-        } else this.generate(message.cx, message.cy, message.seed, message.space);
+        } else this.generate(message.cx, message.cy, message.seed, message.space, message.init);
         break;
       case Op.Load:
         this.pending.delete(spaceChunkKey(message.space, message.cx, message.cy));
@@ -536,6 +549,20 @@ export class ChunkHost {
       case Op.Transfer:
         this.acceptTransfer(message.space, message.cx, message.cy, message.fx, message.fy, message.returned, message.count, message.rows);
         break;
+      case Op.Enter:
+        this.enter(message);
+        break;
+      case Op.Survey: {
+        const bytes = this.module.survey?.(message.seed, message.cx, message.cy, message.space) ?? new Uint8Array(0);
+        connection?.transport.send(encodeSurveyed(message.space, message.cx, message.cy, bytes), true);
+        break;
+      }
+      case Op.Command: {
+        const chunk = this.chunks.get(spaceChunkKey(message.space, message.cx, message.cy));
+        if (chunk) this.module.command?.(chunk.world, message.bytes.slice(), this.running >= 0 ? this.running : this.tickCount);
+        else this.log(2, `Command for chunk ${message.cx},${message.cy} that isn't here; dropped`);
+        break;
+      }
       default:
         this.log(1, `Host ignored op ${message.op}`);
     }
@@ -561,7 +588,7 @@ export class ChunkHost {
     if (bytes[0] === Op.Generate) {
       const message = decodeMessage(bytes) as Extract<Message, { op: Op.Generate }>;
       this.pending.delete(spaceChunkKey(message.space, message.cx, message.cy));
-      this.generate(message.cx, message.cy, message.seed, message.space);
+      this.generate(message.cx, message.cy, message.seed, message.space, message.init);
       return;
     }
     if (bytes[0] !== Op.Tier) {
@@ -644,6 +671,28 @@ export class ChunkHost {
     if (rejectedCount) back(rejectedCount, rejected);
   }
 
+  /** A client's Enter: people into a loaded chunk; what it can't take (or a chunk that isn't here) is dropped. */
+  private enter(message: Extract<Message, { op: Op.Enter }>) {
+    const { space, cx, cy, fx, fy, count, rows } = message;
+    const chunk = this.chunks.get(spaceChunkKey(space, cx, cy));
+    if (!chunk) {
+      this.dropped += count;
+      this.log(2, `Enter for chunk ${cx},${cy} that isn't here; ${count} dropped`);
+      return;
+    }
+    const size = this.module.chunkSize;
+    const dx = (fx - cx) * size;
+    const dy = (fy - cy) * size;
+    const [xs, ys] = this.positionColumns(chunk.world);
+    const { added, rejectedCount } = putRows(chunk.world, this.module.components, rows, count, (_, eid) => {
+      xs[eid] += dx;
+      ys[eid] += dy;
+    });
+    if (this.module.arrived) for (const eid of added) this.module.arrived(chunk.world, eid, dx, dy);
+    this.noteArrivals(chunk, added);
+    this.dropped += rejectedCount;
+  }
+
   /**
    * Lockstep: a host that hasn't run a tick runs `tick` next, as if it and its peers had run every
    * tick before it (a checkpoint's worker tick). Its chunks step from there as if just loaded, and
@@ -691,10 +740,10 @@ export class ChunkHost {
   // -------------------------------------------------------------------------------------------
   // Chunk lifecycle
 
-  generate(cx: number, cy: number, seed: number, space = 0) {
+  generate(cx: number, cy: number, seed: number, space = 0, init?: Uint8Array) {
     const key = spaceChunkKey(space, cx, cy);
     if (!this.chunks.has(key)) {
-      const world = this.module.generate(seed, cx, cy, space);
+      const world = this.module.generate(seed, cx, cy, space, init?.byteLength ? init.slice() : undefined);
       this.addChunk(space, cx, cy, world);
       this.module.restored?.(world, { tick: this.tickCount, space, cx, cy, generated: true, lead: this.lead });
     }
@@ -989,7 +1038,14 @@ export class ChunkHost {
       const ty = chunkY(target);
       if (this.lead > 0) {
         const host = this.chunks.has(target) || this.pending.has(target) ? this.selfIndex : this.route.get(target);
-        if (this.sealed(chunk) || (this.module.simulates && !this.module.simulates(chunk.space, tx, ty)) || host === undefined || host === NO_HOST) {
+        const into = !this.module.simulates || this.module.simulates(chunk.space, tx, ty);
+        const upstream = this.connections[0]?.transport;
+        if (!this.sealed(chunk) && into && (host === undefined || host === NO_HOST) && this.module.exits && upstream) {
+          const rows = takeRows(world, components, eids);
+          upstream.send(encodeExited({ tick: this.running, space: chunk.space, cx: tx, cy: ty, fx: chunk.cx, fy: chunk.cy, count: eids.length, rows }), true);
+          continue;
+        }
+        if (this.sealed(chunk) || !into || host === undefined || host === NO_HOST) {
           for (const eid of eids) this.bounce(world, eid);
           continue;
         }

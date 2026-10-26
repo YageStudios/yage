@@ -28,6 +28,9 @@ import {
   encodeSave,
   encodeTier,
   encodeTrack,
+  encodeCommand,
+  encodeSurvey,
+  encodeEnter,
   encodeTransfer,
   encodeUnload,
   NO_HOST,
@@ -35,6 +38,7 @@ import {
   PROTOCOL_VERSION,
   Tier,
   type DepartMessage,
+  type ExitedMessage,
   type LocateEntry,
   type OverlayMessage,
   type RouteEntry,
@@ -89,6 +93,10 @@ export type ChunkPoolEvents = {
   departed?: (trip: HeldTrip) => void;
   /** A trip's arrival was applied (`count` > 0) or refused because the chunk was full (0). */
   arrived?: (txn: number, count: number) => void;
+  /** A chunk `unload` asked for is gone, as these bytes: as soon as they come, before its promise settles. */
+  unloaded?: (cx: number, cy: number, bytes: Uint8Array, space: number) => void;
+  /** Lockstep: people walked into a chunk no host has (ChunkModule.exits); theirs now, as the host's rows. */
+  exited?: (exit: ExitedMessage, host: number) => void;
 };
 
 /** Travellers in transit: their rows, owned by the pool between Depart and an acknowledged Arrive. */
@@ -126,6 +134,7 @@ export class ChunkPool {
   private readonly routeChanges = new Map<number, number>();
   private routeFlushQueued = false;
   private readonly unloadWaiters = new Map<number, (bytes: Uint8Array) => void>();
+  private readonly surveyWaiters = new Map<number, ((bytes: Uint8Array) => void)[]>();
   /** Save requests waiting on their hosts' answers, by request id. */
   private readonly saveWaiters = new Map<number, (tick: number, chunks: SavedChunk[]) => void>();
   private saveId = 0;
@@ -197,7 +206,8 @@ export class ChunkPool {
   // -------------------------------------------------------------------------------------------
   // Commands
 
-  generate(cx: number, cy: number, seed: number, host?: number, space = 0) {
+  /** Generates a chunk, with `init` for the module's generate if given (see ChunkModule.generate). */
+  generate(cx: number, cy: number, seed: number, host?: number, space = 0, init?: Uint8Array) {
     const key = spaceChunkKey(space, cx, cy);
     if (this.chunks.has(key)) return this.chunks.get(key)!;
     host ??= this.placement(cx, cy, this, space);
@@ -217,7 +227,7 @@ export class ChunkPool {
     this.setRoute(key, host);
     this.flushRoutes();
     // In lockstep a chunk is born on a stamped tick, so its clock is the same however it is placed or timed.
-    this.hosts[host].transport.send(this.stamp(encodeGenerate(cx, cy, seed, space)));
+    this.hosts[host].transport.send(this.stamp(encodeGenerate(cx, cy, seed, space, init)));
     return state;
   }
 
@@ -244,20 +254,32 @@ export class ChunkPool {
     this.hosts[state.host].transport.send(encodeTier(cx, cy, tier, snapshotEvery, space));
   }
 
-  /** Unloads a chunk and resolves with its serialized world. */
+  /**
+   * Unloads a chunk and resolves with its serialized world. In lockstep it goes on the limit's
+   * tick, before the host runs it, with every host's route to it: its world is the chunk as every
+   * tick before that one left it, and hand-offs from then on find it gone, however the reply falls.
+   */
   unload(cx: number, cy: number, space = 0): Promise<Uint8Array> {
     const key = spaceChunkKey(space, cx, cy);
     const state = this.chunks.get(key);
     if (!state) return Promise.reject(new Error(`Chunk ${cx},${cy} is not loaded`));
+    const lockstep = this.lead > 0;
+    if (lockstep) {
+      this.setRoute(key, NO_HOST);
+      this.sendRoutes();
+    }
     return new Promise((resolve) => {
       this.unloadWaiters.set(key, (bytes) => {
         this.chunks.delete(key);
         this.hosts[state.host].chunks--;
-        this.setRoute(key, NO_HOST);
-        this.flushRoutes();
+        if (!lockstep) {
+          this.setRoute(key, NO_HOST);
+          this.flushRoutes();
+        }
+        this.events.unloaded?.(cx, cy, bytes, space);
         resolve(bytes);
       });
-      this.hosts[state.host].transport.send(encodeUnload(cx, cy, space));
+      this.hosts[state.host].transport.send(this.stamp(encodeUnload(cx, cy, space)));
     });
   }
 
@@ -467,6 +489,40 @@ export class ChunkPool {
     return true;
   }
 
+  /**
+   * Puts people (rows as Exited gave them, positions relative to chunk (fx, fy)) into chunk (cx, cy),
+   * on the limit's tick in lockstep. Returns false if the chunk isn't loaded or on its way.
+   */
+  enter(space: number, cx: number, cy: number, fx: number, fy: number, count: number, rows: Uint8Array) {
+    const state = this.chunks.get(spaceChunkKey(space, cx, cy));
+    if (!state || state.moving) return false;
+    this.hosts[state.host].transport.send(this.stamp(encodeEnter(space, cx, cy, fx, fy, count, rows)));
+    return true;
+  }
+
+  /**
+   * What the game knows of chunk (cx, cy) without making it (ChunkModule.survey), from the host it
+   * would be placed on (or `host`). Not stamped: the answer is a pure function of the seed.
+   */
+  survey(cx: number, cy: number, seed: number, space = 0, host?: number): Promise<Uint8Array> {
+    const key = spaceChunkKey(space, cx, cy);
+    host ??= this.placement(cx, cy, this, space);
+    return new Promise((resolve) => {
+      const waiters = this.surveyWaiters.get(key);
+      if (waiters) return void waiters.push(resolve);
+      this.surveyWaiters.set(key, [resolve]);
+      this.hosts[host].transport.send(encodeSurvey(space, cx, cy, seed));
+    });
+  }
+
+  /** Sends chunk (cx, cy) the game's own bytes (ChunkModule.command), on the limit's tick in lockstep. Returns false if it isn't loaded or on its way. */
+  command(cx: number, cy: number, bytes: Uint8Array, space = 0) {
+    const state = this.chunks.get(spaceChunkKey(space, cx, cy));
+    if (!state || state.moving) return false;
+    this.hosts[state.host].transport.send(this.stamp(encodeCommand(space, cx, cy, bytes)));
+    return true;
+  }
+
   /** Trips in transit, for a save. Rows are copied. */
   saveTrips(): DepartMessage[] {
     return [...this.trips.values()].map(({ txn, space, cx, cy, count, rows }) => ({ txn, space, cx, cy, count, rows: rows.slice() }));
@@ -572,6 +628,18 @@ export class ChunkPool {
         const trip: HeldTrip = { ...depart, rows: depart.rows.slice(), sent: false };
         this.trips.set(trip.txn, trip);
         this.events.departed?.(trip);
+        break;
+      }
+      case Op.Surveyed: {
+        const key = spaceChunkKey(message.space, message.cx, message.cy);
+        const waiters = this.surveyWaiters.get(key) ?? [];
+        this.surveyWaiters.delete(key);
+        for (const waiter of waiters) waiter(message.bytes.slice());
+        break;
+      }
+      case Op.Exited: {
+        const { op: _op, ...exit } = message;
+        this.events.exited?.({ ...exit, rows: exit.rows.slice() }, host.index);
         break;
       }
       case Op.Arrived: {
