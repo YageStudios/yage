@@ -12,3 +12,4 @@ export * from "./pool";
 export * from "./interp";
 export * from "./streamer";
 export * from "./hotset";
+export * from "./shadow";

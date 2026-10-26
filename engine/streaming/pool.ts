@@ -316,6 +316,32 @@ export class ChunkPool {
     }));
   }
 
+  /**
+   * The worlds of loaded chunks as each host has them now, for a look (a shadow island opening on
+   * them, yage/streaming/shadow.ts): an unstamped Save, so nothing waits for it and nothing of the
+   * simulation changes; each comes with the tick its host was about to run. Chunks not loaded, or
+   * moving, are left out. Never for a checkpoint: hosts answer at different ticks.
+   */
+  peek(chunks: readonly SaveAddress[]): Promise<{ tick: number; chunk: SavedChunk }[]> {
+    const byHost = new Map<number, SaveAddress[]>();
+    for (const chunk of chunks) {
+      const state = this.chunks.get(spaceChunkKey(chunk.space ?? 0, chunk.cx, chunk.cy));
+      if (!state || state.moving) continue;
+      let list = byHost.get(state.host);
+      if (!list) byHost.set(state.host, (list = []));
+      list.push(chunk);
+    }
+    const answers = [...byHost].map(
+      ([host, list]) =>
+        new Promise<{ tick: number; chunk: SavedChunk }[]>((resolve) => {
+          const id = ++this.saveId;
+          this.saveWaiters.set(id, (tick, saved) => resolve(saved.map((chunk) => ({ tick, chunk }))));
+          this.hosts[host].transport.send(encodeSave(id, list), true);
+        })
+    );
+    return Promise.all(answers).then((all) => all.flat().sort((a, b) => spaceChunkKey(a.chunk.space, a.chunk.cx, a.chunk.cy) - spaceChunkKey(b.chunk.space, b.chunk.cx, b.chunk.cy)));
+  }
+
   /** Loads a chunk from `unload`'s (or `save`'s) bytes; in lockstep it joins on the limit's tick. */
   load(cx: number, cy: number, bytes: Uint8Array, host?: number, space = 0) {
     const key = spaceChunkKey(space, cx, cy);

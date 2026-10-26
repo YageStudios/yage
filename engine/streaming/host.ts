@@ -97,6 +97,8 @@ export type StepContext = {
    * host runs free. Anything shared between chunks must go through posts while it is set.
    */
   lead?: number;
+  /** A shadow host's step (ChunkHostOptions.shadow): presentation, never the run's. */
+  shadow?: boolean;
 };
 
 /** Passed to `ChunkModule.restored` when a chunk's world appears on a host. */
@@ -110,6 +112,8 @@ export type RestoreContext = {
   generated: boolean;
   /** Lockstep: as StepContext.lead. */
   lead?: number;
+  /** As StepContext.shadow. */
+  shadow?: boolean;
 };
 
 export interface ChunkModule {
@@ -252,6 +256,13 @@ export type ChunkHostOptions = {
    * arrival, an unload) is generated on the spot. Off: each is generated as it arrives.
    */
   deferGenerates?: boolean;
+  /**
+   * A shadow host (yage/streaming/shadow.ts): a viewer's own island of chunks, simulated for show
+   * beside a run it never touches. It has no peers; people walking out of the island leave for its
+   * client (Exited) whatever the module's `exits`; its contexts say `shadow`, so the module can key
+   * its draws apart. Its client is the island's driver, never the run's pool.
+   */
+  shadow?: boolean;
 };
 
 export class ChunkHost {
@@ -304,9 +315,11 @@ export class ChunkHost {
   readonly pending = new Map<number, { cx: number; cy: number; seed: number; space: number; init?: Uint8Array }>();
   private draining: ReturnType<typeof setTimeout> | null = null;
   private readonly deferGenerates: boolean;
+  readonly shadow: boolean;
 
   constructor(readonly module: ChunkModule, options: ChunkHostOptions = {}) {
     this.deferGenerates = !!options.deferGenerates;
+    this.shadow = !!options.shadow;
     this.lead = module.lockstep ?? 0;
     if (options.autoTick) this.start();
   }
@@ -360,6 +373,7 @@ export class ChunkHost {
 
   /** Adds a direct link to another host, used for hand-offs to chunks it owns. */
   addPeer(index: number, transport: ChunkTransport) {
+    if (this.shadow) throw new Error("ChunkHost: a shadow host has no peers");
     this.peers.set(index, transport);
     transport.onMessage((bytes) => {
       if (bytes[0] === Op.Done || bytes[0] === Op.Post) this.receivePeer(index, bytes);
@@ -745,7 +759,7 @@ export class ChunkHost {
     if (!this.chunks.has(key)) {
       const world = this.module.generate(seed, cx, cy, space, init?.byteLength ? init.slice() : undefined);
       this.addChunk(space, cx, cy, world);
-      this.module.restored?.(world, { tick: this.tickCount, space, cx, cy, generated: true, lead: this.lead });
+      this.module.restored?.(world, { tick: this.tickCount, space, cx, cy, generated: true, lead: this.lead, shadow: this.shadow || undefined });
     }
     this.ready(key);
     // Watched hot while it was queued: its static data could not go out then.
@@ -761,7 +775,7 @@ export class ChunkHost {
     if (existing) deleteWorld(existing.world);
     const world = this.deserializeChunk(bytes, cx, cy, space);
     this.addChunk(space, cx, cy, world);
-    this.module.restored?.(world, { tick: this.tickCount, space, cx, cy, generated: false, lead: this.lead });
+    this.module.restored?.(world, { tick: this.tickCount, space, cx, cy, generated: false, lead: this.lead, shadow: this.shadow || undefined });
     this.ready(key);
   }
 
@@ -863,6 +877,7 @@ export class ChunkHost {
       const ticks = Math.max(hot ? 1 : warmEvery, chunk.lastStep < 0 ? 0 : tick - chunk.lastStep);
       chunk.lastStep = tick;
       const ctx: StepContext = { tick, ticks, dt: ticks / tickRate, hot, space: chunk.space, cx: chunk.cx, cy: chunk.cy, lead: this.lead };
+      if (this.shadow) ctx.shadow = true;
       this.applyInputs(chunk, ctx);
       this.module.step(chunk.world, ctx);
       this.depart(chunk, ctx);
@@ -1040,7 +1055,7 @@ export class ChunkHost {
         const host = this.chunks.has(target) || this.pending.has(target) ? this.selfIndex : this.route.get(target);
         const into = !this.module.simulates || this.module.simulates(chunk.space, tx, ty);
         const upstream = this.connections[0]?.transport;
-        if (!this.sealed(chunk) && into && (host === undefined || host === NO_HOST) && this.module.exits && upstream) {
+        if (!this.sealed(chunk) && into && (host === undefined || host === NO_HOST) && (this.module.exits || this.shadow) && upstream) {
           const rows = takeRows(world, components, eids);
           upstream.send(encodeExited({ tick: this.running, space: chunk.space, cx: tx, cy: ty, fx: chunk.cx, fy: chunk.cy, count: eids.length, rows }), true);
           continue;
@@ -1220,8 +1235,8 @@ const hasPosition = (world: World, component: any, eid: number) =>
  * Worker entry: runs a host for `module`, attached to the page that created the worker. Call it
  * synchronously at the top level of the worker module so no early message is missed.
  */
-export const runChunkHostWorker = (module: ChunkModule) => {
-  const host = new ChunkHost(module, { deferGenerates: true });
+export const runChunkHostWorker = (module: ChunkModule, options: Pick<ChunkHostOptions, "shadow"> = {}) => {
+  const host = new ChunkHost(module, { deferGenerates: true, ...options });
   const scope = globalThis as unknown as Parameters<typeof portTransport>[0];
   const upstream = portTransport(scope, (data) => {
     const control = data as { type?: string; peers?: { index: number; port: MessagePort }[] };

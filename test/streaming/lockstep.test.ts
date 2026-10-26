@@ -3,6 +3,7 @@ import { addComponent, addEntity, createWorld, deserializeWorld, type World } fr
 import { ChunkHost, type ChunkModule } from "yage/streaming/host";
 import { spaceChunkKey } from "yage/streaming/coord";
 import { ChunkPool } from "yage/streaming/pool";
+import { ShadowIsland } from "yage/streaming/shadow";
 import { Tier, type ExitedMessage, type SavedChunk } from "yage/streaming/protocol";
 import type { ChunkTransport } from "yage/streaming/transport";
 import { SIZE, TestGid, TestPos, TestVel } from "./fixture";
@@ -134,8 +135,11 @@ const CYCLED = [1, 2] as const;
  * init bytes counting the walkers it had. With `exits` too, walkers who walk into it while it is gone
  * leave for the page (Exited), which holds them and, once it is back, puts them in (Enter) on its
  * passes in (tick, from-chunk) order, then sends it a Command.
+ * With `shadow`, a viewer opens shadow islands now and then (yage/streaming/shadow.ts) on its own
+ * shadow host: peeked grid chunks and generated ones off the grid, run up to the run's committed
+ * tick, dropped and opened again; which changes nothing of the run.
  */
-const run = async (hosts: number, seed: number, view = false, save = false, from?: { tick: number; chunks: SavedChunk[] }, cycle = false, exits = false) => {
+const run = async (hosts: number, seed: number, view = false, save = false, from?: { tick: number; chunks: SavedChunk[] }, cycle = false, exits = false, shadow = false) => {
   const rng = seeded(seed);
   const net = network(rng);
   const placementOf = new Map<string, number>();
@@ -224,8 +228,50 @@ const run = async (hosts: number, seed: number, view = false, save = false, from
       void pool.unload(GRID, cy);
     }
   };
+  const islands = { opened: 0, ticked: 0, walkers: 0, exited: 0 };
+  let island: { island: ShadowIsland; host: ChunkHost; net: ReturnType<typeof network> } | null = null;
+  let opening = false;
+  const look = () => {
+    if (!shadow) return;
+    if (island) {
+      island.island.follow(pool.committed);
+      for (let i = 0; i < 4; i++) if (!island.net.deliverOne()) break;
+      if (island.host.canTick()) {
+        island.host.tick();
+        islands.ticked++;
+        islands.walkers = Math.max(islands.walkers, [...island.host.chunks.values()].reduce((n, c) => n + c.world.entitySparseSet.dense.length, 0));
+      }
+      if (rng() < 0.01) {
+        island.island.destroy();
+        island = null;
+      }
+      return;
+    }
+    if (opening || rng() > 0.05) return;
+    // A look at a few grid chunks (whatever they are now), and one off the grid nobody loaded.
+    opening = true;
+    const cx = Math.floor(rng() * (GRID - 1));
+    const cy = Math.floor(rng() * (GRID - 1));
+    void pool.peek([{ cx, cy }, { cx: cx + 1, cy }, { cx, cy: cy + 1 }]).then((peeked) => {
+      opening = false;
+      if (!peeked.length) return;
+      const own = network(seeded(seed + islands.opened));
+      const host = new ChunkHost(walkModule(exits), { shadow: true });
+      const [client, side] = own.pair();
+      host.attach(side);
+      const tick = Math.min(...peeked.map((p) => p.tick));
+      const opened = new ShadowIsland(client, { lead: 1, tick, exited: (exit) => (islands.exited += exit.count) });
+      for (const { chunk } of peeked) opened.open(chunk.cx, chunk.cy, { bytes: chunk.bytes }, rng() < 0.5);
+      opened.open(GRID + 1, cy, { seed: 1 });
+      island = { island: opened, host, net: own };
+      islands.opened++;
+    });
+  };
   for (let guard = 0; guard < 1e6; guard++) {
     wander();
+    look();
+    // A look's answer resolves in microtasks: let it, while one is out.
+    if (opening) await Promise.resolve();
     const ready = list.filter((h) => h.canTick());
     if (ready.length && rng() < 0.5) ready[Math.floor(rng() * ready.length)].tick();
     else if (!net.deliverOne() && ready.length) ready[0].tick();
@@ -259,6 +305,7 @@ const run = async (hosts: number, seed: number, view = false, save = false, from
     unloaded: unloaded && (deserializeWorld((unloaded as Uint8Array).slice().buffer) as World).entitySparseSet.dense.length,
     checkpoint,
     saved,
+    islands,
   };
 };
 
@@ -335,6 +382,24 @@ describe("lockstep", () => {
     }
     expect(first.walkers).toEqual(alone.walkers);
     expect(first.checkpoint!.walkers).not.toEqual(alone.walkers);
+  });
+
+  test("shadow islands beside the run (peeked chunks and unloaded ones, stepped hot or warm, dropped and opened again) change nothing of it", async () => {
+    const alone = await run(1, 1);
+    for (const [hosts, seed] of [[1, 21], [3, 22], [4, 23]] as const) {
+      const other = await run(hosts, seed, true, false, undefined, false, false, true);
+      expect(other.islands.opened, `${hosts} ${seed}`).toBeGreaterThan(0);
+      expect(other.islands.ticked).toBeGreaterThan(0);
+      expect(other.islands.walkers).toBeGreaterThan(0);
+      expect(other.walkers).toEqual(alone.walkers);
+      expect(other.stats).toEqual(alone.stats);
+      expect(other.dropped).toBe(alone.dropped);
+      expect(other.inFlight).toBe(alone.inFlight);
+    }
+    // People walking out of an island leave it, to the viewer's driver, whatever the module's exits.
+    const leaving = await run(2, 24, false, false, undefined, false, false, true);
+    expect(leaving.islands.exited).toBeGreaterThan(0);
+    expect(leaving.walkers).toEqual(alone.walkers);
   });
 
   test("hosts resumed at a checkpoint's tick run on from it the same on any hosts in any order; a host that has run refuses", async () => {
