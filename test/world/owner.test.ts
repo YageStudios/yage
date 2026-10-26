@@ -2,7 +2,7 @@ import { Component, defaultValue, DrawSystemImpl, Schema, System, type } from "m
 import { describe, expect, test } from "vitest";
 import { compileEntityDefinition } from "yage/entity/definitions";
 import { createLeanGameModel } from "yage/game/LeanGameModel";
-import { findOwnerWith, OwnedBy, ownedBy, ownerOf } from "yage/world/owner";
+import { findOwnerWith, OwnedBy, ownedBy, ownedTree, ownerOf, removeOwned } from "yage/world/owner";
 
 @Component("OwnerTestCamera")
 class Camera extends Schema {
@@ -63,6 +63,33 @@ describe("owners", () => {
     panel.spawn(model, { owner: cam });
     panel.apply(model, model.addEntity(), { owner: cam });
     expect(seen).toEqual([4, 4]);
+    model.destroy();
+  });
+
+  test("removeOwned removes the owner with its tree, leaf-first, and leaves the rest", () => {
+    const order: number[] = [];
+    const owners: boolean[] = [];
+    @System(Panel)
+    class PanelGone extends DrawSystemImpl {
+      cleanup(world: any, eid: number) {
+        // The owner is still there when an owned part goes.
+        owners.push(model.isActive(ownerOf(world, eid)));
+        order.push(eid);
+      }
+    }
+    const model = createLeanGameModel({ world: { components: [Camera, Panel, OwnedBy], systems: [PanelGone] } });
+    const cam = camera.spawn(model);
+    const other = camera.spawn(model);
+    const hud = panel.spawn(model, { owner: cam });
+    const marker = panel.spawn(model, { owner: hud });
+    const toast = panel.spawn(model, { owner: cam });
+    const kept = panel.spawn(model, { owner: other });
+    expect(ownedTree(model, cam)).toEqual([marker, toast, hud]);
+    removeOwned(model, cam);
+    expect(order).toEqual([marker, toast, hud]);
+    expect(owners).toEqual([true, true, true]);
+    for (const e of [cam, hud, marker, toast]) expect(model.isActive(e)).toBe(false);
+    expect(model.isActive(other) && model.isActive(kept)).toBe(true);
     model.destroy();
   });
 });

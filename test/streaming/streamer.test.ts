@@ -106,6 +106,23 @@ describe("ChunkStreamer", () => {
     expect(streamer.cold.has(chunkKey(0, 0))).toBe(false);
   });
 
+  test("a cold store the owner gives outlives the streamer: the next streamer loads from it", async () => {
+    const { pool, log, settle } = fakePool();
+    const cold = new Map<number, Uint8Array>();
+    const first = new ChunkStreamer(pool, { chunkSize: SIZE, seed: 1, ring: 0, warmRing: 1, hysteresis: 0, cold });
+    expect(first.cold).toBe(cold);
+    first.update(at(0.5, 0.5));
+    first.update(at(10.5, 0.5));
+    await settle();
+    expect(cold.get(chunkKey(0, 0))).toEqual(new Uint8Array([0, 0]));
+    log.length = 0;
+    const next = new ChunkStreamer(pool, { chunkSize: SIZE, seed: 1, ring: 0, warmRing: 1, hysteresis: 0, cold });
+    next.update(at(0.5, 0.5));
+    expect(log).toContain("load 0,0 [0,0]");
+    expect(log).not.toContain("generate 0,0");
+    expect(cold.has(chunkKey(0, 0))).toBe(false);
+  });
+
   test("kept-warm chunks never unload, and missing chunks are skipped", async () => {
     const { pool, log, settle } = fakePool();
     const streamer = new ChunkStreamer(pool, {

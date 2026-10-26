@@ -4,8 +4,9 @@
  * - hot: in view plus `ring` chunks. Stepped every tick and snapshotted for drawing.
  * - warm: loaded and stepped on a stagger, with stats only. Chunks the game keeps warm
  *   (`keepWarm`) never go further; others stay warm while within `warmRing` of the view.
- * - cold: unloaded to bytes kept here, or never generated (generation is a pure function of the
- *   seed, so a chunk that was never touched needs no bytes).
+ * - cold: unloaded to bytes kept in `cold` (the streamer's own map, or the `cold` store its owner
+ *   gives it, which outlives the streamer), or never generated (generation is a pure function of
+ *   the seed, so a chunk that was never touched needs no bytes).
  *
  * A chunk leaves a tier only once the view has moved `hysteresis` chunks past where it entered,
  * so a camera resting on a border doesn't thrash. At most `budget` chunks are generated or loaded
@@ -45,6 +46,8 @@ export type ChunkStreamerOptions = {
   /** Called when a chunk turns hot, and when it stops being hot. */
   onHot?: (cx: number, cy: number) => void;
   onCool?: (cx: number, cy: number) => void;
+  /** Where cold chunks' bytes are kept: a store that outlives this streamer (the world's, not a viewer's). Default: the streamer's own. */
+  cold?: Map<number, Uint8Array>;
 };
 
 const rectAround = (bounds: Bounds, size: number, ring: number) => ({
@@ -59,17 +62,18 @@ const inside = (rect: Rect, cx: number, cy: number) => cx >= rect.x0 && cx <= re
 
 export class ChunkStreamer {
   readonly hot = new Set<number>();
-  /** Serialized worlds of chunks that went cold. */
-  readonly cold = new Map<number, Uint8Array>();
+  /** Serialized worlds of chunks that went cold (the `cold` option's store, if given). */
+  readonly cold: Map<number, Uint8Array>;
   /** Chunks being unloaded right now. */
   private readonly unloading = new Set<number>();
-  private readonly options: Required<Omit<ChunkStreamerOptions, "onHot" | "onCool">> &
+  private readonly options: Required<Omit<ChunkStreamerOptions, "onHot" | "onCool" | "cold">> &
     Pick<ChunkStreamerOptions, "onHot" | "onCool">;
 
   constructor(
     readonly pool: StreamerPool,
     options: ChunkStreamerOptions
   ) {
+    this.cold = options.cold ?? new Map();
     this.options = {
       space: 0,
       ring: 1,

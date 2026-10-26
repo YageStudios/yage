@@ -6,9 +6,13 @@
  * OwnedBy is a plain number column (-1: no owner), so it fits lean worlds too (yage/world/columns
  * forbids nullable typed columns there; yage/schemas/core/Owner is the GameModel one).
  *
+ * Owning is not lifetime by itself: removing an owner leaves what it owns. `removeOwned(world, eid)`
+ * removes `eid` with everything it owns, leaf-first, so each part's cleanup still reaches its owner.
+ *
  * Import as `yage/world/owner`.
  */
-import { Component, defaultValue, hasComponent, Schema, type, type Constructor, type World } from "minecs";
+import { Component, defaultValue, entityExists, hasComponent, removeEntity, Schema, type, type Constructor, type World } from "minecs";
+import { entitiesWith } from "./single";
 
 @Component("OwnedBy")
 export class OwnedBy extends Schema {
@@ -37,4 +41,32 @@ export const ownedBy = <T extends Schema>(world: World, eid: number, schema: Con
   const owner = findOwnerWith(world, eid, schema);
   if (owner < 0) throw new Error(`yage owner: no owner of entity ${eid} holds ${(schema as any).type ?? schema.name}`);
   return world(schema as any, owner) as T;
+};
+
+/** What `eid` owns, directly or down the chain, deepest first (newest first among equals). */
+export const ownedTree = (world: World, eid: number): number[] => {
+  const children = new Map<number, number[]>();
+  for (const e of entitiesWith(world, OwnedBy)) {
+    const owner = ownerOf(world, e);
+    if (owner < 0 || owner === e) continue;
+    const list = children.get(owner);
+    if (list) list.push(e);
+    else children.set(owner, [e]);
+  }
+  const depth = new Map<number, number>();
+  const walk = [eid];
+  depth.set(eid, 0);
+  for (let i = 0; i < walk.length; i++) {
+    for (const child of children.get(walk[i]) ?? []) {
+      if (depth.has(child)) continue;
+      depth.set(child, depth.get(walk[i])! + 1);
+      walk.push(child);
+    }
+  }
+  return walk.slice(1).sort((a, b) => depth.get(b)! - depth.get(a)! || b - a);
+};
+
+/** Removes `eid` and everything it owns, leaf-first; each is removed exactly once. */
+export const removeOwned = (world: World, eid: number): void => {
+  for (const e of [...ownedTree(world, eid), eid]) if (entityExists(world, e)) removeEntity(world, e);
 };
