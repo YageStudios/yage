@@ -168,7 +168,7 @@ export interface ChunkModule {
   /** Applies the latest input for a controlled entity; called before each step of its chunk. */
   input?(world: World, eid: number, bytes: Uint8Array, ctx: StepContext): void;
   /** A one-byte state for a tracked entity's Locate entry. */
-  describe?(world: World, eid: number): number;
+  describe?(world: World, eid: number, controlled: boolean): number;
   /** Static per-chunk data (e.g. terrain) sent once when a client first watches a chunk. */
   staticData?(world: World, cx: number, cy: number, space: number): Uint8Array;
   /** Called when an entity was kept inside its chunk because no neighbour could take it. */
@@ -544,7 +544,11 @@ export class ChunkHost {
         if (message.bytes.byteLength === 0) {
           this.inputs.delete(message.gid);
           this.trackDirty = true;
-        } else this.inputs.set(message.gid, message.bytes.slice());
+        } else {
+          // A newly controlled entity is found where it is now, even in a chunk that arrived before its input.
+          if (!this.inputs.has(message.gid)) this.trackDirty = true;
+          this.inputs.set(message.gid, message.bytes.slice());
+        }
         break;
       case Op.Track:
         if (connection) {
@@ -973,7 +977,7 @@ export class ChunkHost {
         cy: chunk.cy,
         x: xs[location.eid],
         y: ys[location.eid],
-        tint: this.module.describe?.(chunk.world, location.eid) ?? 0,
+        tint: this.module.describe?.(chunk.world, location.eid, this.inputs.has(gid)) ?? 0,
       });
     }
     // A full scan found nothing new; wait for the next change before scanning again.

@@ -141,6 +141,8 @@ export class ChunkPool {
   /** Transfers for chunks that are moving, delivered once the chunk lands. */
   private readonly heldTransfers = new Map<number, Uint8Array[]>();
   private tracked: number[] = [];
+  /** The input last sent for each controlled entity (released ones dropped), so a save can send it again. */
+  private readonly inputs = new Map<number, Uint8Array>();
   private lastConfig: Uint8Array | null = null;
   /** Trips in transit, by transaction id. */
   readonly trips = new Map<number, HeldTrip>();
@@ -406,6 +408,16 @@ export class ChunkPool {
     return this.lastConfig;
   }
 
+  /** The entities under control and the input last sent for each, in the order they were first sent. */
+  get controlled(): ReadonlyMap<number, Uint8Array> {
+    return this.inputs;
+  }
+
+  /** The entities the hosts are told to track (`track`). */
+  get tracking(): readonly number[] {
+    return this.tracked;
+  }
+
   configure(bytes: Uint8Array) {
     this.lastConfig = bytes.slice();
     const message = this.stamp(encodeConfig(bytes));
@@ -414,6 +426,8 @@ export class ChunkPool {
 
   /** Sends input for a controlled entity to whichever host holds it; empty bytes release it. */
   input(gid: number, bytes: Uint8Array) {
+    if (bytes.byteLength === 0) this.inputs.delete(gid);
+    else this.inputs.set(gid, bytes.slice());
     const message = this.stamp(encodeInput(gid, bytes));
     for (const host of this.hosts) host.transport.send(message);
   }
