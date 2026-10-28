@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "vitest";
-import { beginFrame, endFrame, FRAME_TARGET_MS, frameAllowance, frameSpent, resetFrameBudget } from "../../engine/game/FrameBudget";
+import { beginFrame, endFrame, FRAME_TARGET_MS, frameAllowance, frameQuiet, frameSpent, LOADING_TARGET_MS, resetFrameBudget, setFrameLoading, SPARE_AFTER_FRAMES, withinSpare } from "../../engine/game/FrameBudget";
 
 describe("FrameBudget", () => {
   afterEach(resetFrameBudget);
@@ -30,5 +30,63 @@ describe("FrameBudget", () => {
     endFrame(21);
     beginFrame(30);
     expect(frameAllowance()).toBeCloseTo(FRAME_TARGET_MS - (7 * 0.9 + 1 * 0.1));
+  });
+
+  test("while loading, builders get the long loading frame whatever their caps", () => {
+    setFrameLoading(true);
+    beginFrame(0);
+    expect(frameAllowance(3)).toBe(LOADING_TARGET_MS);
+    frameSpent(30);
+    expect(frameAllowance(3)).toBe(LOADING_TARGET_MS - 30);
+    endFrame(35);
+    setFrameLoading(false);
+    beginFrame(40);
+    expect(frameAllowance(3)).toBe(3);
+  });
+
+  test("quiet frames count up while builders idle and frames are short, and a busy or slow frame starts the count over", () => {
+    const frame = (at: number, built = 0) => { beginFrame(at); frameSpent(built); endFrame(at + 5); };
+    frame(0);
+    frame(16);
+    frame(32);
+    beginFrame(48);
+    expect(frameQuiet()).toBe(3);
+    frameSpent(4);
+    endFrame(53);
+    frame(64);
+    expect(frameQuiet()).toBe(0);
+    frame(80);
+    frame(140);
+    expect(frameQuiet()).toBe(0);
+    frame(156);
+    expect(frameQuiet()).toBe(1);
+  });
+
+  test("spare work runs only after a run of quiet frames, and its own time keeps the run going while any other build breaks it", () => {
+    let at = 0;
+    const frame = (built = 0) => { beginFrame(at); frameSpent(built); endFrame(at + 5); at += 16; };
+    const ran: number[] = [];
+    const tryWork = () => withinSpare(4, (budget) => { ran.push(budget); frameSpent(0); });
+    for (let i = 0; i < SPARE_AFTER_FRAMES; i++) frame();
+    beginFrame(at);
+    expect(withinSpare(4, () => {})).toBe(true);
+    endFrame(at + 5); at += 16;
+    beginFrame(at);
+    // A zoom's streaming build breaks the run: no spare work until it is quiet again.
+    frameSpent(3);
+    endFrame(at + 5); at += 16;
+    beginFrame(at);
+    expect(tryWork()).toBe(false);
+    endFrame(at + 5); at += 16;
+    for (let i = 0; i < SPARE_AFTER_FRAMES - 1; i++) frame();
+    beginFrame(at);
+    expect(tryWork()).toBe(true);
+    expect(ran).toEqual([4]);
+  });
+
+  test("outside a marked frame, spare work runs with its cap", () => {
+    let budget = 0;
+    expect(withinSpare(4, (b) => { budget = b; })).toBe(true);
+    expect(budget).toBe(4);
   });
 });
