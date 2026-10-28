@@ -37,6 +37,9 @@ const TUCKED = 0.55;
  * bent over: the whole figure tilted rigidly about its feet by `turn` radians (negative leans left);
  * never sheared or squashed, and never animated by the layer (callers swap poses or move parts).
  */
+/** Snapshot ticks a placed entity is drawn on in a layer after leaving its snapshots (a hand-off, before the next chunk's layer has it). */
+const CARRY_TICKS = 12;
+
 export const POSE = { Stand: 0, Lie: 1, Sit: 2, SitLeft: 3, Fallen: 4, Hunch: 5 } as const;
 export type PoseKind = (typeof POSE)[keyof typeof POSE];
 export type PoseEntry = { slot: number; pose: PoseKind; turn: number };
@@ -483,8 +486,16 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   private placedGid = -1;
   private placedX = 0;
   private placedY = 0;
+  /** False: the placed entity is drawn by another layer (its copy here is hidden). */
+  private placedShown = true;
+  /** The placed entity's look in the last snapshot here that had it, and that snapshot's tick: drawn on for a few ticks after it leaves (a hand-off's gap). */
+  private carrySprite = 0;
+  private carryTint = 0;
+  private carryTick = -Infinity;
   private placeX = new Int16Array(0);
   private placeY = new Int16Array(0);
+  private placeSprite = new Uint16Array(0);
+  private placeTint = new Uint8Array(0);
 
   constructor(kind: LayerKind, extent: number, expectedInterval: number, tickInterval = expectedInterval) {
     // Each layer has its own shader objects (one program, shared uniform group) for its own alpha.
@@ -580,12 +591,17 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   /** Queues a snapshot for the pair's playout (the first, or a stale one, shows at once). */
   push(snapshot: Snapshot, now: number) {
     this.pair.push(snapshot, now);
-    if (this.write()) this.setVisible(snapshot.count > 0);
+    if (this.write()) this.setVisible(this.drawnCount > 0);
   }
 
   /** Entities in the drawn snapshot. */
   get count() {
     return this.pair.current?.count ?? 0;
+  }
+
+  /** Instances drawn: the snapshot's, and a placed entity carried past it (`place`). */
+  get drawnCount() {
+    return this.geometry.instanceCount;
   }
 
   /** Writes the pair's current snapshot to the buffers if it changed; true if it did. */
@@ -596,10 +612,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     let ahead = 0;
     while (ahead < this.posesAhead.length && this.posesAhead[ahead].tick <= snapshot.tick) this.poses = this.posesAhead[ahead++].poses;
     if (ahead) this.posesAhead.splice(0, ahead);
-    this.writePositions();
-    this.sprite.update(snapshot.sprite);
-    this.tintBuffer.update(snapshot.tint);
-    this.geometry.instanceCount = snapshot.count;
+    this.writePlaced();
     this.writePoses();
     return true;
   }
@@ -643,46 +656,78 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
    * Draws entity `gid` at chunk-local (x, y) (world units from the chunk's corner) instead of
    * between its snapshots, until the next call; a gid of -1 lets it go. For what the page knows
    * ahead of the stream (the entity it steers, moved on its keys every frame): presentation only,
-   * the snapshots themselves are untouched. Kept across snapshots, found again by gid in each.
+   * the snapshots themselves are untouched. Kept across snapshots, found again by gid in each; gone
+   * from one (handed to the next chunk, not there yet) it is drawn on as last seen for CARRY_TICKS.
+   * `shown` false hides it here instead (another layer draws it: `ChunkScene.place`).
    */
-  place(gid: number, x = 0, y = 0) {
+  place(gid: number, x = 0, y = 0, shown = true) {
     if (gid < 0 && this.placedGid < 0) return;
+    if (gid !== this.placedGid) this.carryTick = -Infinity;
     this.placedGid = gid;
+    this.placedShown = shown;
     this.placedX = Math.round(x * POSITION_SCALE);
     this.placedY = Math.round(y * POSITION_SCALE);
-    if (this.pair.current) this.writePositions();
+    if (this.pair.current) {
+      this.writePlaced();
+      this.writePoses();
+    }
   }
 
-  /** Both position pairs, the placed entity's slot (if it is in this snapshot) at its placed spot. */
-  private writePositions() {
+  /** The current snapshot's instances, the placed entity's slot (or its carried one past them) at its placed spot. */
+  private writePlaced() {
     const snapshot = this.pair.current!;
     const count = snapshot.count;
     const slot = this.placedGid < 0 ? -1 : snapshot.gid.subarray(0, count).indexOf(this.placedGid);
-    if (slot < 0) {
+    if (slot >= 0 && snapshot.tint[slot] !== EMPTY_SLOT) {
+      this.carrySprite = snapshot.sprite[slot];
+      this.carryTint = snapshot.tint[slot];
+      this.carryTick = snapshot.tick;
+    }
+    const carried = slot < 0 && this.placedGid >= 0 && this.placedShown && snapshot.tick - this.carryTick <= CARRY_TICKS;
+    if (slot < 0 && !carried) {
       this.prevX.update(this.pair.prevX.subarray(0, count));
       this.prevY.update(this.pair.prevY.subarray(0, count));
       this.curX.update(snapshot.x);
       this.curY.update(snapshot.y);
+      this.sprite.update(snapshot.sprite);
+      this.tintBuffer.update(snapshot.tint);
+      this.geometry.instanceCount = count;
       return;
     }
-    if (this.placeX.length < count * 2) {
-      this.placeX = new Int16Array(count * 3);
-      this.placeY = new Int16Array(count * 3);
+    const n = count + (carried ? 1 : 0);
+    if (this.placeX.length < n * 2) {
+      this.placeX = new Int16Array(n * 3);
+      this.placeY = new Int16Array(n * 3);
+      this.placeSprite = new Uint16Array(n * 2);
+      this.placeTint = new Uint8Array(n * 2);
     }
     const x = Math.max(-32768, Math.min(32767, this.placedX));
     const y = Math.max(-32768, Math.min(32767, this.placedY));
-    const prevX = this.placeX.subarray(0, count), curX = this.placeX.subarray(count, count * 2);
-    const prevY = this.placeY.subarray(0, count), curY = this.placeY.subarray(count, count * 2);
+    const prevX = this.placeX.subarray(0, n), curX = this.placeX.subarray(n, n * 2);
+    const prevY = this.placeY.subarray(0, n), curY = this.placeY.subarray(n, n * 2);
+    const sprite = this.placeSprite.subarray(0, n), tint = this.placeTint.subarray(0, n);
     prevX.set(this.pair.prevX.subarray(0, count));
     prevY.set(this.pair.prevY.subarray(0, count));
     curX.set(snapshot.x.subarray(0, count));
     curY.set(snapshot.y.subarray(0, count));
-    prevX[slot] = curX[slot] = x;
-    prevY[slot] = curY[slot] = y;
+    sprite.set(snapshot.sprite.subarray(0, count));
+    tint.set(snapshot.tint.subarray(0, count));
+    const at = carried ? count : slot;
+    if (carried) {
+      sprite[at] = this.carrySprite;
+      tint[at] = this.carryTint;
+    }
+    if (this.placedShown) {
+      prevX[at] = curX[at] = x;
+      prevY[at] = curY[at] = y;
+    } else tint[at] = EMPTY_SLOT;
     this.prevX.update(prevX);
     this.prevY.update(prevY);
     this.curX.update(curX);
     this.curY.update(curY);
+    this.sprite.update(sprite);
+    this.tintBuffer.update(tint);
+    this.geometry.instanceCount = n;
   }
 
   /** Plays the snapshots out to `now` and sets the interpolation point between the drawn two. */
@@ -772,6 +817,9 @@ export class ChunkScene {
   /** Static instances placed at any position and angle; see `setStatics`. */
   readonly statics: StaticSet;
   readonly views = new Map<number, ChunkView>();
+  /** What `place` draws, and the chunk whose layer draws it (-1 none). */
+  private placedGid = -1;
+  private placedKey = -1;
   private readonly entities: LayerKind;
   private readonly propKinds: LayerKind[];
   private readonly options: ChunkSceneOptions;
@@ -895,6 +943,32 @@ export class ChunkScene {
     this.views.get(chunkKey(cx, cy))?.layer?.setPoses(poses, tick);
   }
 
+  /**
+   * Draws entity `gid` at world (x, y) in one chunk's layer, hiding it in the rest (see
+   * `ChunkLayer.place`); -1 lets it go. The layer is the one that drew it last while its snapshot
+   * still has it, else any whose snapshot has it: so it neither doubles nor drops out while it is
+   * handed between chunks whose layers play out a little apart.
+   */
+  place(gid: number, x = 0, y = 0) {
+    const holds = (layer: ChunkLayer | null) => !!layer?.pair.current && layer.pair.current.gid.subarray(0, layer.pair.current.count).includes(gid);
+    let key = this.placedKey;
+    if (gid < 0) key = -1;
+    else if (gid !== this.placedGid || !holds(this.views.get(key)?.layer ?? null)) {
+      for (const [k, view] of this.views) if (holds(view.layer)) { key = k; break; }
+      if (gid !== this.placedGid && !holds(this.views.get(key)?.layer ?? null)) key = -1;
+    }
+    this.placedGid = gid;
+    this.placedKey = key;
+    const size = this.options.chunkSize;
+    for (const [k, view] of this.views) {
+      if (!view.layer) continue;
+      if (gid < 0) view.layer.place(-1);
+      else if (k === key) view.layer.place(gid, x - view.cx * size, y - view.cy * size);
+      else if (holds(view.layer)) view.layer.place(gid, 0, 0, false);
+      else view.layer.place(-1);
+    }
+  }
+
   /** Drops a chunk's entity layer (e.g. when it stops being hot), keeping its ground. */
   dropEntities(cx: number, cy: number) {
     const view = this.views.get(chunkKey(cx, cy));
@@ -933,7 +1007,7 @@ export class ChunkScene {
       if (chunk.layer) {
         // Off screen too, so what reads the pair (effects, sounds) keeps time and the queue drains.
         chunk.layer.pair.advance(now);
-        const visible = inView && chunk.layer.count > 0;
+        const visible = inView && chunk.layer.drawnCount > 0;
         chunk.layer.setVisible(visible);
         if (visible) {
           chunk.layer.interpolate(now);
