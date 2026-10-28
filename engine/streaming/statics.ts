@@ -15,6 +15,8 @@
  * takes the depth of the footprint's near (screen-bottom) edge below it, so a sprite whose feet are
  * nearer than that edge (someone on the pavement in front) draws over the roof and one whose feet
  * are behind it (someone inside) stays hidden. A faded roof (alpha ≤ 0.6) drops its occluder.
+ * An instance whose over part stands up the screen past its rectangle (a building's walls and the
+ * roof on top of them: `rise`) has its occluder reach that far up too, at the same near-edge depth.
  */
 import * as PIXI from "pixi.js";
 import { withinFrame } from "../game/FrameBudget";
@@ -53,6 +55,9 @@ export type StaticSpec = {
   /** Stacking of the `over` part among other instances' (e.g. a building's height, so a tall roof and
    *  the shadow it casts lie over a lower neighbour's). Equal heights keep listing order. */
   z?: number;
+  /** How far (world units) the over part reaches straight up the screen past the rectangle (a
+   *  building's walls, its roof on top): culled with it, and its occluder reaches as far. */
+  rise?: number;
   /** Builds the parts in local coordinates; called once, when the id is first listed. */
   build: () => StaticParts;
 };
@@ -66,6 +71,12 @@ export type StaticInstance = {
   readonly bounds: Rect;
   /** Chunk keys that list the instance. */
   readonly holders: Set<number>;
+};
+
+/** Where an instance reaches (world), its rise included. */
+const boundsOf = (s: StaticSpec): Rect => {
+  const b = rotatedBounds(s.x, s.y, s.w, s.h, s.angle);
+  return { ...b, minY: b.minY - (s.rise ?? 0) };
 };
 
 const place = (c: PIXI.Container, s: StaticSpec) => {
@@ -105,9 +116,10 @@ let occluderProgram: PIXI.Program | null = null;
 /**
  * The depth-slab polygons of a w × h local rectangle turned by `angle` (world: local +x along
  * (cos, sin)): the rectangle cut into vertical strips at its corners' x, each with its corners and,
- * per corner, the point of the rectangle's lower (screen-bottom) edge straight below it. Local units.
+ * per corner, the point of the rectangle's lower (screen-bottom) edge straight below it; each strip
+ * reaching `rise` further up the screen. Local units.
  */
-export const occluderSlabs = (w: number, h: number, angle: number) => {
+export const occluderSlabs = (w: number, h: number, angle: number, rise = 0) => {
   const c = Math.cos(angle);
   const s = Math.sin(angle);
   const world = [
@@ -147,8 +159,8 @@ export const occluderSlabs = (w: number, h: number, angle: number) => {
     const a = span(xa);
     const b = span(xb);
     const corners = [
-      { x: xa, y: a.lo },
-      { x: xb, y: b.lo },
+      { x: xa, y: a.lo - rise },
+      { x: xb, y: b.lo - rise },
       { x: xb, y: b.hi },
       { x: xa, y: a.hi },
     ];
@@ -164,12 +176,12 @@ export const occluderSlabs = (w: number, h: number, angle: number) => {
 };
 
 /** A depth-only mesh over a static's local rectangle; see the module notes. */
-export const occluderMesh = (w: number, h: number, angle: number) => {
+export const occluderMesh = (w: number, h: number, angle: number, rise = 0) => {
   occluderProgram ??= PIXI.Program.from(occluderVertex, occluderFragment, "yage-static-occluder");
   const positions: number[] = [];
   const near: number[] = [];
   const indices: number[] = [];
-  for (const slab of occluderSlabs(w, h, angle)) {
+  for (const slab of occluderSlabs(w, h, angle, rise)) {
     const base = positions.length / 2;
     for (let k = 0; k < 4; k++) {
       positions.push(slab.corners[k].x, slab.corners[k].y);
@@ -230,7 +242,7 @@ export class StaticSet {
     tintTree(item.under, this.tint);
     tintTree(item.over, this.tint);
     if (this.occlude && parts.over) {
-      const occluder = occluderMesh(item.spec.w, item.spec.h, item.spec.angle);
+      const occluder = occluderMesh(item.spec.w, item.spec.h, item.spec.angle, item.spec.rise);
       item.over.addChild(occluder);
       (item as { occluder: PIXI.Mesh<PIXI.Shader> | null }).occluder = occluder;
     }
@@ -255,7 +267,7 @@ export class StaticSet {
         }
         this.underRoot.addChild(under);
         this.overRoot.addChild(over);
-        item = { spec, under, over, occluder: null, bounds: rotatedBounds(spec.x, spec.y, spec.w, spec.h, spec.angle), holders: new Set() };
+        item = { spec, under, over, occluder: null, bounds: boundsOf(spec), holders: new Set() };
         this.items.set(spec.id, item);
         this.index(item, true);
         if (this.lazy) {

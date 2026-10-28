@@ -209,6 +209,17 @@ describe("ChunkScene static instances", () => {
       }
       // The slabs tile the footprint exactly.
       expect(Math.abs(area)).toBeCloseTo(w * h, 3);
+      // Risen (a building's walls and the roof on them): each strip reaches that much further up the
+      // screen, at the same near-edge depth, so it covers the footprint swept up by the rise.
+      const rise = 7;
+      const width = Math.max(...corners.map((p) => p.x)) - Math.min(...corners.map((p) => p.x));
+      let risen = 0;
+      for (const [i, slab] of occluderSlabs(w, h, angle, rise).entries()) {
+        const pts = slab.corners.map(toWorld);
+        expect(slab.near).toEqual(slabs[i].near);
+        for (let k = 0; k < 4; k++) risen += (pts[k].x * pts[(k + 1) % 4].y - pts[(k + 1) % 4].x * pts[k].y) / 2;
+      }
+      expect(Math.abs(risen)).toBeCloseTo(w * h + rise * width, 3);
     }
   });
 
