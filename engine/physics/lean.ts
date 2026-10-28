@@ -374,3 +374,60 @@ export class LeanPhysicsSystem extends SystemImpl<World> {
     stepLeanPhysics(world, position, this.query(world));
   }
 }
+
+// -------------------------------------------------------------------------------------------
+// Probing
+
+/**
+ * A ball swept through fixed colliders without stepping a world: for a client that draws an
+ * entity ahead of the simulation (its own steering) and wants it to meet the same walls the
+ * simulation's bodies do. `build` adds the fixed colliders (addFixedBox), as for armLeanPhysics.
+ * Null until loadRapier has finished. Free it with `free()`.
+ */
+export type LeanProbe = {
+  /** How far a ball of `radius` at (x, y) gets of the move (dx, dy): blocked part dropped, the rest slid along what it meets. */
+  slide(x: number, y: number, radius: number, dx: number, dy: number): { x: number; y: number };
+  free(): void;
+};
+
+export const createLeanProbe = (build: (state: LeanPhysics) => void): LeanProbe | null => {
+  if (!loaded) return null;
+  const physics = new RAPIER.World({ x: 0, y: 0 });
+  const state = { world: physics, bodies: null, fixed: 0, dt: 0, maxStep: 0.1 } as LeanPhysics;
+  live++;
+  try {
+    build(state);
+  } catch (error) {
+    releaseLeanPhysicsState(state);
+    throw error;
+  }
+  // The fixed colliders into the query structures once.
+  physics.timestep = 1 / 60;
+  physics.step();
+  // Top-down: no ground and no slopes, every surface met is slid along.
+  const controller = physics.createCharacterController(0.01);
+  controller.setSlideEnabled(true);
+  controller.setMaxSlopeClimbAngle(Math.PI);
+  controller.setMinSlopeSlideAngle(Math.PI);
+  controller.disableSnapToGround();
+  controller.disableAutostep();
+  let ball: RAPIER.Collider | null = null;
+  let ballRadius = -1;
+  return {
+    slide(x, y, radius, dx, dy) {
+      if (ballRadius !== radius) {
+        if (ball) physics.removeCollider(ball, false);
+        ball = physics.createCollider(RAPIER.ColliderDesc.ball(radius).setCollisionGroups(SOLID_BODY));
+        ballRadius = radius;
+      }
+      ball!.setTranslation({ x, y });
+      controller.computeColliderMovement(ball!, { x: dx, y: dy }, undefined, SOLID_BODY);
+      const moved = controller.computedMovement();
+      return { x: moved.x, y: moved.y };
+    },
+    free() {
+      controller.free();
+      releaseLeanPhysicsState(state);
+    },
+  };
+};
