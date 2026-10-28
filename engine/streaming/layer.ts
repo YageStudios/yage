@@ -475,6 +475,12 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   private poseData = new Float32Array(2);
   private poses: readonly PoseEntry[] = [];
   private extent: number;
+  /** The entity drawn where the page puts it (`place`), not between its snapshots; -1 none. */
+  private placedGid = -1;
+  private placedX = 0;
+  private placedY = 0;
+  private placeX = new Int16Array(0);
+  private placeY = new Int16Array(0);
 
   constructor(kind: LayerKind, extent: number, expectedInterval: number) {
     // Each layer has its own shader objects (one program, shared uniform group) for its own alpha.
@@ -570,10 +576,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   push(snapshot: Snapshot, now: number) {
     this.pair.push(snapshot, now);
     const count = snapshot.count;
-    this.prevX.update(this.pair.prevX.subarray(0, count));
-    this.prevY.update(this.pair.prevY.subarray(0, count));
-    this.curX.update(snapshot.x);
-    this.curY.update(snapshot.y);
+    this.writePositions();
     this.sprite.update(snapshot.sprite);
     this.tintBuffer.update(snapshot.tint);
     this.geometry.instanceCount = count;
@@ -610,6 +613,52 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
       this.poseData[p.slot * 2 + 1] = p.turn;
     }
     this.poseBuffer.update(this.poseData.subarray(0, count * 2));
+  }
+
+  /**
+   * Draws entity `gid` at chunk-local (x, y) (world units from the chunk's corner) instead of
+   * between its snapshots, until the next call; a gid of -1 lets it go. For what the page knows
+   * ahead of the stream (the entity it steers, moved on its keys every frame): presentation only,
+   * the snapshots themselves are untouched. Kept across snapshots, found again by gid in each.
+   */
+  place(gid: number, x = 0, y = 0) {
+    if (gid < 0 && this.placedGid < 0) return;
+    this.placedGid = gid;
+    this.placedX = Math.round(x * POSITION_SCALE);
+    this.placedY = Math.round(y * POSITION_SCALE);
+    if (this.pair.current) this.writePositions();
+  }
+
+  /** Both position pairs, the placed entity's slot (if it is in this snapshot) at its placed spot. */
+  private writePositions() {
+    const snapshot = this.pair.current!;
+    const count = snapshot.count;
+    const slot = this.placedGid < 0 ? -1 : snapshot.gid.subarray(0, count).indexOf(this.placedGid);
+    if (slot < 0) {
+      this.prevX.update(this.pair.prevX.subarray(0, count));
+      this.prevY.update(this.pair.prevY.subarray(0, count));
+      this.curX.update(snapshot.x);
+      this.curY.update(snapshot.y);
+      return;
+    }
+    if (this.placeX.length < count * 2) {
+      this.placeX = new Int16Array(count * 3);
+      this.placeY = new Int16Array(count * 3);
+    }
+    const x = Math.max(-32768, Math.min(32767, this.placedX));
+    const y = Math.max(-32768, Math.min(32767, this.placedY));
+    const prevX = this.placeX.subarray(0, count), curX = this.placeX.subarray(count, count * 2);
+    const prevY = this.placeY.subarray(0, count), curY = this.placeY.subarray(count, count * 2);
+    prevX.set(this.pair.prevX.subarray(0, count));
+    prevY.set(this.pair.prevY.subarray(0, count));
+    curX.set(snapshot.x.subarray(0, count));
+    curY.set(snapshot.y.subarray(0, count));
+    prevX[slot] = curX[slot] = x;
+    prevY[slot] = curY[slot] = y;
+    this.prevX.update(prevX);
+    this.prevY.update(prevY);
+    this.curX.update(curX);
+    this.curY.update(curY);
   }
 
   /** Sets the interpolation point between the last two snapshots. */
