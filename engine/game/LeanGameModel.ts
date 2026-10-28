@@ -29,6 +29,7 @@ import {
 import type { InputManager } from "yage/inputs/InputManager";
 import { FIXED_TIMESTEP_MS } from "yage/game/Timing";
 import { isGamePaused } from "yage/game/pause";
+import { beginFrame, endFrame } from "yage/game/FrameBudget";
 import { deleteWorld, leanWorldType, type LeanWorldSpec, type LeanWorldType } from "yage/world/lean";
 import { single, singleEntity, type SingleKey } from "yage/world/single";
 
@@ -51,7 +52,7 @@ export type LeanGameModel = World & {
   step(dt?: number): void;
   /** Runs the draw systems once. */
   stepDraw(): void;
-  /** step(dt) then stepDraw(): one frame of a scene loop. */
+  /** step(dt) then stepDraw(): one frame of a scene loop (marked for yage/game/FrameBudget). */
   run(dt?: number): void;
   addEntity(): number;
   removeEntity(entity: number): void;
@@ -117,8 +118,10 @@ export const createLeanGameModel = (options: LeanGameModelOptions = {}): LeanGam
       if (!model.destroyed) stepWorldDraw(world);
     },
     run(dt?: number) {
+      beginFrame();
       model.step(dt);
       model.stepDraw();
+      endFrame();
     },
     addEntity: () => addEntity(world),
     removeEntity: (entity: number) => {

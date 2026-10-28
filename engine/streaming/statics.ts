@@ -17,6 +17,7 @@
  * are behind it (someone inside) stays hidden. A faded roof (alpha ≤ 0.6) drops its occluder.
  */
 import * as PIXI from "pixi.js";
+import { withinFrame } from "../game/FrameBudget";
 import { rotatedBounds, toLocal, type Point, type Rect, type VectorMesh } from "./vector";
 
 /** A Pixi geometry with `aVertexPosition` plus one attribute per mesh attribute (`uv` → `aUv`). */
@@ -187,6 +188,8 @@ export const occluderMesh = (w: number, h: number, angle: number) => {
 };
 
 /** World px per side of a StaticSet's lookup cell. */
+/** Squared distance from a bounds' centre to a point. */
+const distance = (b: Rect, x: number, y: number) => ((b.minX + b.maxX) / 2 - x) ** 2 + ((b.minY + b.maxY) / 2 - y) ** 2;
 const CELL = 512;
 const cellKey = (i: number, j: number) => (i & 0xffff) * 65536 + (j & 0xffff);
 
@@ -207,7 +210,15 @@ export class StaticSet {
      * listed (ChunkScene's `buildStatics: "seen"`): instances never looked at cost nothing.
      */
     private readonly lazy = false,
+    /**
+     * Milliseconds a cull may spend building newly seen instances (lazy only), nearest the view's
+     * centre first and within the frame's shared budget (yage/game/FrameBudget); the rest stay
+     * hidden until a later cull. At least one builds per cull.
+     */
+    private readonly buildBudget = Infinity,
   ) {}
+
+  private readonly seen: StaticInstance[] = [];
 
   /** Listed instances whose parts are not built yet (lazy only). */
   private readonly unbuilt = new Set<StaticInstance>();
@@ -304,15 +315,38 @@ export class StaticSet {
   }
 
   cull(view: Rect) {
+    const seen = this.seen;
     for (const item of this.items.values()) {
       const b = item.bounds;
       const visible = b.maxX >= view.minX && b.minX <= view.maxX && b.maxY >= view.minY && b.minY <= view.maxY;
-      if (visible && this.unbuilt.delete(item)) this.build(item);
+      if (visible && this.unbuilt.has(item)) {
+        seen.push(item);
+        continue;
+      }
       item.under.visible = visible;
       item.over.visible = visible && item.over.children.length > 0;
       // A faded roof (someone inside) shows the people under it.
       if (item.occluder) item.occluder.visible = item.over.alpha > 0.6;
     }
+    if (!seen.length) return;
+    const cx = (view.minX + view.maxX) / 2;
+    const cy = (view.minY + view.maxY) / 2;
+    const budgeted = this.buildBudget < Infinity;
+    if (budgeted) seen.sort((a, b) => distance(a.bounds, cx, cy) - distance(b.bounds, cx, cy));
+    const build = (budget: number) => {
+      const started = performance.now();
+      for (const item of seen) {
+        if (item !== seen[0] && performance.now() - started >= budget) break;
+        this.unbuilt.delete(item);
+        this.build(item);
+        item.under.visible = true;
+        item.over.visible = item.over.children.length > 0;
+      }
+    };
+    // A budget is shared with the frame's other deferrable work (yage/game/FrameBudget).
+    if (budgeted) withinFrame(this.buildBudget, build);
+    else build(Infinity);
+    seen.length = 0;
   }
 
   setTint(rgb: number) {

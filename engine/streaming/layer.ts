@@ -659,6 +659,8 @@ export type ChunkSceneOptions = {
    * camera reaches it.
    */
   buildStatics?: "listed" | "seen";
+  /** With `buildStatics: "seen"`, milliseconds an update may spend building them (nearest first); default unbounded. */
+  staticBudget?: number;
 };
 
 type ChunkView = {
@@ -699,7 +701,7 @@ export class ChunkScene {
 
   constructor(options: ChunkSceneOptions) {
     this.options = options;
-    this.statics = new StaticSet(this.staticRoot, this.overRoot, !!options.roofDepth, options.buildStatics === "seen");
+    this.statics = new StaticSet(this.staticRoot, this.overRoot, !!options.roofDepth, options.buildStatics === "seen", options.staticBudget);
     this.entities = new LayerKind(options.style);
     const props = options.props ? (Array.isArray(options.props) ? options.props : [options.props]) : [];
     this.propKinds = props.map((style: ChunkLayerStyle) => new LayerKind(style));

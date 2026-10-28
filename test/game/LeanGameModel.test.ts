@@ -95,7 +95,7 @@ describe("LeanGameModel", () => {
     const metadata = result.metafile;
     if (!metadata) throw new Error("Build did not return its requested metadata");
     const engine = Object.keys(metadata.inputs).filter((p) => p.includes("engine/")).map((p) => p.slice(p.indexOf("engine/"))).sort();
-    expect(engine).toEqual(["engine/game/LeanGameModel.ts", "engine/game/Timing.ts", "engine/game/pause.ts", "engine/world/columns.ts", "engine/world/context.ts", "engine/world/lean.ts", "engine/world/save.ts", "engine/world/single.ts"]);
+    expect(engine).toEqual(["engine/game/FrameBudget.ts", "engine/game/LeanGameModel.ts", "engine/game/Timing.ts", "engine/game/pause.ts", "engine/world/columns.ts", "engine/world/context.ts", "engine/world/lean.ts", "engine/world/save.ts", "engine/world/single.ts"]);
     expect(Object.keys(metadata.inputs).some((p) => /rapier|pixi/.test(p))).toBe(false);
   });
 });

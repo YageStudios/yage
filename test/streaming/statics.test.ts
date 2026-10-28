@@ -157,6 +157,23 @@ describe("ChunkScene static instances", () => {
     scene.destroy();
   });
 
+  it("built when seen within a budget, builds the nearest first and at least one per update", () => {
+    // A zero budget leaves room for exactly the one guaranteed build each update.
+    const scene = new ChunkScene({ chunkSize: 100, style, buildStatics: "seen", staticBudget: 0 });
+    const built: string[] = [];
+    scene.setStatics(0, 0, [spec("far", 300, 300, 0, built), spec("mid", 120, 120, 0, built), spec("near", -20, -10, 0, built)]);
+    const view = { minX: -100, minY: -100, maxX: 400, maxY: 400 };
+    scene.update({ minX: -100, minY: -100, maxX: 100, maxY: 100 });
+    expect(built).toEqual(["near"]);
+    scene.update(view);
+    expect(built).toEqual(["near", "mid"]);
+    expect(scene.statics.items.get("far")!.under.visible).toBe(false);
+    scene.update(view);
+    expect(built).toEqual(["near", "mid", "far"]);
+    expect(scene.statics.items.get("far")!.under.visible).toBe(true);
+    scene.destroy();
+  });
+
   it("gives every roof point the depth of the footprint's near edge straight below it", () => {
     for (const angle of [0, 0.3, Math.PI / 4, 1.2, Math.PI / 2, 2.5, Math.PI, -0.7]) {
       const w = 40;
