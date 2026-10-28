@@ -36,7 +36,7 @@
  * Save (v7) serializes chunks without unloading them, for a checkpoint: stamped in lockstep, a
  * host takes them at the start of the stamped tick, before stepping it, and answers with Saved.
  */
-import { deserializeWorld, SerialMode, type Schema, type World } from "minecs";
+import { deserializeWorld, SerialMode, stepWorld, type Schema, type World } from "minecs";
 import { deleteWorld, leanWorldType, type LeanWorldSpec, type LeanWorldType } from "../world/lean";
 import { saveWorld } from "../world/save";
 import { chunkHash, chunkX, chunkY, spaceChunkKey } from "./coord";
@@ -115,6 +115,18 @@ export type RestoreContext = {
   lead?: number;
   /** As StepContext.shadow. */
   shadow?: boolean;
+};
+
+/**
+ * Runs a chunk world's systems for one step on the run's clock: the world's frame is the host tick
+ * and the step covers `ctx.ticks` frames. A system scheduled with frameMod/frameModOffset then runs
+ * on the same ticks on every host and after any reload, and a warm step (several ticks at once)
+ * runs it when one of its ticks falls inside the step. ChunkModule.step calls this, not stepWorld.
+ */
+export const stepChunkWorld = (world: World, ctx: StepContext) => {
+  const ticks = Math.max(1, ctx.ticks);
+  world.frame = ctx.tick - ticks;
+  stepWorld(world, ticks);
 };
 
 export interface ChunkModule {
