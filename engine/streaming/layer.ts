@@ -474,6 +474,10 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   private readonly poseBuffer: PIXI.Buffer;
   private poseData = new Float32Array(2);
   private poses: readonly PoseEntry[] = [];
+  /** Poses sent ahead of the drawn snapshot, applied as their tick is reached (oldest first). */
+  private posesAhead: { tick: number; poses: readonly PoseEntry[] }[] = [];
+  /** The pair's version last written to the buffers. */
+  private written = -1;
   private extent: number;
   /** The entity drawn where the page puts it (`place`), not between its snapshots; -1 none. */
   private placedGid = -1;
@@ -482,7 +486,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   private placeX = new Int16Array(0);
   private placeY = new Int16Array(0);
 
-  constructor(kind: LayerKind, extent: number, expectedInterval: number) {
+  constructor(kind: LayerKind, extent: number, expectedInterval: number, tickInterval = expectedInterval) {
     // Each layer has its own shader objects (one program, shared uniform group) for its own alpha.
     const corners = new PIXI.Buffer(new Float32Array([-0.5, -1, 0.5, -1, 0.5, 0, -0.5, 0]), true);
     const empty16 = () => new PIXI.Buffer(new Int16Array(1), false);
@@ -547,7 +551,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     this.tintBuffer = tint;
     this.poseBuffer = pose;
     this.extent = extent;
-    this.pair = new SnapshotPair(expectedInterval);
+    this.pair = new SnapshotPair(expectedInterval, tickInterval);
     for (const mesh of this.companions()) {
       mesh.eventMode = "none";
       mesh.visible = false;
@@ -573,27 +577,47 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     for (const mesh of this.companions()) mesh.visible = visible;
   }
 
+  /** Queues a snapshot for the pair's playout (the first, or a stale one, shows at once). */
   push(snapshot: Snapshot, now: number) {
     this.pair.push(snapshot, now);
-    const count = snapshot.count;
+    if (this.write()) this.setVisible(snapshot.count > 0);
+  }
+
+  /** Entities in the drawn snapshot. */
+  get count() {
+    return this.pair.current?.count ?? 0;
+  }
+
+  /** Writes the pair's current snapshot to the buffers if it changed; true if it did. */
+  private write() {
+    if (this.pair.version === this.written) return false;
+    this.written = this.pair.version;
+    const snapshot = this.pair.current!;
+    let ahead = 0;
+    while (ahead < this.posesAhead.length && this.posesAhead[ahead].tick <= snapshot.tick) this.poses = this.posesAhead[ahead++].poses;
+    if (ahead) this.posesAhead.splice(0, ahead);
     this.writePositions();
     this.sprite.update(snapshot.sprite);
     this.tintBuffer.update(snapshot.tint);
-    this.geometry.instanceCount = count;
+    this.geometry.instanceCount = snapshot.count;
     this.writePoses();
-    this.setVisible(count > 0);
-  }
-
-  get count() {
-    return this.geometry.instanceCount;
+    return true;
   }
 
   /**
    * Poses some slots (lying turned by `turn` radians, clockwise on screen, from upright; sitting);
    * every other slot stands. Kept across snapshots until the next call, so a slot keeps its pose
-   * while the snapshots that move it arrive between pose updates.
+   * while the snapshots that move it arrive between pose updates. Given the tick they were taken
+   * on, they wait for the drawn snapshot to reach it, so a pose turns with the snapshot it goes with.
    */
-  setPoses(poses: readonly PoseEntry[]) {
+  setPoses(poses: readonly PoseEntry[], tick?: number) {
+    const drawn = this.pair.current?.tick;
+    if (tick !== undefined && drawn !== undefined && tick > drawn) {
+      while (this.posesAhead.length && this.posesAhead[this.posesAhead.length - 1].tick >= tick) this.posesAhead.pop();
+      this.posesAhead.push({ tick, poses });
+      return;
+    }
+    this.posesAhead.length = 0;
     this.poses = poses;
     this.writePoses();
   }
@@ -661,8 +685,10 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     this.curY.update(curY);
   }
 
-  /** Sets the interpolation point between the last two snapshots. */
+  /** Plays the snapshots out to `now` and sets the interpolation point between the drawn two. */
   interpolate(now: number) {
+    this.pair.advance(now);
+    this.write();
     const alpha = this.pair.alpha(now);
     for (const mesh of this.companions()) mesh.shader.uniforms.uAlpha = alpha;
   }
@@ -696,6 +722,8 @@ export type ChunkSceneOptions = {
   props?: ChunkLayerStyle | readonly ChunkLayerStyle[];
   /** Expected milliseconds between snapshots, used until real arrivals are measured. */
   snapshotInterval?: number;
+  /** Milliseconds per sim tick, the rate snapshots are played out at (default `snapshotInterval`). */
+  tickInterval?: number;
   /**
    * Depth-sorted roofs: static instances' over parts draw before the sprites, each hiding the
    * sprites behind its near edge by depth (see statics.ts), so people in front of a building draw
@@ -825,7 +853,7 @@ export class ChunkScene {
   }
 
   private createLayer(kind: LayerKind, cx: number, cy: number, expectedInterval = this.options.snapshotInterval ?? 50) {
-    const layer = new ChunkLayer(kind, this.options.chunkSize, expectedInterval);
+    const layer = new ChunkLayer(kind, this.options.chunkSize, expectedInterval, this.options.tickInterval ?? expectedInterval);
     layer.setPosition(cx * this.options.chunkSize, cy * this.options.chunkSize);
     if (this.options.roofDepth) for (const pass of [layer.shadow, layer.glow]) if (pass) pass.state.depthTest = true;
     if (layer.shadow) this.shadowRoot.addChild(layer.shadow);
@@ -863,8 +891,8 @@ export class ChunkScene {
   }
 
   /** Poses a chunk's entities (see `ChunkLayer.setPoses`); nothing until its layer exists. */
-  setPoses(cx: number, cy: number, poses: readonly PoseEntry[]) {
-    this.views.get(chunkKey(cx, cy))?.layer?.setPoses(poses);
+  setPoses(cx: number, cy: number, poses: readonly PoseEntry[], tick?: number) {
+    this.views.get(chunkKey(cx, cy))?.layer?.setPoses(poses, tick);
   }
 
   /** Drops a chunk's entity layer (e.g. when it stops being hot), keeping its ground. */
@@ -903,6 +931,8 @@ export class ChunkScene {
       if (chunk.decals) chunk.decals.visible = inView;
       for (const props of chunk.propSets) props?.setVisible(inView && props.count > 0);
       if (chunk.layer) {
+        // Off screen too, so what reads the pair (effects, sounds) keeps time and the queue drains.
+        chunk.layer.pair.advance(now);
         const visible = inView && chunk.layer.count > 0;
         chunk.layer.setVisible(visible);
         if (visible) {

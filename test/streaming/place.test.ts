@@ -29,6 +29,7 @@ describe("ChunkLayer place", () => {
     // The next snapshot moves gid 8 to another slot: it stays placed; the snapshot itself is untouched.
     const next = snapshot(2, [8, 9], [21, 31]);
     scene.push(next, 50);
+    layer.interpolate(Infinity);
     expect(drawn("aCurX")).toEqual([5 * POSITION_SCALE, 31]);
     expect([...next.x]).toEqual([21, 31]);
     expect(drawn("aPrevX")).toEqual([5 * POSITION_SCALE, 31]);

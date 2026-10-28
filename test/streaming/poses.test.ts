@@ -19,11 +19,24 @@ describe("ChunkScene poses", () => {
     expect([...layer.poseArray]).toEqual([0, 0, 1, 0.5, 0, 0, 3, 0]);
     // A bigger snapshot: the poses still apply, the new slots stand.
     scene.push(createSnapshot(0, 0, 2, 6), 50);
+    layer.interpolate(Infinity);
     expect([...layer.poseArray]).toEqual([0, 0, 1, 0.5, 0, 0, 3, 0, 0, 0, 0, 0]);
     scene.setPoses(0, 0, []);
     expect(layer.poseArray.every((v) => v === 0)).toBe(true);
     // No layer yet: nothing to pose, nothing thrown.
     scene.setPoses(5, 5, [{ slot: 0, pose: POSE.Lie, turn: 1 }]);
+    scene.destroy();
+  });
+
+  it("holds poses taken on a tick the drawn snapshot has not reached until it does", () => {
+    const scene = new ChunkScene({ chunkSize: 2048, style });
+    scene.push(createSnapshot(0, 0, 1, 2), 0);
+    const layer = scene.view(0, 0).layer!;
+    scene.push(createSnapshot(0, 0, 2, 2), 50);
+    scene.setPoses(0, 0, [{ slot: 1, pose: POSE.Lie, turn: 0 }], 2);
+    expect([...layer.poseArray]).toEqual([0, 0, 0, 0]);
+    layer.interpolate(Infinity);
+    expect([...layer.poseArray]).toEqual([0, 0, 1, 0]);
     scene.destroy();
   });
 });
