@@ -49,6 +49,10 @@ void main() {
 /** How far (world units) in front of its foot a quad is: it draws over the entity standing there (smaller is lost to the depth buffer's rounding). */
 export const DEPTH_NUDGE = 1.5;
 
+/** A part of a texture, 0-1 of each side. */
+export type QuadFrame = { x: number; y: number; width: number; height: number };
+const FULL: QuadFrame = { x: 0, y: 0, width: 1, height: 1 };
+
 export class DepthQuads extends PIXI.Mesh<PIXI.Shader> {
   /** Quads this frame. */
   count = 0;
@@ -88,9 +92,9 @@ export class DepthQuads extends PIXI.Mesh<PIXI.Shader> {
   /**
    * The texture drawn `width` × `height` (world units; a negative height flips it), its anchor
    * (0-1 of each side) at (x, y), turned by `rotation`, tinted, in front of the entity whose feet
-   * are at (footX, footY).
+   * are at (footX, footY). `frame` picks part of the texture (0-1 of each side): one cell of an atlas.
    */
-  quad(x: number, y: number, width: number, height: number, anchorX: number, anchorY: number, rotation: number, tint: number, alpha: number, footX: number, footY: number) {
+  quad(x: number, y: number, width: number, height: number, anchorX: number, anchorY: number, rotation: number, tint: number, alpha: number, footX: number, footY: number, frame = FULL) {
     if (this.count === this.capacity) this.grow();
     const q = this.count++;
     const cos = Math.cos(rotation), sin = Math.sin(rotation);
@@ -102,8 +106,8 @@ export class DepthQuads extends PIXI.Mesh<PIXI.Shader> {
       const i = q * 4 + c;
       this.pos[i * 2] = x + lx * cos - ly * sin;
       this.pos[i * 2 + 1] = y + lx * sin + ly * cos;
-      this.uv[i * 2] = u;
-      this.uv[i * 2 + 1] = v;
+      this.uv[i * 2] = frame.x + u * frame.width;
+      this.uv[i * 2 + 1] = frame.y + v * frame.height;
       this.color.set([r, g, b, alpha], i * 4);
       this.foot[i * 2] = footX;
       this.foot[i * 2 + 1] = footY + DEPTH_NUDGE;
