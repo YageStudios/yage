@@ -54,14 +54,14 @@ describe("stepChunkWorld", () => {
     expect(late.world.frame).toBe(12);
   });
 
-  it("runs a scheduled system on a warm step that covers one of its ticks", () => {
+  it("runs every system once on a warm step, scheduled or not", () => {
     const warm = chunk();
-    // Ticks 1-8 (covers 3 and 6: runs once), 9 (runs), 10-11 (none of its ticks), 12-13 (12: runs).
     stepChunkWorld(warm.world, ctx(8, 8));
-    stepChunkWorld(warm.world, ctx(9, 1));
-    stepChunkWorld(warm.world, ctx(11, 2));
-    stepChunkWorld(warm.world, ctx(13, 2));
-    expect(warm.runs().ticks).toEqual([8, 9, 13]);
-    expect(warm.runs().every).toBe(4);
+    stepChunkWorld(warm.world, ctx(16, 8));
+    expect(warm.runs().ticks).toEqual([8, 16]);
+    expect(warm.runs().every).toBe(2);
+    // Back to hot steps: the schedule picks up on the run's ticks (18, 21).
+    for (let tick = 17; tick <= 21; tick++) stepChunkWorld(warm.world, ctx(tick));
+    expect(warm.runs().ticks).toEqual([8, 16, 18, 21]);
   });
 });

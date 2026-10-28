@@ -36,7 +36,7 @@
  * Save (v7) serializes chunks without unloading them, for a checkpoint: stamped in lockstep, a
  * host takes them at the start of the stamped tick, before stepping it, and answers with Saved.
  */
-import { deserializeWorld, SerialMode, stepWorld, type Schema, type World } from "minecs";
+import { deserializeWorld, SerialMode, stepWorld, type Schema, type SystemImpl, type World } from "minecs";
 import { deleteWorld, leanWorldType, type LeanWorldSpec, type LeanWorldType } from "../world/lean";
 import { saveWorld } from "../world/save";
 import { chunkHash, chunkX, chunkY, spaceChunkKey } from "./coord";
@@ -118,15 +118,24 @@ export type RestoreContext = {
 };
 
 /**
- * Runs a chunk world's systems for one step on the run's clock: the world's frame is the host tick
- * and the step covers `ctx.ticks` frames. A system scheduled with frameMod/frameModOffset then runs
- * on the same ticks on every host and after any reload, and a warm step (several ticks at once)
- * runs it when one of its ticks falls inside the step. ChunkModule.step calls this, not stepWorld.
+ * Runs a chunk world's systems for one step. A hot step (one tick) is one frame on the run's clock:
+ * the world's frame is the host tick, so a system's frameMod/frameModOffset lands on the same ticks on
+ * every host and after any reload. A warm step already covers several ticks, so every system runs
+ * once, scheduled or not. ChunkModule.step calls this, not stepWorld.
  */
 export const stepChunkWorld = (world: World, ctx: StepContext) => {
-  const ticks = Math.max(1, ctx.ticks);
-  world.frame = ctx.tick - ticks;
-  stepWorld(world, ticks);
+  if (ctx.ticks <= 1) {
+    world.frame = ctx.tick - 1;
+    stepWorld(world);
+    return;
+  }
+  world.frame = ctx.tick;
+  // minecs' step list: world.systems in run order, past the manual (negative depth) ones.
+  for (const system of world.systems) {
+    const type = system.constructor as typeof SystemImpl;
+    if (type.depth < 0) continue;
+    if (type.runEmpty || system.query(world).length) system.runAll(world);
+  }
 };
 
 export interface ChunkModule {
