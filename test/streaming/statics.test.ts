@@ -118,6 +118,21 @@ describe("ChunkScene static instances", () => {
     plain.destroy();
   });
 
+  it("finds instances across lookup cells, off the origin, until they are dropped", () => {
+    const scene = new ChunkScene({ chunkSize: 1024, style });
+    // Straddling the cell edge at x = 512, and one in negative space.
+    scene.setStatics(0, 0, [spec("edge", 500, 100), spec("west", -700, -300)]);
+    expect(scene.statics.at(505, 110).map((i) => i.spec.id)).toEqual(["edge"]);
+    expect(scene.statics.at(535, 110).map((i) => i.spec.id)).toEqual(["edge"]);
+    expect(scene.statics.at(-680, -290).map((i) => i.spec.id)).toEqual(["west"]);
+    expect(scene.statics.at(700, 110)).toEqual([]);
+    scene.setStatics(0, 0, [spec("west", -700, -300)]);
+    expect(scene.statics.at(535, 110)).toEqual([]);
+    scene.setStatics(0, 0, null);
+    expect(scene.statics.at(-680, -290)).toEqual([]);
+    scene.destroy();
+  });
+
   it("built when seen, builds each instance the first time a cull finds it in view, occluder included", () => {
     const scene = new ChunkScene({ chunkSize: 100, style, roofDepth: true, buildStatics: "seen" });
     const built: string[] = [];

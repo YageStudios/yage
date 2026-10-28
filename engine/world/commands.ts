@@ -37,3 +37,29 @@ export const drainCommands = <T>(queue: Commands<T>, each: (command: T) => void)
     list.length = 0;
   }
 };
+
+/**
+ * Drains like drainCommands, but stops once `budgetMs` has passed since `started` (the frame's
+ * start, by default now): the commands not reached stay queued, in order, for the next drain.
+ * At least one command runs per drain, so a queue always makes progress. Returns how many are left.
+ * For owners whose commands are heavy (building art), so a burst spreads over frames.
+ */
+export const drainCommandsWithin = <T>(
+  queue: Commands<T>,
+  budgetMs: number,
+  each: (command: T) => void,
+  now: () => number = () => performance.now(),
+  started = now()
+): number => {
+  const list = queue.commands;
+  let i = 0;
+  try {
+    while (i < list.length) {
+      each(list[i++]);
+      if (now() - started >= budgetMs) break;
+    }
+  } finally {
+    list.splice(0, i);
+  }
+  return list.length;
+};

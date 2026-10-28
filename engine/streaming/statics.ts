@@ -186,9 +186,15 @@ export const occluderMesh = (w: number, h: number, angle: number) => {
   return mesh;
 };
 
+/** World px per side of a StaticSet's lookup cell. */
+const CELL = 512;
+const cellKey = (i: number, j: number) => (i & 0xffff) * 65536 + (j & 0xffff);
+
 /** The instances of a scene; see ChunkScene.setStatics. */
 export class StaticSet {
   readonly items = new Map<string | number, StaticInstance>();
+  /** Each lookup cell's instances (those whose bounds reach it), so `at` looks only near the point. */
+  private readonly cells = new Map<number, StaticInstance[]>();
   private tint = 0xffffff;
 
   constructor(
@@ -240,6 +246,7 @@ export class StaticSet {
         this.overRoot.addChild(over);
         item = { spec, under, over, occluder: null, bounds: rotatedBounds(spec.x, spec.y, spec.w, spec.h, spec.angle), holders: new Set() };
         this.items.set(spec.id, item);
+        this.index(item, true);
         if (this.lazy) {
           // Hidden until a cull sees it and builds it.
           under.visible = over.visible = false;
@@ -261,13 +268,32 @@ export class StaticSet {
     item.under.destroy({ children: true });
     item.over.destroy({ children: true });
     this.items.delete(item.spec.id);
+    this.index(item, false);
     this.unbuilt.delete(item);
+  }
+
+  /** Adds `item` to (or takes it from) every lookup cell its bounds reach. */
+  private index(item: StaticInstance, add: boolean) {
+    const b = item.bounds;
+    for (let j = Math.floor(b.minY / CELL); j <= Math.floor(b.maxY / CELL); j++) {
+      for (let i = Math.floor(b.minX / CELL); i <= Math.floor(b.maxX / CELL); i++) {
+        const key = cellKey(i, j);
+        const cell = this.cells.get(key);
+        if (add) {
+          if (cell) cell.push(item);
+          else this.cells.set(key, [item]);
+        } else if (cell) {
+          cell.splice(cell.indexOf(item), 1);
+          if (!cell.length) this.cells.delete(key);
+        }
+      }
+    }
   }
 
   /** Instances whose local rectangle contains the world point. */
   at(x: number, y: number) {
     const hits: StaticInstance[] = [];
-    for (const item of this.items.values()) {
+    for (const item of this.cells.get(cellKey(Math.floor(x / CELL), Math.floor(y / CELL))) ?? []) {
       const b = item.bounds;
       if (x < b.minX || x > b.maxX || y < b.minY || y > b.maxY) continue;
       const s = item.spec;
@@ -304,6 +330,7 @@ export class StaticSet {
       item.over.destroy({ children: true });
     }
     this.items.clear();
+    this.cells.clear();
     this.unbuilt.clear();
   }
 }

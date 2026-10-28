@@ -1,7 +1,7 @@
 import { addComponent, addEntity, Component, System, SystemImpl, type World } from "minecs";
 import { describe, expect, test } from "vitest";
 import { createLeanGameModel } from "yage/game/LeanGameModel";
-import { Commands, drainCommands, pushCommand } from "yage/world/commands";
+import { Commands, drainCommands, drainCommandsWithin, pushCommand } from "yage/world/commands";
 
 type Order = { kind: "add" | "mul"; value: number };
 
@@ -63,5 +63,26 @@ describe("command queues", () => {
     pushCommand(model.getTypedUnsafe(Orders, a), { kind: "add", value: 1 });
     expect(model.getTypedUnsafe(Orders, b).commands).toEqual([]);
     model.destroy();
+  });
+
+  test("a budgeted drain stops when the budget is spent and keeps the rest queued in order", () => {
+    const queue = { commands: [1, 2, 3, 4, 5] } as Commands<number>;
+    let clock = 0;
+    const seen: number[] = [];
+    // Each command costs 2ms of a 5ms budget: three run (2, 4, 6 >= 5), two stay.
+    const left = drainCommandsWithin(queue, 5, (n) => { seen.push(n); clock += 2; }, () => clock, 0);
+    expect(seen).toEqual([1, 2, 3]);
+    expect(left).toBe(2);
+    expect(queue.commands).toEqual([4, 5]);
+    clock = 100;
+    expect(drainCommandsWithin(queue, 5, (n) => seen.push(n), () => clock, 100)).toBe(0);
+    expect(seen).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  test("a budgeted drain always makes progress, even past its budget", () => {
+    const queue = { commands: ["a", "b"] } as Commands<string>;
+    const seen: string[] = [];
+    expect(drainCommandsWithin(queue, 1, (c) => seen.push(c), () => 50, 0)).toBe(1);
+    expect(seen).toEqual(["a"]);
   });
 });
