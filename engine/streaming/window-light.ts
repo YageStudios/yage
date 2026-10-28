@@ -8,9 +8,13 @@
  * pool near the wall. A blind is a smaller opening: one let nearly down leaves a slit at the sill
  * that throws a thin strip of light just out from the wall.
  *
+ * A sign glowing on the wall (neon) is the same opening with no lamp through it: only its glow.
+ *
  * Built in a wall's frame lying on the ground: x along the wall, y out from its foot (0 at the
- * wall), z (heights) up from the ground. Draw it added (BLEND_MODES.ADD); the mesh's tint and
- * alpha scale it.
+ * wall), z (heights) up from the ground. Light is light, not paint: the meshes are not drawn into
+ * the scene but added into a light buffer (`LightPass`, the screen's light, drawn before the ground),
+ * which a surface's shader adds to its own ambient light before multiplying its colour by it:
+ * colour × (ambient + light), each light's colour multiplying the ground's. Its alpha scales it.
  */
 import * as PIXI from "pixi.js";
 
@@ -28,6 +32,9 @@ export type WindowLight = {
   colour: number;
   /** 1 a plain lit room; less through a blind or a dim lamp. */
   strength: number;
+  /** How much of the lamp's light comes through the opening (1), and how much the opening glows itself (1): a neon sign is all glow. */
+  direct?: number;
+  glow?: number;
 };
 
 const vertex = `
@@ -36,14 +43,17 @@ attribute vec2 aVertexPosition;
 attribute vec4 aOpening;
 attribute vec2 aLamp;
 attribute vec4 aLight;
+attribute vec2 aMix;
 uniform mat3 projectionMatrix;
 uniform mat3 translationMatrix;
 varying vec2 vPos;
 varying vec4 vOpening;
 varying vec2 vLamp;
 varying vec4 vLight;
+varying vec2 vMix;
 
 void main() {
+  vMix = aMix;
   gl_Position = vec4((projectionMatrix * translationMatrix * vec3(aVertexPosition, 1.0)).xy, 0.0, 1.0);
   vPos = aVertexPosition;
   vOpening = aOpening;
@@ -58,9 +68,12 @@ varying vec2 vPos;
 varying vec4 vOpening;
 varying vec2 vLamp;
 varying vec4 vLight;
-uniform vec4 uColor;
+varying vec2 vMix;
+uniform float uAlpha;
 
 const float PI = 3.14159265;
+// A lamp's pool at the wall's foot: a soft room light, well under daylight.
+const float GAIN = 0.32;
 
 // The form factor of an edge of a polygon light seen from a point facing straight up.
 float edge(vec3 a, vec3 b) {
@@ -78,7 +91,8 @@ void main() {
   // softened by the lamp's size, more the further out the point is.
   float t = depth / (p.y + depth);
   vec2 hit = vec2(lamp.x + (p.x - lamp.x) * t, height * (1.0 - t));
-  float soft = 0.35 + 2.5 * p.y / (p.y + depth);
+  // A lampshade, not a bulb: wide soft edges that widen further out.
+  float soft = 1.2 + 7.0 * p.y / (p.y + depth);
   float across = smoothstep(x0 - soft, x0 + soft, hit.x) * (1.0 - smoothstep(x1 - soft, x1 + soft, hit.x));
   float up = smoothstep(z0 - soft, z0 + soft, hit.y) * (1.0 - smoothstep(z1 - soft, z1 + soft, hit.y));
   vec3 toLamp = lamp - p;
@@ -90,17 +104,19 @@ void main() {
   vec3 a = normalize(vec3(x0, 0.0, z0) - p), b = normalize(vec3(x1, 0.0, z0) - p);
   vec3 c = normalize(vec3(x1, 0.0, z1) - p), d = normalize(vec3(x0, 0.0, z1) - p);
   float glow = abs(edge(a, b) + edge(b, c) + edge(c, d) + edge(d, a)) / (2.0 * PI);
-  float light = vLight.a * (0.55 * min(direct, 1.5) + 2.2 * glow);
-  gl_FragColor = vec4(vLight.rgb * light, 0.0) * uColor;
+  // Soft and never blinding: a lit room tints the pavement, it doesn't floodlight it.
+  float light = min(vLight.a * (vMix.x * 0.7 * min(direct, 1.4) + vMix.y * 5.0 * glow) * GAIN, 0.45) * uAlpha;
+  // Added into the light buffer.
+  gl_FragColor = vec4(vLight.rgb * light, 0.0);
 }
 `;
 
 /** How far out (and to the sides) of an opening its light is drawn, in openings' heights. */
-const REACH = 3.5;
+const REACH = 5;
 
 /** The ground quads for a wall's lit windows; share it between every wall drawn alike. */
 export const windowLightGeometry = (lights: WindowLight[]) => {
-  const pos: number[] = [], opening: number[] = [], lamp: number[] = [], light: number[] = [], index: number[] = [];
+  const pos: number[] = [], opening: number[] = [], lamp: number[] = [], light: number[] = [], mix: number[] = [], index: number[] = [];
   lights.forEach((l, q) => {
     const reach = Math.max(8, (l.lampHeight + l.lampDepth) * REACH * 0.5);
     const r = ((l.colour >> 16) & 255) / 255, g = ((l.colour >> 8) & 255) / 255, b = (l.colour & 255) / 255;
@@ -109,6 +125,7 @@ export const windowLightGeometry = (lights: WindowLight[]) => {
       opening.push(l.x0, l.x1, l.z0, l.z1);
       lamp.push(l.lampDepth, l.lampHeight);
       light.push(r, g, b, l.strength);
+      mix.push(l.direct ?? 1, l.glow ?? 1);
     }
     index.push(q * 4, q * 4 + 1, q * 4 + 2, q * 4, q * 4 + 2, q * 4 + 3);
   });
@@ -117,15 +134,92 @@ export const windowLightGeometry = (lights: WindowLight[]) => {
     .addAttribute("aOpening", opening, 4, false, GL_FLOAT as PIXI.TYPES)
     .addAttribute("aLamp", lamp, 2, false, GL_FLOAT as PIXI.TYPES)
     .addAttribute("aLight", light, 4, false, GL_FLOAT as PIXI.TYPES)
+    .addAttribute("aMix", mix, 2, false, GL_FLOAT as PIXI.TYPES)
     .addIndex(index);
 };
 
 let program: PIXI.Program | null = null;
+const lights = new Set<WindowLightMesh>();
 
-/** A wall's window light, from its shared geometry: tint and alpha it as the scene's light needs. */
-export const windowLightMesh = (geometry: PIXI.Geometry) => {
-  program ??= PIXI.Program.from(vertex, fragment, "window-light");
-  const mesh = new PIXI.Mesh(geometry, new PIXI.MeshMaterial(PIXI.Texture.WHITE, { program }));
-  mesh.blendMode = PIXI.BLEND_MODES.ADD;
-  return mesh;
+/** A wall's window light, from its shared geometry; its alpha (with its parents') scales the light. */
+export class WindowLightMesh extends PIXI.Mesh<PIXI.Shader> {
+  constructor(geometry: PIXI.Geometry) {
+    program ??= PIXI.Program.from(vertex, fragment, "window-light");
+    super(geometry, new PIXI.Shader(program, { uAlpha: 1 }));
+    this.blendMode = PIXI.BLEND_MODES.ADD;
+    lights.add(this);
+    this.on("destroyed", () => lights.delete(this));
+  }
+
+  /** Not drawn into the scene: `LightPass` adds it into the light buffer. */
+  render() {}
+
+  draw(renderer: PIXI.Renderer) {
+    if (this.worldAlpha <= 0.01 || !this.worldVisible) return;
+    this.shader.uniforms.uAlpha = this.worldAlpha;
+    this._render(renderer);
+  }
+}
+
+/** The screen's light (rgb added to a surface's ambient), redrawn every frame by `LightPass`. */
+let buffer: PIXI.RenderTexture | null = null;
+let uniforms: PIXI.UniformGroup | null = null;
+/**
+ * What a lit surface's shader samples: `uLights` at the fragment's place on screen,
+ * `texture2D(uLights, vec2(gl_FragCoord.x, uLightScreen.y - gl_FragCoord.y) / uLightScreen).rgb`.
+ * Add it to the shader's uniforms as a group.
+ */
+export const lightUniforms = () => {
+  buffer ??= PIXI.RenderTexture.create({ width: 1, height: 1 });
+  return (uniforms ??= PIXI.UniformGroup.from({ uLights: buffer, uLightScreen: new Float32Array([1, 1]) }));
+};
+
+/** How much finer the screen is than the light buffer: light is soft, so a coarse buffer does. */
+const COARSE = 2;
+
+/**
+ * Draws every window light in view into the light buffer. Add it to the camera's tree before the
+ * surfaces that sample it (ChunkScene does, under its ground); the tree's transforms are already
+ * this frame's when it draws, so the lights are where the camera puts them now.
+ */
+export class LightPass extends PIXI.Container {
+  render(renderer: PIXI.Renderer) {
+    const { width, height } = renderer.screen;
+    const group = lightUniforms();
+    const buffer = group.uniforms.uLights as PIXI.RenderTexture;
+    const screen = group.uniforms.uLightScreen as Float32Array;
+    if (screen[0] !== renderer.view.width || screen[1] !== renderer.view.height) {
+      screen[0] = renderer.view.width;
+      screen[1] = renderer.view.height;
+      group.update();
+    }
+    const fine = Math.max(1e-3, renderer.resolution / COARSE);
+    if (buffer.width !== width || buffer.height !== height || buffer.baseTexture.resolution !== fine) buffer.setResolution(fine), buffer.resize(width, height);
+    renderer.batch.flush();
+    const target = renderer.renderTexture;
+    const projection = renderer.projection;
+    const was = target.current ?? undefined;
+    const source = target.sourceFrame.clone();
+    const destination = target.destinationFrame.clone();
+    // A camera may sit in the projection (ProjectedCamera): what it adds to the target's own, carried
+    // into the buffer's so the lights land where the camera puts them.
+    const camera = projection.projectionMatrix.clone();
+    target.bind(was, source, destination);
+    const view = projection.projectionMatrix.clone().invert().append(camera);
+    target.bind(buffer, source);
+    projection.projectionMatrix.append(view);
+    sync(renderer);
+    target.clear([0, 0, 0, 0]);
+    for (const light of lights) light.draw(renderer);
+    renderer.batch.flush();
+    target.bind(was, source, destination);
+    projection.projectionMatrix.copyFrom(camera);
+    sync(renderer);
+  }
+}
+
+const sync = (renderer: PIXI.Renderer) => {
+  renderer.globalUniforms.update();
+  const bound = renderer.shader.shader;
+  if (bound) renderer.shader.syncUniformGroup(bound.uniforms.globals);
 };

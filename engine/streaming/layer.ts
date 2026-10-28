@@ -18,6 +18,7 @@ import { chunkKey } from "./coord";
 import { SnapshotPair } from "./interp";
 import { EMPTY_SLOT, POSITION_SCALE, type Snapshot } from "./protocol";
 import { StaticSet, tintTree, type StaticSpec } from "./statics";
+import { LightPass } from "./window-light";
 
 const GL_FLOAT = 5126;
 const GL_SHORT = 5122;
@@ -804,6 +805,8 @@ type ChunkView = {
  */
 export class ChunkScene {
   readonly root = new PIXI.Container();
+  /** The screen's light (window-light.ts), drawn first so the ground and decals can sample it. */
+  readonly lightPass = new LightPass();
   readonly groundRoot = new PIXI.Container();
   /** Per-chunk decals (road meshes…), over every chunk's ground. */
   readonly decalRoot = new PIXI.Container();
@@ -830,8 +833,8 @@ export class ChunkScene {
     this.entities = new LayerKind(options.style);
     const props = options.props ? (Array.isArray(options.props) ? options.props : [options.props]) : [];
     this.propKinds = props.map((style: ChunkLayerStyle) => new LayerKind(style));
-    if (options.roofDepth) this.root.addChild(this.groundRoot, this.decalRoot, this.staticRoot, this.overRoot, this.shadowRoot, this.entityRoot, this.edgeRoot);
-    else this.root.addChild(this.groundRoot, this.decalRoot, this.staticRoot, this.shadowRoot, this.entityRoot, this.edgeRoot, this.overRoot);
+    if (options.roofDepth) this.root.addChild(this.lightPass, this.groundRoot, this.decalRoot, this.staticRoot, this.overRoot, this.shadowRoot, this.entityRoot, this.edgeRoot);
+    else this.root.addChild(this.lightPass, this.groundRoot, this.decalRoot, this.staticRoot, this.shadowRoot, this.entityRoot, this.edgeRoot, this.overRoot);
   }
 
   setPalette(palette: number[]) {

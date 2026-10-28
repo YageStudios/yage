@@ -84,8 +84,13 @@ const place = (c: PIXI.Container, s: StaticSpec) => {
   c.rotation = s.angle;
 };
 
-/** Multiplies plain sprites, meshes with a mesh material, and graphics by `rgb`. */
+const EMISSIVE = new WeakSet<PIXI.DisplayObject>();
+/** Marks what gives light (a lit window, neon, a lamp's glow): the scene's tint never dims it or what it holds. */
+export const emissive = <T extends PIXI.DisplayObject>(object: T) => (EMISSIVE.add(object), object);
+
+/** Multiplies plain sprites, meshes with a mesh material, and graphics by `rgb`, all but what is emissive. */
 export const tintTree = (object: PIXI.DisplayObject, rgb: number) => {
+  if (EMISSIVE.has(object)) return;
   if (object instanceof PIXI.Sprite || object instanceof PIXI.Graphics) object.tint = rgb;
   else if (object instanceof PIXI.Mesh && object.shader instanceof PIXI.MeshMaterial) object.tint = rgb;
   if (object instanceof PIXI.Container) for (const child of object.children) tintTree(child, rgb);
