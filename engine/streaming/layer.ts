@@ -219,25 +219,33 @@ void main() {
 }
 `;
 
-// An upright sprite's shadow on the ground (ChunkLayerStyle `cast`): each texel `v` above the feet
-// lands `v · length` toward +x, +y (the sun in the north-west, as the statics' heights cast).
+// An upright sprite's shadow on the ground (ChunkLayerStyle `cast`): each texel `v` above where the
+// sprite stands lands `v · length` toward +x, +y from there (the sun in the north-west, as the
+// statics' heights cast), so the shadow starts at the feet.
 const castVertex = `${instanceHeader}
 uniform vec2 uGrid;
 uniform float uCastLength;
+uniform float uCastFeet;
 varying vec2 vUv;
 varying vec2 vCell;
+varying float vUp;
 
 void main() {
   if (aTint > ${EMPTY_SLOT - 0.5}) {
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
     vUv = vCell = vec2(0.0);
+    vUp = 0.0;
     return;
   }
   vec2 foot = footOf();
-  vec2 p = posedOf(aCorner, uSize * growOf());
-  float up = -p.y * uCastLength;
+  float grow = growOf();
+  vec2 p = posedOf(aCorner, uSize * grow);
+  float feet = uCastFeet * grow;
+  // Below the feet (the art's margin) lies nothing.
+  vUp = -p.y - feet;
+  float up = vUp * uCastLength;
   mat3 m = projectionMatrix * translationMatrix;
-  gl_Position = vec4((m * vec3(foot + vec2(p.x + up, up), 1.0)).xy, 0.0, 1.0);
+  gl_Position = vec4((m * vec3(foot + vec2(p.x + up, up - feet), 1.0)).xy, 0.0, 1.0);
   float column = floor(mod(aSprite + 0.5, uGrid.x));
   vec2 cell = vec2(column, floor((aSprite + 0.5) / uGrid.x));
   vUv = (cell + vec2(aCorner.x + 0.5, aCorner.y + 1.0)) / uGrid;
@@ -249,11 +257,12 @@ const castFragment = `
 precision mediump float;
 varying vec2 vUv;
 varying vec2 vCell;
+varying float vUp;
 uniform sampler2D uAtlas;
 uniform sampler2D uCasting;
 
 void main() {
-  if (texture2D(uCasting, vCell).a < 0.5 || texture2D(uAtlas, vUv).a < 0.5) discard;
+  if (vUp < 0.0 || texture2D(uCasting, vCell).a < 0.5 || texture2D(uAtlas, vUv).a < 0.5) discard;
   gl_FragColor = vec4(1.0);
 }
 `;
@@ -394,9 +403,10 @@ export type ChunkLayerStyle = {
   /**
    * The sun's shadows of upright sprites (a tree, a lamp post), with the statics' (ChunkScene
    * `castShadow`, shadow-pass.ts): each of `sprites` lays its silhouette on the ground toward the
-   * south-east, `length` (default 1) world units per unit it stands above its feet.
+   * south-east, `length` (default 1) world units per unit it stands above its feet, which are
+   * `feet` (default 0) world units above the sprite's bottom edge.
    */
-  cast?: { sprites: readonly number[]; length?: number };
+  cast?: { sprites: readonly number[]; length?: number; feet?: number };
   /**
    * Soft glowing halos around the silhouettes of some sprites (e.g. one sprite set), drawn under
    * every sprite and unaffected by `setLight`. At most four ranges (see GlowRange: one colour or a
@@ -619,7 +629,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
       castState.depthTest = false;
       castState.depthMask = false;
       castState.blend = false;
-      const uniforms = { uAlpha: 1, uAtlas: kind.style.atlas, uCasting: kind.casting, uCastLength: kind.style.cast.length ?? 1, shared: kind.shared };
+      const uniforms = { uAlpha: 1, uAtlas: kind.style.atlas, uCasting: kind.casting, uCastLength: kind.style.cast.length ?? 1, uCastFeet: kind.style.cast.feet ?? 0, shared: kind.shared };
       this.cast = new PIXI.Mesh(geometry, new PIXI.Shader(kind.castProgram, uniforms), castState);
     } else {
       this.cast = null;
