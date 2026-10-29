@@ -14,11 +14,13 @@
  * light tint moves on by more than TINT_STEP a channel: after the view's missing pictures, and no
  * sooner than REBAKE_MS after it was last made. Until then it keeps showing the old one, and an
  * instance added since shows as it is.
- * Alpha and other in-place changes (a roof fading while someone is inside) are not seen: from that
- * far they don't show.
+ * While an instance's over part is faded (a roof someone is inside), its whole chunk shows as it
+ * is in place of the picture: the inside stacks with the walls around it as the scene does. Other
+ * in-place changes are not seen: from that far they don't show.
  */
 import * as PIXI from "pixi.js";
 import { withinFrame } from "../game/FrameBudget";
+import { depthMesh } from "./statics";
 import type { Rect } from "./vector";
 
 export type FarBakeOptions = {
@@ -26,7 +28,7 @@ export type FarBakeOptions = {
   below: number;
   /** Texture px per world unit (default `below` times the renderer's resolution, at most 0.25). */
   resolution?: number;
-  /** World units a picture reaches past its chunk on each side, for instances that overhang it (default 160). */
+  /** World units a picture reaches past its chunk on each side at least (default 160); further where its instances reach. */
   pad?: number;
   /** Milliseconds a frame may spend making pictures, from the frame's shared budget (default 4). */
   budget?: number;
@@ -35,7 +37,7 @@ export type FarBakeOptions = {
 /** What a picture is made of: an instance's parts, as StaticSet holds them. */
 export type FarInstance = { under: PIXI.Container; over: PIXI.Container; occluder: PIXI.DisplayObject | null; bounds: Rect };
 
-type Tile = { sprite: PIXI.Sprite | null; dirty: boolean; tint: number; baked: Set<FarInstance>; at: number };
+type Tile = { sprite: PIXI.Sprite | null; depth: PIXI.Mesh<PIXI.Shader> | null; dirty: boolean; tint: number; baked: Set<FarInstance>; at: number; open: boolean; opening: boolean };
 
 const EMPTY = new PIXI.Container();
 /** Channels further apart than this make a picture stale. */
@@ -67,6 +69,8 @@ export class FarBake {
   ) {
     this.root.eventMode = "none";
     this.root.visible = false;
+    // Pictures overlap (a tall building rises up the screen into the chunk behind): nearer (lower) rows over further ones.
+    this.root.sortableChildren = true;
   }
 
   private keyOf(b: Rect) {
@@ -134,13 +138,17 @@ export class FarBake {
     const key = this.keys.get(item);
     if (key === undefined) return false;
     const tile = this.tiles.get(key);
-    return !!tile?.sprite && tile.baked.has(item);
+    if (!tile?.sprite) return false;
+    // Faded, the chunk shows as it is (from the next frame), so its inside stacks with its walls.
+    if (item.over.alpha < 1) tile.opening = true;
+    return !tile.open && tile.baked.has(item);
   }
 
   private drop(key: number) {
     const tile = this.tiles.get(key);
     if (!tile) return;
     if (tile.sprite) tile.sprite.destroy({ texture: true, baseTexture: true });
+    tile.depth?.destroy();
     this.tiles.delete(key);
   }
 
@@ -174,14 +182,20 @@ export class FarBake {
       const { x, y } = near(key);
       if (x < x0 - 2 || x > x1 + 2 || y < y0 - 2 || y > y1 + 2) this.drop(key);
       else {
-        if (tile.sprite) tile.sprite.visible = x >= x0 - 1 && x <= x1 + 1 && y >= y0 - 1 && y <= y1 + 1;
+        const near = x >= x0 - 1 && x <= x1 + 1 && y >= y0 - 1 && y <= y1 + 1;
+        tile.open = tile.opening;
+        tile.opening = false;
+        if (tile.sprite) tile.sprite.visible = near && !tile.open;
+        if (tile.depth) tile.depth.visible = near && !tile.open;
         if (!tile.dirty && tintFar(tile.tint, this.tint)) tile.dirty = true;
       }
     }
     const wanted = this.wanted;
     wanted.length = 0;
-    for (let y = y0; y <= y1; y++) {
-      for (let x = x0; x <= x1; x++) {
+    // A ring past the view too: a chunk's instances overhang it (a tall building rises up the
+    // screen into the next), and left as they are they would stack out of order with the pictures.
+    for (let y = y0 - 1; y <= y1 + 1; y++) {
+      for (let x = x0 - 1; x <= x1 + 1; x++) {
         const key = (x & 0xffff) * 65536 + (y & 0xffff);
         if (!this.members.has(key)) continue;
         const tile = this.tiles.get(key);
@@ -209,18 +223,33 @@ export class FarBake {
     const pad = this.options.pad ?? 160;
     const res = this.options.resolution ?? Math.min(0.25, this.options.below * renderer.resolution);
     const { x, y } = { x: (key / 65536) << 16 >> 16, y: (key & 0xffff) << 16 >> 16 };
-    const left = x * size - pad, top = y * size - pad;
-    const side = Math.ceil((size + pad * 2) * res);
+    // The chunk and `pad` round it, and as far as its instances reach past that (a tall building
+    // rises up the screen well into the chunk behind): cut off, its top would be missing.
+    let minX = x * size - pad, minY = y * size - pad, maxX = (x + 1) * size + pad, maxY = (y + 1) * size + pad;
+    for (const item of items) {
+      const b = item.bounds;
+      minX = Math.min(minX, b.minX);
+      minY = Math.min(minY, b.minY);
+      maxX = Math.max(maxX, b.maxX);
+      maxY = Math.max(maxY, b.maxY);
+    }
+    const left = Math.floor(minX), top = Math.floor(minY);
+    const width = Math.ceil((maxX - left) * res), height = Math.ceil((maxY - top) * res);
     let tile = this.tiles.get(key);
-    if (!tile) this.tiles.set(key, (tile = { sprite: null, dirty: true, tint: this.tint, baked: new Set(), at: 0 }));
+    if (!tile) this.tiles.set(key, (tile = { sprite: null, depth: null, dirty: true, tint: this.tint, baked: new Set(), at: 0, open: false, opening: false }));
+    if (tile.sprite && (tile.sprite.texture.width !== width || tile.sprite.texture.height !== height)) {
+      tile.sprite.destroy({ texture: true, baseTexture: true });
+      tile.sprite = null;
+    }
     if (!tile.sprite) {
-      const texture = PIXI.RenderTexture.create({ width: side, height: side, resolution: 1 });
+      const texture = PIXI.RenderTexture.create({ width, height, resolution: 1 });
       tile.sprite = new PIXI.Sprite(texture);
-      tile.sprite.position.set(left, top);
       tile.sprite.scale.set(1 / res);
       tile.sprite.eventMode = "none";
+      tile.sprite.zIndex = y;
       this.root.addChild(tile.sprite);
     }
+    tile.sprite.position.set(left, top);
     const transform = new PIXI.Matrix(res, 0, 0, res, -left * res, -top * res);
     const renderTexture = tile.sprite.texture as PIXI.RenderTexture;
     let clear = true;
@@ -229,22 +258,63 @@ export class FarBake {
     const draw = (part: PIXI.Container, item: FarInstance) => {
       if (!part.children.length) return;
       const shown = part.visible;
+      const alpha = part.alpha;
       const occluded = item.occluder?.visible ?? false;
+      // Whole: a faded roof shows only while its chunk is open, not in the picture.
       part.visible = true;
+      part.alpha = 1;
       if (item.occluder) item.occluder.visible = false;
       renderer.render(part, { renderTexture, clear, transform });
       clear = false;
       part.visible = shown;
+      part.alpha = alpha;
       if (item.occluder) item.occluder.visible = occluded;
     };
     const ordered = [...items].sort((a, b) => a.over.zIndex - b.over.zIndex);
     for (const item of ordered) draw(item.under, item);
     for (const item of ordered) draw(item.over, item);
     if (clear) renderer.render(EMPTY, { renderTexture, clear });
+    this.bakeDepth(tile, ordered);
     tile.dirty = false;
     tile.tint = this.tint;
     tile.at = now;
-    tile.baked = new Set(items);
+    tile.baked = new Set(ordered);
+  }
+
+  /**
+   * The picture's instances' depth occluders as one mesh, over the picture: someone inside a
+   * pictured building stays hidden under its roof, as with the instances themselves.
+   */
+  private bakeDepth(tile: Tile, items: FarInstance[]) {
+    tile.depth?.destroy();
+    tile.depth = null;
+    const positions: number[] = [];
+    const near: number[] = [];
+    const indices: number[] = [];
+    const top = this.root.parent;
+    for (const item of items) {
+      const occluder = item.occluder as PIXI.Mesh | null;
+      if (!occluder?.geometry) continue;
+      // The occluder's frame in the scene's (where the pictures are).
+      const m = new PIXI.Matrix();
+      for (let o: PIXI.DisplayObject | null = occluder; o && o !== top; o = o.parent) {
+        o.transform.updateLocalTransform();
+        m.prepend(o.transform.localTransform);
+      }
+      const p = occluder.geometry.getBuffer("aVertexPosition").data as Float32Array;
+      const n = occluder.geometry.getBuffer("aNear").data as Float32Array;
+      const base = positions.length / 2;
+      for (let i = 0; i < p.length; i += 2) {
+        positions.push(m.a * p[i] + m.c * p[i + 1] + m.tx, m.b * p[i] + m.d * p[i + 1] + m.ty);
+        near.push(m.a * n[i] + m.c * n[i + 1] + m.tx, m.b * n[i] + m.d * n[i + 1] + m.ty);
+      }
+      const index = occluder.geometry.getIndex().data as Uint16Array;
+      for (let i = 0; i < index.length; i++) indices.push(base + index[i]);
+    }
+    if (!positions.length) return;
+    const depth = depthMesh(positions, near, indices);
+    tile.depth = depth;
+    this.root.addChild(depth);
   }
 
   clear() {

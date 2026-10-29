@@ -183,7 +183,6 @@ export const occluderSlabs = (w: number, h: number, angle: number, rise = 0) => 
 
 /** A depth-only mesh over a static's local rectangle; see the module notes. */
 export const occluderMesh = (w: number, h: number, angle: number, rise = 0) => {
-  occluderProgram ??= PIXI.Program.from(occluderVertex, occluderFragment, "yage-static-occluder");
   const positions: number[] = [];
   const near: number[] = [];
   const indices: number[] = [];
@@ -195,7 +194,14 @@ export const occluderMesh = (w: number, h: number, angle: number, rise = 0) => {
     }
     indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
-  const geometry = new PIXI.Geometry().addAttribute("aVertexPosition", new Float32Array(positions), 2).addAttribute("aNear", new Float32Array(near), 2).addIndex(new Uint16Array(indices));
+  return depthMesh(positions, near, indices);
+};
+
+/** A depth-only mesh of occluder triangles: each vertex with the near-edge point that sets its depth. */
+export const depthMesh = (positions: number[], near: number[], indices: number[]) => {
+  occluderProgram ??= PIXI.Program.from(occluderVertex, occluderFragment, "yage-static-occluder");
+  const index = positions.length / 2 > 65535 ? new Uint32Array(indices) : new Uint16Array(indices);
+  const geometry = new PIXI.Geometry().addAttribute("aVertexPosition", new Float32Array(positions), 2).addAttribute("aNear", new Float32Array(near), 2).addIndex(index);
   const state = PIXI.State.for2d();
   state.depthTest = true;
   state.depthMask = true;
@@ -212,6 +218,9 @@ const CELL = 512;
 const cellKey = (i: number, j: number) => (i & 0xffff) * 65536 + (j & 0xffff);
 
 /** The instances of a scene; see ChunkScene.setStatics. */
+/** Newly seen instances past which a cull builds its whole budget, whatever the frame has left. */
+const BUILD_BACKLOG = 16;
+
 export class StaticSet {
   readonly items = new Map<string | number, StaticInstance>();
   /** Each lookup cell's instances (those whose bounds reach it), so `at` looks only near the point. */
@@ -376,7 +385,10 @@ export class StaticSet {
       }
     };
     // A budget is shared with the frame's other deferrable work (yage/game/FrameBudget).
-    if (budgeted) withinFrame(this.buildBudget, (allowed) => build(Math.max(allowed, this.buildFloor)));
+    // A backlog in view (a jump, a zoom-out) builds the whole budget a cull, full frame or not: at the
+    // floor alone a few hundred buildings stand as empty lots for a second.
+    const floor = seen.length > BUILD_BACKLOG ? Math.max(this.buildFloor, this.buildBudget) : this.buildFloor;
+    if (budgeted) withinFrame(this.buildBudget, (allowed) => build(Math.max(allowed, floor)));
     else build(Infinity);
     seen.length = 0;
   }

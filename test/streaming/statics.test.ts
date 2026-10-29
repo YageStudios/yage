@@ -4,6 +4,7 @@ vi.unmock("pixi.js");
 import * as PIXI from "pixi.js";
 import { describe, expect, it } from "vitest";
 import { ChunkScene, type ChunkLayerStyle } from "yage/streaming/layer";
+import { beginFrame, frameSpent, resetFrameBudget } from "yage/game/FrameBudget";
 import { fillPolygon, meshGeometry, occluderSlabs, type StaticSpec } from "yage/streaming/statics";
 import { meshArea, strokePolyline } from "yage/streaming/vector";
 
@@ -183,6 +184,26 @@ describe("ChunkScene static instances", () => {
     // All in one update, nearest the view's centre (150, 150) first.
     expect(built).toEqual(["mid", "near", "far"]);
     scene.destroy();
+    vi.restoreAllMocks();
+  });
+
+  it("built when seen, a backlog in view builds its whole budget even when the frame has nothing left", () => {
+    let t = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => (t += 0.01));
+    beginFrame();
+    frameSpent(1000);
+    const builds = (count: number) => {
+      const scene = new ChunkScene({ chunkSize: 100, style, buildStatics: "seen", staticBudget: 3 });
+      const built: string[] = [];
+      scene.setStatics(0, 0, Array.from({ length: count }, (_, i) => spec(`s${i}`, (i % 5) * 20, Math.floor(i / 5) * 20, 0, built)));
+      scene.update({ minX: -100, minY: -100, maxX: 200, maxY: 200 });
+      scene.destroy();
+      return built.length;
+    };
+    // A few: the one a cull always gets. A backlog: all of them, inside the 3ms.
+    expect(builds(3)).toBe(1);
+    expect(builds(20)).toBe(20);
+    resetFrameBudget();
     vi.restoreAllMocks();
   });
 

@@ -68,4 +68,33 @@ describe("FarBake", () => {
     far.update(r, 0.1, view, 1200);
     expect(r.render).toHaveBeenCalledTimes(4);
   });
+
+  it("shows a chunk as it is while a roof in it is faded, and pictures its roofs whole", () => {
+    const far = new FarBake(100, { below: 0.2, budget: 100 });
+    const house = instance(50, 50);
+    const shop = instance(20, 20);
+    far.add(house);
+    far.add(shop);
+    house.over.alpha = 0.1;
+    const r = renderer();
+    let alphas: number[] = [];
+    r.render.mockImplementation((part: PIXI.Container) => alphas.push(part.alpha));
+    far.update(r, 0.1, view, 0);
+    expect(alphas.every((a) => a === 1)).toBe(true);
+    expect(house.over.alpha).toBe(0.1);
+    // Seen faded, the whole chunk (its neighbours too) shows as it is from the next frame.
+    far.covers(house);
+    far.update(r, 0.1, view, 10);
+    expect(far.covers(house)).toBe(false);
+    expect(far.covers(shop)).toBe(false);
+    expect((far.root.children[0] as PIXI.Sprite).visible).toBe(false);
+    // Whole again, the picture (already made whole) is back a frame on, without being made again.
+    house.over.alpha = 1;
+    far.update(r, 0.1, view, 20);
+    expect(far.covers(house)).toBe(false);
+    far.update(r, 0.1, view, 30);
+    expect(far.covers(house)).toBe(true);
+    expect(far.covers(shop)).toBe(true);
+    expect(r.render).toHaveBeenCalledTimes(4);
+  });
 });
