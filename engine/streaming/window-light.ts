@@ -139,7 +139,7 @@ export const windowLightGeometry = (lights: WindowLight[]) => {
 };
 
 let program: PIXI.Program | null = null;
-const lights = new Set<WindowLightMesh>();
+const lights = new Set<{ draw(renderer: PIXI.Renderer): void }>();
 
 /** A wall's window light, from its shared geometry; its alpha (with its parents') scales the light. */
 export class WindowLightMesh extends PIXI.Mesh<PIXI.Shader> {
@@ -161,6 +161,104 @@ export class WindowLightMesh extends PIXI.Mesh<PIXI.Shader> {
   }
 }
 
+/** A lamp on a post: its head `height` over the ground at x, y, lighting out to `radius` (world units). */
+export type LampLight = {
+  x: number;
+  y: number;
+  height: number;
+  radius: number;
+  colour: number;
+  /** 1 a plain street lamp. */
+  strength: number;
+};
+
+const lampVertex = `
+precision highp float;
+attribute vec2 aVertexPosition;
+attribute vec4 aLamp;
+attribute vec4 aLight;
+uniform mat3 projectionMatrix;
+uniform mat3 translationMatrix;
+varying vec2 vPos;
+varying vec4 vLamp;
+varying vec4 vLight;
+
+void main() {
+  gl_Position = vec4((projectionMatrix * translationMatrix * vec3(aVertexPosition, 1.0)).xy, 0.0, 1.0);
+  vPos = aVertexPosition;
+  vLamp = aLamp;
+  vLight = aLight;
+}
+`;
+
+const lampFragment = `
+precision highp float;
+varying vec2 vPos;
+varying vec4 vLamp;
+varying vec4 vLight;
+uniform float uAlpha;
+
+// Under the head: a lamp lights its pavement well, under daylight but over a lit room's pool.
+const float GAIN = 0.95;
+
+void main() {
+  float d = distance(vPos, vLamp.xy);
+  float h = vLamp.z, radius = vLamp.w;
+  // Inverse square and the cosine onto the ground: (h / r)^3, 1 straight under the head.
+  float k = h / sqrt(d * d + h * h);
+  float direct = k * k * k;
+  // Light the lamp throws about (its glass, the walls, the air): a wide faint skirt.
+  float skirt = 1.0 - d / radius;
+  float light = (direct + 0.12 * skirt * skirt) * smoothstep(radius, radius * 0.6, d);
+  gl_FragColor = vec4(vLight.rgb * min(vLight.a * light * GAIN, 1.1) * uAlpha, 0.0);
+}
+`;
+
+/** The ground quads for a set of lamps (one chunk's, say), in the units they are placed in. */
+export const lampLightGeometry = (lamps: LampLight[]) => {
+  const pos: number[] = [], lamp: number[] = [], light: number[] = [], index: number[] = [];
+  lamps.forEach((l, q) => {
+    const r = ((l.colour >> 16) & 255) / 255, g = ((l.colour >> 8) & 255) / 255, b = (l.colour & 255) / 255;
+    for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+      pos.push(l.x + x * l.radius, l.y + y * l.radius);
+      lamp.push(l.x, l.y, l.height, l.radius);
+      light.push(r, g, b, l.strength);
+    }
+    index.push(q * 4, q * 4 + 1, q * 4 + 2, q * 4, q * 4 + 2, q * 4 + 3);
+  });
+  return new PIXI.Geometry()
+    .addAttribute("aVertexPosition", pos, 2, false, GL_FLOAT as PIXI.TYPES)
+    .addAttribute("aLamp", lamp, 4, false, GL_FLOAT as PIXI.TYPES)
+    .addAttribute("aLight", light, 4, false, GL_FLOAT as PIXI.TYPES)
+    .addIndex(index);
+};
+
+let lampProgram: PIXI.Program | null = null;
+
+/**
+ * Lamps' light, from their geometry; its alpha (with its parents') times `level.value` scales it.
+ * Share one `level` between every lamp to turn them all up at dusk at once.
+ */
+export class LampLightMesh extends PIXI.Mesh<PIXI.Shader> {
+  constructor(geometry: PIXI.Geometry, readonly level: { value: number } = { value: 1 }) {
+    lampProgram ??= PIXI.Program.from(lampVertex, lampFragment, "lamp-light");
+    super(geometry, new PIXI.Shader(lampProgram, { uAlpha: 1 }));
+    this.blendMode = PIXI.BLEND_MODES.ADD;
+    lights.add(this);
+    this.on("destroyed", () => lights.delete(this));
+  }
+
+  /** Not drawn into the scene: `LightPass` adds it into the light buffer. */
+  render() {}
+
+  draw(renderer: PIXI.Renderer) {
+    const alpha = this.worldAlpha * this.level.value;
+    if (alpha <= 0.01 || !this.worldVisible) return;
+    this.shader.uniforms.uAlpha = alpha;
+    this._render(renderer);
+  }
+}
+
 /** The screen's light (rgb added to a surface's ambient), redrawn every frame by `LightPass`. */
 let buffer: PIXI.RenderTexture | null = null;
 let uniforms: PIXI.UniformGroup | null = null;
@@ -178,7 +276,7 @@ export const lightUniforms = () => {
 const COARSE = 2;
 
 /**
- * Draws every window light in view into the light buffer. Add it to the camera's tree before the
+ * Draws every window and lamp light in view into the light buffer. Add it to the camera's tree before the
  * surfaces that sample it (ChunkScene does, under its ground); the tree's transforms are already
  * this frame's when it draws, so the lights are where the camera puts them now.
  */

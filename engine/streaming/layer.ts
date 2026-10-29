@@ -19,7 +19,7 @@ import { SnapshotPair } from "./interp";
 import { EMPTY_SLOT, POSITION_SCALE, type Snapshot } from "./protocol";
 import { FarBake, type FarBakeOptions } from "./far";
 import { StaticSet, tintTree, type StaticSpec } from "./statics";
-import { LightPass } from "./window-light";
+import { LightPass, lightUniforms } from "./window-light";
 import { ShadowPass } from "./shadow-pass";
 
 const GL_FLOAT = 5126;
@@ -156,6 +156,8 @@ uniform sampler2D uMask;
 uniform float uMasked;
 uniform float uEdges;
 uniform vec3 uLight;
+uniform sampler2D uLights;
+uniform vec2 uLightScreen;
 
 void main() {
   if (vTucked > ${TUCKED.toFixed(2)}) discard;
@@ -178,7 +180,8 @@ void main() {
     float tinted = clamp((texel.a - 0.7) / 0.25, 0.0, 1.0);
     color = mix(raw, raw * vColor, tinted);
   }
-  color *= uLight;
+  // The ambient, and the lamps and lit windows on the ground the sprite stands over (window-light.ts).
+  color *= uLight + texture2D(uLights, vec2(gl_FragCoord.x, uLightScreen.y - gl_FragCoord.y) / uLightScreen).rgb;
   float alpha = uEdges > 0.5 ? texel.a : 1.0;
   gl_FragColor = vec4(color * alpha, alpha);
 }
@@ -497,6 +500,7 @@ class LayerKind {
       uAlpha: 1,
       uEdges: edges ? 1 : 0,
       shared: this.shared,
+      lights: lightUniforms(),
     });
   }
 
@@ -869,7 +873,7 @@ export type ChunkSceneOptions = {
   staticFloor?: number;
   /** Zoomed far out, each chunk's static instances drawn as one picture (far.ts); `update` then needs its `far` argument. */
   farBake?: FarBakeOptions;
-  /** How dark the sun's shadows from static instances (`StaticParts.heights`) lie, 0–1 at full light (default 0.2); scaled by `setLight`'s shadow. */
+  /** How dark the sun's shadows from static instances (`StaticParts.heights`) lie, 0–1 at full light (default 0.2); scaled by `setLight`'s sun. */
   castShadow?: number;
 };
 
@@ -947,10 +951,14 @@ export class ChunkScene {
     this.entities.shared.update();
   }
 
-  /** Multiplies every sprite by `light` (RGB 0–1) and scales drop shadows (the sun's shadows from static instances too) by `shadow`. */
-  setLight(light: [number, number, number], shadow = 1) {
+  /**
+   * Multiplies every sprite by `light` (RGB 0–1) and scales drop shadows by `shadow`, and the sun's
+   * shadows from static instances and upright sprites by `sun` (the same unless given: at night
+   * there is no sun to cast them, though a sprite still darkens the ground under it).
+   */
+  setLight(light: [number, number, number], shadow = 1, sun = shadow) {
     this.entities.setLight(light, shadow);
-    this.castRoot.darkness = (this.options.castShadow ?? 0.2) * shadow;
+    this.castRoot.darkness = (this.options.castShadow ?? 0.2) * sun;
     for (const kind of this.propKinds) kind.setLight(light, shadow);
     const rgb = light.reduce((v, c) => (v << 8) | Math.round(Math.max(0, Math.min(1, c)) * 255), 0);
     if (rgb !== this.lightTint) {
