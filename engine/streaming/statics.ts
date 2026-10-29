@@ -21,6 +21,7 @@
 import * as PIXI from "pixi.js";
 import { withinFrame } from "../game/FrameBudget";
 import type { FarBake } from "./far";
+import type { ShadowPass } from "./shadow-pass";
 import { rotatedBounds, toLocal, type Point, type Rect, type VectorMesh } from "./vector";
 
 /** A Pixi geometry with `aVertexPosition` plus one attribute per mesh attribute (`uv` → `aUv`). */
@@ -40,7 +41,18 @@ export const fillPolygon = (points: readonly Point[]): VectorMesh => {
   return { positions: flat, attributes: { uv: { size: 2, data: [...flat] } }, indices: PIXI.utils.earcut(flat) };
 };
 
-export type StaticParts = { under?: PIXI.DisplayObject; over?: PIXI.DisplayObject };
+export type StaticParts = {
+  under?: PIXI.DisplayObject;
+  over?: PIXI.DisplayObject;
+  /**
+   * What it stands up from the ground, seen from straight above in its own frame, each shape filled
+   * with `heightColor(height)` (shadow-pass.ts): the scene's one shadow pass casts the sun's shadows
+   * from it, onto the ground, other instances' roofs and its own alike.
+   */
+  heights?: PIXI.DisplayObject;
+  /** The tops it shows on screen (roofs, where its `over` draws them), each filled with `heightColor(height, rise)`: what the shadow pass shades. */
+  tops?: PIXI.DisplayObject;
+};
 
 export type StaticSpec = {
   /** Stable across every chunk that lists the instance. */
@@ -67,6 +79,9 @@ export type StaticInstance = {
   readonly spec: StaticSpec;
   readonly under: PIXI.Container;
   readonly over: PIXI.Container;
+  /** Its heights and tops (`StaticParts`), in the scene's shadow pass. */
+  readonly heights: PIXI.Container;
+  readonly tops: PIXI.Container;
   /** The over part's depth occluder (depth-sorted roofs only). */
   readonly occluder: PIXI.Mesh<PIXI.Shader> | null;
   readonly bounds: Rect;
@@ -220,6 +235,8 @@ const cellKey = (i: number, j: number) => (i & 0xffff) * 65536 + (j & 0xffff);
 /** The instances of a scene; see ChunkScene.setStatics. */
 /** Newly seen instances past which a cull builds its whole budget, whatever the frame has left. */
 const BUILD_BACKLOG = 16;
+/** How far (world units) past its instance's bounds a ground shadow may reach: drawn while that near the view. */
+const CAST_REACH = 320;
 
 export class StaticSet {
   readonly items = new Map<string | number, StaticInstance>();
@@ -249,6 +266,8 @@ export class StaticSet {
      * one-a-cull minimum leaves whole blocks empty.
      */
     private readonly buildFloor = 0,
+    /** The scene's shadow pass, which takes the instances' heights and tops; without one they cast no shadows. */
+    private readonly shadow: ShadowPass | null = null,
   ) {}
 
   private readonly seen: StaticInstance[] = [];
@@ -263,6 +282,8 @@ export class StaticSet {
     const parts = item.spec.build();
     if (parts.under) item.under.addChild(parts.under);
     if (parts.over) item.over.addChild(parts.over);
+    if (parts.heights) item.heights.addChild(parts.heights);
+    if (parts.tops) item.tops.addChild(parts.tops);
     tintTree(item.under, this.tint);
     tintTree(item.over, this.tint);
     if (this.occlude && parts.over) {
@@ -284,21 +305,28 @@ export class StaticSet {
       if (!item) {
         const under = new PIXI.Container();
         const over = new PIXI.Container();
+        const heights = new PIXI.Container();
+        const tops = new PIXI.Container();
         place(under, spec);
         place(over, spec);
+        place(heights, spec);
+        place(tops, spec);
         if (spec.z) {
-          over.zIndex = spec.z;
+          over.zIndex = tops.zIndex = spec.z;
           this.overRoot.sortableChildren = true;
+          if (this.shadow) this.shadow.tops.sortableChildren = true;
         }
         this.underRoot.addChild(under);
         this.overRoot.addChild(over);
-        item = { spec, under, over, occluder: null, bounds: boundsOf(spec), holders: new Set() };
+        this.shadow?.heights.addChild(heights);
+        this.shadow?.tops.addChild(tops);
+        item = { spec, under, over, heights, tops, occluder: null, bounds: boundsOf(spec), holders: new Set() };
         this.items.set(spec.id, item);
         this.index(item, true);
         this.far?.add(item);
         if (this.lazy) {
           // Hidden until a cull sees it and builds it.
-          under.visible = over.visible = false;
+          under.visible = over.visible = heights.visible = tops.visible = false;
           this.unbuilt.add(item);
         } else this.build(item);
       }
@@ -316,6 +344,8 @@ export class StaticSet {
     if (item.holders.size) return;
     item.under.destroy({ children: true });
     item.over.destroy({ children: true });
+    item.heights.destroy({ children: true });
+    item.tops.destroy({ children: true });
     this.far?.remove(item);
     this.items.delete(item.spec.id);
     this.index(item, false);
@@ -362,10 +392,13 @@ export class StaticSet {
         seen.push(item);
         continue;
       }
-      // A far-off chunk's picture draws its instances (FarBake).
+      // A far-off chunk's picture draws its instances (FarBake); never their shadows, one pass for all
+      // (which shades the tops the picture shows, and takes heights from beyond the view's edge).
       const shown = visible && !this.far?.covers(item);
       item.under.visible = shown;
       item.over.visible = shown && item.over.children.length > 0;
+      item.heights.visible = item.heights.children.length > 0 && b.maxX + CAST_REACH >= view.minX && b.minX - CAST_REACH <= view.maxX && b.maxY + CAST_REACH >= view.minY && b.minY - CAST_REACH <= view.maxY;
+      item.tops.visible = visible && item.tops.children.length > 0;
       // A faded roof (someone inside) shows the people under it.
       if (item.occluder) item.occluder.visible = item.over.alpha > 0.6;
     }
@@ -382,6 +415,8 @@ export class StaticSet {
         this.build(item);
         item.under.visible = true;
         item.over.visible = item.over.children.length > 0;
+        item.heights.visible = item.heights.children.length > 0;
+        item.tops.visible = item.tops.children.length > 0;
       }
     };
     // A budget is shared with the frame's other deferrable work (yage/game/FrameBudget).
@@ -407,6 +442,8 @@ export class StaticSet {
     for (const item of this.items.values()) {
       item.under.destroy({ children: true });
       item.over.destroy({ children: true });
+      item.heights.destroy({ children: true });
+      item.tops.destroy({ children: true });
     }
     this.items.clear();
     this.cells.clear();

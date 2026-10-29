@@ -7,7 +7,7 @@
  * (before its hand-off lands) still draws in the right order. Ground layers draw first and don't
  * touch the depth buffer.
  *
- * Draw order: ground, (depth-sorted roofs, see `roofDepth`), soft drop shadows (blended, no depth), opaque sprite cores (depth-tested and
+ * Draw order: ground, (depth-sorted roofs, see `roofDepth`), the sun's shadows from static instances' heights over both (one pass, shadow-pass.ts), soft drop shadows (blended, no depth), opaque sprite cores (depth-tested and
  * written), then the sprites' anti-aliased edges (blended, depth-tested, not written) so smooth
  * art keeps soft outlines without sorting. Static props (trees, lamps…) use the same machinery
  * with their own atlas, so people walk behind and in front of them correctly.
@@ -20,6 +20,7 @@ import { EMPTY_SLOT, POSITION_SCALE, type Snapshot } from "./protocol";
 import { FarBake, type FarBakeOptions } from "./far";
 import { StaticSet, tintTree, type StaticSpec } from "./statics";
 import { LightPass } from "./window-light";
+import { ShadowPass } from "./shadow-pass";
 
 const GL_FLOAT = 5126;
 const GL_SHORT = 5122;
@@ -789,6 +790,8 @@ export type ChunkSceneOptions = {
   staticFloor?: number;
   /** Zoomed far out, each chunk's static instances drawn as one picture (far.ts); `update` then needs its `far` argument. */
   farBake?: FarBakeOptions;
+  /** How dark the sun's shadows from static instances (`StaticParts.heights`) lie, 0–1 at full light (default 0.2); scaled by `setLight`'s shadow. */
+  castShadow?: number;
 };
 
 type ChunkView = {
@@ -822,6 +825,8 @@ export class ChunkScene {
   readonly decalRoot = new PIXI.Container();
   /** Per-chunk far pictures' tops, over the decals and under the static instances; see `setFar`. */
   readonly farOverRoot = new PIXI.Container();
+  /** The sun's shadows from static instances' heights, one pass over the ground and their roofs (shadow-pass.ts). */
+  readonly castRoot = new ShadowPass();
   /** Static instances' lower parts (floors, walls), under every sprite and its shadow. */
   readonly staticRoot = new PIXI.Container();
   readonly shadowRoot = new PIXI.Container();
@@ -843,7 +848,8 @@ export class ChunkScene {
 
   constructor(options: ChunkSceneOptions) {
     this.options = options;
-    this.statics = new StaticSet(this.staticRoot, this.overRoot, !!options.roofDepth, options.buildStatics === "seen", options.staticBudget, options.staticFloor);
+    this.statics = new StaticSet(this.staticRoot, this.overRoot, !!options.roofDepth, options.buildStatics === "seen", options.staticBudget, options.staticFloor, this.castRoot);
+    this.castRoot.darkness = options.castShadow ?? 0.2;
     this.entities = new LayerKind(options.style);
     const props = options.props ? (Array.isArray(options.props) ? options.props : [options.props]) : [];
     this.propKinds = props.map((style: ChunkLayerStyle) => new LayerKind(style));
@@ -851,9 +857,10 @@ export class ChunkScene {
     this.statics.far = this.far;
     const far = this.far ? [this.far.root] : [];
     const under = [this.lightPass, this.farUnderRoot, this.groundRoot, this.decalRoot, this.farOverRoot, this.staticRoot];
-    // The pictures over every static part (an instance shown as it is under one is drawn there by it too), under the people.
-    if (options.roofDepth) this.root.addChild(...under, this.overRoot, ...far, this.shadowRoot, this.entityRoot, this.edgeRoot);
-    else this.root.addChild(...under, ...far, this.shadowRoot, this.entityRoot, this.edgeRoot, this.overRoot);
+    // The pictures over every static part (an instance shown as it is under one is drawn there by it too), under the people;
+    // the sun's shadows over the roofs they show.
+    if (options.roofDepth) this.root.addChild(...under, this.overRoot, ...far, this.castRoot, this.shadowRoot, this.entityRoot, this.edgeRoot);
+    else this.root.addChild(...under, ...far, this.castRoot, this.shadowRoot, this.entityRoot, this.edgeRoot, this.overRoot);
   }
 
   setPalette(palette: number[]) {
@@ -861,9 +868,10 @@ export class ChunkScene {
     this.entities.shared.update();
   }
 
-  /** Multiplies every sprite by `light` (RGB 0–1) and scales drop shadows by `shadow`. */
+  /** Multiplies every sprite by `light` (RGB 0–1) and scales drop shadows (the sun's shadows from static instances too) by `shadow`. */
   setLight(light: [number, number, number], shadow = 1) {
     this.entities.setLight(light, shadow);
+    this.castRoot.darkness = (this.options.castShadow ?? 0.2) * shadow;
     for (const kind of this.propKinds) kind.setLight(light, shadow);
     const rgb = light.reduce((v, c) => (v << 8) | Math.round(Math.max(0, Math.min(1, c)) * 255), 0);
     if (rgb !== this.lightTint) {

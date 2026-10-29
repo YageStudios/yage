@@ -195,28 +195,38 @@ export class LightPass extends PIXI.Container {
     }
     const fine = Math.max(1e-3, renderer.resolution / COARSE);
     if (buffer.width !== width || buffer.height !== height || buffer.baseTexture.resolution !== fine) buffer.setResolution(fine), buffer.resize(width, height);
-    renderer.batch.flush();
-    const target = renderer.renderTexture;
-    const projection = renderer.projection;
-    const was = target.current ?? undefined;
-    const source = target.sourceFrame.clone();
-    const destination = target.destinationFrame.clone();
-    // A camera may sit in the projection (ProjectedCamera): what it adds to the target's own, carried
-    // into the buffer's so the lights land where the camera puts them.
-    const camera = projection.projectionMatrix.clone();
-    target.bind(was, source, destination);
-    const view = projection.projectionMatrix.clone().invert().append(camera);
-    target.bind(buffer, source);
-    projection.projectionMatrix.append(view);
-    sync(renderer);
-    target.clear([0, 0, 0, 0]);
-    for (const light of lights) light.draw(renderer);
-    renderer.batch.flush();
-    target.bind(was, source, destination);
-    projection.projectionMatrix.copyFrom(camera);
-    sync(renderer);
+    renderInto(renderer, buffer, [0, 0, 0, 0], () => {
+      for (const light of lights) light.draw(renderer);
+    });
   }
 }
+
+/**
+ * Draws into a screen-sized `buffer` what `draw` draws, where the camera puts it now, and goes back
+ * to the screen as it was. A camera may sit in the projection (ProjectedCamera): what it adds to the
+ * target's own is carried into the buffer's (a Pixi filter would drop it for what draws after).
+ * `frame` (the screen's px, default the screen) is the part of the screen the buffer takes.
+ */
+export const renderInto = (renderer: PIXI.Renderer, buffer: PIXI.RenderTexture, clear: [number, number, number, number], draw: () => void, frame?: PIXI.Rectangle) => {
+  renderer.batch.flush();
+  const target = renderer.renderTexture;
+  const projection = renderer.projection;
+  const was = target.current ?? undefined;
+  const source = target.sourceFrame.clone();
+  const destination = target.destinationFrame.clone();
+  const camera = projection.projectionMatrix.clone();
+  target.bind(was, source, destination);
+  const view = projection.projectionMatrix.clone().invert().append(camera);
+  target.bind(buffer, frame ? new PIXI.Rectangle(source.x + frame.x, source.y + frame.y, frame.width, frame.height) : source);
+  projection.projectionMatrix.append(view);
+  sync(renderer);
+  target.clear(clear);
+  draw();
+  renderer.batch.flush();
+  target.bind(was, source, destination);
+  projection.projectionMatrix.copyFrom(camera);
+  sync(renderer);
+};
 
 const sync = (renderer: PIXI.Renderer) => {
   renderer.globalUniforms.update();
