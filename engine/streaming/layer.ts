@@ -797,6 +797,9 @@ type ChunkView = {
   ground: PIXI.Container;
   /** Over the ground, under every sprite; see `setDecals`. */
   decals: PIXI.Container | null;
+  /** The chunk's far picture under its ground and over its decals; see `setFar`. */
+  farUnder: PIXI.Container | null;
+  farOver: PIXI.Container | null;
   layer: ChunkLayer | null;
   /** Prop set 0 (the same layer as `propSets[0]`). */
   props: ChunkLayer | null;
@@ -813,8 +816,12 @@ export class ChunkScene {
   /** The screen's light (window-light.ts), drawn first so the ground and decals can sample it. */
   readonly lightPass = new LightPass();
   readonly groundRoot = new PIXI.Container();
+  /** Per-chunk far pictures' grounds, under every chunk's ground; see `setFar`. */
+  readonly farUnderRoot = new PIXI.Container();
   /** Per-chunk decals (road meshes…), over every chunk's ground. */
   readonly decalRoot = new PIXI.Container();
+  /** Per-chunk far pictures' tops, over the decals and under the static instances; see `setFar`. */
+  readonly farOverRoot = new PIXI.Container();
   /** Static instances' lower parts (floors, walls), under every sprite and its shadow. */
   readonly staticRoot = new PIXI.Container();
   readonly shadowRoot = new PIXI.Container();
@@ -843,8 +850,9 @@ export class ChunkScene {
     this.far = options.farBake ? new FarBake(options.chunkSize, options.farBake) : null;
     this.statics.far = this.far;
     const far = this.far ? [this.far.root] : [];
-    if (options.roofDepth) this.root.addChild(this.lightPass, this.groundRoot, this.decalRoot, this.staticRoot, ...far, this.overRoot, this.shadowRoot, this.entityRoot, this.edgeRoot);
-    else this.root.addChild(this.lightPass, this.groundRoot, this.decalRoot, this.staticRoot, ...far, this.shadowRoot, this.entityRoot, this.edgeRoot, this.overRoot);
+    const under = [this.lightPass, this.farUnderRoot, this.groundRoot, this.decalRoot, this.farOverRoot, this.staticRoot, ...far];
+    if (options.roofDepth) this.root.addChild(...under, this.overRoot, this.shadowRoot, this.entityRoot, this.edgeRoot);
+    else this.root.addChild(...under, this.shadowRoot, this.entityRoot, this.edgeRoot, this.overRoot);
   }
 
   setPalette(palette: number[]) {
@@ -859,7 +867,7 @@ export class ChunkScene {
     const rgb = light.reduce((v, c) => (v << 8) | Math.round(Math.max(0, Math.min(1, c)) * 255), 0);
     if (rgb !== this.lightTint) {
       this.lightTint = rgb;
-      for (const view of this.views.values()) if (view.decals) tintTree(view.decals, rgb);
+      for (const view of this.views.values()) for (const tree of [view.decals, view.farUnder, view.farOver]) if (tree) tintTree(tree, rgb);
     }
     this.statics.setTint(rgb);
   }
@@ -885,6 +893,30 @@ export class ChunkScene {
   }
 
   /**
+   * Sets a chunk's far picture, a stand-in for what it shows from far off before its own parts are
+   * made: `under` draws beneath every chunk's ground (so the ground covers it once painted), `over`
+   * over the decals and under the static instances (so they cover it once built). Chunk-local
+   * units, tinted by `setLight` like decals. The scene owns them from here; null clears either,
+   * undefined leaves it as it is.
+   */
+  setFar(cx: number, cy: number, under: PIXI.DisplayObject | null | undefined, over?: PIXI.DisplayObject | null) {
+    const view = this.view(cx, cy);
+    if (under !== undefined) view.farUnder = this.wrapFar(view.farUnder, under, this.farUnderRoot, cx, cy);
+    if (over !== undefined) view.farOver = this.wrapFar(view.farOver, over, this.farOverRoot, cx, cy);
+  }
+
+  private wrapFar(old: PIXI.Container | null, object: PIXI.DisplayObject | null, root: PIXI.Container, cx: number, cy: number) {
+    old?.destroy({ children: true });
+    if (!object) return null;
+    const holder = new PIXI.Container();
+    holder.position.set(cx * this.options.chunkSize, cy * this.options.chunkSize);
+    holder.addChild(object);
+    tintTree(holder, this.lightTint);
+    root.addChild(holder);
+    return holder;
+  }
+
+  /**
    * Lists the static instances (world units, any angle) that touch a chunk. Every chunk an
    * instance overlaps may list it under the same id: it is built once and kept until no loaded
    * chunk lists it. Null or empty clears this chunk's listings.
@@ -902,7 +934,7 @@ export class ChunkScene {
       const ground = new PIXI.Container();
       ground.position.set(cx * this.options.chunkSize, cy * this.options.chunkSize);
       this.groundRoot.addChild(ground);
-      view = { cx, cy, ground, decals: null, layer: null, props: null, propSets: [] };
+      view = { cx, cy, ground, decals: null, farUnder: null, farOver: null, layer: null, props: null, propSets: [] };
       this.views.set(key, view);
     }
     return view;
@@ -998,6 +1030,8 @@ export class ChunkScene {
     for (const layer of view.propSets) layer?.destroy();
     view.ground.destroy({ children: true });
     view.decals?.destroy({ children: true });
+    view.farUnder?.destroy({ children: true });
+    view.farOver?.destroy({ children: true });
     this.statics.drop(key);
     this.views.delete(key);
   }
@@ -1018,6 +1052,8 @@ export class ChunkScene {
       const inView = x + size * 1.1 >= view.minX && x - size * 0.1 <= view.maxX && y + size * 1.1 >= view.minY && y - size * 0.1 <= view.maxY;
       chunk.ground.visible = inView;
       if (chunk.decals) chunk.decals.visible = inView;
+      if (chunk.farUnder) chunk.farUnder.visible = inView;
+      if (chunk.farOver) chunk.farOver.visible = inView;
       for (const props of chunk.propSets) props?.setVisible(inView && props.count > 0);
       if (chunk.layer) {
         // Off screen too, so what reads the pair (effects, sounds) keeps time and the queue drains.
