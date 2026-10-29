@@ -7,9 +7,10 @@
  * (before its hand-off lands) still draws in the right order. Ground layers draw first and don't
  * touch the depth buffer.
  *
- * Draw order: ground, (depth-sorted roofs, see `roofDepth`), the sun's shadows from static instances' heights and upright sprites over both (one pass, shadow-pass.ts), soft drop shadows (blended, no depth), opaque sprite cores (depth-tested and
+ * Draw order: ground, (depth-sorted roofs, see `roofDepth`), soft drop shadows (blended, no depth), opaque sprite cores (depth-tested and
  * written), then the sprites' anti-aliased edges (blended, depth-tested, not written) so smooth
- * art keeps soft outlines without sorting. Static props (trees, lamps…) use the same machinery
+ * art keeps soft outlines without sorting, (roofs), then the sun's shadows over all of it (one
+ * deferred pass, shadow-pass.ts). Static props (trees, lamps…) use the same machinery
  * with their own atlas, so people walk behind and in front of them correctly.
  */
 import * as PIXI from "pixi.js";
@@ -20,7 +21,7 @@ import { EMPTY_SLOT, POSITION_SCALE, type Snapshot } from "./protocol";
 import { FarBake, type FarBakeOptions } from "./far";
 import { StaticSet, tintTree, type StaticSpec } from "./statics";
 import { LightPass, lightUniforms } from "./window-light";
-import { ShadowPass } from "./shadow-pass";
+import { ShadowPass, SUN_SOLID_ID } from "./shadow-pass";
 
 const GL_FLOAT = 5126;
 const GL_SHORT = 5122;
@@ -68,6 +69,10 @@ uniform float uMinPixels;
 vec2 footOf() {
   return mix(vec2(aPrevX, aPrevY), vec2(aCurX, aCurY), uAlpha) / uPositionScale;
 }
+// Its solids' salt in the heights (shadow-pass.ts sunSolidId): sprites side by side differ.
+float saltOf() {
+  return mod(aCurX * 7.0 + aCurY * 13.0, 254.0);
+}
 // A pose (see ChunkLayer.setPoses) moves the sprite's corners about its feet: lying, the quad
 // turns by aPose.y about its middle, which lands on the feet (a sleeper centred on the bed);
 // sitting, it is shortened onto the seat, mirrored when it faces left; fallen, it turns like a
@@ -107,20 +112,26 @@ varying vec3 vColor;
 varying vec3 vColor2;
 varying vec3 vColor3;
 varying float vTucked;
+varying float vSalt;
+varying vec2 vUp;
 
 void main() {
   // A sleeper is tucked in: the bed covers it below the chest (see the fragment shader).
   vTucked = aPose.x > 0.5 && aPose.x < 1.5 ? aCorner.y + 1.0 : -1.0;
+  vSalt = saltOf();
   if (aTint > ${EMPTY_SLOT - 0.5}) {
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
-    vUv = vec2(0.0);
+    vUv = vUp = vec2(0.0);
     vColor = vColor2 = vColor3 = vec3(0.0);
     return;
   }
   vec2 foot = footOf();
   float grow = growOf();
   mat3 m = projectionMatrix * translationMatrix;
-  vec3 clip = m * vec3(foot + posedOf(aCorner, uSize * grow), 1.0);
+  vec2 posed = posedOf(aCorner, uSize * grow);
+  // How far up the screen from its feet (world px), and how high that stands.
+  vUp = vec2(-posed.y, -posed.y / grow);
+  vec3 clip = m * vec3(foot + posed, 1.0);
   vec3 clipFoot = m * vec3(foot, 1.0);
   // Lower on screen is nearer, in every chunk alike.
   gl_Position = vec4(clip.xy, clamp(clipFoot.y * 0.5, -0.999, 0.999), 1.0);
@@ -145,7 +156,7 @@ void main() {
 `;
 
 const fragment = `
-precision mediump float;
+precision highp float;
 varying vec2 vUv;
 varying vec3 vColor;
 varying vec3 vColor2;
@@ -184,6 +195,33 @@ void main() {
   color *= uLight + texture2D(uLights, vec2(gl_FragCoord.x, uLightScreen.y - gl_FragCoord.y) / uLightScreen).rgb;
   float alpha = uEdges > 0.5 ? texel.a : 1.0;
   gl_FragColor = vec4(color * alpha, alpha);
+}
+`;
+
+// What each texel shows the sun (shadow-pass.ts tops), drawn as the sprite is: its surface
+// (ChunkLayerStyle \`surface\`) with its solid salted as in the heights, else standing upright
+// over its feet, on no solid. A soft rim over half opaque is the sprite's.
+const surfaceFragment = `
+precision highp float;
+varying vec2 vUv;
+varying float vTucked;
+varying float vSalt;
+varying vec2 vUp;
+uniform sampler2D uAtlas;
+uniform sampler2D uSurface;
+uniform float uSurfaced;
+${SUN_SOLID_ID}
+
+void main() {
+  if (vTucked > ${TUCKED.toFixed(2)} || texture2D(uAtlas, vUv).a < 0.5) discard;
+  if (uSurfaced > 0.5) {
+    vec4 surface = floor(texture2D(uSurface, vUv) * 255.0 + 0.5);
+    gl_FragColor = vec4(surface.rgb, surface.a < 254.5 ? sunSolidId(surface.a, vSalt) : 255.0) / 255.0;
+    return;
+  }
+  // heightColor's rise: whole px in green (256 in blue's bit 4), 16ths in blue's low bits.
+  float r = floor(clamp(vUp.x, 0.0, 511.0) * 16.0 + 0.5);
+  gl_FragColor = vec4(min(255.0, max(0.0, vUp.y)), mod(floor(r / 16.0), 256.0), mod(r, 16.0) + 16.0 * floor(r / 4096.0), 255.0) / 255.0;
 }
 `;
 
@@ -276,11 +314,13 @@ const heightsVertex = `${instanceHeader}
 uniform vec2 uGrid;
 uniform float uLift;
 varying vec2 vUv;
+varying float vSalt;
 
 void main() {
   if (aTint > ${EMPTY_SLOT - 0.5}) {
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
     vUv = vec2(0.0);
+    vSalt = 0.0;
     return;
   }
   mat3 m = projectionMatrix * translationMatrix;
@@ -288,19 +328,22 @@ void main() {
   float column = floor(mod(aSprite + 0.5, uGrid.x));
   vec2 cell = vec2(column, floor((aSprite + 0.5) / uGrid.x));
   vUv = (cell + vec2(aCorner.x + 0.5, aCorner.y + 1.0)) / uGrid;
+  vSalt = saltOf();
 }
 `;
 
 const heightsFragment = `
-precision mediump float;
+precision highp float;
 varying vec2 vUv;
+varying float vSalt;
 uniform sampler2D uHeights;
+${SUN_SOLID_ID}
 
 void main() {
   vec4 texel = texture2D(uHeights, vUv);
   if (texel.a < 0.5) discard;
-  // Blue: drawn over the shadow pass, whose own art hides whatever the pass does under it.
-  gl_FragColor = vec4(texel.rg / texel.a, 1.0, 1.0);
+  // Blue: its solid; the sprite's texels on it are never shaded by it (shadow-pass.ts).
+  gl_FragColor = vec4(texel.rg / texel.a, sunSolidId(texel.b / texel.a * 255.0, vSalt) / 255.0, 1.0);
 }
 `;
 
@@ -457,6 +500,11 @@ export type ChunkLayerStyle = {
    */
   heightsLift?: number;
   /**
+   * Each texel's surface for the sun's shadows on the sprite itself (shadow-pass.ts `paintSurface`,
+   * from `heights`): an atlas on the same grid as `atlas`, each opaque texel's height and rise.
+   */
+  surface?: PIXI.Texture;
+  /**
    * Soft glowing halos around the silhouettes of some sprites (e.g. one sprite set), drawn under
    * every sprite and unaffected by `setLight`. At most four ranges (see GlowRange: one colour or a
    * ramp picked by sprite offset or tint, an optional pulse and a wider ring). `radius` is in
@@ -468,6 +516,7 @@ export type ChunkLayerStyle = {
 /** One style's GPU programs and shared uniforms. */
 class LayerKind {
   readonly program: PIXI.Program;
+  readonly surfaceProgram: PIXI.Program;
   readonly shared: PIXI.UniformGroup;
   readonly shadowProgram: PIXI.Program | null;
   readonly shadowShared: PIXI.UniformGroup | null;
@@ -487,6 +536,7 @@ class LayerKind {
       texture.baseTexture.mipmap = style.smooth ? PIXI.MIPMAP_MODES.ON : PIXI.MIPMAP_MODES.OFF;
     }
     this.program = PIXI.Program.from(vertex, fragment, "yage-chunk-layer");
+    this.surfaceProgram = PIXI.Program.from(vertex, surfaceFragment, "yage-chunk-surface");
     this.shared = new PIXI.UniformGroup({
       uPositionScale: POSITION_SCALE,
       uSize: new Float32Array(style.size),
@@ -527,6 +577,10 @@ class LayerKind {
       style.heights.baseTexture.mipmap = PIXI.MIPMAP_MODES.OFF;
       this.heightsProgram = PIXI.Program.from(heightsVertex, heightsFragment, "yage-chunk-heights");
     }
+    if (style.surface) {
+      style.surface.baseTexture.scaleMode = PIXI.SCALE_MODES.NEAREST;
+      style.surface.baseTexture.mipmap = PIXI.MIPMAP_MODES.OFF;
+    }
     if (style.glow) {
       const glow = glowUniforms(style.glow.ranges);
       this.glowProgram = PIXI.Program.from(glowVertex, glowFragment, "yage-chunk-glow");
@@ -554,6 +608,17 @@ class LayerKind {
       uEdges: edges ? 1 : 0,
       shared: this.shared,
       lights: lightUniforms(),
+    });
+  }
+
+  /** Its sprites' surfaces for the shadow pass (`surfaceFragment`). */
+  surfaceShader() {
+    return new PIXI.Shader(this.surfaceProgram, {
+      uAtlas: this.style.atlas,
+      uAlpha: 1,
+      uSurface: this.style.surface ?? this.style.atlas,
+      uSurfaced: this.style.surface ? 1 : 0,
+      shared: this.shared,
     });
   }
 
@@ -597,6 +662,8 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   readonly cast: PIXI.Mesh<PIXI.Shader> | null;
   /** The sprites' plans at their heights, for ChunkScene's shadow pass; null when the style has none (`heights`). */
   readonly heights: PIXI.Mesh<PIXI.Shader> | null;
+  /** What the sprites' texels show the sun, for ChunkScene's shadow pass, depth-tested as they are. */
+  readonly surface: PIXI.Mesh<PIXI.Shader>;
   private readonly prevX: PIXI.Buffer;
   private readonly prevY: PIXI.Buffer;
   private readonly curX: PIXI.Buffer;
@@ -693,6 +760,11 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     } else {
       this.cast = null;
     }
+    const surfaceState = PIXI.State.for2d();
+    surfaceState.depthTest = true;
+    surfaceState.depthMask = true;
+    surfaceState.blend = false;
+    this.surface = new PIXI.Mesh(geometry, kind.surfaceShader(), surfaceState);
     if (kind.heightsProgram && kind.style.heights) {
       const heightsState = PIXI.State.for2d();
       heightsState.depthTest = false;
@@ -727,6 +799,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     if (this.glow) meshes.push(this.glow);
     if (this.cast) meshes.push(this.cast);
     if (this.heights) meshes.push(this.heights);
+    meshes.push(this.surface);
     return meshes;
   }
 
@@ -904,6 +977,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     this.glow?.destroy();
     this.cast?.destroy();
     this.heights?.destroy();
+    this.surface.destroy();
     super.destroy();
   }
 }
@@ -974,8 +1048,8 @@ export class ChunkScene {
   readonly decalRoot = new PIXI.Container();
   /** Per-chunk far pictures' tops, over the decals and under the static instances; see `setFar`. */
   readonly farOverRoot = new PIXI.Container();
-  /** The sun's shadows from static instances' heights, one pass over the ground and their roofs (shadow-pass.ts). */
-  readonly castRoot = new ShadowPass();
+  /** The sun's shadows, one deferred pass over everything the scene draws, last (shadow-pass.ts). */
+  readonly castRoot: ShadowPass;
   /** Static instances' lower parts (floors, walls), under every sprite and its shadow. */
   readonly staticRoot = new PIXI.Container();
   readonly shadowRoot = new PIXI.Container();
@@ -997,6 +1071,7 @@ export class ChunkScene {
 
   constructor(options: ChunkSceneOptions) {
     this.options = options;
+    this.castRoot = new ShadowPass(!!options.roofDepth);
     this.statics = new StaticSet(this.staticRoot, this.overRoot, !!options.roofDepth, options.buildStatics === "seen", options.staticBudget, options.staticFloor, this.castRoot);
     this.castRoot.darkness = options.castShadow ?? 0.2;
     this.entities = new LayerKind(options.style);
@@ -1007,9 +1082,9 @@ export class ChunkScene {
     const far = this.far ? [this.far.root] : [];
     const under = [this.lightPass, this.farUnderRoot, this.groundRoot, this.decalRoot, this.farOverRoot, this.staticRoot];
     // The pictures over every static part (an instance shown as it is under one is drawn there by it too), under the people;
-    // the sun's shadows over the roofs they show.
-    if (options.roofDepth) this.root.addChild(...under, this.overRoot, ...far, this.castRoot, this.shadowRoot, this.entityRoot, this.edgeRoot);
-    else this.root.addChild(...under, ...far, this.castRoot, this.shadowRoot, this.entityRoot, this.edgeRoot, this.overRoot);
+    // the sun's shadows over all of it.
+    if (options.roofDepth) this.root.addChild(...under, this.overRoot, ...far, this.shadowRoot, this.entityRoot, this.edgeRoot, this.castRoot);
+    else this.root.addChild(...under, ...far, this.shadowRoot, this.entityRoot, this.edgeRoot, this.overRoot, this.castRoot);
   }
 
   setPalette(palette: number[]) {
@@ -1116,6 +1191,7 @@ export class ChunkScene {
     if (layer.cast) this.castRoot.casts.addChild(layer.cast);
     // First: a building drawn over a prop's plan stands over it (what's on a roof is part of the roof's heights).
     if (layer.heights) this.castRoot.heights.addChildAt(layer.heights, 0);
+    this.castRoot.surfaces.addChild(layer.surface);
     this.entityRoot.addChild(layer);
     this.edgeRoot.addChild(layer.edges);
     return layer;

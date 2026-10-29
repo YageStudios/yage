@@ -62,13 +62,14 @@ describe("ChunkScene static instances", () => {
     scene.destroy();
   });
 
-  it("draws decals and static parts between the ground and sprites, roofs on top, all lit", () => {
+  it("draws decals and static parts between the ground and sprites, roofs on top, the sun's shadows over all, all lit", () => {
     const scene = new ChunkScene({ chunkSize: 100, style });
     const roots = scene.root.children;
     expect(roots.indexOf(scene.groundRoot)).toBeLessThan(roots.indexOf(scene.decalRoot));
     expect(roots.indexOf(scene.decalRoot)).toBeLessThan(roots.indexOf(scene.staticRoot));
     expect(roots.indexOf(scene.staticRoot)).toBeLessThan(roots.indexOf(scene.shadowRoot));
-    expect(roots.indexOf(scene.overRoot)).toBe(roots.length - 1);
+    expect(roots.indexOf(scene.overRoot)).toBe(roots.length - 2);
+    expect(roots.indexOf(scene.castRoot)).toBe(roots.length - 1);
     const road = new PIXI.Sprite(PIXI.Texture.EMPTY);
     scene.setDecals(2, -1, [road]);
     const decals = scene.view(2, -1).decals!;

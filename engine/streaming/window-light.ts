@@ -304,8 +304,9 @@ export class LightPass extends PIXI.Container {
  * to the screen as it was. A camera may sit in the projection (ProjectedCamera): what it adds to the
  * target's own is carried into the buffer's (a Pixi filter would drop it for what draws after).
  * `frame` (the screen's px, default the screen) is the part of the screen the buffer takes.
+ * `flip` draws it upside down, as the screen is: clip y (a sprite's depth) runs as it does there.
  */
-export const renderInto = (renderer: PIXI.Renderer, buffer: PIXI.RenderTexture, clear: [number, number, number, number], draw: () => void, frame?: PIXI.Rectangle) => {
+export const renderInto = (renderer: PIXI.Renderer, buffer: PIXI.RenderTexture, clear: [number, number, number, number], draw: () => void, frame?: PIXI.Rectangle, flip = false) => {
   renderer.batch.flush();
   const target = renderer.renderTexture;
   const projection = renderer.projection;
@@ -317,6 +318,7 @@ export const renderInto = (renderer: PIXI.Renderer, buffer: PIXI.RenderTexture, 
   const view = projection.projectionMatrix.clone().invert().append(camera);
   target.bind(buffer, frame ? new PIXI.Rectangle(source.x + frame.x, source.y + frame.y, frame.width, frame.height) : source);
   projection.projectionMatrix.append(view);
+  if (flip) projection.projectionMatrix.prepend(FLIP);
   sync(renderer);
   target.clear(clear);
   draw();
@@ -325,6 +327,8 @@ export const renderInto = (renderer: PIXI.Renderer, buffer: PIXI.RenderTexture, 
   projection.projectionMatrix.copyFrom(camera);
   sync(renderer);
 };
+
+const FLIP = new PIXI.Matrix(1, 0, 0, -1, 0, 0);
 
 const sync = (renderer: PIXI.Renderer) => {
   renderer.globalUniforms.update();

@@ -289,6 +289,7 @@ export class StaticSet {
     if (this.occlude && parts.over) {
       const occluder = occluderMesh(item.spec.w, item.spec.h, item.spec.angle, item.spec.rise);
       item.over.addChild(occluder);
+      this.shadow?.occluders.add(occluder);
       (item as { occluder: PIXI.Mesh<PIXI.Shader> | null }).occluder = occluder;
     }
     this.far?.changed(item);
