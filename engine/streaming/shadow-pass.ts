@@ -8,13 +8,16 @@
  *    edge toward the sun, so what stands just off screen still shades what's on it;
  *  - tops: every instance's `StaticParts.tops`, the roofs as the screen shows them (lifted up the
  *    screen by their walls' `rise`), each with its height and rise, and its walls' faces in
- *    `WALL_COLOR`; the rest is ground, at 0.
+ *    `WALL_COLOR`; the rest is ground, at 0;
+ *  - casts: upright sprites' own shadows on the ground (ChunkLayerStyle `cast`: a tree's silhouette
+ *    laid toward the sun), anything drawn marking shade.
  *
  * Then one quad over the screen: each pixel finds its point on the ground plan (down the screen by
  * its rise) and marches from there toward the sun (north-west; shadows fall toward +x, +y, a unit
  * of height one unit along each) through the heights; if something stands above the ray it is in
  * shade, at the pass's darkness. So towers shade the street and the lower roofs beside them, a
- * parapet the deck inside it, a water tower the roof it stands on, each once however many overlap.
+ * parapet the deck inside it, a water tower the roof it stands on, and a tree the ground beside it,
+ * each once however many overlap.
  * A wall's face, and a pixel standing below the heights at its own point (a water tower's side), is
  * left as its art draws it.
  *
@@ -47,6 +50,7 @@ const fragment = `
 precision highp float;
 uniform sampler2D uHeights;
 uniform sampler2D uTops;
+uniform sampler2D uCasts;
 uniform vec2 uView;
 uniform float uRes;
 uniform vec4 uFrame;
@@ -62,7 +66,10 @@ void main() {
   float h = top.r * 255.0;
   vec2 ground = p + vec2(0.0, top.g * ${255 * RISE_STEP}.0 * uScale);
   float shade = 0.0;
-  if (top.b < 0.5 && heightAt(ground) <= h + 1.5) {
+  float below = heightAt(ground);
+  // Sprites' shadows lie on open ground only, never up a wall or over a roof.
+  if (top.b < 0.5 && h < 0.5 && below < 1.5) shade = texture2D(uCasts, p / uView).a;
+  if (top.b < 0.5 && below <= h + 1.5 && shade < 1.0) {
     float reach = uReach - h;
     for (int i = 1; i <= ${STEPS}; i++) {
       float f = float(i) / ${STEPS}.0;
@@ -94,8 +101,11 @@ export class ShadowPass extends PIXI.Container {
   readonly heights = new PIXI.Container();
   /** Instances' tops, as the screen shows them (StaticSet adds them). */
   readonly tops = new PIXI.Container();
+  /** Upright sprites' shadows on the ground, as the screen shows them (ChunkScene adds them, ChunkLayerStyle `cast`). */
+  readonly casts = new PIXI.Container();
   private readonly heightBuffer = bufferOf();
   private readonly topBuffer = bufferOf();
+  private readonly castBuffer = bufferOf();
   private readonly view = new Float32Array([1, 1]);
   private readonly frame = new Float32Array([0, 0, 1, 1]);
   private readonly quad: PIXI.Mesh<PIXI.Shader>;
@@ -103,16 +113,17 @@ export class ShadowPass extends PIXI.Container {
   constructor() {
     super();
     this.eventMode = "none";
-    this.addChild(this.heights, this.tops);
+    this.addChild(this.heights, this.tops, this.casts);
     program ??= PIXI.Program.from(vertex, fragment, "yage-shadow-pass");
     // The whole screen, in clip space.
     const geometry = new PIXI.Geometry().addAttribute("aVertexPosition", [-1, -1, 1, -1, 1, 1, -1, 1], 2, false, GL_FLOAT as PIXI.TYPES).addIndex([0, 1, 2, 0, 2, 3]);
-    const shader = new PIXI.Shader(program, { uHeights: this.heightBuffer, uTops: this.topBuffer, uView: this.view, uRes: 1, uFrame: this.frame, uScale: 1, uReach: this.reach, uDarkness: this.darkness });
+    const shader = new PIXI.Shader(program, { uHeights: this.heightBuffer, uTops: this.topBuffer, uCasts: this.castBuffer, uView: this.view, uRes: 1, uFrame: this.frame, uScale: 1, uReach: this.reach, uDarkness: this.darkness });
     this.quad = new PIXI.Mesh(geometry, shader);
   }
 
   render(renderer: PIXI.Renderer) {
-    if (!this.visible || this.darkness <= 0.002 || !this.tops.children.some((c) => c.visible)) return;
+    const shown = (c: PIXI.DisplayObject) => c.visible;
+    if (!this.visible || this.darkness <= 0.002 || !(this.tops.children.some(shown) || this.casts.children.some(shown))) return;
     const { width, height } = renderer.screen;
     // Screen px per world px, where the camera and this pass's parents put the instances.
     const m = renderer.projection.projectionMatrix;
@@ -125,8 +136,10 @@ export class ShadowPass extends PIXI.Container {
     const frame = new PIXI.Rectangle(-toward, -toward, Math.ceil(width) + toward, Math.ceil(height) + toward + below);
     size(this.heightBuffer, frame.width, frame.height);
     size(this.topBuffer, width, height);
+    size(this.castBuffer, width, height);
     renderInto(renderer, this.heightBuffer, [0, 0, 0, 0], () => this.heights.render(renderer), frame);
     renderInto(renderer, this.topBuffer, [0, 0, 0, 0], () => this.tops.render(renderer));
+    renderInto(renderer, this.castBuffer, [0, 0, 0, 0], () => this.casts.render(renderer));
     this.view[0] = width;
     this.view[1] = height;
     this.frame[0] = frame.x;
@@ -146,6 +159,7 @@ export class ShadowPass extends PIXI.Container {
     super.destroy(options);
     this.heightBuffer.destroy(true);
     this.topBuffer.destroy(true);
+    this.castBuffer.destroy(true);
     this.quad.destroy();
   }
 }

@@ -7,7 +7,7 @@
  * (before its hand-off lands) still draws in the right order. Ground layers draw first and don't
  * touch the depth buffer.
  *
- * Draw order: ground, (depth-sorted roofs, see `roofDepth`), the sun's shadows from static instances' heights over both (one pass, shadow-pass.ts), soft drop shadows (blended, no depth), opaque sprite cores (depth-tested and
+ * Draw order: ground, (depth-sorted roofs, see `roofDepth`), the sun's shadows from static instances' heights and upright sprites over both (one pass, shadow-pass.ts), soft drop shadows (blended, no depth), opaque sprite cores (depth-tested and
  * written), then the sprites' anti-aliased edges (blended, depth-tested, not written) so smooth
  * art keeps soft outlines without sorting. Static props (trees, lamps…) use the same machinery
  * with their own atlas, so people walk behind and in front of them correctly.
@@ -219,6 +219,45 @@ void main() {
 }
 `;
 
+// An upright sprite's shadow on the ground (ChunkLayerStyle `cast`): each texel `v` above the feet
+// lands `v · length` toward +x, +y (the sun in the north-west, as the statics' heights cast).
+const castVertex = `${instanceHeader}
+uniform vec2 uGrid;
+uniform float uCastLength;
+varying vec2 vUv;
+varying vec2 vCell;
+
+void main() {
+  if (aTint > ${EMPTY_SLOT - 0.5}) {
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    vUv = vCell = vec2(0.0);
+    return;
+  }
+  vec2 foot = footOf();
+  vec2 p = posedOf(aCorner, uSize * growOf());
+  float up = -p.y * uCastLength;
+  mat3 m = projectionMatrix * translationMatrix;
+  gl_Position = vec4((m * vec3(foot + vec2(p.x + up, up), 1.0)).xy, 0.0, 1.0);
+  float column = floor(mod(aSprite + 0.5, uGrid.x));
+  vec2 cell = vec2(column, floor((aSprite + 0.5) / uGrid.x));
+  vUv = (cell + vec2(aCorner.x + 0.5, aCorner.y + 1.0)) / uGrid;
+  vCell = (cell + 0.5) / uGrid;
+}
+`;
+
+const castFragment = `
+precision mediump float;
+varying vec2 vUv;
+varying vec2 vCell;
+uniform sampler2D uAtlas;
+uniform sampler2D uCasting;
+
+void main() {
+  if (texture2D(uCasting, vCell).a < 0.5 || texture2D(uAtlas, vUv).a < 0.5) discard;
+  gl_FragColor = vec4(1.0);
+}
+`;
+
 const glowVertex = `${instanceHeader}
 uniform vec2 uGrid;
 uniform vec4 uGlowBounds[${MAX_GLOWS}];
@@ -353,6 +392,12 @@ export type ChunkLayerStyle = {
   /** A soft elliptical drop shadow under each sprite (world units, offset from the feet). */
   shadow?: { size: [number, number]; offset?: [number, number]; alpha?: number };
   /**
+   * The sun's shadows of upright sprites (a tree, a lamp post), with the statics' (ChunkScene
+   * `castShadow`, shadow-pass.ts): each of `sprites` lays its silhouette on the ground toward the
+   * south-east, `length` (default 1) world units per unit it stands above its feet.
+   */
+  cast?: { sprites: readonly number[]; length?: number };
+  /**
    * Soft glowing halos around the silhouettes of some sprites (e.g. one sprite set), drawn under
    * every sprite and unaffected by `setLight`. At most four ranges (see GlowRange: one colour or a
    * ramp picked by sprite offset or tint, an optional pulse and a wider ring). `radius` is in
@@ -369,6 +414,9 @@ class LayerKind {
   readonly shadowShared: PIXI.UniformGroup | null;
   readonly glowProgram: PIXI.Program | null = null;
   readonly glowShared: PIXI.UniformGroup | null = null;
+  readonly castProgram: PIXI.Program | null = null;
+  /** Which sprites cast (`style.cast`), one texel per atlas cell. */
+  readonly casting: PIXI.Texture | null = null;
   readonly style: ChunkLayerStyle;
 
   constructor(style: ChunkLayerStyle) {
@@ -405,6 +453,13 @@ class LayerKind {
     } else {
       this.shadowProgram = null;
       this.shadowShared = null;
+    }
+    if (style.cast) {
+      const [columns, rows] = style.grid;
+      const cells = new Uint8Array(columns * rows * 4);
+      for (const sprite of style.cast.sprites) if (sprite >= 0 && sprite < columns * rows) cells.fill(255, sprite * 4, sprite * 4 + 4);
+      this.casting = PIXI.Texture.fromBuffer(cells, columns, rows, { scaleMode: PIXI.SCALE_MODES.NEAREST, mipmap: PIXI.MIPMAP_MODES.OFF });
+      this.castProgram = PIXI.Program.from(castVertex, castFragment, "yage-chunk-cast");
     }
     if (style.glow) {
       const glow = glowUniforms(style.glow.ranges);
@@ -471,6 +526,8 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   readonly shadow: PIXI.Mesh<PIXI.Shader> | null;
   /** Silhouette halos, drawn after shadows and before any sprite; null when the style has none. */
   readonly glow: PIXI.Mesh<PIXI.Shader> | null;
+  /** The sun's shadows of upright sprites, for ChunkScene's shadow pass; null when the style has none (`cast`). */
+  readonly cast: PIXI.Mesh<PIXI.Shader> | null;
   private readonly prevX: PIXI.Buffer;
   private readonly prevY: PIXI.Buffer;
   private readonly curX: PIXI.Buffer;
@@ -557,6 +614,16 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     } else {
       this.glow = null;
     }
+    if (kind.castProgram && kind.casting && kind.style.cast) {
+      const castState = PIXI.State.for2d();
+      castState.depthTest = false;
+      castState.depthMask = false;
+      castState.blend = false;
+      const uniforms = { uAlpha: 1, uAtlas: kind.style.atlas, uCasting: kind.casting, uCastLength: kind.style.cast.length ?? 1, shared: kind.shared };
+      this.cast = new PIXI.Mesh(geometry, new PIXI.Shader(kind.castProgram, uniforms), castState);
+    } else {
+      this.cast = null;
+    }
     this.prevX = prevX;
     this.prevY = prevY;
     this.curX = curX;
@@ -580,6 +647,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     const meshes: PIXI.Mesh<PIXI.Shader>[] = [this, this.edges];
     if (this.shadow) meshes.push(this.shadow);
     if (this.glow) meshes.push(this.glow);
+    if (this.cast) meshes.push(this.cast);
     return meshes;
   }
 
@@ -755,6 +823,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     this.edges.destroy();
     this.shadow?.destroy();
     this.glow?.destroy();
+    this.cast?.destroy();
     super.destroy();
   }
 }
@@ -960,6 +1029,7 @@ export class ChunkScene {
     if (this.options.roofDepth) for (const pass of [layer.shadow, layer.glow]) if (pass) pass.state.depthTest = true;
     if (layer.shadow) this.shadowRoot.addChild(layer.shadow);
     if (layer.glow) this.shadowRoot.addChild(layer.glow);
+    if (layer.cast) this.castRoot.casts.addChild(layer.cast);
     this.entityRoot.addChild(layer);
     this.edgeRoot.addChild(layer.edges);
     return layer;
