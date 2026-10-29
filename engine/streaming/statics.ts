@@ -20,6 +20,7 @@
  */
 import * as PIXI from "pixi.js";
 import { withinFrame } from "../game/FrameBudget";
+import type { FarBake } from "./far";
 import { rotatedBounds, toLocal, type Point, type Rect, type VectorMesh } from "./vector";
 
 /** A Pixi geometry with `aVertexPosition` plus one attribute per mesh attribute (`uv` → `aUv`). */
@@ -243,6 +244,9 @@ export class StaticSet {
 
   private readonly seen: StaticInstance[] = [];
 
+  /** Far-off chunks' pictures (ChunkScene's `farBake`): told of every instance and change, and hiding the instances it draws. */
+  far: FarBake | null = null;
+
   /** Listed instances whose parts are not built yet (lazy only). */
   private readonly unbuilt = new Set<StaticInstance>();
 
@@ -257,6 +261,7 @@ export class StaticSet {
       item.over.addChild(occluder);
       (item as { occluder: PIXI.Mesh<PIXI.Shader> | null }).occluder = occluder;
     }
+    this.far?.changed(item);
   }
 
   /** Replaces the instances listed by chunk `key`. */
@@ -281,6 +286,7 @@ export class StaticSet {
         item = { spec, under, over, occluder: null, bounds: boundsOf(spec), holders: new Set() };
         this.items.set(spec.id, item);
         this.index(item, true);
+        this.far?.add(item);
         if (this.lazy) {
           // Hidden until a cull sees it and builds it.
           under.visible = over.visible = false;
@@ -301,6 +307,7 @@ export class StaticSet {
     if (item.holders.size) return;
     item.under.destroy({ children: true });
     item.over.destroy({ children: true });
+    this.far?.remove(item);
     this.items.delete(item.spec.id);
     this.index(item, false);
     this.unbuilt.delete(item);
@@ -346,8 +353,10 @@ export class StaticSet {
         seen.push(item);
         continue;
       }
-      item.under.visible = visible;
-      item.over.visible = visible && item.over.children.length > 0;
+      // A far-off chunk's picture draws its instances (FarBake).
+      const shown = visible && !this.far?.covers(item);
+      item.under.visible = shown;
+      item.over.visible = shown && item.over.children.length > 0;
       // A faded roof (someone inside) shows the people under it.
       if (item.occluder) item.occluder.visible = item.over.alpha > 0.6;
     }
@@ -375,6 +384,7 @@ export class StaticSet {
   setTint(rgb: number) {
     if (rgb === this.tint) return;
     this.tint = rgb;
+    this.far?.setTint(rgb);
     for (const item of this.items.values()) {
       tintTree(item.under, rgb);
       tintTree(item.over, rgb);
@@ -389,5 +399,6 @@ export class StaticSet {
     this.items.clear();
     this.cells.clear();
     this.unbuilt.clear();
+    this.far?.clear();
   }
 }

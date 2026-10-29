@@ -17,6 +17,7 @@ import { glowUniforms, MAX_GLOW_RAMP, MAX_GLOWS, MAX_PALETTE, paletteArray, type
 import { chunkKey } from "./coord";
 import { SnapshotPair } from "./interp";
 import { EMPTY_SLOT, POSITION_SCALE, type Snapshot } from "./protocol";
+import { FarBake, type FarBakeOptions } from "./far";
 import { StaticSet, tintTree, type StaticSpec } from "./statics";
 import { LightPass } from "./window-light";
 
@@ -786,6 +787,8 @@ export type ChunkSceneOptions = {
   staticBudget?: number;
   /** With `staticBudget`, milliseconds an update always gets for them, whatever the frame's shared budget has left. */
   staticFloor?: number;
+  /** Zoomed far out, each chunk's static instances drawn as one picture (far.ts); `update` then needs its `far` argument. */
+  farBake?: FarBakeOptions;
 };
 
 type ChunkView = {
@@ -821,6 +824,8 @@ export class ChunkScene {
   readonly overRoot = new PIXI.Container();
   /** Static instances placed at any position and angle; see `setStatics`. */
   readonly statics: StaticSet;
+  /** Their far-off chunks' pictures, with `farBake` (else null), where the static instances stack. */
+  readonly far: FarBake | null;
   readonly views = new Map<number, ChunkView>();
   /** What `place` draws, and the chunk whose layer draws it (-1 none). */
   private placedGid = -1;
@@ -835,8 +840,11 @@ export class ChunkScene {
     this.entities = new LayerKind(options.style);
     const props = options.props ? (Array.isArray(options.props) ? options.props : [options.props]) : [];
     this.propKinds = props.map((style: ChunkLayerStyle) => new LayerKind(style));
-    if (options.roofDepth) this.root.addChild(this.lightPass, this.groundRoot, this.decalRoot, this.staticRoot, this.overRoot, this.shadowRoot, this.entityRoot, this.edgeRoot);
-    else this.root.addChild(this.lightPass, this.groundRoot, this.decalRoot, this.staticRoot, this.shadowRoot, this.entityRoot, this.edgeRoot, this.overRoot);
+    this.far = options.farBake ? new FarBake(options.chunkSize, options.farBake) : null;
+    this.statics.far = this.far;
+    const far = this.far ? [this.far.root] : [];
+    if (options.roofDepth) this.root.addChild(this.lightPass, this.groundRoot, this.decalRoot, this.staticRoot, ...far, this.overRoot, this.shadowRoot, this.entityRoot, this.edgeRoot);
+    else this.root.addChild(this.lightPass, this.groundRoot, this.decalRoot, this.staticRoot, ...far, this.shadowRoot, this.entityRoot, this.edgeRoot, this.overRoot);
   }
 
   setPalette(palette: number[]) {
@@ -996,9 +1004,11 @@ export class ChunkScene {
 
   /**
    * Culls chunks outside `view` (world units, expanded by one chunk for strays) and sets each
-   * layer's interpolation point.
+   * layer's interpolation point. With `farBake`, `far` gives the zoom and the renderer that makes
+   * the far-off chunks' pictures.
    */
-  update(view: { minX: number; minY: number; maxX: number; maxY: number }, now = performance.now()) {
+  update(view: { minX: number; minY: number; maxX: number; maxY: number }, now = performance.now(), far?: { zoom: number; renderer: PIXI.Renderer }) {
+    if (this.far && far) this.far.update(far.renderer, far.zoom, view, now);
     const size = this.options.chunkSize;
     this.entities.setTime(now / 1000);
     let drawn = 0;
