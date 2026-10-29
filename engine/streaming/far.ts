@@ -3,20 +3,24 @@
  *
  * Zoomed far out a city's buildings are thousands of containers and hundreds of thousands of
  * vector shapes, each re-batched every frame for a building a few pixels wide. Below `below` zoom
- * each chunk's instances (those whose bounds' centre lies in it, under parts then over parts) are
- * rendered once into a texture of their own and drawn as one sprite; the instances of a chunk with
- * a picture are hidden (StaticSet.cull). A chunk without one yet shows its instances as they are,
- * so nothing goes blank while pictures are made: nearest the view's centre first, within the
- * frame's shared budget (yage/game/FrameBudget), at least one a frame.
+ * each chunk is rendered once into a texture of its own and drawn as one sprite: exactly the chunk,
+ * cut at its edges, with every instance that reaches into it (`pad` past its bounds, for what draws
+ * past them) stacked as the scene stacks them, under parts then over parts by depth. Pictures never
+ * overlap, so none stacks wrongly against another, and they draw over every static instance: an
+ * instance shown as it is under a picture is drawn there by the picture just the same. An instance
+ * is hidden (StaticSet.cull) while every chunk it reaches has a picture with it in. A chunk without
+ * a picture yet shows its instances as they are, so nothing goes blank while pictures are made:
+ * nearest the view's centre first, within the frame's shared budget (yage/game/FrameBudget), at
+ * least one a frame.
  *
- * A chunk's picture is made again when one of its instances is added, built or dropped, when the
+ * A chunk's picture is made again when an instance reaching it is added, built or dropped, when the
  * display tree under one changes (a child added or removed anywhere in it), or when the scene's
  * light tint moves on by more than TINT_STEP a channel: after the view's missing pictures, and no
- * sooner than REBAKE_MS after it was last made. Until then it keeps showing the old one, and an
- * instance added since shows as it is.
- * While an instance's over part is faded (a roof someone is inside), its whole chunk shows as it
- * is in place of the picture: the inside stacks with the walls around it as the scene does. Other
- * in-place changes are not seen: from that far they don't show.
+ * sooner than REBAKE_MS after it was last made. Until then a chunk an instance built, changed or
+ * dropped since reaches shows as it is in place of its picture (which would draw the instance as it
+ * was, or not at all, under or over its neighbours), as does one while an instance's over part in
+ * it is faded (a roof someone is inside): the inside stacks with the walls around it as the scene
+ * does. Other in-place changes are not seen (a light's tint, until it moves on enough): from that far they don't show.
  */
 import * as PIXI from "pixi.js";
 import { withinFrame } from "../game/FrameBudget";
@@ -28,7 +32,7 @@ export type FarBakeOptions = {
   below: number;
   /** Texture px per world unit (default `below` times the renderer's resolution, at most 0.25). */
   resolution?: number;
-  /** World units a picture reaches past its chunk on each side at least (default 160); further where its instances reach. */
+  /** World units past its bounds an instance may draw (a shadow, an awning): the chunks that far take it into their pictures (default 160). */
   pad?: number;
   /** Milliseconds a frame may spend making pictures, from the frame's shared budget (default 4). */
   budget?: number;
@@ -37,7 +41,22 @@ export type FarBakeOptions = {
 /** What a picture is made of: an instance's parts, as StaticSet holds them. */
 export type FarInstance = { under: PIXI.Container; over: PIXI.Container; occluder: PIXI.DisplayObject | null; bounds: Rect };
 
-type Tile = { sprite: PIXI.Sprite | null; depth: PIXI.Mesh<PIXI.Shader> | null; dirty: boolean; tint: number; baked: Set<FarInstance>; at: number; open: boolean; opening: boolean };
+type Tile = {
+  sprite: PIXI.Sprite | null;
+  depth: PIXI.Mesh<PIXI.Shader> | null;
+  dirty: boolean;
+  tint: number;
+  baked: Set<FarInstance>;
+  at: number;
+  /** Showing as it is this frame (`changed` or `opening`). */
+  open: boolean;
+  /** An instance reaching it was built, changed or dropped since its picture. */
+  changed: boolean;
+  /** An instance in it was seen faded last frame. */
+  faded: boolean;
+  /** An instance in it was seen faded this frame. */
+  opening: boolean;
+};
 
 const EMPTY = new PIXI.Container();
 /** Channels further apart than this make a picture stale. */
@@ -57,8 +76,10 @@ export class FarBake {
   readonly root = new PIXI.Container();
   active = false;
   private readonly tiles = new Map<number, Tile>();
+  /** Each chunk's instances: those reaching it. */
   private readonly members = new Map<number, Set<FarInstance>>();
-  private readonly keys = new Map<FarInstance, number>();
+  /** The chunks each instance reaches. */
+  private readonly keys = new Map<FarInstance, number[]>();
   private readonly watched = new WeakSet<PIXI.Container>();
   private tint = 0xffffff;
   private readonly wanted: number[] = [];
@@ -69,48 +90,62 @@ export class FarBake {
   ) {
     this.root.eventMode = "none";
     this.root.visible = false;
-    // Pictures overlap (a tall building rises up the screen into the chunk behind): nearer (lower) rows over further ones.
-    this.root.sortableChildren = true;
   }
 
-  private keyOf(b: Rect) {
-    const cx = Math.floor((b.minX + b.maxX) / 2 / this.chunkSize);
-    const cy = Math.floor((b.minY + b.maxY) / 2 / this.chunkSize);
-    return (cx & 0xffff) * 65536 + (cy & 0xffff);
+  /** The chunks `item` reaches, `pad` past its bounds. */
+  private keysOf(b: Rect) {
+    const size = this.chunkSize;
+    const pad = this.options.pad ?? 160;
+    const keys: number[] = [];
+    for (let cy = Math.floor((b.minY - pad) / size); cy <= Math.floor((b.maxY + pad) / size); cy++) {
+      for (let cx = Math.floor((b.minX - pad) / size); cx <= Math.floor((b.maxX + pad) / size); cx++) keys.push((cx & 0xffff) * 65536 + (cy & 0xffff));
+    }
+    return keys;
   }
 
-  private stale(key: number) {
-    const tile = this.tiles.get(key);
-    if (tile) tile.dirty = true;
+  /** `item` is in no picture as it is now: the chunks it reaches are stale, and show as they are until made again. */
+  private stale(item: FarInstance, keys: number[]) {
+    for (const key of keys) {
+      const tile = this.tiles.get(key);
+      if (!tile) continue;
+      tile.dirty = true;
+      // An instance with nothing built is in no picture and shows nothing as it is: nothing to show differently.
+      if (tile.baked.delete(item) || item.under.children.length || item.over.children.length) tile.changed = true;
+    }
   }
 
-  /** An instance listed: its chunk's picture is stale. */
+  /** An instance listed: the pictures of the chunks it reaches are stale. */
   add(item: FarInstance) {
-    const key = this.keyOf(item.bounds);
-    this.keys.set(item, key);
-    let set = this.members.get(key);
-    if (!set) this.members.set(key, (set = new Set()));
-    set.add(item);
-    this.stale(key);
+    const keys = this.keysOf(item.bounds);
+    this.keys.set(item, keys);
+    for (const key of keys) {
+      let set = this.members.get(key);
+      if (!set) this.members.set(key, (set = new Set()));
+      set.add(item);
+    }
+    this.stale(item, keys);
   }
 
   /** An instance dropped. */
   remove(item: FarInstance) {
-    const key = this.keys.get(item);
-    if (key === undefined) return;
+    const keys = this.keys.get(item);
+    if (!keys) return;
     this.keys.delete(item);
-    const set = this.members.get(key);
-    set?.delete(item);
-    if (set && !set.size) {
-      this.members.delete(key);
-      this.drop(key);
-    } else this.stale(key);
+    this.stale(item, keys);
+    for (const key of keys) {
+      const set = this.members.get(key);
+      set?.delete(item);
+      if (set && !set.size) {
+        this.members.delete(key);
+        this.drop(key);
+      }
+    }
   }
 
-  /** An instance built (or changed): its picture is stale, and so it will be at every later change under it. */
+  /** An instance built (or changed): the pictures it reaches are stale, and so they will be at every later change under it. */
   changed(item: FarInstance) {
-    const key = this.keys.get(item);
-    if (key !== undefined) this.stale(key);
+    const keys = this.keys.get(item);
+    if (keys) this.stale(item, keys);
     this.watch(item.under, item);
     this.watch(item.over, item);
   }
@@ -135,13 +170,16 @@ export class FarBake {
   /** Whether an instance is drawn by its chunk's picture (and so hidden itself). */
   covers(item: FarInstance) {
     if (!this.active) return false;
-    const key = this.keys.get(item);
-    if (key === undefined) return false;
-    const tile = this.tiles.get(key);
-    if (!tile?.sprite) return false;
-    // Faded, the chunk shows as it is (from the next frame), so its inside stacks with its walls.
-    if (item.over.alpha < 1) tile.opening = true;
-    return !tile.open && tile.baked.has(item);
+    const keys = this.keys.get(item);
+    if (!keys) return false;
+    let covered = true;
+    for (const key of keys) {
+      const tile = this.tiles.get(key);
+      // Faded, the chunks it reaches show as they are (from the next frame), so its inside stacks with its walls.
+      if (tile && item.over.alpha < 1) tile.opening = true;
+      if (!tile?.sprite || !tile.sprite.visible || !tile.baked.has(item)) covered = false;
+    }
+    return covered;
   }
 
   private drop(key: number) {
@@ -183,7 +221,8 @@ export class FarBake {
       if (x < x0 - 2 || x > x1 + 2 || y < y0 - 2 || y > y1 + 2) this.drop(key);
       else {
         const near = x >= x0 - 1 && x <= x1 + 1 && y >= y0 - 1 && y <= y1 + 1;
-        tile.open = tile.opening;
+        tile.faded = tile.opening;
+        tile.open = tile.faded || tile.changed;
         tile.opening = false;
         if (tile.sprite) tile.sprite.visible = near && !tile.open;
         if (tile.depth) tile.depth.visible = near && !tile.open;
@@ -220,23 +259,13 @@ export class FarBake {
     const items = this.members.get(key);
     if (!items) return;
     const size = this.chunkSize;
-    const pad = this.options.pad ?? 160;
     const res = this.options.resolution ?? Math.min(0.25, this.options.below * renderer.resolution);
     const { x, y } = { x: (key / 65536) << 16 >> 16, y: (key & 0xffff) << 16 >> 16 };
-    // The chunk and `pad` round it, and as far as its instances reach past that (a tall building
-    // rises up the screen well into the chunk behind): cut off, its top would be missing.
-    let minX = x * size - pad, minY = y * size - pad, maxX = (x + 1) * size + pad, maxY = (y + 1) * size + pad;
-    for (const item of items) {
-      const b = item.bounds;
-      minX = Math.min(minX, b.minX);
-      minY = Math.min(minY, b.minY);
-      maxX = Math.max(maxX, b.maxX);
-      maxY = Math.max(maxY, b.maxY);
-    }
-    const left = Math.floor(minX), top = Math.floor(minY);
-    const width = Math.ceil((maxX - left) * res), height = Math.ceil((maxY - top) * res);
+    // Exactly the chunk: what reaches past it is drawn by the next chunk's picture, stacked there with what is in front of it.
+    const left = x * size, top = y * size;
+    const width = Math.ceil(size * res), height = width;
     let tile = this.tiles.get(key);
-    if (!tile) this.tiles.set(key, (tile = { sprite: null, depth: null, dirty: true, tint: this.tint, baked: new Set(), at: 0, open: false, opening: false }));
+    if (!tile) this.tiles.set(key, (tile = { sprite: null, depth: null, dirty: true, tint: this.tint, baked: new Set(), at: 0, open: false, changed: false, faded: false, opening: false }));
     if (tile.sprite && (tile.sprite.texture.width !== width || tile.sprite.texture.height !== height)) {
       tile.sprite.destroy({ texture: true, baseTexture: true });
       tile.sprite = null;
@@ -246,7 +275,6 @@ export class FarBake {
       tile.sprite = new PIXI.Sprite(texture);
       tile.sprite.scale.set(1 / res);
       tile.sprite.eventMode = "none";
-      tile.sprite.zIndex = y;
       this.root.addChild(tile.sprite);
     }
     tile.sprite.position.set(left, top);
@@ -270,15 +298,25 @@ export class FarBake {
       part.alpha = alpha;
       if (item.occluder) item.occluder.visible = occluded;
     };
-    const ordered = [...items].sort((a, b) => a.over.zIndex - b.over.zIndex);
-    for (const item of ordered) draw(item.under, item);
+    // In the scene's order: under parts as listed, over parts by depth (ties as listed).
+    const listed = [...items];
+    const ordered = listed.map((item, i) => ({ item, i })).sort((a, b) => a.item.over.zIndex - b.item.over.zIndex || a.i - b.i).map((o) => o.item);
+    for (const item of listed) draw(item.under, item);
     for (const item of ordered) draw(item.over, item);
     if (clear) renderer.render(EMPTY, { renderTexture, clear });
-    this.bakeDepth(tile, ordered);
+    // Each instance's occluder once, with the chunk it stands in (its bounds' centre).
+    const home = (item: FarInstance) => Math.floor((item.bounds.minX + item.bounds.maxX) / 2 / size) === x && Math.floor((item.bounds.minY + item.bounds.maxY) / 2 / size) === y;
+    this.bakeDepth(tile, ordered.filter(home));
     tile.dirty = false;
+    tile.changed = false;
+    // Shown from this frame (it is in the view's ring), unless faded.
+    tile.open = tile.faded;
+    tile.sprite.visible = !tile.open;
+    if (tile.depth) tile.depth.visible = !tile.open;
     tile.tint = this.tint;
     tile.at = now;
-    tile.baked = new Set(ordered);
+    // An instance with nothing built yet isn't in the picture: built, it shows as it is until the next.
+    tile.baked = new Set(ordered.filter((item) => item.under.children.length || item.over.children.length));
   }
 
   /**
