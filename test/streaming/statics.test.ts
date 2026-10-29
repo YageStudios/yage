@@ -107,7 +107,8 @@ describe("ChunkScene static instances", () => {
     scene.setStatics(0, 0, [spec("house", 20, 20, 0.4)]);
     const house = scene.statics.items.get("house")!;
     expect(house.occluder).not.toBeNull();
-    expect(house.over.children).toContain(house.occluder);
+    expect(scene.statics.occluders.children).toContain(house.occluder);
+    expect(roots.indexOf(scene.statics.occluders)).toBe(roots.indexOf(scene.overRoot) + 1);
     scene.update(everywhere);
     expect(house.occluder!.visible).toBe(true);
     house.over.alpha = 0.1;
@@ -118,6 +119,34 @@ describe("ChunkScene static instances", () => {
     plain.setStatics(0, 0, [spec("house", 20, 20)]);
     expect(plain.statics.items.get("house")!.occluder).toBeNull();
     plain.destroy();
+  });
+
+  it("opens roofs round a cutaway: finds what it reaches, and nothing there is roofed", () => {
+    const scene = new ChunkScene({ chunkSize: 1024, style, roofDepth: true });
+    scene.setStatics(0, 0, [spec("a", 100, 100), spec("b", 600, 100)]);
+    scene.update(everywhere);
+    expect(scene.statics.roofed(105, 105)).toBe(true);
+    expect([...scene.statics.inCut()]).toEqual([]);
+    scene.statics.cut = { x: 105, y: 105, radius: 40 };
+    expect([...scene.statics.inCut()].map((i) => i.spec.id)).toEqual(["a"]);
+    expect(scene.statics.roofed(105, 105)).toBe(false);
+    scene.statics.cut = { x: 560, y: 105, radius: 600 };
+    expect(new Set([...scene.statics.inCut()].map((i) => i.spec.id))).toEqual(new Set(["a", "b"]));
+    scene.destroy();
+  });
+
+  it("finds what covers a point on screen: its rectangle, or its rise in front of it", () => {
+    const scene = new ChunkScene({ chunkSize: 1024, style });
+    scene.setStatics(0, 0, [{ ...spec("tall", 100, 100), rise: 30 }]);
+    const ids = (x: number, y: number) => scene.statics.covering(x, y).map((i) => i.spec.id);
+    expect(ids(110, 110)).toEqual(["tall"]);
+    // Up the screen from it, within its rise: behind its walls.
+    expect(ids(110, 80)).toEqual(["tall"]);
+    expect(ids(110, 60)).toEqual([]);
+    // Below it (in front) and beside it.
+    expect(ids(110, 130)).toEqual([]);
+    expect(ids(160, 110)).toEqual([]);
+    scene.destroy();
   });
 
   it("finds instances across lookup cells, off the origin, until they are dropped", () => {
@@ -148,7 +177,7 @@ describe("ChunkScene static instances", () => {
     expect(built).toEqual(["near"]);
     expect(near.under.visible).toBe(true);
     expect(near.occluder).not.toBeNull();
-    expect(near.over.children).toContain(near.occluder);
+    expect(scene.statics.occluders.children).toContain(near.occluder);
     expect((near.under.children[0] as PIXI.Sprite).tint).toBe(0x808080);
     expect(scene.statics.items.get("far")!.under.visible).toBe(false);
     scene.update(everywhere);

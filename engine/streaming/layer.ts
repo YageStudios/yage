@@ -19,7 +19,7 @@ import { chunkKey } from "./coord";
 import { SnapshotPair } from "./interp";
 import { EMPTY_SLOT, POSITION_SCALE, type Snapshot } from "./protocol";
 import { FarBake, type FarBakeOptions } from "./far";
-import { StaticSet, tintTree, type StaticSpec } from "./statics";
+import { CutawayRoot, StaticSet, tintTree, type StaticSpec } from "./statics";
 import { LightPass, lightUniforms } from "./window-light";
 import { ShadowPass, SUN_SOLID_ID } from "./shadow-pass";
 
@@ -1056,7 +1056,7 @@ export class ChunkScene {
   readonly entityRoot = new PIXI.Container();
   readonly edgeRoot = new PIXI.Container();
   /** Static instances' upper parts (roofs), over every sprite. */
-  readonly overRoot = new PIXI.Container();
+  readonly overRoot = new CutawayRoot(() => this.statics.cut);
   /** Static instances placed at any position and angle; see `setStatics`. */
   readonly statics: StaticSet;
   /** Their far-off chunks' pictures, with `farBake` (else null), where the static instances stack. */
@@ -1083,7 +1083,7 @@ export class ChunkScene {
     const under = [this.lightPass, this.farUnderRoot, this.groundRoot, this.decalRoot, this.farOverRoot, this.staticRoot];
     // The pictures over every static part (an instance shown as it is under one is drawn there by it too), under the people;
     // the sun's shadows over all of it.
-    if (options.roofDepth) this.root.addChild(...under, this.overRoot, ...far, this.shadowRoot, this.entityRoot, this.edgeRoot, this.castRoot);
+    if (options.roofDepth) this.root.addChild(...under, this.overRoot, this.statics.occluders, ...far, this.shadowRoot, this.entityRoot, this.edgeRoot, this.castRoot);
     else this.root.addChild(...under, ...far, this.shadowRoot, this.entityRoot, this.edgeRoot, this.overRoot, this.castRoot);
   }
 
