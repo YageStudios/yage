@@ -10,7 +10,7 @@
  *    screen by their walls' `rise`), each with its height and rise, and its walls' faces in
  *    `WALL_COLOR`; the rest is ground, at 0;
  *  - casts: upright sprites' own shadows on the ground (ChunkLayerStyle `cast`: a tree's silhouette
- *    laid toward the sun), anything drawn marking shade.
+ *    laid toward the sun) and instances' `StaticParts.casts`, anything drawn marking shade.
  *
  * Then one quad over the screen: each pixel finds its point on the ground plan (down the screen by
  * its rise) and marches from there toward the sun (north-west; shadows fall toward +x, +y, a unit
