@@ -46,17 +46,12 @@ export type StaticParts = {
   over?: PIXI.DisplayObject;
   /**
    * What it stands up from the ground, seen from straight above in its own frame, each shape filled
-   * with `heightColor(height)` (shadow-pass.ts): the scene's one shadow pass casts the sun's shadows
+   * with `solidColor(top, base)` (shadow-pass.ts; `heightColor(height)` for one standing on the ground): the scene's one shadow pass casts the sun's shadows
    * from it, onto the ground, other instances' roofs and its own alike.
    */
   heights?: PIXI.DisplayObject;
   /** The tops it shows on screen (roofs, where its `over` draws them), each filled with `heightColor(height, rise)`: what the shadow pass shades. */
   tops?: PIXI.DisplayObject;
-  /**
-   * Its own shadow on the open ground, in its own frame (anything drawn marks shade): for what the
-   * heights can't stand up, a lamp's arm reaching out over the street with nothing under it.
-   */
-  casts?: PIXI.DisplayObject;
 };
 
 export type StaticSpec = {
@@ -84,10 +79,9 @@ export type StaticInstance = {
   readonly spec: StaticSpec;
   readonly under: PIXI.Container;
   readonly over: PIXI.Container;
-  /** Its heights, tops and casts (`StaticParts`), in the scene's shadow pass. */
+  /** Its heights and tops (`StaticParts`), in the scene's shadow pass. */
   readonly heights: PIXI.Container;
   readonly tops: PIXI.Container;
-  readonly casts: PIXI.Container;
   /** The over part's depth occluder (depth-sorted roofs only). */
   readonly occluder: PIXI.Mesh<PIXI.Shader> | null;
   readonly bounds: Rect;
@@ -290,7 +284,6 @@ export class StaticSet {
     if (parts.over) item.over.addChild(parts.over);
     if (parts.heights) item.heights.addChild(parts.heights);
     if (parts.tops) item.tops.addChild(parts.tops);
-    if (parts.casts) item.casts.addChild(parts.casts);
     tintTree(item.under, this.tint);
     tintTree(item.over, this.tint);
     if (this.occlude && parts.over) {
@@ -314,12 +307,10 @@ export class StaticSet {
         const over = new PIXI.Container();
         const heights = new PIXI.Container();
         const tops = new PIXI.Container();
-        const casts = new PIXI.Container();
         place(under, spec);
         place(over, spec);
         place(heights, spec);
         place(tops, spec);
-        place(casts, spec);
         if (spec.z) {
           over.zIndex = tops.zIndex = spec.z;
           this.overRoot.sortableChildren = true;
@@ -329,14 +320,13 @@ export class StaticSet {
         this.overRoot.addChild(over);
         this.shadow?.heights.addChild(heights);
         this.shadow?.tops.addChild(tops);
-        this.shadow?.casts.addChild(casts);
-        item = { spec, under, over, heights, tops, casts, occluder: null, bounds: boundsOf(spec), holders: new Set() };
+        item = { spec, under, over, heights, tops, occluder: null, bounds: boundsOf(spec), holders: new Set() };
         this.items.set(spec.id, item);
         this.index(item, true);
         this.far?.add(item);
         if (this.lazy) {
           // Hidden until a cull sees it and builds it.
-          under.visible = over.visible = heights.visible = tops.visible = casts.visible = false;
+          under.visible = over.visible = heights.visible = tops.visible = false;
           this.unbuilt.add(item);
         } else this.build(item);
       }
@@ -356,7 +346,6 @@ export class StaticSet {
     item.over.destroy({ children: true });
     item.heights.destroy({ children: true });
     item.tops.destroy({ children: true });
-    item.casts.destroy({ children: true });
     this.far?.remove(item);
     this.items.delete(item.spec.id);
     this.index(item, false);
@@ -408,9 +397,7 @@ export class StaticSet {
       const shown = visible && !this.far?.covers(item);
       item.under.visible = shown;
       item.over.visible = shown && item.over.children.length > 0;
-      const near = b.maxX + CAST_REACH >= view.minX && b.minX - CAST_REACH <= view.maxX && b.maxY + CAST_REACH >= view.minY && b.minY - CAST_REACH <= view.maxY;
-      item.heights.visible = item.heights.children.length > 0 && near;
-      item.casts.visible = item.casts.children.length > 0 && near;
+      item.heights.visible = item.heights.children.length > 0 && b.maxX + CAST_REACH >= view.minX && b.minX - CAST_REACH <= view.maxX && b.maxY + CAST_REACH >= view.minY && b.minY - CAST_REACH <= view.maxY;
       item.tops.visible = visible && item.tops.children.length > 0;
       // A faded roof (someone inside) shows the people under it.
       if (item.occluder) item.occluder.visible = item.over.alpha > 0.6;
@@ -430,7 +417,6 @@ export class StaticSet {
         item.over.visible = item.over.children.length > 0;
         item.heights.visible = item.heights.children.length > 0;
         item.tops.visible = item.tops.children.length > 0;
-        item.casts.visible = item.casts.children.length > 0;
       }
     };
     // A budget is shared with the frame's other deferrable work (yage/game/FrameBudget).
@@ -458,7 +444,6 @@ export class StaticSet {
       item.over.destroy({ children: true });
       item.heights.destroy({ children: true });
       item.tops.destroy({ children: true });
-      item.casts.destroy({ children: true });
     }
     this.items.clear();
     this.cells.clear();

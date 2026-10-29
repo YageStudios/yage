@@ -270,6 +270,39 @@ void main() {
 }
 `;
 
+// A prop's plan for the sun's shadows (ChunkLayerStyle `heights`): its cell of the heights atlas,
+// laid flat on the ground with the sprite's feet `uLift` above the cell's bottom middle.
+const heightsVertex = `${instanceHeader}
+uniform vec2 uGrid;
+uniform float uLift;
+varying vec2 vUv;
+
+void main() {
+  if (aTint > ${EMPTY_SLOT - 0.5}) {
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    vUv = vec2(0.0);
+    return;
+  }
+  mat3 m = projectionMatrix * translationMatrix;
+  gl_Position = vec4((m * vec3(footOf() + aCorner * uSize + vec2(0.0, uLift), 1.0)).xy, 0.0, 1.0);
+  float column = floor(mod(aSprite + 0.5, uGrid.x));
+  vec2 cell = vec2(column, floor((aSprite + 0.5) / uGrid.x));
+  vUv = (cell + vec2(aCorner.x + 0.5, aCorner.y + 1.0)) / uGrid;
+}
+`;
+
+const heightsFragment = `
+precision mediump float;
+varying vec2 vUv;
+uniform sampler2D uHeights;
+
+void main() {
+  vec4 texel = texture2D(uHeights, vUv);
+  if (texel.a < 0.5) discard;
+  gl_FragColor = vec4(texel.rgb / texel.a, 1.0);
+}
+`;
+
 const glowVertex = `${instanceHeader}
 uniform vec2 uGrid;
 uniform vec4 uGlowBounds[${MAX_GLOWS}];
@@ -411,6 +444,18 @@ export type ChunkLayerStyle = {
    */
   cast?: { sprites: readonly number[]; length?: number; feet?: number };
   /**
+   * Each sprite seen from straight above for the sun's shadows (shadow-pass.ts heights): an atlas on
+   * the same grid, each cell `size` world units with the sprite's feet at its bottom middle (or
+   * `heightsLift` above it), every shape filled with `solidColor(top, base)`; an empty cell stands
+   * nothing up.
+   */
+  heights?: PIXI.Texture;
+  /**
+   * How far up its cell (world units) the heights atlas puts the feet, leaving room below them for
+   * what reaches out in front of the footprint (a street light's arm); default 0.
+   */
+  heightsLift?: number;
+  /**
    * Soft glowing halos around the silhouettes of some sprites (e.g. one sprite set), drawn under
    * every sprite and unaffected by `setLight`. At most four ranges (see GlowRange: one colour or a
    * ramp picked by sprite offset or tint, an optional pulse and a wider ring). `radius` is in
@@ -428,6 +473,7 @@ class LayerKind {
   readonly glowProgram: PIXI.Program | null = null;
   readonly glowShared: PIXI.UniformGroup | null = null;
   readonly castProgram: PIXI.Program | null = null;
+  readonly heightsProgram: PIXI.Program | null = null;
   /** Which sprites cast (`style.cast`), one texel per atlas cell. */
   readonly casting: PIXI.Texture | null = null;
   readonly style: ChunkLayerStyle;
@@ -473,6 +519,12 @@ class LayerKind {
       for (const sprite of style.cast.sprites) if (sprite >= 0 && sprite < columns * rows) cells.fill(255, sprite * 4, sprite * 4 + 4);
       this.casting = PIXI.Texture.fromBuffer(cells, columns, rows, { scaleMode: PIXI.SCALE_MODES.NEAREST, mipmap: PIXI.MIPMAP_MODES.OFF });
       this.castProgram = PIXI.Program.from(castVertex, castFragment, "yage-chunk-cast");
+    }
+    if (style.heights) {
+      // Exact heights: never blended between texels.
+      style.heights.baseTexture.scaleMode = PIXI.SCALE_MODES.NEAREST;
+      style.heights.baseTexture.mipmap = PIXI.MIPMAP_MODES.OFF;
+      this.heightsProgram = PIXI.Program.from(heightsVertex, heightsFragment, "yage-chunk-heights");
     }
     if (style.glow) {
       const glow = glowUniforms(style.glow.ranges);
@@ -542,6 +594,8 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   readonly glow: PIXI.Mesh<PIXI.Shader> | null;
   /** The sun's shadows of upright sprites, for ChunkScene's shadow pass; null when the style has none (`cast`). */
   readonly cast: PIXI.Mesh<PIXI.Shader> | null;
+  /** The sprites' plans at their heights, for ChunkScene's shadow pass; null when the style has none (`heights`). */
+  readonly heights: PIXI.Mesh<PIXI.Shader> | null;
   private readonly prevX: PIXI.Buffer;
   private readonly prevY: PIXI.Buffer;
   private readonly curX: PIXI.Buffer;
@@ -638,6 +692,15 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     } else {
       this.cast = null;
     }
+    if (kind.heightsProgram && kind.style.heights) {
+      const heightsState = PIXI.State.for2d();
+      heightsState.depthTest = false;
+      heightsState.depthMask = false;
+      heightsState.blend = false;
+      this.heights = new PIXI.Mesh(geometry, new PIXI.Shader(kind.heightsProgram, { uAlpha: 1, uHeights: kind.style.heights, uLift: kind.style.heightsLift ?? 0, shared: kind.shared }), heightsState);
+    } else {
+      this.heights = null;
+    }
     this.prevX = prevX;
     this.prevY = prevY;
     this.curX = curX;
@@ -662,6 +725,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     if (this.shadow) meshes.push(this.shadow);
     if (this.glow) meshes.push(this.glow);
     if (this.cast) meshes.push(this.cast);
+    if (this.heights) meshes.push(this.heights);
     return meshes;
   }
 
@@ -838,6 +902,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     this.shadow?.destroy();
     this.glow?.destroy();
     this.cast?.destroy();
+    this.heights?.destroy();
     super.destroy();
   }
 }
@@ -1048,6 +1113,8 @@ export class ChunkScene {
     if (layer.shadow) this.shadowRoot.addChild(layer.shadow);
     if (layer.glow) this.shadowRoot.addChild(layer.glow);
     if (layer.cast) this.castRoot.casts.addChild(layer.cast);
+    // First: a building drawn over a prop's plan stands over it (what's on a roof is part of the roof's heights).
+    if (layer.heights) this.castRoot.heights.addChildAt(layer.heights, 0);
     this.entityRoot.addChild(layer);
     this.edgeRoot.addChild(layer.edges);
     return layer;

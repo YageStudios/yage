@@ -3,14 +3,16 @@
  * `castRoot`): the scene is flat, but each instance says how tall it stands, so the pass treats it
  * as 3D. Two buffers, drawn where the camera puts things:
  *
- *  - heights: every instance's `StaticParts.heights`, seen from straight above (a building's
- *    footprint at its height, the water tower on its roof higher still), reaching past the screen's
- *    edge toward the sun, so what stands just off screen still shades what's on it;
+ *  - heights: every instance's `StaticParts.heights` and every props layer's (ChunkLayerStyle
+ *    `heights`), seen from straight above (a building's footprint at its height, the water tower on
+ *    its roof higher still, a bench's seat), reaching past the screen's edge toward the sun, so what
+ *    stands just off screen still shades what's on it. Each shape keeps its top and its underside
+ *    (`solidColor`): a lamp's arm or an awning stands clear of the ground, and the sun gets under it;
  *  - tops: every instance's `StaticParts.tops`, the roofs as the screen shows them (lifted up the
  *    screen by their walls' `rise`), each with its height and rise, and its walls' faces in
  *    `WALL_COLOR`; the rest is ground, at 0;
  *  - casts: upright sprites' own shadows on the ground (ChunkLayerStyle `cast`: a tree's silhouette
- *    laid toward the sun) and instances' `StaticParts.casts`, anything drawn marking shade.
+ *    laid toward the sun), anything drawn marking shade.
  *
  * Then one quad over the screen: each pixel finds its point on the ground plan (down the screen by
  * its rise) and marches from there toward the sun (north-west; shadows fall toward +x, +y, a unit
@@ -34,6 +36,12 @@ const RISE_STEP = 2;
 /** The fill colour a `heights` or `tops` shape is drawn in for something `height` px tall (world px), its roof drawn `rise` px up the screen. */
 export const heightColor = (height: number, rise = 0) => (Math.max(0, Math.min(255, Math.round(height))) << 16) | (Math.max(0, Math.min(255, Math.round(rise / RISE_STEP))) << 8);
 
+/**
+ * The fill colour a `heights` shape is drawn in for a solid from `base` up to `top` (world px, to
+ * 255): `base` 0 stands on the ground, above it the sun passes under (a lamp's arm, a table top).
+ */
+export const solidColor = (top: number, base = 0) => (Math.max(0, Math.min(255, Math.round(top))) << 16) | (Math.max(0, Math.min(255, Math.round(base))) << 8);
+
 /** The fill colour a `tops` shape is drawn in for a wall's face: the sun leaves it as its art draws it. */
 export const WALL_COLOR = 0x0000ff;
 
@@ -45,7 +53,9 @@ void main() {
 }
 `;
 
-const STEPS = 40;
+const STEPS = 32;
+/** How far (world px) the march looks a px (or half one) at a time before stepping out further apart. */
+const NEAR = 32;
 const fragment = `
 precision highp float;
 uniform sampler2D uHeights;
@@ -57,8 +67,9 @@ uniform vec4 uFrame;
 uniform float uScale;
 uniform float uReach;
 uniform float uDarkness;
-float heightAt(vec2 p) {
-  return texture2D(uHeights, (p - uFrame.xy) / uFrame.zw).r * 255.0;
+// What stands at plan point p: its top and its underside.
+vec2 solidAt(vec2 p) {
+  return texture2D(uHeights, (p - uFrame.xy) / uFrame.zw).rg * 255.0;
 }
 void main() {
   vec2 p = vec2(gl_FragCoord.x, uView.y * uRes - gl_FragCoord.y) / uRes;
@@ -66,15 +77,29 @@ void main() {
   float h = top.r * 255.0;
   vec2 ground = p + vec2(0.0, top.g * ${255 * RISE_STEP}.0 * uScale);
   float shade = 0.0;
-  float below = heightAt(ground);
+  float below = solidAt(ground).x;
   // Sprites' shadows lie on open ground only, never up a wall or over a roof.
   if (top.b < 0.5 && h < 0.5 && below < 1.5) shade = texture2D(uCasts, p / uView).a;
   if (top.b < 0.5 && below <= h + 1.5 && shade < 1.0) {
-    float reach = uReach - h;
+    // Near, a world px a step (half one zoomed in, where a world px is several on screen): a post
+    // or a lamp's lantern is thinner than the far steps, and the steps would show along its edges.
+    float step = uScale >= 2.0 ? 0.5 : 1.0;
+    for (int i = 1; i <= ${NEAR * 2}; i++) {
+      float t = float(i) * step;
+      if (t > ${NEAR}.0) break;
+      vec2 solid = solidAt(ground - vec2(t) * uScale);
+      if (solid.x > h + t + 0.5 && solid.y <= h + t) {
+        shade = 1.0;
+        break;
+      }
+    }
+    float reach = uReach - h - ${NEAR}.0;
     for (int i = 1; i <= ${STEPS}; i++) {
+      if (shade > 0.5 || reach <= 0.0) break;
       float f = float(i) / ${STEPS}.0;
-      float t = f * f * reach;
-      if (heightAt(ground - vec2(t) * uScale) > h + t + 0.5) {
+      float t = ${NEAR}.0 + f * f * reach;
+      vec2 solid = solidAt(ground - vec2(t) * uScale);
+      if (solid.x > h + t + 0.5 && solid.y <= h + t) {
         shade = 1.0;
         break;
       }
@@ -123,7 +148,7 @@ export class ShadowPass extends PIXI.Container {
 
   render(renderer: PIXI.Renderer) {
     const shown = (c: PIXI.DisplayObject) => c.visible;
-    if (!this.visible || this.darkness <= 0.002 || !(this.tops.children.some(shown) || this.casts.children.some(shown))) return;
+    if (!this.visible || this.darkness <= 0.002 || !(this.heights.children.some(shown) || this.casts.children.some(shown))) return;
     const { width, height } = renderer.screen;
     // Screen px per world px, where the camera and this pass's parents put the instances.
     const m = renderer.projection.projectionMatrix;
