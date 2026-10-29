@@ -233,6 +233,12 @@ export class StaticSet {
      * hidden until a later cull. At least one builds per cull.
      */
     private readonly buildBudget = Infinity,
+    /**
+     * Milliseconds a cull always gets for building (lazy, budgeted only), whatever the frame's shared
+     * budget has left: a pan brings buildings into view every frame, and while the frame is full the
+     * one-a-cull minimum leaves whole blocks empty.
+     */
+    private readonly buildFloor = 0,
   ) {}
 
   private readonly seen: StaticInstance[] = [];
@@ -361,7 +367,7 @@ export class StaticSet {
       }
     };
     // A budget is shared with the frame's other deferrable work (yage/game/FrameBudget).
-    if (budgeted) withinFrame(this.buildBudget, build);
+    if (budgeted) withinFrame(this.buildBudget, (allowed) => build(Math.max(allowed, this.buildFloor)));
     else build(Infinity);
     seen.length = 0;
   }

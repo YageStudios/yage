@@ -174,6 +174,18 @@ describe("ChunkScene static instances", () => {
     scene.destroy();
   });
 
+  it("built when seen with a floor, builds what the floor allows even when the frame's budget has nothing left", () => {
+    vi.spyOn(performance, "now").mockReturnValue(0);
+    const scene = new ChunkScene({ chunkSize: 100, style, buildStatics: "seen", staticBudget: 0, staticFloor: 1 });
+    const built: string[] = [];
+    scene.setStatics(0, 0, [spec("far", 300, 300, 0, built), spec("mid", 120, 120, 0, built), spec("near", -20, -10, 0, built)]);
+    scene.update({ minX: -100, minY: -100, maxX: 400, maxY: 400 });
+    // All in one update, nearest the view's centre (150, 150) first.
+    expect(built).toEqual(["mid", "near", "far"]);
+    scene.destroy();
+    vi.restoreAllMocks();
+  });
+
   it("gives every roof point the depth of the footprint's near edge straight below it", () => {
     for (const angle of [0, 0.3, Math.PI / 4, 1.2, Math.PI / 2, 2.5, Math.PI, -0.7]) {
       const w = 40;
