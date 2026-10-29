@@ -7,7 +7,8 @@
  *    `heights`), seen from straight above (a building's footprint at its height, the water tower on
  *    its roof higher still, a bench's seat), reaching past the screen's edge toward the sun, so what
  *    stands just off screen still shades what's on it. Each shape keeps its top and its underside
- *    (`solidColor`): a lamp's arm or an awning stands clear of the ground, and the sun gets under it;
+ *    (`solidColor`): a lamp's arm or an awning stands clear of the ground, and the sun gets under it.
+ *    A props layer's plans are blue besides: its sprites draw over this pass;
  *  - tops: every instance's `StaticParts.tops`, the roofs as the screen shows them (lifted up the
  *    screen by their walls' `rise`), each with its height and rise, and its walls' faces in
  *    `WALL_COLOR`; the rest is ground, at 0;
@@ -20,9 +21,9 @@
  * shade, at the pass's darkness. So towers shade the street and the lower roofs beside them, a
  * parapet the deck inside it, a water tower the roof it stands on, and a tree the ground beside it,
  * each once however many overlap.
- * A wall's face, and a pixel the art draws a body over (a water tower's side, a bench's back: found
- * looking down the screen through the heights, `stand` px tall a px of rise), is left as its art
- * draws it; the ground showing under something held up isn't, so its shade meets what holds it.
+ * A wall's face, and a pixel whose own plan point is inside a static standing from under it to over
+ * it (the foot of a water tower on its roof), is left as its art draws it; the ground under
+ * something held up (a bus's body, a canopy) or under a sprite isn't, so its shade meets them.
  *
  * Drawn the way LightPass draws its light, not through a Pixi filter, which would drop a camera
  * sitting in the projection (ProjectedCamera) for what draws after.
@@ -57,8 +58,6 @@ void main() {
 const STEPS = 32;
 /** How far (world px) the march looks a px (or half one) at a time before stepping out further apart. */
 const NEAR = 32;
-/** How far (world px) down the screen a pixel looks for a body drawn over it: the tallest thing's rise. */
-const COVER = 48;
 const fragment = `
 precision highp float;
 uniform sampler2D uHeights;
@@ -70,10 +69,12 @@ uniform vec4 uFrame;
 uniform float uScale;
 uniform float uReach;
 uniform float uDarkness;
-uniform float uStand;
-// What stands at plan point p: its top and its underside.
+// What stands at plan point p: its top and its underside, and (blue) whether it's a sprite.
+vec4 texelAt(vec2 p) {
+  return texture2D(uHeights, (p - uFrame.xy) / uFrame.zw);
+}
 vec2 solidAt(vec2 p) {
-  return texture2D(uHeights, (p - uFrame.xy) / uFrame.zw).rg * 255.0;
+  return texelAt(p).rg * 255.0;
 }
 void main() {
   vec2 p = vec2(gl_FragCoord.x, uView.y * uRes - gl_FragCoord.y) / uRes;
@@ -81,21 +82,13 @@ void main() {
   float h = top.r * 255.0;
   vec2 ground = p + vec2(0.0, top.g * ${255 * RISE_STEP}.0 * uScale);
   float shade = 0.0;
-  // Whether the art draws a body over our point, seen from the front: something standing at our
-  // point from under us up, or a face rising up the screen from its plan just south of us (a world
-  // px down the screen for every uStand it stands). Ground showing under a thing held up (a bus's
-  // body over its wheels, a bowl over its pedestal, a canopy) isn't covered, and marches like any
-  // other, so its shade starts at the edge of what stands it up.
+  // Inside something standing at our own point from under us up: its body, as its art draws it.
+  // Ground under a thing held up (a bus's body over its wheels, a canopy) marches like any other,
+  // and so does ground under a sprite's plan: the sprite draws over whatever this pass leaves, and
+  // where its plan reaches past its art, the ground there is the start of its shadow.
   float tol = h < 0.5 ? 0.5 : 1.5;
-  bool covered = false;
-  for (int i = 0; i <= ${COVER}; i++) {
-    float z = h + float(i) * uStand;
-    vec2 solid = solidAt(ground + vec2(0.0, float(i)) * uScale);
-    if (solid.x > z + tol && solid.y <= z + tol) {
-      covered = true;
-      break;
-    }
-  }
+  vec4 own = texelAt(ground);
+  bool covered = own.b < 0.5 && own.r * 255.0 > h + tol && own.g * 255.0 <= h + tol;
   // Sprites' shadows lie on open ground only, never up a wall or over a roof.
   if (top.b < 0.5 && h < 0.5 && !covered) shade = texture2D(uCasts, p / uView).a;
   if (top.b < 0.5 && !covered && shade < 1.0) {
@@ -140,8 +133,6 @@ export class ShadowPass extends PIXI.Container {
   darkness = 0.2;
   /** The tallest anything stands (world px, to 255): how far toward the sun a pixel looks. */
   reach = 160;
-  /** World px a thing stands for every px its art rises up the screen. */
-  stand = 0.75;
   /** Instances' heights, from above (StaticSet adds them). */
   readonly heights = new PIXI.Container();
   /** Instances' tops, as the screen shows them (StaticSet adds them). */
@@ -162,7 +153,7 @@ export class ShadowPass extends PIXI.Container {
     program ??= PIXI.Program.from(vertex, fragment, "yage-shadow-pass");
     // The whole screen, in clip space.
     const geometry = new PIXI.Geometry().addAttribute("aVertexPosition", [-1, -1, 1, -1, 1, 1, -1, 1], 2, false, GL_FLOAT as PIXI.TYPES).addIndex([0, 1, 2, 0, 2, 3]);
-    const shader = new PIXI.Shader(program, { uHeights: this.heightBuffer, uTops: this.topBuffer, uCasts: this.castBuffer, uView: this.view, uRes: 1, uFrame: this.frame, uScale: 1, uReach: this.reach, uDarkness: this.darkness, uStand: this.stand });
+    const shader = new PIXI.Shader(program, { uHeights: this.heightBuffer, uTops: this.topBuffer, uCasts: this.castBuffer, uView: this.view, uRes: 1, uFrame: this.frame, uScale: 1, uReach: this.reach, uDarkness: this.darkness });
     this.quad = new PIXI.Mesh(geometry, shader);
   }
 
@@ -196,7 +187,6 @@ export class ShadowPass extends PIXI.Container {
     uniforms.uScale = scale;
     uniforms.uReach = Math.min(255, this.reach);
     uniforms.uDarkness = this.darkness;
-    uniforms.uStand = this.stand;
     this.quad.render(renderer);
     renderer.batch.flush();
   }

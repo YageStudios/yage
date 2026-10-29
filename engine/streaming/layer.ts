@@ -299,7 +299,8 @@ uniform sampler2D uHeights;
 void main() {
   vec4 texel = texture2D(uHeights, vUv);
   if (texel.a < 0.5) discard;
-  gl_FragColor = vec4(texel.rgb / texel.a, 1.0);
+  // Blue: drawn over the shadow pass, whose own art hides whatever the pass does under it.
+  gl_FragColor = vec4(texel.rg / texel.a, 1.0, 1.0);
 }
 `;
 
