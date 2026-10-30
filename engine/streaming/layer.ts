@@ -32,7 +32,7 @@ export { glowOf, glowUniforms, MAX_PALETTE, paletteArray, tintIndices, type Glow
 const SIT_HEIGHT = 0.82;
 const SIT_DROP = 0.12;
 /** How much of a sleeper shows above the covers (of its height, from the top). */
-const TUCKED = 0.55;
+const TUCKED = 0.5;
 
 
 /**
