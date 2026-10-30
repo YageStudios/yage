@@ -40,11 +40,13 @@ const TUCKED = 0.5;
  * mirrored). Fallen lies turned like Lie but uncovered (down on the ground, not in a bed). Hunch is
  * bent over: the whole figure tilted rigidly about its feet by `turn` radians (negative leans left);
  * never sheared or squashed, and never animated by the layer (callers swap poses or move parts).
+ * Roll is the whole figure turned rigidly by `turn` radians about its middle, where it stands (a
+ * caller turning it frame by frame tumbles it: see `ChunkLayer.poseEntity`).
  */
 /** Snapshot ticks a placed entity is drawn on in a layer after leaving its snapshots (a hand-off, before the next chunk's layer has it). */
 const CARRY_TICKS = 12;
 
-export const POSE = { Stand: 0, Lie: 1, Sit: 2, SitLeft: 3, Fallen: 4, Hunch: 5 } as const;
+export const POSE = { Stand: 0, Lie: 1, Sit: 2, SitLeft: 3, Fallen: 4, Hunch: 5, Roll: 6 } as const;
 export type PoseKind = (typeof POSE)[keyof typeof POSE];
 export type PoseEntry = { slot: number; pose: PoseKind; turn: number };
 
@@ -76,10 +78,17 @@ float saltOf() {
 // A pose (see ChunkLayer.setPoses) moves the sprite's corners about its feet: lying, the quad
 // turns by aPose.y about its middle, which lands on the feet (a sleeper centred on the bed);
 // sitting, it is shortened onto the seat, mirrored when it faces left; fallen, it turns like a
-// sleeper but nothing covers it; hunched, it tilts rigidly about its feet by aPose.y radians.
+// sleeper but nothing covers it; hunched, it tilts rigidly about its feet by aPose.y radians;
+// rolling, it turns by aPose.y about its middle, which stays where it stands.
 vec2 posedOf(vec2 corner, vec2 size) {
   vec2 p = corner * size;
   float kind = floor(aPose.x + 0.5);
+  if (kind > 5.5) {
+    vec2 c = p + vec2(0.0, 0.5 * size.y);
+    float s = sin(aPose.y);
+    float k = cos(aPose.y);
+    return vec2(k * c.x - s * c.y, s * c.x + k * c.y) - vec2(0.0, 0.5 * size.y);
+  }
   if (kind > 4.5) {
     float s = sin(aPose.y);
     float k = cos(aPose.y);
@@ -680,6 +689,10 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   private extent: number;
   /** The entity drawn where the page puts it (`place`), not between its snapshots; -1 none. */
   private placedGid = -1;
+  /** The entity posed by gid (`poseEntity`), and its pose. */
+  private posedGid = -1;
+  private posedPose: PoseKind = POSE.Stand;
+  private posedTurn = 0;
   private placedX = 0;
   private placedY = 0;
   /** False: the placed entity is drawn by another layer (its copy here is hidden). */
@@ -858,6 +871,19 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     this.writePoses();
   }
 
+  /**
+   * Poses entity `gid` (over any slot pose it has) until the next call, found again by gid in each
+   * snapshot (and as the placed entity carried past them); a gid of -1 lets it go. For what the page
+   * animates itself on one entity, frame by frame (a roll's turn): presentation only.
+   */
+  poseEntity(gid: number, pose: PoseKind = POSE.Stand, turn = 0) {
+    if (gid < 0 && this.posedGid < 0) return;
+    this.posedGid = gid;
+    this.posedPose = pose;
+    this.posedTurn = turn;
+    if (this.pair.current) this.writePoses();
+  }
+
   /** The pose data per instance (mode, turn), for tests. */
   get poseArray(): Float32Array {
     return this.poseData.subarray(0, this.geometry.instanceCount * 2);
@@ -871,6 +897,15 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
       if (p.slot >= count) continue;
       this.poseData[p.slot * 2] = p.pose;
       this.poseData[p.slot * 2 + 1] = p.turn;
+    }
+    const snapshot = this.pair.current;
+    if (this.posedGid >= 0 && snapshot) {
+      let slot = snapshot.gid.subarray(0, snapshot.count).indexOf(this.posedGid);
+      if (slot < 0 && this.posedGid === this.placedGid && this.geometry.instanceCount > snapshot.count) slot = snapshot.count;
+      if (slot >= 0 && slot < count) {
+        this.poseData[slot * 2] = this.posedPose;
+        this.poseData[slot * 2 + 1] = this.posedTurn;
+      }
     }
     this.poseBuffer.update(this.poseData.subarray(0, count * 2));
   }
@@ -1227,6 +1262,11 @@ export class ChunkScene {
   /** Poses a chunk's entities (see `ChunkLayer.setPoses`); nothing until its layer exists. */
   setPoses(cx: number, cy: number, poses: readonly PoseEntry[], tick?: number) {
     this.views.get(chunkKey(cx, cy))?.layer?.setPoses(poses, tick);
+  }
+
+  /** Poses entity `gid` in whichever chunk's layer draws it (see `ChunkLayer.poseEntity`); -1 lets it go. */
+  poseEntity(gid: number, pose: PoseKind = POSE.Stand, turn = 0) {
+    for (const view of this.views.values()) view.layer?.poseEntity(gid, pose, turn);
   }
 
   /**
