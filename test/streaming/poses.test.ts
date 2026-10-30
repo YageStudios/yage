@@ -43,6 +43,8 @@ describe("ChunkScene poses", () => {
     scene.push(next, 50);
     layer.interpolate(Infinity);
     expect([...layer.poseArray]).toEqual([6, 2, 1, 0.5, 0, 0]);
+    scene.poseEntity(12, POSE.Hidden);
+    expect([...layer.poseArray]).toEqual([0, 0, 7, 0, 0, 0]);
     scene.poseEntity(-1);
     expect([...layer.poseArray]).toEqual([0, 0, 1, 0.5, 0, 0]);
     scene.destroy();

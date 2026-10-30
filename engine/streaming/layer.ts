@@ -41,12 +41,13 @@ const TUCKED = 0.5;
  * bent over: the whole figure tilted rigidly about its feet by `turn` radians (negative leans left);
  * never sheared or squashed, and never animated by the layer (callers swap poses or move parts).
  * Roll is the whole figure turned rigidly by `turn` radians about its middle, where it stands (a
- * caller turning it frame by frame tumbles it: see `ChunkLayer.poseEntity`).
+ * caller turning it frame by frame tumbles it: see `ChunkLayer.poseEntity`). Hidden is not drawn
+ * here at all, for a moment the page draws the entity itself (a rig animated part by part).
  */
 /** Snapshot ticks a placed entity is drawn on in a layer after leaving its snapshots (a hand-off, before the next chunk's layer has it). */
 const CARRY_TICKS = 12;
 
-export const POSE = { Stand: 0, Lie: 1, Sit: 2, SitLeft: 3, Fallen: 4, Hunch: 5, Roll: 6 } as const;
+export const POSE = { Stand: 0, Lie: 1, Sit: 2, SitLeft: 3, Fallen: 4, Hunch: 5, Roll: 6, Hidden: 7 } as const;
 export type PoseKind = (typeof POSE)[keyof typeof POSE];
 export type PoseEntry = { slot: number; pose: PoseKind; turn: number };
 
@@ -79,10 +80,11 @@ float saltOf() {
 // turns by aPose.y about its middle, which lands on the feet (a sleeper centred on the bed);
 // sitting, it is shortened onto the seat, mirrored when it faces left; fallen, it turns like a
 // sleeper but nothing covers it; hunched, it tilts rigidly about its feet by aPose.y radians;
-// rolling, it turns by aPose.y about its middle, which stays where it stands.
+// rolling, it turns by aPose.y about its middle, which stays where it stands; hidden, it is a point.
 vec2 posedOf(vec2 corner, vec2 size) {
   vec2 p = corner * size;
   float kind = floor(aPose.x + 0.5);
+  if (kind > 6.5) return vec2(0.0);
   if (kind > 5.5) {
     vec2 c = p + vec2(0.0, 0.5 * size.y);
     float s = sin(aPose.y);
