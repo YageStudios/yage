@@ -121,20 +121,6 @@ describe("ChunkScene static instances", () => {
     plain.destroy();
   });
 
-  it("opens roofs round a cutaway: finds what it reaches, and nothing there is roofed", () => {
-    const scene = new ChunkScene({ chunkSize: 1024, style, roofDepth: true });
-    scene.setStatics(0, 0, [spec("a", 100, 100), spec("b", 600, 100)]);
-    scene.update(everywhere);
-    expect(scene.statics.roofed(105, 105)).toBe(true);
-    expect([...scene.statics.inCut()]).toEqual([]);
-    scene.statics.cut = { x: 105, y: 105, radius: 40 };
-    expect([...scene.statics.inCut()].map((i) => i.spec.id)).toEqual(["a"]);
-    expect(scene.statics.roofed(105, 105)).toBe(false);
-    scene.statics.cut = { x: 560, y: 105, radius: 600 };
-    expect(new Set([...scene.statics.inCut()].map((i) => i.spec.id))).toEqual(new Set(["a", "b"]));
-    scene.destroy();
-  });
-
   it("finds what covers a point on screen: its rectangle, or its rise in front of it", () => {
     const scene = new ChunkScene({ chunkSize: 1024, style });
     scene.setStatics(0, 0, [{ ...spec("tall", 100, 100), rise: 30 }]);

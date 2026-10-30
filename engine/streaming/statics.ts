@@ -15,12 +15,7 @@
  * takes the depth of the footprint's near (screen-bottom) edge below it, so a sprite whose feet are
  * nearer than that edge (someone on the pavement in front) draws over the roof and one whose feet
  * are behind it (someone inside) stays hidden. A faded roof (alpha ≤ 0.6) drops its occluder.
- * The occluders stand in their own container (`StaticSet.occluders`, after the over parts) so the
- * over parts can be drawn through a filter.
- *
- * A cutaway (`StaticSet.cut`, with the over parts in a `CutawayRoot`) opens every over part round a
- * point at once, per pixel: clear in the middle, fading back in to the edge; the occluders open with
- * them (where the over parts are under 0.6), so whoever is inside shows.
+ * The occluders stand in their own container (`StaticSet.occluders`, after the over parts).
  * An instance whose over part stands up the screen past its rectangle (a building's walls and the
  * roof on top of them: `rise`) has its occluder reach that far up too, at the same near-edge depth.
  */
@@ -28,7 +23,6 @@ import * as PIXI from "pixi.js";
 import { withinFrame } from "../game/FrameBudget";
 import type { FarBake } from "./far";
 import type { ShadowPass } from "./shadow-pass";
-import { renderInto } from "./window-light";
 import { rotatedBounds, toLocal, type Point, type Rect, type VectorMesh } from "./vector";
 
 /** A Pixi geometry with `aVertexPosition` plus one attribute per mesh attribute (`uv` → `aUv`). */
@@ -119,102 +113,13 @@ export const tintTree = (object: PIXI.DisplayObject, rgb: number) => {
   if (object instanceof PIXI.Container) for (const child of object.children) tintTree(child, rgb);
 };
 
-/** A cutaway's clear middle and where its over parts are back to 0.6, as fractions of its radius (smoothstep between the middle and 1). */
-const CUT_CLEAR = 0.55;
-const CUT_HIDES = 0.8;
-/** The cutaway as the shaders take it: its centre and radius where the over parts' transforms end (0 radius: none). */
-const cutUniform = new Float32Array(3);
-
-const cutVertex = `
-precision highp float;
-attribute vec2 aVertexPosition;
-void main() {
-  gl_Position = vec4(aVertexPosition, 0.0, 1.0);
-}
-`;
-
-const cutFragment = `
-precision highp float;
-uniform sampler2D uOver;
-uniform vec2 uView;
-uniform float uRes;
-uniform vec3 uScreenCut;
-void main() {
-  vec2 at = gl_FragCoord.xy / uRes;
-  float d = distance(at, uScreenCut.xy);
-  gl_FragColor = texture2D(uOver, at / uView) * smoothstep(uScreenCut.z * ${CUT_CLEAR.toFixed(2)}, uScreenCut.z, d);
-}
-`;
-let cutProgram: PIXI.Program | null = null;
-
-/**
- * Where the scene's over parts go: with a cut (`cut()`), drawn into a screen buffer (renderInto, as
- * the camera puts them: a Pixi filter would drop a camera in the projection) and laid on the screen
- * opened round it.
- */
-export class CutawayRoot extends PIXI.Container {
-  private buffer: PIXI.RenderTexture | null = null;
-  private quad: PIXI.Mesh<PIXI.Shader> | null = null;
-  private readonly view = new Float32Array([1, 1]);
-  private readonly screenCut = new Float32Array(3);
-
-  constructor(private readonly cut: () => Cut | null) {
-    super();
-  }
-
-  render(renderer: PIXI.Renderer) {
-    const cut = this.visible ? this.cut() : null;
-    if (!cut) {
-      cutUniform[2] = 0;
-      super.render(renderer);
-      return;
-    }
-    // The cut where the children's transforms end, as the occluders see it.
-    const t = this.worldTransform;
-    cutUniform[0] = t.a * cut.x + t.c * cut.y + t.tx;
-    cutUniform[1] = t.b * cut.x + t.d * cut.y + t.ty;
-    cutUniform[2] = cut.radius * Math.hypot(t.a, t.b);
-    const { width, height } = renderer.screen;
-    this.buffer ??= PIXI.RenderTexture.create({ width: 1, height: 1, resolution: renderer.resolution });
-    if (this.buffer.width !== Math.ceil(width) || this.buffer.height !== Math.ceil(height)) this.buffer.resize(Math.ceil(width), Math.ceil(height));
-    renderInto(renderer, this.buffer, [0, 0, 0, 0], () => super.render(renderer), undefined, true);
-    // And on the screen (CSS px, up from its foot, as gl_FragCoord runs).
-    const m = renderer.projection.projectionMatrix;
-    const clip = m.apply(new PIXI.Point(cutUniform[0], cutUniform[1]));
-    this.screenCut[0] = ((clip.x + 1) / 2) * width;
-    this.screenCut[1] = ((clip.y + 1) / 2) * height;
-    this.screenCut[2] = (cutUniform[2] * Math.hypot(m.a, m.b) * width) / 2;
-    this.view[0] = width;
-    this.view[1] = height;
-    if (!this.quad) {
-      cutProgram ??= PIXI.Program.from(cutVertex, cutFragment, "yage-static-cutaway");
-      const geometry = new PIXI.Geometry().addAttribute("aVertexPosition", [-1, -1, 1, -1, 1, 1, -1, 1], 2).addIndex([0, 1, 2, 0, 2, 3]);
-      this.quad = new PIXI.Mesh(geometry, new PIXI.Shader(cutProgram, { uOver: this.buffer, uView: this.view, uRes: 1, uScreenCut: this.screenCut }));
-    }
-    this.quad.shader.uniforms.uRes = renderer.view.width / width;
-    this.quad.render(renderer);
-    renderer.batch.flush();
-  }
-
-  destroy(options?: PIXI.IDestroyOptions | boolean) {
-    super.destroy(options);
-    this.buffer?.destroy(true);
-    this.quad?.destroy();
-  }
-}
-
-/** A cutaway through the over parts: round a world point, `radius` world units. */
-export type Cut = { x: number; y: number; radius: number };
-
 const occluderVertex = `
 attribute vec2 aVertexPosition;
 attribute vec2 aNear;
 uniform mat3 projectionMatrix;
 uniform mat3 translationMatrix;
-varying vec2 vGlobal;
 
 void main() {
-  vGlobal = (translationMatrix * vec3(aVertexPosition, 1.0)).xy;
   mat3 m = projectionMatrix * translationMatrix;
   vec3 clip = m * vec3(aVertexPosition, 1.0);
   vec3 near = m * vec3(aNear, 1.0);
@@ -223,12 +128,8 @@ void main() {
 }
 `;
 const occluderFragment = `
-precision highp float;
-varying vec2 vGlobal;
-uniform vec3 uCut;
+precision mediump float;
 void main() {
-  // Open where a cutaway has the over parts under 0.6.
-  if (uCut.z > 0.0 && distance(vGlobal, uCut.xy) < uCut.z * ${CUT_HIDES.toFixed(2)}) discard;
   gl_FragColor = vec4(0.0);
 }
 `;
@@ -321,7 +222,7 @@ export const depthMesh = (positions: number[], near: number[], indices: number[]
   state.depthTest = true;
   state.depthMask = true;
   state.blend = true;
-  const mesh = new PIXI.Mesh(geometry, new PIXI.Shader(occluderProgram, { uCut: cutUniform }), state);
+  const mesh = new PIXI.Mesh(geometry, new PIXI.Shader(occluderProgram, {}), state);
   mesh.eventMode = "none";
   return mesh;
 };
@@ -345,8 +246,6 @@ export class StaticSet {
   private tint = 0xffffff;
   /** The over parts' depth occluders, placed as their instances are; drawn after the over parts, before the sprites. */
   readonly occluders = new PIXI.Container();
-  /** The cutaway through the over parts (with a CutawayRoot), or none. */
-  cut: Cut | null = null;
 
   constructor(
     private readonly underRoot: PIXI.Container,
@@ -491,23 +390,6 @@ export class StaticSet {
     return hits;
   }
 
-  /** Instances whose bounds (their rise included: as far as they show up the screen) reach the cutaway, or none. */
-  inCut() {
-    const cut = this.cut;
-    const hits = new Set<StaticInstance>();
-    if (!cut) return hits;
-    const { x, y, radius: r } = cut;
-    for (let j = Math.floor((y - r) / CELL); j <= Math.floor((y + r) / CELL); j++) {
-      for (let i = Math.floor((x - r) / CELL); i <= Math.floor((x + r) / CELL); i++) {
-        for (const item of this.cells.get(cellKey(i, j)) ?? []) {
-          const b = item.bounds;
-          if ((Math.max(b.minX, Math.min(x, b.maxX)) - x) ** 2 + (Math.max(b.minY, Math.min(y, b.maxY)) - y) ** 2 <= r * r) hits.add(item);
-        }
-      }
-    }
-    return hits;
-  }
-
   /**
    * Instances whose over part covers the world point on screen: its rectangle, or the walls and
    * roof standing `rise` up the screen from it (someone there is behind them).
@@ -540,10 +422,8 @@ export class StaticSet {
     return hits;
   }
 
-  /** Whether a roof hides the world point: a shown, unfaded over part over it, outside the cutaway's open middle. */
+  /** Whether a roof hides the world point: a shown, unfaded over part over it. */
   roofed(x: number, y: number) {
-    const cut = this.cut;
-    if (cut && (x - cut.x) ** 2 + (y - cut.y) ** 2 < (cut.radius * CUT_HIDES) ** 2) return false;
     return this.at(x, y).some((it) => it.over.visible && it.over.alpha > 0.6 && it.over.children.length > 0);
   }
 

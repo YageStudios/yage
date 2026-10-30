@@ -19,7 +19,7 @@ import { chunkKey } from "./coord";
 import { SnapshotPair } from "./interp";
 import { EMPTY_SLOT, POSITION_SCALE, type Snapshot } from "./protocol";
 import { FarBake, type FarBakeOptions } from "./far";
-import { CutawayRoot, StaticSet, tintTree, type StaticSpec } from "./statics";
+import { StaticSet, tintTree, type StaticSpec } from "./statics";
 import { LightPass, lightUniforms } from "./window-light";
 import { ShadowPass, SUN_SOLID_ID } from "./shadow-pass";
 
@@ -1056,7 +1056,7 @@ export class ChunkScene {
   readonly entityRoot = new PIXI.Container();
   readonly edgeRoot = new PIXI.Container();
   /** Static instances' upper parts (roofs), over every sprite. */
-  readonly overRoot = new CutawayRoot(() => this.statics.cut);
+  readonly overRoot = new PIXI.Container();
   /** Static instances placed at any position and angle; see `setStatics`. */
   readonly statics: StaticSet;
   /** Their far-off chunks' pictures, with `farBake` (else null), where the static instances stack. */
