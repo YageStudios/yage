@@ -138,6 +138,8 @@ const groups = (membership: number, filter: number) => (membership << 16) | filt
 const SOLID_BODY = groups(BODY, FIXED | BODY);
 const GHOST_BODY = groups(BODY, BODY);
 const FIXED_GROUPS = groups(FIXED, BODY);
+/** A query that meets fixed colliders (walls) only, never bodies. */
+const WALLS_ONLY = groups(BODY, FIXED);
 
 let live = 0;
 
@@ -207,6 +209,29 @@ export const addFixedBox = (state: LeanPhysics, x: number, y: number, hw: number
   const body = physics.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(x, y).setRotation(angle));
   physics.createCollider(RAPIER.ColliderDesc.cuboid(hw, hh).setCollisionGroups(FIXED_GROUPS).setFriction(0), body);
   state.fixed++;
+};
+
+// -------------------------------------------------------------------------------------------
+// Casting
+
+const balls = new Map<number, RAPIER.Ball>();
+
+/**
+ * The share (0…1) of the move (dx, dy) a ball of `radius` at (x, y) makes straight before it meets
+ * a fixed collider; bodies are not met, and 1 means nothing is in the way. A ball already touching
+ * a wall and moving off or along it is not stopped by it.
+ */
+export const castBall = (physics: RAPIER.World, x: number, y: number, radius: number, dx: number, dy: number): number => {
+  let ball = balls.get(radius);
+  if (!ball) balls.set(radius, (ball = new RAPIER.Ball(radius)));
+  const hit = physics.castShape({ x, y }, 0, { x: dx, y: dy }, ball, 0, 1, false, undefined, WALLS_ONLY);
+  return hit ? Math.max(0, Math.min(1, hit.time_of_impact)) : 1;
+};
+
+/** castBall in the world's armed Rapier world; 1 (nothing in the way) while it has none. */
+export const leanCast = (world: World, x: number, y: number, radius: number, dx: number, dy: number): number => {
+  const physics = leanPhysicsOf(world).world;
+  return physics ? castBall(physics, x, y, radius, dx, dy) : 1;
 };
 
 // -------------------------------------------------------------------------------------------
@@ -387,6 +412,8 @@ export class LeanPhysicsSystem extends SystemImpl<World> {
 export type LeanProbe = {
   /** How far a ball of `radius` at (x, y) gets of the move (dx, dy): blocked part dropped, the rest slid along what it meets. */
   slide(x: number, y: number, radius: number, dx: number, dy: number): { x: number; y: number };
+  /** castBall in the probe's walls. */
+  cast(x: number, y: number, radius: number, dx: number, dy: number): number;
   free(): void;
 };
 
@@ -425,6 +452,7 @@ export const createLeanProbe = (build: (state: LeanPhysics) => void): LeanProbe 
       const moved = controller.computedMovement();
       return { x: moved.x, y: moved.y };
     },
+    cast: (x, y, radius, dx, dy) => castBall(physics, x, y, radius, dx, dy),
     free() {
       controller.free();
       releaseLeanPhysicsState(state);
