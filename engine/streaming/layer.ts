@@ -51,6 +51,9 @@ export const POSE = { Stand: 0, Lie: 1, Sit: 2, SitLeft: 3, Fallen: 4, Hunch: 5,
 export type PoseKind = (typeof POSE)[keyof typeof POSE];
 export type PoseEntry = { slot: number; pose: PoseKind; turn: number };
 
+/** At most this many ChunkLayerStyle `scales` ranges. */
+export const MAX_SCALES = 4;
+
 const instanceHeader = `
 precision highp float;
 uniform float uTime;
@@ -68,9 +71,20 @@ uniform float uAlpha;
 uniform float uPositionScale;
 uniform vec2 uSize;
 uniform float uMinPixels;
+uniform vec3 uScales[${MAX_SCALES}];
 
 vec2 footOf() {
   return mix(vec2(aPrevX, aPrevY), vec2(aCurX, aCurY), uAlpha) / uPositionScale;
+}
+// Its sprite's height against the layer's (ChunkLayerStyle \`scales\`, [from, to) ranges, the last match wins).
+float scaleOf() {
+  float sprite = aSprite + 0.5;
+  float scale = 1.0;
+  for (int i = 0; i < ${MAX_SCALES}; i++) {
+    vec3 r = uScales[i];
+    if (sprite >= r.x && sprite < r.y) scale = r.z;
+  }
+  return scale;
 }
 // Its solids' salt in the heights (shadow-pass.ts sunSolidId): sprites side by side differ.
 float saltOf() {
@@ -139,7 +153,7 @@ void main() {
   vec2 foot = footOf();
   float grow = growOf();
   mat3 m = projectionMatrix * translationMatrix;
-  vec2 posed = posedOf(aCorner, uSize * grow);
+  vec2 posed = posedOf(aCorner, uSize * (grow * scaleOf()));
   // How far up the screen from its feet (world px), and how high that stands.
   vUp = vec2(-posed.y, -posed.y / grow);
   vec3 clip = m * vec3(foot + posed, 1.0);
@@ -251,7 +265,7 @@ void main() {
   float grow = growOf();
   vLocal = vec2(aCorner.x, aCorner.y + 0.5) * 2.0;
   mat3 m = projectionMatrix * translationMatrix;
-  vec3 clip = m * vec3(foot + (vLocal * 0.5 * uShadowSize + uShadowOffset) * grow, 1.0);
+  vec3 clip = m * vec3(foot + (vLocal * 0.5 * uShadowSize + uShadowOffset) * (grow * scaleOf()), 1.0);
   // The feet's depth: only tested with depth-sorted roofs (a roof hides the shadows behind it).
   vec3 clipFoot = m * vec3(foot, 1.0);
   gl_Position = vec4(clip.xy, clamp(clipFoot.y * 0.5, -0.999, 0.999), 1.0);
@@ -291,8 +305,9 @@ void main() {
   }
   vec2 foot = footOf();
   float grow = growOf();
-  vec2 p = posedOf(aCorner, uSize * grow);
-  float feet = uCastFeet * grow;
+  float scale = scaleOf();
+  vec2 p = posedOf(aCorner, uSize * (grow * scale));
+  float feet = uCastFeet * grow * scale;
   // Below the feet (the art's margin) lies nothing.
   vUp = -p.y - feet;
   float up = vUp * uCastLength;
@@ -335,7 +350,7 @@ void main() {
     return;
   }
   mat3 m = projectionMatrix * translationMatrix;
-  gl_Position = vec4((m * vec3(footOf() + aCorner * uSize + vec2(0.0, uLift), 1.0)).xy, 0.0, 1.0);
+  gl_Position = vec4((m * vec3(footOf() + (aCorner * uSize + vec2(0.0, uLift)) * scaleOf(), 1.0)).xy, 0.0, 1.0);
   float column = floor(mod(aSprite + 0.5, uGrid.x));
   vec2 cell = vec2(column, floor((aSprite + 0.5) / uGrid.x));
   vUv = (cell + vec2(aCorner.x + 0.5, aCorner.y + 1.0)) / uGrid;
@@ -411,7 +426,7 @@ void main() {
   vec2 foot = footOf();
   float grow = growOf();
   float pixelsPerUnit = length(vec2(translationMatrix[0][0], translationMatrix[0][1]));
-  vec2 size = uSize * grow;
+  vec2 size = uSize * (grow * scaleOf());
   // The halo keeps a minimum width on screen, so the hive still reads far out.
   float reach = max(uGlowRadius * grow, uGlowMinPixels / max(pixelsPerUnit, 0.0001)) * shape.y * (1.0 + 0.35 * throb);
   vec2 margin = vec2(reach) / size;
@@ -522,7 +537,26 @@ export type ChunkLayerStyle = {
    * world units; the halo is never thinner than `minPixels` on screen.
    */
   glow?: { radius: number; minPixels?: number; ranges: GlowRange[] };
+  /**
+   * Sprites drawn taller than `size` (e.g. one set of big creatures among people): each [from, to)
+   * range's quad, drop shadow, cast shadow and glow are `scale` times the layer's, about its feet,
+   * and its atlas cell is stretched to fit (so draw that art filling its cell). At most
+   * MAX_SCALES ranges; the last match wins. The minimum on-screen size still goes by `size`.
+   */
+  scales?: readonly SpriteScale[];
 };
+
+/** One range of sprites drawn `scale` times the layer's size (ChunkLayerStyle `scales`). */
+export type SpriteScale = { from: number; to: number; scale: number };
+
+
+/** `scales` as the shaders' uScales: [from, to, scale] each, unused slots matching nothing. */
+export function scaleUniforms(scales: readonly SpriteScale[] = []) {
+  if (scales.length > MAX_SCALES) throw new Error(`ChunkLayerStyle.scales: at most ${MAX_SCALES} ranges, got ${scales.length}`);
+  const out = new Float32Array(MAX_SCALES * 3);
+  scales.forEach((r, i) => out.set([r.from, r.to, r.scale], i * 3));
+  return out;
+}
 
 /** One style's GPU programs and shared uniforms. */
 class LayerKind {
@@ -546,12 +580,14 @@ class LayerKind {
       texture.baseTexture.scaleMode = style.smooth ? PIXI.SCALE_MODES.LINEAR : PIXI.SCALE_MODES.NEAREST;
       texture.baseTexture.mipmap = style.smooth ? PIXI.MIPMAP_MODES.ON : PIXI.MIPMAP_MODES.OFF;
     }
+    const scales = scaleUniforms(style.scales);
     this.program = PIXI.Program.from(vertex, fragment, "yage-chunk-layer");
     this.surfaceProgram = PIXI.Program.from(vertex, surfaceFragment, "yage-chunk-surface");
     this.shared = new PIXI.UniformGroup({
       uPositionScale: POSITION_SCALE,
       uSize: new Float32Array(style.size),
       uMinPixels: style.minPixels ?? 2,
+      uScales: scales,
       uGrid: new Float32Array(style.grid),
       uPalette: paletteArray(style.palette),
       uFields: new Float32Array(style.mask && style.fields ? style.fields : [0, 0, 0]),
@@ -566,6 +602,7 @@ class LayerKind {
         uPositionScale: POSITION_SCALE,
         uSize: new Float32Array(style.size),
         uMinPixels: style.minPixels ?? 2,
+        uScales: scales,
         uShadowSize: new Float32Array(style.shadow.size),
         uShadowOffset: new Float32Array(style.shadow.offset ?? [0, 0]),
         uShadowAlpha: alpha,
@@ -599,6 +636,7 @@ class LayerKind {
         uPositionScale: POSITION_SCALE,
         uSize: new Float32Array(style.size),
         uMinPixels: style.minPixels ?? 2,
+        uScales: scales,
         uGrid: new Float32Array(style.grid),
         uGlowBounds: glow.bounds,
         uGlowShape: glow.shape,
