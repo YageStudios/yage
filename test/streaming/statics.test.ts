@@ -5,7 +5,7 @@ import * as PIXI from "pixi.js";
 import { describe, expect, it } from "vitest";
 import { ChunkScene, type ChunkLayerStyle } from "yage/streaming/layer";
 import { beginFrame, frameSpent, resetFrameBudget } from "yage/game/FrameBudget";
-import { fillPolygon, meshGeometry, occluderSlabs, type StaticSpec } from "yage/streaming/statics";
+import { fillPolygon, meshGeometry, occluderSlabs, seeThroughSlabs, type StaticSpec } from "yage/streaming/statics";
 import { meshArea, strokePolyline } from "yage/streaming/vector";
 
 HTMLCanvasElement.prototype.getContext = (() => null) as never;
@@ -270,6 +270,26 @@ describe("ChunkScene static instances", () => {
       }
       expect(Math.abs(risen)).toBeCloseTo(w * h + rise * width, 3);
     }
+  });
+
+  it("lays a see-through picture over all it reaches at the near edge's depth, the sides' past the rectangle", () => {
+    // Square on: one near edge (y = h) under every point, the eaves past either side included.
+    const square = seeThroughSlabs(20, 10, 0, { minX: -3, maxX: 23, minY: -15, maxY: 11 });
+    expect(Math.min(...square.flatMap((s) => s.corners.map((p) => p.x)))).toBe(-3);
+    expect(Math.max(...square.flatMap((s) => s.corners.map((p) => p.x)))).toBe(23);
+    for (const slab of square) for (const near of slab.near) expect(near.y).toBeCloseTo(10);
+    // Turned 30°: the near edge's lowest point under each strip edge, held at the corners past the sides.
+    const angle = Math.PI / 6;
+    const [c, s] = [Math.cos(angle), Math.sin(angle)];
+    const corners = [[0, 0], [20, 0], [20, 10], [0, 10]].map(([x, y]) => ({ x: x * c - y * s, y: x * s + y * c }));
+    const left = corners.reduce((a, b) => (b.x < a.x ? b : a));
+    const right = corners.reduce((a, b) => (b.x > a.x ? b : a));
+    const turned = seeThroughSlabs(20, 10, angle, { minX: left.x - 4, maxX: right.x + 4, minY: -30, maxY: 30 });
+    expect(turned).toHaveLength(5);
+    expect(turned[0].near[0].y).toBeCloseTo(left.y);
+    expect(turned[4].near[1].y).toBeCloseTo(right.y);
+    const bottom = corners.reduce((a, b) => (b.y > a.y ? b : a));
+    expect(Math.max(...turned.flatMap((t) => t.near.map((p) => p.y)))).toBeCloseTo(bottom.y);
   });
 
   it("turns vector meshes into Pixi geometry", () => {

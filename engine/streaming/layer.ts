@@ -1184,7 +1184,7 @@ export class ChunkScene {
     const under = [this.lightPass, this.farUnderRoot, this.groundRoot, this.decalRoot, this.farOverRoot, this.staticRoot];
     // The pictures over every static part (an instance shown as it is under one is drawn there by it too), under the people;
     // the sun's shadows over all of it.
-    if (options.roofDepth) this.root.addChild(...under, this.overRoot, this.statics.occluders, ...far, this.shadowRoot, this.entityRoot, this.edgeRoot, this.castRoot);
+    if (options.roofDepth) this.root.addChild(...under, this.overRoot, this.statics.occluders, ...far, this.shadowRoot, this.entityRoot, this.edgeRoot, this.statics.seeThrough, this.castRoot);
     else this.root.addChild(...under, ...far, this.shadowRoot, this.entityRoot, this.edgeRoot, this.overRoot, this.castRoot);
   }
 
