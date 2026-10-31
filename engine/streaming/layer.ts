@@ -733,6 +733,8 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   private posedGid = -1;
   private posedPose: PoseKind = POSE.Stand;
   private posedTurn = 0;
+  /** Entities held in a pose by gid (`holdPose`), any number at once. */
+  private held = new Map<number, { pose: PoseKind; turn: number }>();
   private placedX = 0;
   private placedY = 0;
   /** False: the placed entity is drawn by another layer (its copy here is hidden). */
@@ -924,6 +926,21 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     if (this.pair.current) this.writePoses();
   }
 
+  /**
+   * Holds entity `gid` in a pose (over any slot pose it has) until `releasePose`, found again by gid
+   * in each snapshot like `poseEntity`, for any number of entities at once (a crowd each swinging on
+   * its own beat). Presentation only. `poseEntity`'s one entity wins where both name the same gid.
+   */
+  holdPose(gid: number, pose: PoseKind, turn = 0) {
+    this.held.set(gid, { pose, turn });
+    if (this.pair.current) this.writePoses();
+  }
+
+  /** Lets an entity `holdPose` held go. */
+  releasePose(gid: number) {
+    if (this.held.delete(gid) && this.pair.current) this.writePoses();
+  }
+
   /** The pose data per instance (mode, turn), for tests. */
   get poseArray(): Float32Array {
     return this.poseData.subarray(0, this.geometry.instanceCount * 2);
@@ -939,6 +956,15 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
       this.poseData[p.slot * 2 + 1] = p.turn;
     }
     const snapshot = this.pair.current;
+    if (this.held.size && snapshot) {
+      const gids = snapshot.gid.subarray(0, snapshot.count);
+      for (const [gid, held] of this.held) {
+        const slot = gids.indexOf(gid);
+        if (slot < 0 || slot >= count) continue;
+        this.poseData[slot * 2] = held.pose;
+        this.poseData[slot * 2 + 1] = held.turn;
+      }
+    }
     if (this.posedGid >= 0 && snapshot) {
       let slot = snapshot.gid.subarray(0, snapshot.count).indexOf(this.posedGid);
       if (slot < 0 && this.posedGid === this.placedGid && this.geometry.instanceCount > snapshot.count) slot = snapshot.count;
@@ -1302,6 +1328,16 @@ export class ChunkScene {
   /** Poses a chunk's entities (see `ChunkLayer.setPoses`); nothing until its layer exists. */
   setPoses(cx: number, cy: number, poses: readonly PoseEntry[], tick?: number) {
     this.views.get(chunkKey(cx, cy))?.layer?.setPoses(poses, tick);
+  }
+
+  /** Holds entity `gid` in a pose in whichever chunk's layer draws it (see `ChunkLayer.holdPose`). */
+  holdPose(gid: number, pose: PoseKind, turn = 0) {
+    for (const view of this.views.values()) view.layer?.holdPose(gid, pose, turn);
+  }
+
+  /** Lets go an entity `holdPose` held. */
+  releasePose(gid: number) {
+    for (const view of this.views.values()) view.layer?.releasePose(gid);
   }
 
   /** Poses entity `gid` in whichever chunk's layer draws it (see `ChunkLayer.poseEntity`); -1 lets it go. */
