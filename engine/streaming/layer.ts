@@ -1103,6 +1103,12 @@ export type ChunkSceneOptions = {
    */
   roofDepth?: boolean;
   /**
+   * Half the widest sprite's width (world units), for `roofDepth`: a sprite draws at its feet's one
+   * depth, so a building's near edge holds back that far either side of them, and someone at the foot
+   * of a wall turned down the screen isn't cut through where the wall's edge passes the depth of their feet.
+   */
+  roofReach?: number;
+  /**
    * When static instances build their parts: "listed" (default) as soon as a chunk lists them,
    * "seen" the first time one is in view, so a streamed-in ring of chunks costs nothing until the
    * camera reaches it.
@@ -1173,7 +1179,7 @@ export class ChunkScene {
   constructor(options: ChunkSceneOptions) {
     this.options = options;
     this.castRoot = new ShadowPass(!!options.roofDepth);
-    this.statics = new StaticSet(this.staticRoot, this.overRoot, !!options.roofDepth, options.buildStatics === "seen", options.staticBudget, options.staticFloor, this.castRoot);
+    this.statics = new StaticSet(this.staticRoot, this.overRoot, !!options.roofDepth, options.buildStatics === "seen", options.staticBudget, options.staticFloor, this.castRoot, options.roofReach ?? 0);
     this.castRoot.darkness = options.castShadow ?? 0.2;
     this.entities = new LayerKind(options.style);
     const props = options.props ? (Array.isArray(options.props) ? options.props : [options.props]) : [];

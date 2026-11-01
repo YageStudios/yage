@@ -292,6 +292,45 @@ describe("ChunkScene static instances", () => {
     expect(Math.max(...turned.flatMap((t) => t.near.map((p) => p.y)))).toBeCloseTo(bottom.y);
   });
 
+  it("holds a turned near edge back a sprite's half-width, so someone at the foot of a wall stays whole in front of it", () => {
+    // Turned 45°: someone just outside the lower-left wall has their feet below its edge, but a wall
+    // running down the screen passes below their feet within their width: their far side would drop behind it.
+    const [w, h, angle, reach] = [64, 64, Math.PI / 4, 9];
+    const [c, s] = [Math.cos(angle), Math.sin(angle)];
+    const toWorld = (p: { x: number; y: number }) => ({ x: p.x * c - p.y * s, y: p.x * s + p.y * c });
+    // The occluder's depth (its near point's world y) at world x, read off the strips.
+    const depthAt = (slabs: { corners: { x: number; y: number }[]; near: { x: number; y: number }[] }[], world: boolean, x: number) => {
+      for (const slab of slabs) {
+        const [a, b] = [slab.near[0], slab.near[1]].map((p) => (world ? p : toWorld(p)));
+        if (x >= a.x - 1e-6 && x <= b.x + 1e-6) return b.x - a.x < 1e-6 ? a.y : a.y + ((b.y - a.y) * (x - a.x)) / (b.x - a.x);
+      }
+      return NaN;
+    };
+    const plain = occluderSlabs(w, h, angle);
+    const held = occluderSlabs(w, h, angle, 0, reach);
+    // Feet a pixel out from the lower-left wall (local y = h), across it.
+    for (const t of [0.2, 0.5, 0.8]) {
+      const feet = toWorld({ x: w * t, y: h + 1 });
+      // (Past the rectangle's sides there is no occluder.)
+      const across = [-reach, -reach / 2, 0, reach / 2, reach].map((d) => feet.x + d).filter((x) => Number.isFinite(depthAt(plain, false, x)));
+      // Without the hold the edge passes nearer than the feet on one side of them; with it, never.
+      expect(Math.max(...across.map((x) => depthAt(plain, false, x)))).toBeGreaterThan(feet.y);
+      for (const x of across) expect(depthAt(held, false, x)).toBeLessThan(feet.y);
+      const seen = seeThroughSlabs(w, h, angle, { minX: -60, maxX: 60, minY: -20, maxY: 100 }, reach);
+      for (const x of across) expect(depthAt(seen, true, x)).toBeLessThan(feet.y);
+    }
+    // Inside, a tile and more in from the wall, someone stays behind it.
+    const inside = toWorld({ x: w / 2, y: h - 16 });
+    for (const d of [-reach, 0, reach]) expect(depthAt(held, false, inside.x + d)).toBeGreaterThan(inside.y);
+    // The held strips still cover the footprint exactly.
+    let area = 0;
+    for (const slab of held) {
+      const pts = slab.corners.map(toWorld);
+      for (let k = 0; k < 4; k++) area += (pts[k].x * pts[(k + 1) % 4].y - pts[(k + 1) % 4].x * pts[k].y) / 2;
+    }
+    expect(Math.abs(area)).toBeCloseTo(w * h, 3);
+  });
+
   it("turns vector meshes into Pixi geometry", () => {
     const stroke = strokePolyline([{ x: 0, y: 0 }, { x: 10, y: 0 }], 2);
     const g = meshGeometry(stroke);

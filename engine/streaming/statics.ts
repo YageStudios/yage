@@ -138,12 +138,14 @@ void main() {
 let occluderProgram: PIXI.Program | null = null;
 
 /**
- * The depth-slab polygons of a w × h local rectangle turned by `angle` (world: local +x along
- * (cos, sin)): the rectangle cut into vertical strips at its corners' x, each with its corners and,
- * per corner, the point of the rectangle's lower (screen-bottom) edge straight below it; each strip
- * reaching `rise` further up the screen. Local units.
+ * A w × h rectangle turned by `angle` (world axes from its origin): its corners, their sorted x, and
+ * its near edge as a sprite `reach` wide each side meets it: under each x, the nearest of the
+ * rectangle's lower (screen-bottom) edge across x ± reach (held at the corners past its sides). A
+ * sprite draws at its feet's one depth, so on an edge that runs down the screen its far side would
+ * otherwise reach under the wall nearer than its feet and be cut off where they cross.
+ * `cuts` lists the x where that edge bends, between `from` and `to`.
  */
-export const occluderSlabs = (w: number, h: number, angle: number, rise = 0) => {
+const nearEdgeOf = (w: number, h: number, angle: number, reach: number) => {
   const c = Math.cos(angle);
   const s = Math.sin(angle);
   const world = [
@@ -152,6 +154,51 @@ export const occluderSlabs = (w: number, h: number, angle: number, rise = 0) => 
     [w, h],
     [0, h],
   ].map(([x, y]) => ({ x: x * c - y * s, y: x * s + y * c }));
+  const xs = world.map((p) => p.x).sort((a, b) => a - b);
+  const clamp = (x: number) => Math.max(xs[0], Math.min(xs[3], x));
+  // The rectangle's lowest-on-screen y at world x (clamped to its sides).
+  const bottom = (at: number) => {
+    const x = clamp(at);
+    let hi = -Infinity;
+    for (let i = 0; i < 4; i++) {
+      const a = world[i];
+      const b = world[(i + 1) % 4];
+      const x0 = Math.min(a.x, b.x);
+      const x1 = Math.max(a.x, b.x);
+      if (x < x0 - 1e-6 || x > x1 + 1e-6) continue;
+      hi = Math.max(hi, x1 - x0 < 1e-4 ? Math.max(a.y, b.y) : a.y + ((b.y - a.y) * (x - a.x)) / (b.x - a.x));
+    }
+    return hi;
+  };
+  // The bottom edge is convex upward (a rectangle), so its nearest across the window is at one end.
+  const near = (x: number) => Math.min(bottom(x - reach), bottom(x + reach));
+  const cuts = (from: number, to: number) => {
+    const at = [from, to, ...xs.flatMap((x) => [x - reach, x, x + reach])].filter((x) => x >= from && x <= to).sort((a, b) => a - b);
+    const out: number[] = [];
+    for (const x of at) if (!out.length || x - out[out.length - 1] > 1e-4) out.push(x);
+    // Where the window's two ends swap as the nearer, between bends.
+    const gap = (x: number) => bottom(x - reach) - bottom(x + reach);
+    for (let i = out.length - 2; i >= 0; i--) {
+      const [a, b] = [out[i], out[i + 1]];
+      const [ga, gb] = [gap(a), gap(b)];
+      if (ga * gb < 0) out.splice(i + 1, 0, a + ((b - a) * ga) / (ga - gb));
+    }
+    return out;
+  };
+  return { world, xs, near, cuts };
+};
+
+/**
+ * The depth-slab polygons of a w × h local rectangle turned by `angle` (world: local +x along
+ * (cos, sin)): the rectangle cut into vertical strips at its corners' x, each with its corners and,
+ * per corner, the point under it on the rectangle's near edge as a sprite `reach` wide meets it
+ * (`nearEdgeOf`; straight below on its lower edge for none); each strip reaching `rise` further up
+ * the screen. Local units.
+ */
+export const occluderSlabs = (w: number, h: number, angle: number, rise = 0, reach = 0) => {
+  const { world, xs, near, cuts } = nearEdgeOf(w, h, angle, reach);
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
   const local = (p: Point): Point => ({ x: p.x * c + p.y * s, y: -p.x * s + p.y * c });
   // Lowest and highest world y of the rectangle at world x.
   const span = (x: number) => {
@@ -174,12 +221,11 @@ export const occluderSlabs = (w: number, h: number, angle: number, rise = 0) => 
     }
     return { lo, hi };
   };
-  const xs = world.map((p) => p.x).sort((a, b) => a - b);
+  const at = cuts(xs[0], xs[3]);
   const slabs: { corners: Point[]; near: Point[] }[] = [];
-  for (let i = 0; i + 1 < xs.length; i++) {
-    const xa = xs[i];
-    const xb = xs[i + 1];
-    if (xb - xa < 1e-4) continue;
+  for (let i = 0; i + 1 < at.length; i++) {
+    const xa = at[i];
+    const xb = at[i + 1];
     const a = span(xa);
     const b = span(xb);
     const corners = [
@@ -188,23 +234,18 @@ export const occluderSlabs = (w: number, h: number, angle: number, rise = 0) => 
       { x: xb, y: b.hi },
       { x: xa, y: a.hi },
     ];
-    const near = [
-      { x: xa, y: a.hi },
-      { x: xb, y: b.hi },
-      { x: xb, y: b.hi },
-      { x: xa, y: a.hi },
-    ];
-    slabs.push({ corners: corners.map(local), near: near.map(local) });
+    const [na, nb] = [{ x: xa, y: near(xa) }, { x: xb, y: near(xb) }];
+    slabs.push({ corners: corners.map(local), near: [na, nb, nb, na].map(local) });
   }
   return slabs;
 };
 
 /** A depth-only mesh over a static's local rectangle; see the module notes. */
-export const occluderMesh = (w: number, h: number, angle: number, rise = 0) => {
+export const occluderMesh = (w: number, h: number, angle: number, rise = 0, reach = 0) => {
   const positions: number[] = [];
   const near: number[] = [];
   const indices: number[] = [];
-  for (const slab of occluderSlabs(w, h, angle, rise)) {
+  for (const slab of occluderSlabs(w, h, angle, rise, reach)) {
     const base = positions.length / 2;
     for (let k = 0; k < 4; k++) {
       positions.push(slab.corners[k].x, slab.corners[k].y);
@@ -217,45 +258,23 @@ export const occluderMesh = (w: number, h: number, angle: number, rise = 0) => {
 
 /**
  * The see-through pass's strips (`occluderSlabs` in world axes, from the static's origin): the
- * rectangle's near-edge depth under every point of `reach` (where its over part draws, world
- * units from the origin; past the rectangle's sides, its nearest corner's).
+ * rectangle's near-edge depth (as a sprite `reach` wide meets it) under every point of `reach`
+ * (where its over part draws, world units from the origin; past the rectangle's sides, its
+ * nearest corner's).
  */
-export const seeThroughSlabs = (w: number, h: number, angle: number, reach: Rect) => {
-  const c = Math.cos(angle);
-  const s = Math.sin(angle);
-  const world = [
-    [0, 0],
-    [w, 0],
-    [w, h],
-    [0, h],
-  ].map(([x, y]) => ({ x: x * c - y * s, y: x * s + y * c }));
-  const xs = world.map((p) => p.x).sort((a, b) => a - b);
-  // The rectangle's lowest world y at world x (clamped to its sides).
-  const near = (at: number) => {
-    const x = Math.max(xs[0], Math.min(xs[3], at));
-    let hi = -Infinity;
-    for (let i = 0; i < 4; i++) {
-      const a = world[i];
-      const b = world[(i + 1) % 4];
-      const x0 = Math.min(a.x, b.x);
-      const x1 = Math.max(a.x, b.x);
-      if (x < x0 - 1e-6 || x > x1 + 1e-6) continue;
-      hi = Math.max(hi, x1 - x0 < 1e-4 ? Math.max(a.y, b.y) : a.y + ((b.y - a.y) * (x - a.x)) / (b.x - a.x));
-    }
-    return hi;
-  };
-  const cuts = [reach.minX, ...xs.filter((x) => x > reach.minX && x < reach.maxX), reach.maxX];
+export const seeThroughSlabs = (w: number, h: number, angle: number, around: Rect, reach = 0) => {
+  const { near, cuts } = nearEdgeOf(w, h, angle, reach);
+  const at = cuts(around.minX, around.maxX);
   const slabs: { corners: Point[]; near: Point[] }[] = [];
-  for (let i = 0; i + 1 < cuts.length; i++) {
-    const [xa, xb] = [cuts[i], cuts[i + 1]];
-    if (xb - xa < 1e-4) continue;
+  for (let i = 0; i + 1 < at.length; i++) {
+    const [xa, xb] = [at[i], at[i + 1]];
     const [na, nb] = [{ x: xa, y: near(xa) }, { x: xb, y: near(xb) }];
     slabs.push({
       corners: [
-        { x: xa, y: reach.minY },
-        { x: xb, y: reach.minY },
-        { x: xb, y: reach.maxY },
-        { x: xa, y: reach.maxY },
+        { x: xa, y: around.minY },
+        { x: xb, y: around.minY },
+        { x: xb, y: around.maxY },
+        { x: xa, y: around.maxY },
       ],
       near: [na, nb, nb, na],
     });
@@ -299,6 +318,8 @@ let seeThroughProgram: PIXI.Program | null = null;
  */
 class SeeThrough extends PIXI.Container {
   readonly faded = new Set<StaticInstance>();
+  /** Half a sprite's width (`StaticSet`'s `reach`). */
+  reach = 0;
   private readonly drawn = new Map<StaticInstance, { picture: PIXI.RenderTexture; mesh: PIXI.Mesh<PIXI.Shader> }>();
 
   /** Whether the instance draws here (and not with the other over parts): faded and shown. */
@@ -369,7 +390,7 @@ class SeeThrough extends PIXI.Container {
       const positions: number[] = [];
       const near: number[] = [];
       const indices: number[] = [];
-      for (const slab of seeThroughSlabs(item.spec.w, item.spec.h, item.spec.angle, around)) {
+      for (const slab of seeThroughSlabs(item.spec.w, item.spec.h, item.spec.angle, around, this.reach)) {
         const base = positions.length / 2;
         for (let k = 0; k < 4; k++) {
           positions.push(slab.corners[k].x, slab.corners[k].y);
@@ -475,7 +496,14 @@ export class StaticSet {
     private readonly buildFloor = 0,
     /** The scene's shadow pass, which takes the instances' heights and tops; without one they cast no shadows. */
     private readonly shadow: ShadowPass | null = null,
-  ) {}
+    /**
+     * Half the widest sprite's width (world units; ChunkScene's `roofReach`): how far either side of
+     * its feet a sprite's depth has to hold against an occluder's near edge (`nearEdgeOf`).
+     */
+    private readonly reach = 0,
+  ) {
+    this.seeThrough.reach = reach;
+  }
 
   private readonly seen: StaticInstance[] = [];
 
@@ -494,7 +522,7 @@ export class StaticSet {
     tintTree(item.under, this.tint);
     tintTree(item.over, this.tint);
     if (this.occlude && parts.over) {
-      const occluder = occluderMesh(item.spec.w, item.spec.h, item.spec.angle, item.spec.rise);
+      const occluder = occluderMesh(item.spec.w, item.spec.h, item.spec.angle, item.spec.rise, this.reach);
       place(occluder, item.spec);
       occluder.visible = item.over.visible;
       this.occluders.addChild(occluder);
