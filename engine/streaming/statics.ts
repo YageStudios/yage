@@ -69,7 +69,9 @@ export type StaticSpec = {
   w: number;
   h: number;
   /** Stacking of the `over` part among other instances' (e.g. a building's height, so a tall roof and
-   *  the shadow it casts lie over a lower neighbour's). Equal heights keep listing order. */
+   *  the shadow it casts lie over a lower neighbour's). Equal heights keep listing order. Between
+   *  neighbours whose rectangles lie one up the screen of the other, that order wins (`behind`).
+   *  Applied at the next cull. */
   z?: number;
   /** How far (world units) the over part reaches straight up the screen past the rectangle (a
    *  building's walls, its roof on top): culled with it, and its occluder reaches as far. */
@@ -450,6 +452,47 @@ export const depthMesh = (positions: number[], near: number[], indices: number[]
   return mesh;
 };
 
+/** A spec's rectangle's corners in the world. */
+const cornersOf = (s: StaticSpec): Point[] => {
+  const c = Math.cos(s.angle);
+  const n = Math.sin(s.angle);
+  return [[0, 0], [s.w, 0], [s.w, s.h], [0, s.h]].map(([u, v]) => ({ x: s.x + u * c - v * n, y: s.y + u * n + v * c }));
+};
+
+/** Where the vertical line at `x` crosses a convex polygon: its lowest and highest y. */
+const spanAt = (poly: readonly Point[], x: number) => {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    if ((a.x - x) * (b.x - x) > 0 || a.x === b.x) continue;
+    const y = a.y + ((x - a.x) / (b.x - a.x)) * (b.y - a.y);
+    lo = Math.min(lo, y);
+    hi = Math.max(hi, y);
+  }
+  return [lo, hi] as const;
+};
+
+/**
+ * Whether `a`'s rectangle lies wholly up the screen of `b`'s where both span some x (so b's over
+ * part, standing up the screen from it, draws over a's): true, false the other way, null when they
+ * share no x or overlap there. Two rectangles apart keep one order across every x they share
+ * (they're convex), so the middle of that run settles it, at any angles.
+ */
+export const behind = (a: StaticSpec, b: StaticSpec): boolean | null => {
+  const pa = cornersOf(a);
+  const pb = cornersOf(b);
+  const lo = Math.max(Math.min(...pa.map((p) => p.x)), Math.min(...pb.map((p) => p.x)));
+  const hi = Math.min(Math.max(...pa.map((p) => p.x)), Math.max(...pb.map((p) => p.x)));
+  if (hi - lo < 1e-6) return null;
+  const [aLo, aHi] = spanAt(pa, (lo + hi) / 2);
+  const [bLo, bHi] = spanAt(pb, (lo + hi) / 2);
+  if (aHi <= bLo + 1e-6) return true;
+  if (bHi <= aLo + 1e-6) return false;
+  return null;
+};
+
 /** World px per side of a StaticSet's lookup cell. */
 /** Squared distance from a bounds' centre to a point. */
 const distance = (b: Rect, x: number, y: number) => ((b.minX + b.maxX) / 2 - x) ** 2 + ((b.minY + b.maxY) / 2 - y) ** 2;
@@ -535,6 +578,7 @@ export class StaticSet {
   /** Replaces the instances listed by chunk `key`. */
   list(key: number, specs: readonly StaticSpec[]) {
     const ids = new Set(specs.map((s) => s.id));
+    let stacked = false;
     for (const item of this.items.values()) {
       if (item.holders.has(key) && !ids.has(item.spec.id)) this.release(item, key);
     }
@@ -549,8 +593,8 @@ export class StaticSet {
         place(over, spec);
         place(heights, spec);
         place(tops, spec);
-        if (spec.z) {
-          over.zIndex = tops.zIndex = spec.z;
+        if (spec.z !== undefined) {
+          stacked = true;
           this.overRoot.sortableChildren = true;
           if (this.shadow) this.shadow.tops.sortableChildren = true;
         }
@@ -569,6 +613,61 @@ export class StaticSet {
         } else this.build(item);
       }
       item.holders.add(key);
+    }
+    if (stacked) this.unstacked = true;
+  }
+
+  /** Instances with a `z` came since the last restack. */
+  private unstacked = false;
+
+  /**
+   * Stacks the over parts of the instances with a `z`: one whose rectangle lies up the screen of a
+   * neighbour's where they share an x (`behind`) draws first, whatever their z; z orders the rest
+   * (lowest first). Ranks go to zIndex from 1, so instances without a z stay under them all.
+   */
+  private restack() {
+    const stacked = [...this.items.values()].filter((item) => item.spec.z !== undefined);
+    const after = new Map<StaticInstance, StaticInstance[]>(stacked.map((item) => [item, []]));
+    const waits = new Map<StaticInstance, number>(stacked.map((item) => [item, 0]));
+    for (const [key, cell] of this.cells) {
+      for (let i = 0; i < cell.length; i++) {
+        const a = cell[i];
+        if (a.spec.z === undefined) continue;
+        for (let j = i + 1; j < cell.length; j++) {
+          const b = cell[j];
+          if (b.spec.z === undefined) continue;
+          const ab = a.bounds;
+          const bb = b.bounds;
+          if (ab.maxX < bb.minX || bb.maxX < ab.minX || ab.maxY < bb.minY || bb.maxY < ab.minY) continue;
+          // Met once: in the cell holding their bounds' overlap's top-left.
+          if (cellKey(Math.floor(Math.max(ab.minX, bb.minX) / CELL), Math.floor(Math.max(ab.minY, bb.minY) / CELL)) !== key) continue;
+          const order = behind(a.spec, b.spec);
+          if (order === null) continue;
+          const [first, then] = order ? [a, b] : [b, a];
+          after.get(first)!.push(then);
+          waits.set(then, waits.get(then)! + 1);
+        }
+      }
+    }
+    // Lowest z first among those with nothing left to wait for; a loop (overlapping rectangles
+    // leave them to z) breaks at its lowest z.
+    const byZ = (a: StaticInstance, b: StaticInstance) => a.spec.z! - b.spec.z!;
+    const left = new Set(stacked);
+    const ready = stacked.filter((item) => waits.get(item) === 0).sort(byZ);
+    let rank = 1;
+    while (left.size) {
+      if (!ready.length) ready.push([...left].sort(byZ)[0]);
+      const item = ready.shift()!;
+      if (!left.delete(item)) continue;
+      item.over.zIndex = item.tops.zIndex = rank++;
+      for (const then of after.get(item)!) {
+        const n = waits.get(then)! - 1;
+        waits.set(then, n);
+        if (n === 0 && left.has(then)) {
+          const at = ready.findIndex((r) => byZ(then, r) < 0);
+          ready.splice(at < 0 ? ready.length : at, 0, then);
+        }
+      }
     }
   }
 
@@ -661,6 +760,10 @@ export class StaticSet {
   }
 
   cull(view: Rect) {
+    if (this.unstacked) {
+      this.unstacked = false;
+      this.restack();
+    }
     const seen = this.seen;
     for (const item of this.items.values()) {
       const b = item.bounds;

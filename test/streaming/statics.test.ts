@@ -5,7 +5,7 @@ import * as PIXI from "pixi.js";
 import { describe, expect, it } from "vitest";
 import { ChunkScene, type ChunkLayerStyle } from "yage/streaming/layer";
 import { beginFrame, frameSpent, resetFrameBudget } from "yage/game/FrameBudget";
-import { fillPolygon, meshGeometry, occluderSlabs, seeThroughSlabs, type StaticSpec } from "yage/streaming/statics";
+import { behind, fillPolygon, meshGeometry, occluderSlabs, seeThroughSlabs, type StaticSpec } from "yage/streaming/statics";
 import { meshArea, strokePolyline } from "yage/streaming/vector";
 
 HTMLCanvasElement.prototype.getContext = (() => null) as never;
@@ -45,6 +45,27 @@ describe("ChunkScene static instances", () => {
     expect(scene.staticRoot.children.length).toBe(1);
     scene.setStatics(1, 0, null);
     expect(scene.statics.items.size).toBe(0);
+    scene.destroy();
+  });
+
+  it("stacks turned neighbours by where their footprints lie at a shared x, not by their lowest corners", () => {
+    // A big diamond, and a small one just past its lower-right side: the small one stands in front,
+    // though the big one's bottom corner is far lower on the screen.
+    const turn = Math.PI / 4;
+    const sized = (id: string, x: number, y: number, side: number, z: number): StaticSpec => ({ ...spec(id, x, y, turn), w: side, h: side, z });
+    const big = sized("big", 0, 0, 200, 283);
+    const small = sized("small", 150, 150, 50, 221);
+    const far = sized("far", 400, 0, 50, 71);
+    expect(behind(big, small)).toBe(true);
+    expect(behind(small, big)).toBe(false);
+    expect(behind(big, far)).toBe(null);
+    const scene = new ChunkScene({ chunkSize: 1000, style });
+    scene.setStatics(0, 0, [small, big, far]);
+    scene.update(everywhere);
+    const z = (id: string) => scene.statics.items.get(id)!.over.zIndex;
+    expect(z("big")).toBeLessThan(z("small"));
+    // Apart from the rest, z orders it: lowest first.
+    expect(z("far")).toBe(1);
     scene.destroy();
   });
 
@@ -92,6 +113,8 @@ describe("ChunkScene static instances", () => {
   it("stacks taller instances' over parts above lower ones, keeping listing order otherwise", () => {
     const scene = new ChunkScene({ chunkSize: 100, style });
     scene.setStatics(0, 0, [{ ...spec("tower", 10, 10), z: 6 }, spec("shed", 20, 10), { ...spec("walkup", 30, 10), z: 3 }, spec("barn", 40, 10)]);
+    // Stacked at the next cull.
+    scene.update(everywhere);
     scene.overRoot.sortChildren();
     const order = scene.overRoot.children.map((c) => [...scene.statics.items.values()].find((i) => i.over === c)!.spec.id);
     expect(order).toEqual(["shed", "barn", "walkup", "tower"]);
