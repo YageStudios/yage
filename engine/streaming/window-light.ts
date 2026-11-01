@@ -72,8 +72,8 @@ varying vec2 vMix;
 uniform float uAlpha;
 
 const float PI = 3.14159265;
-// A lamp's pool at the wall's foot: a soft room light, well under daylight.
-const float GAIN = 0.32;
+// A lamp's pool at the wall's foot: a warm room light, under daylight but plain against the night.
+const float GAIN = 0.85;
 
 // The form factor of an edge of a polygon light seen from a point facing straight up.
 float edge(vec3 a, vec3 b) {
@@ -104,8 +104,8 @@ void main() {
   vec3 a = normalize(vec3(x0, 0.0, z0) - p), b = normalize(vec3(x1, 0.0, z0) - p);
   vec3 c = normalize(vec3(x1, 0.0, z1) - p), d = normalize(vec3(x0, 0.0, z1) - p);
   float glow = abs(edge(a, b) + edge(b, c) + edge(c, d) + edge(d, a)) / (2.0 * PI);
-  // Soft and never blinding: a lit room tints the pavement, it doesn't floodlight it.
-  float light = min(vLight.a * (vMix.x * 0.7 * min(direct, 1.4) + vMix.y * 5.0 * glow) * GAIN, 0.45) * uAlpha;
+  // Soft and never blinding: a lit room warms the pavement, it doesn't floodlight it.
+  float light = min(vLight.a * (vMix.x * 0.7 * min(direct, 1.4) + vMix.y * 5.0 * glow) * GAIN, 0.8) * uAlpha;
   // Added into the light buffer.
   gl_FragColor = vec4(vLight.rgb * light, 0.0);
 }
@@ -155,7 +155,8 @@ export class WindowLightMesh extends PIXI.Mesh<PIXI.Shader> {
   render() {}
 
   draw(renderer: PIXI.Renderer) {
-    if (this.worldAlpha <= 0.01 || !this.worldVisible) return;
+    // A wall with none lit holds an empty geometry (windowLightGeometry([])), to be given one later.
+    if (this.worldAlpha <= 0.01 || !this.worldVisible || !this.geometry.indexBuffer?.data.length) return;
     this.shader.uniforms.uAlpha = this.worldAlpha;
     this._render(renderer);
   }
