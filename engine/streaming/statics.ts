@@ -24,8 +24,6 @@
  * behind is hidden right to the over part's drawn edge, not cut a little inside it.
  * Where people pass through the rectangle (a doorway: `openings`) its depth across the opening's width is
  * one, the threshold's, so a sprite going through goes behind it all at once, not cut slantwise by a turned wall.
- * A doorway the over part hides (`peeks`) puts the instance in the see-through pass for good, drawn
- * whole but for a soft window over the doorway: seen where to get in, and who goes in, not the rest.
  */
 import * as PIXI from "pixi.js";
 import { withinFrame } from "../game/FrameBudget";
@@ -89,10 +87,6 @@ export type StaticSpec = {
   /** Where sprites pass through the rectangle (doorways): each a threshold point (local units) and half
    *  its width across the screen (world units). Over it the occluder holds the threshold's depth. */
   openings?: readonly Opening[];
-  /** Doorways on faces the over part hides (a back door): each a threshold point (local units) and half
-   *  its width across the screen. With depth-sorted roofs the instance always draws see-through (as a
-   *  faded one does), whole but for a soft window over each, so the way in and whoever takes it show. */
-  peeks?: readonly Opening[];
   /** Builds the parts in local coordinates; called once, when the id is first listed. */
   build: () => StaticParts;
 };
@@ -321,25 +315,6 @@ export const seeThroughSlabs = (w: number, h: number, angle: number, around: Rec
   return slabs;
 };
 
-/** Windows a see-through instance can have (`peeks`), and how much of the over part stays in each one's middle. */
-const PEEKS = 2;
-const PEEK_ALPHA = "0.3";
-/** A peek's window (world units): how far it reaches either side of the doorway past half a sprite, and up and down. */
-const PEEK_SIDE = 6;
-const PEEK_UP = 22;
-
-/** An instance's peek windows for the see-through shader: centre (world axes, from its origin) and radii, unused ones zero. */
-export const peekWindows = (spec: StaticSpec, reach: number) => {
-  const out = new Float32Array(PEEKS * 4);
-  const c = Math.cos(spec.angle);
-  const s = Math.sin(spec.angle);
-  (spec.peeks ?? []).slice(0, PEEKS).forEach((o, i) => {
-    // Round the threshold and a sprite standing on it.
-    out.set([o.x * c - o.y * s, o.x * s + o.y * c - PEEK_UP / 2, o.half + reach + PEEK_SIDE, PEEK_UP], i * 4);
-  });
-  return out;
-};
-
 const seeThroughVertex = `
 attribute vec2 aVertexPosition;
 attribute vec2 aNear;
@@ -347,10 +322,8 @@ uniform mat3 projectionMatrix;
 uniform mat3 translationMatrix;
 uniform vec4 uFrame;
 varying vec2 vUv;
-varying vec2 vLocal;
 
 void main() {
-  vLocal = aVertexPosition;
   vec3 seen = translationMatrix * vec3(aVertexPosition, 1.0);
   vec3 clip = projectionMatrix * seen;
   vec3 near = projectionMatrix * translationMatrix * vec3(aNear, 1.0);
@@ -361,21 +334,12 @@ void main() {
 const seeThroughFragment = `
 precision mediump float;
 varying vec2 vUv;
-varying vec2 vLocal;
 uniform sampler2D uPicture;
 uniform vec2 uMax;
-uniform vec4 uPeeks[${PEEKS}];
 
 void main() {
   if (vUv.x < 0.0 || vUv.y < 0.0 || vUv.x > uMax.x || vUv.y > uMax.y) discard;
-  float shown = 1.0;
-  for (int i = 0; i < ${PEEKS}; i++) {
-    vec4 p = uPeeks[i];
-    if (p.z <= 0.0) continue;
-    float d = length((vLocal - p.xy) / p.zw);
-    shown = min(shown, mix(${PEEK_ALPHA}, 1.0, smoothstep(0.55, 1.0, d)));
-  }
-  gl_FragColor = texture2D(uPicture, vUv) * shown;
+  gl_FragColor = texture2D(uPicture, vUv);
 }
 `;
 let seeThroughProgram: PIXI.Program | null = null;
@@ -475,7 +439,6 @@ class SeeThrough extends PIXI.Container {
       const [u, v] = [w / picture.width, h / picture.height];
       uniforms.uFrame = new Float32Array([minX, minY, u / (maxX - minX), v / (maxY - minY)]);
       uniforms.uMax = new Float32Array([u, v]);
-      uniforms.uPeeks = peekWindows(item.spec, this.reach);
       mesh.position.set(item.spec.x, item.spec.y);
       mesh.transform.updateTransform(over.parent.transform);
       mesh.render(renderer);
@@ -499,7 +462,7 @@ class SeeThrough extends PIXI.Container {
     state.depthTest = true;
     state.depthMask = false;
     state.blend = true;
-    const mesh = new PIXI.Mesh(geometry, new PIXI.Shader(seeThroughProgram, { uPicture: picture, uFrame: new Float32Array(4), uMax: new Float32Array(2), uPeeks: new Float32Array(PEEKS * 4) }), state);
+    const mesh = new PIXI.Mesh(geometry, new PIXI.Shader(seeThroughProgram, { uPicture: picture, uFrame: new Float32Array(4), uMax: new Float32Array(2) }), state);
     drawn = { picture, mesh };
     this.drawn.set(item, drawn);
     return drawn;
@@ -849,7 +812,7 @@ export class StaticSet {
       item.tops.visible = visible && item.tops.children.length > 0;
       // A faded roof (someone inside, or in front of someone looked for) shows the people under it, over them.
       if (item.occluder) {
-        const faded = item.over.visible && (item.over.alpha <= 0.6 || !!item.spec.peeks?.length);
+        const faded = item.over.visible && item.over.alpha <= 0.6;
         item.occluder.visible = item.over.visible && !faded;
         this.seeThrough.set(item, faded);
       }
@@ -868,9 +831,8 @@ export class StaticSet {
         item.under.visible = true;
         item.over.visible = item.over.children.length > 0;
         if (item.occluder) {
-          const peeking = item.over.visible && !!item.spec.peeks?.length;
-          item.occluder.visible = item.over.visible && !peeking;
-          this.seeThrough.set(item, peeking);
+          item.occluder.visible = item.over.visible;
+          this.seeThrough.set(item, false);
         }
         item.heights.visible = item.heights.children.length > 0;
         item.tops.visible = item.tops.children.length > 0;

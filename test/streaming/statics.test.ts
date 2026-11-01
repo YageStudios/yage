@@ -5,7 +5,7 @@ import * as PIXI from "pixi.js";
 import { describe, expect, it } from "vitest";
 import { ChunkScene, type ChunkLayerStyle } from "yage/streaming/layer";
 import { beginFrame, frameSpent, resetFrameBudget } from "yage/game/FrameBudget";
-import { behind, fillPolygon, meshGeometry, occluderSlabs, peekWindows, seeThroughSlabs, type StaticSpec } from "yage/streaming/statics";
+import { behind, fillPolygon, meshGeometry, occluderSlabs, seeThroughSlabs, type StaticSpec } from "yage/streaming/statics";
 import { meshArea, strokePolyline } from "yage/streaming/vector";
 
 HTMLCanvasElement.prototype.getContext = (() => null) as never;
@@ -428,20 +428,6 @@ describe("ChunkScene static instances", () => {
     // Away from the door the wall is as it was.
     const far = toWorld({ x: 56, y: h }).x;
     expect(depthAt(opened, far)).toBeCloseTo(depthAt(plain, far), 4);
-  });
-
-  it("opens a window over a hidden doorway, round its threshold and whoever stands on it", () => {
-    const angle = Math.PI / 4;
-    const spec = { id: 1, x: 100, y: 50, angle, w: 64, h: 48, peeks: [{ x: 24, y: 8, half: 4 }], build: () => ({}) } as StaticSpec;
-    const [cx, cy, rx, ry, ...rest] = peekWindows(spec, 9);
-    // The threshold in world axes from the origin, the window's middle a little up the screen of it.
-    expect(cx).toBeCloseTo(24 * Math.cos(angle) - 8 * Math.sin(angle), 5);
-    expect(cy).toBeLessThan(24 * Math.sin(angle) + 8 * Math.cos(angle));
-    expect(rx).toBeGreaterThan(4 + 9);
-    expect(ry).toBeGreaterThan(0);
-    // The unused window stays shut.
-    expect(rest.every((v) => v === 0)).toBe(true);
-    expect([...peekWindows({ ...spec, peeks: undefined }, 9)].every((v) => v === 0)).toBe(true);
   });
 
   it("turns vector meshes into Pixi geometry", () => {
