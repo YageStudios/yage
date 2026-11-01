@@ -22,6 +22,10 @@
  * roof on top of them: `rise`) has its occluder reach that far up too, at the same near-edge depth,
  * and as far out all round as the over part overhangs it (`overhang`), so what stands
  * behind is hidden right to the over part's drawn edge, not cut a little inside it.
+ * Where people pass through the rectangle (a doorway: `openings`) its depth across the opening's width is
+ * one, the threshold's, so a sprite going through goes behind it all at once, not cut slantwise by a turned wall.
+ * A doorway the over part hides (`peeks`) puts the instance in the see-through pass for good, drawn
+ * whole but for a soft window over the doorway: seen where to get in, and who goes in, not the rest.
  */
 import * as PIXI from "pixi.js";
 import { withinFrame } from "../game/FrameBudget";
@@ -82,6 +86,13 @@ export type StaticSpec = {
    *  occluder covers that too, at the rectangle's own near-edge depth, so what stands behind hides
    *  right to the drawn edge while whoever stands in front of the rectangle stays over the overhang. */
   overhang?: number;
+  /** Where sprites pass through the rectangle (doorways): each a threshold point (local units) and half
+   *  its width across the screen (world units). Over it the occluder holds the threshold's depth. */
+  openings?: readonly Opening[];
+  /** Doorways on faces the over part hides (a back door): each a threshold point (local units) and half
+   *  its width across the screen. With depth-sorted roofs the instance always draws see-through (as a
+   *  faded one does), whole but for a soft window over each, so the way in and whoever takes it show. */
+  peeks?: readonly Opening[];
   /** Builds the parts in local coordinates; called once, when the id is first listed. */
   build: () => StaticParts;
 };
@@ -123,6 +134,9 @@ export const tintTree = (object: PIXI.DisplayObject, rgb: number) => {
   if (object instanceof PIXI.Container) for (const child of object.children) tintTree(child, rgb);
 };
 
+/** A way through a static's rectangle (a doorway): its threshold (local units) and half its width across the screen (world units). */
+export type Opening = { x: number; y: number; half: number };
+
 const occluderVertex = `
 attribute vec2 aVertexPosition;
 attribute vec2 aNear;
@@ -151,9 +165,11 @@ let occluderProgram: PIXI.Program | null = null;
  * rectangle's lower (screen-bottom) edge across x ± reach (held at the corners past its sides). A
  * sprite draws at its feet's one depth, so on an edge that runs down the screen its far side would
  * otherwise reach under the wall nearer than its feet and be cut off where they cross.
- * `cuts` lists the x where that edge bends, between `from` and `to`.
+ * Across an opening (as wide as a sprite meeting it) it is the opening's threshold: a sprite going
+ * through goes behind at once as its feet pass the threshold, not cut slantwise by a turned wall.
+ * `cuts` lists the x where that edge bends or steps, between `from` and `to`.
  */
-const nearEdgeOf = (w: number, h: number, angle: number, reach: number) => {
+const nearEdgeOf = (w: number, h: number, angle: number, reach: number, openings: readonly Opening[] = []) => {
   const c = Math.cos(angle);
   const s = Math.sin(angle);
   const world = [
@@ -179,16 +195,21 @@ const nearEdgeOf = (w: number, h: number, angle: number, reach: number) => {
     return hi;
   };
   // The bottom edge is convex upward (a rectangle), so its nearest across the window is at one end.
-  const near = (x: number) => Math.min(bottom(x - reach), bottom(x + reach));
+  const edge = (x: number) => Math.min(bottom(x - reach), bottom(x + reach));
+  const ways = openings.map((o) => ({ x: o.x * c - o.y * s, y: o.x * s + o.y * c, half: o.half + reach }));
+  const near = (x: number) => {
+    for (const o of ways) if (Math.abs(x - o.x) <= o.half) return o.y;
+    return edge(x);
+  };
   const cuts = (from: number, to: number) => {
-    const at = [from, to, ...xs.flatMap((x) => [x - reach, x, x + reach])].filter((x) => x >= from && x <= to).sort((a, b) => a - b);
+    const at = [from, to, ...xs.flatMap((x) => [x - reach, x, x + reach]), ...ways.flatMap((o) => [o.x - o.half, o.x + o.half])].filter((x) => x >= from && x <= to).sort((a, b) => a - b);
     const out: number[] = [];
     for (const x of at) if (!out.length || x - out[out.length - 1] > 1e-4) out.push(x);
     // Where the window's two ends swap as the nearer, between bends.
     const gap = (x: number) => bottom(x - reach) - bottom(x + reach);
     for (let i = out.length - 2; i >= 0; i--) {
       const [a, b] = [out[i], out[i + 1]];
-      const [ga, gb] = [gap(a), gap(b)];
+      const [ga, gb] = [gap(a + 1e-6), gap(b - 1e-6)];
       if (ga * gb < 0) out.splice(i + 1, 0, a + ((b - a) * ga) / (ga - gb));
     }
     return out;
@@ -203,8 +224,8 @@ const nearEdgeOf = (w: number, h: number, angle: number, reach: number) => {
  * (`nearEdgeOf`; straight below on its lower edge for none); each strip reaching `rise` further up
  * the screen. Local units.
  */
-export const occluderSlabs = (w: number, h: number, angle: number, rise = 0, reach = 0, overhang = 0) => {
-  const { xs: footXs, near, cuts } = nearEdgeOf(w, h, angle, reach);
+export const occluderSlabs = (w: number, h: number, angle: number, rise = 0, reach = 0, overhang = 0, openings: readonly Opening[] = []) => {
+  const { xs: footXs, near, cuts } = nearEdgeOf(w, h, angle, reach, openings);
   const c = Math.cos(angle);
   const s = Math.sin(angle);
   const local = (p: Point): Point => ({ x: p.x * c + p.y * s, y: -p.x * s + p.y * c });
@@ -251,18 +272,19 @@ export const occluderSlabs = (w: number, h: number, angle: number, rise = 0, rea
       { x: xb, y: b.hi },
       { x: xa, y: a.hi },
     ];
-    const [na, nb] = [{ x: xa, y: near(xa) }, { x: xb, y: near(xb) }];
+    // Each strip's own side of a step (an opening's edge).
+    const [na, nb] = [{ x: xa, y: near(xa + 1e-6) }, { x: xb, y: near(xb - 1e-6) }];
     slabs.push({ corners: corners.map(local), near: [na, nb, nb, na].map(local) });
   }
   return slabs;
 };
 
 /** A depth-only mesh over a static's local rectangle; see the module notes. */
-export const occluderMesh = (w: number, h: number, angle: number, rise = 0, reach = 0, overhang = 0) => {
+export const occluderMesh = (w: number, h: number, angle: number, rise = 0, reach = 0, overhang = 0, openings: readonly Opening[] = []) => {
   const positions: number[] = [];
   const near: number[] = [];
   const indices: number[] = [];
-  for (const slab of occluderSlabs(w, h, angle, rise, reach, overhang)) {
+  for (const slab of occluderSlabs(w, h, angle, rise, reach, overhang, openings)) {
     const base = positions.length / 2;
     for (let k = 0; k < 4; k++) {
       positions.push(slab.corners[k].x, slab.corners[k].y);
@@ -279,13 +301,13 @@ export const occluderMesh = (w: number, h: number, angle: number, rise = 0, reac
  * (where its over part draws, world units from the origin; past the rectangle's sides, its
  * nearest corner's).
  */
-export const seeThroughSlabs = (w: number, h: number, angle: number, around: Rect, reach = 0) => {
-  const { near, cuts } = nearEdgeOf(w, h, angle, reach);
+export const seeThroughSlabs = (w: number, h: number, angle: number, around: Rect, reach = 0, openings: readonly Opening[] = []) => {
+  const { near, cuts } = nearEdgeOf(w, h, angle, reach, openings);
   const at = cuts(around.minX, around.maxX);
   const slabs: { corners: Point[]; near: Point[] }[] = [];
   for (let i = 0; i + 1 < at.length; i++) {
     const [xa, xb] = [at[i], at[i + 1]];
-    const [na, nb] = [{ x: xa, y: near(xa) }, { x: xb, y: near(xb) }];
+    const [na, nb] = [{ x: xa, y: near(xa + 1e-6) }, { x: xb, y: near(xb - 1e-6) }];
     slabs.push({
       corners: [
         { x: xa, y: around.minY },
@@ -299,6 +321,25 @@ export const seeThroughSlabs = (w: number, h: number, angle: number, around: Rec
   return slabs;
 };
 
+/** Windows a see-through instance can have (`peeks`), and how much of the over part stays in each one's middle. */
+const PEEKS = 2;
+const PEEK_ALPHA = "0.3";
+/** A peek's window (world units): how far it reaches either side of the doorway past half a sprite, and up and down. */
+const PEEK_SIDE = 6;
+const PEEK_UP = 22;
+
+/** An instance's peek windows for the see-through shader: centre (world axes, from its origin) and radii, unused ones zero. */
+export const peekWindows = (spec: StaticSpec, reach: number) => {
+  const out = new Float32Array(PEEKS * 4);
+  const c = Math.cos(spec.angle);
+  const s = Math.sin(spec.angle);
+  (spec.peeks ?? []).slice(0, PEEKS).forEach((o, i) => {
+    // Round the threshold and a sprite standing on it.
+    out.set([o.x * c - o.y * s, o.x * s + o.y * c - PEEK_UP / 2, o.half + reach + PEEK_SIDE, PEEK_UP], i * 4);
+  });
+  return out;
+};
+
 const seeThroughVertex = `
 attribute vec2 aVertexPosition;
 attribute vec2 aNear;
@@ -306,8 +347,10 @@ uniform mat3 projectionMatrix;
 uniform mat3 translationMatrix;
 uniform vec4 uFrame;
 varying vec2 vUv;
+varying vec2 vLocal;
 
 void main() {
+  vLocal = aVertexPosition;
   vec3 seen = translationMatrix * vec3(aVertexPosition, 1.0);
   vec3 clip = projectionMatrix * seen;
   vec3 near = projectionMatrix * translationMatrix * vec3(aNear, 1.0);
@@ -318,12 +361,21 @@ void main() {
 const seeThroughFragment = `
 precision mediump float;
 varying vec2 vUv;
+varying vec2 vLocal;
 uniform sampler2D uPicture;
 uniform vec2 uMax;
+uniform vec4 uPeeks[${PEEKS}];
 
 void main() {
   if (vUv.x < 0.0 || vUv.y < 0.0 || vUv.x > uMax.x || vUv.y > uMax.y) discard;
-  gl_FragColor = texture2D(uPicture, vUv);
+  float shown = 1.0;
+  for (int i = 0; i < ${PEEKS}; i++) {
+    vec4 p = uPeeks[i];
+    if (p.z <= 0.0) continue;
+    float d = length((vLocal - p.xy) / p.zw);
+    shown = min(shown, mix(${PEEK_ALPHA}, 1.0, smoothstep(0.55, 1.0, d)));
+  }
+  gl_FragColor = texture2D(uPicture, vUv) * shown;
 }
 `;
 let seeThroughProgram: PIXI.Program | null = null;
@@ -407,7 +459,7 @@ class SeeThrough extends PIXI.Container {
       const positions: number[] = [];
       const near: number[] = [];
       const indices: number[] = [];
-      for (const slab of seeThroughSlabs(item.spec.w, item.spec.h, item.spec.angle, around, this.reach)) {
+      for (const slab of seeThroughSlabs(item.spec.w, item.spec.h, item.spec.angle, around, this.reach, item.spec.openings)) {
         const base = positions.length / 2;
         for (let k = 0; k < 4; k++) {
           positions.push(slab.corners[k].x, slab.corners[k].y);
@@ -423,6 +475,7 @@ class SeeThrough extends PIXI.Container {
       const [u, v] = [w / picture.width, h / picture.height];
       uniforms.uFrame = new Float32Array([minX, minY, u / (maxX - minX), v / (maxY - minY)]);
       uniforms.uMax = new Float32Array([u, v]);
+      uniforms.uPeeks = peekWindows(item.spec, this.reach);
       mesh.position.set(item.spec.x, item.spec.y);
       mesh.transform.updateTransform(over.parent.transform);
       mesh.render(renderer);
@@ -446,7 +499,7 @@ class SeeThrough extends PIXI.Container {
     state.depthTest = true;
     state.depthMask = false;
     state.blend = true;
-    const mesh = new PIXI.Mesh(geometry, new PIXI.Shader(seeThroughProgram, { uPicture: picture, uFrame: new Float32Array(4), uMax: new Float32Array(2) }), state);
+    const mesh = new PIXI.Mesh(geometry, new PIXI.Shader(seeThroughProgram, { uPicture: picture, uFrame: new Float32Array(4), uMax: new Float32Array(2), uPeeks: new Float32Array(PEEKS * 4) }), state);
     drawn = { picture, mesh };
     this.drawn.set(item, drawn);
     return drawn;
@@ -580,7 +633,7 @@ export class StaticSet {
     tintTree(item.under, this.tint);
     tintTree(item.over, this.tint);
     if (this.occlude && parts.over) {
-      const occluder = occluderMesh(item.spec.w, item.spec.h, item.spec.angle, item.spec.rise, this.reach, item.spec.overhang);
+      const occluder = occluderMesh(item.spec.w, item.spec.h, item.spec.angle, item.spec.rise, this.reach, item.spec.overhang, item.spec.openings);
       place(occluder, item.spec);
       occluder.visible = item.over.visible;
       this.occluders.addChild(occluder);
@@ -796,7 +849,7 @@ export class StaticSet {
       item.tops.visible = visible && item.tops.children.length > 0;
       // A faded roof (someone inside, or in front of someone looked for) shows the people under it, over them.
       if (item.occluder) {
-        const faded = item.over.visible && item.over.alpha <= 0.6;
+        const faded = item.over.visible && (item.over.alpha <= 0.6 || !!item.spec.peeks?.length);
         item.occluder.visible = item.over.visible && !faded;
         this.seeThrough.set(item, faded);
       }
@@ -815,8 +868,9 @@ export class StaticSet {
         item.under.visible = true;
         item.over.visible = item.over.children.length > 0;
         if (item.occluder) {
-          item.occluder.visible = item.over.visible;
-          this.seeThrough.set(item, false);
+          const peeking = item.over.visible && !!item.spec.peeks?.length;
+          item.occluder.visible = item.over.visible && !peeking;
+          this.seeThrough.set(item, peeking);
         }
         item.heights.visible = item.heights.children.length > 0;
         item.tops.visible = item.tops.children.length > 0;
