@@ -17,6 +17,7 @@ import * as PIXI from "pixi.js";
 import { glowUniforms, MAX_GLOW_RAMP, MAX_GLOWS, MAX_PALETTE, paletteArray, type GlowRange } from "./tint";
 import { chunkKey } from "./coord";
 import { SnapshotPair } from "./interp";
+import { Facings } from "./facing";
 import { EMPTY_SLOT, POSITION_SCALE, type Snapshot } from "./protocol";
 import { FarBake, type FarBakeOptions } from "./far";
 import { StaticSet, tintTree, type StaticSpec } from "./statics";
@@ -32,31 +33,44 @@ export { glowOf, glowUniforms, MAX_PALETTE, paletteArray, tintIndices, type Glow
 const SIT_HEIGHT = 0.82;
 const SIT_DROP = 0.12;
 /**
- * A kneeler's cut (of its height above the feet, at its middle), half its art's width (of the quad's)
- * and how far a rigged kneeler's head hangs forward about its neck (radians): see POSE.Kneel.
+ * A kneeler's cut (of its height above the feet, at its middle), half its art's width (of the quad's),
+ * how far its top leans forward over its knees and a rigged kneeler's head hangs forward about its
+ * neck (radians): see POSE.Kneel.
  */
 const KNEEL_CUT = 0.26;
 const KNEEL_HALF = 0.25;
+const KNEEL_LEAN = 0.45;
 const KNEEL_BOW = 0.7;
 /** At most this many rigged sprite ranges (ChunkLayerStyle `rig`). */
-export const MAX_RIGS = 4;
+export const MAX_RIGS = 8;
 // A kneeler (POSE.Kneel) is drawn as its body in two pieces (aPiece 0, 1), each keeping its side of a
-// cut at 45 degrees (falling to the front) through KNEEL_CUT of its height above the feet (kneelCut):
-// the top stands, the bottom is mirrored across the line square to the cut through its middle, so it lies
-// flat behind and its cut face meets the top's exactly (a mitre, a backwards L). Its feet stay where it
+// cut falling to the front through KNEEL_CUT of its height above the feet (kneelCut): the top leans
+// KNEEL_LEAN forward about the cut's middle, the bottom is mirrored across the line at 45 degrees through it,
+// so it lies flat behind, and the cut (45 degrees less half the lean) is the angle that keeps the two cut
+// faces meeting exactly (a mitre, the top leaning over the front). Its feet stay where it
 // stands; the L sits on the ground at the art's sides (KNEEL_HALF of the quad's width from its middle).
 // A rigged sprite (ChunkLayerStyle `rig`) kneels in its rig's parts: the body (headless) cut so, its head
 // (aPiece 2) and the hair behind it (aPiece 3, looking at the viewer) whole, hung forward KNEEL_BOW about
-// the neck. It is drawn in them too whenever its head looks any way but at the viewer (aLook, LOOK).
+// the neck. It is drawn in them too whenever it turns any way but to the viewer (aLook, LOOK, or the way
+// it walks with the rig's \`follow\`): body and head together, side on (mirrored, looking left) or from behind.
 const KNEEL_GLSL = `
 const float KNEEL_CUT = ${KNEEL_CUT.toFixed(3)};
 const float KNEEL_HALF = ${KNEEL_HALF.toFixed(3)};
 const float KNEEL_BOW = ${KNEEL_BOW.toFixed(3)};
+const float KNEEL_LEAN = ${KNEEL_LEAN.toFixed(3)};
+const float KNEEL_SLOPE = ${Math.tan(Math.PI / 4 - KNEEL_LEAN / 2).toFixed(4)};
 // How far past a kneeler's piece's side of the cut a point c is (quad corner units, y up from the feet;
 // aspect: width over height): above 0 is not drawn.
 float kneelCut(vec2 c, float aspect, float piece) {
-  float mitre = c.y + KNEEL_CUT - aspect * c.x;
+  float mitre = c.y + KNEEL_CUT - KNEEL_SLOPE * aspect * c.x;
   return piece > 0.5 ? -mitre : mitre;
+}
+// p turned a radians about o, its top toward the front.
+vec2 turnAbout(vec2 p, vec2 o, float a) {
+  vec2 d = p - o;
+  float s = sin(a);
+  float k = cos(a);
+  return o + vec2(k * d.x - s * d.y, s * d.x + k * d.y);
 }
 `;
 /** How much of a sleeper shows above the covers (of its height, from the top). */
@@ -113,7 +127,7 @@ uniform float uPositionScale;
 uniform vec2 uSize;
 uniform float uMinPixels;
 uniform vec3 uScales[${MAX_SCALES}];
-uniform vec3 uRigs[${MAX_RIGS}];
+uniform vec4 uRigs[${MAX_RIGS}];
 uniform vec2 uRigGrid;
 uniform float uRigNeck;
 
@@ -139,24 +153,41 @@ bool kneeling() {
   float kind = floor(aPose.x + 0.5);
   return kind > 7.5 && kind < 8.5;
 }
-// Its place among the rigged sprites (ChunkLayerStyle \`rig\`, the last match wins), or -1.
-float rigOf() {
+// Its rigged range (ChunkLayerStyle \`rig\`: [from, to, at, heads × 2 + 1 if it has its own left views], the
+// last match wins); at below 0 when none.
+vec4 rigOf() {
   float sprite = aSprite + 0.5;
-  float rig = -1.0;
+  vec4 rig = vec4(0.0, 0.0, -1.0, 2.0);
   for (int i = 0; i < ${MAX_RIGS}; i++) {
-    vec3 r = uRigs[i];
-    if (sprite >= r.x && sprite < r.y) rig = r.z + floor(sprite - r.x);
+    vec4 r = uRigs[i];
+    if (sprite >= r.x && sprite < r.y) rig = r;
   }
   return rig;
 }
-// Which way its head looks (LOOK) in its art's own frame: a kneeler facing left is its art mirrored.
+// Which way it turns (LOOK) in its art's own frame (aLook: as posed, or the way it last walked, see
+// Facings). A kneeler facing left is its art mirrored.
 float lookOf() {
   float look = floor(aLook + 0.5);
   return kneeling() && aPose.y < 0.0 && mod(look, 2.0) > 0.5 ? 4.0 - look : look;
 }
-// Drawn from its rig's parts: a rigged sprite kneeling or looking any way but at the viewer.
+// Drawn from its rig's parts: a rigged sprite kneeling or turned any way but to the viewer.
 bool rigged() {
-  return rigOf() > -0.5 && (kneeling() || lookOf() > 0.5);
+  return rigOf().z > -0.5 && (kneeling() || lookOf() > 0.5);
+}
+// Whether its rig has views of its own looking left (asymmetric art), else its side views mirrored.
+bool sidedOf() {
+  return mod(floor(rigOf().w + 0.5), 2.0) > 0.5;
+}
+// Its rig's views per part (3, or 4 with its own left) and which it shows (LOOK order; left is right mirrored without).
+float viewsOf() {
+  return sidedOf() ? 4.0 : 3.0;
+}
+float viewOf() {
+  float look = lookOf();
+  return look > 2.5 && !sidedOf() ? 1.0 : look;
+}
+bool mirroredOf() {
+  return lookOf() > 2.5 && !sidedOf();
 }
 // The quad's corner: the legs only kneeling, the head only rigged, the hair behind only rigged and
 // looking at the viewer (else all at the feet, drawing nothing).
@@ -165,27 +196,36 @@ vec2 cornerOf() {
   if (aPiece > 2.5 ? !rigged() || lookOf() > 0.5 : aPiece > 1.5 ? !rigged() : !kneeling()) return vec2(0.0);
   return aCorner;
 }
-// Its rig's head's cell after its body's (see cellOf): at the viewer, side on, away; negative mirrored (looking left).
-float headCellOf() {
-  float look = lookOf();
-  return look > 2.5 ? -2.0 : look > 1.5 ? 3.0 : look > 0.5 ? 2.0 : 1.0;
+// A rig part's cell in the rig's atlas (part 0 the hair behind, 1 the body, 2 the head). A range of
+// bodies × heads looks keeps, from its at: each body's views, each head's hair behind, then each head's
+// views (ChunkLayerStyle \`rig\`).
+float rigCellOf(float part) {
+  vec4 r = rigOf();
+  float heads = floor(floor(r.w + 0.5) / 2.0);
+  float views = viewsOf();
+  float i = floor(aSprite + 0.5 - r.x);
+  float body = floor((i + 0.5) / heads);
+  float head = i - body * heads;
+  float bodies = floor((r.y - r.x) / heads + 0.5);
+  float view = viewOf();
+  if (part < 0.5) return r.z + bodies * views + head;
+  if (part < 1.5) return r.z + body * views + view;
+  return r.z + bodies * views + heads + head * views + view;
 }
-// Its piece's atlas cell (uv corner, uv size): its sprite's on \`grid\`, else its part's in the rig's atlas
-// (each rigged sprite's back hair, body and its head looking at the viewer, side on and away, side by side).
+vec4 rigCellUv(float index) {
+  vec2 cell = vec2(floor(mod(index + 0.5, uRigGrid.x)), floor((index + 0.5) / uRigGrid.x));
+  return vec4(cell / uRigGrid, 1.0 / uRigGrid);
+}
+// Its piece's atlas cell (uv corner, uv size): its sprite's on \`grid\`, else its part's in the rig's atlas.
 vec4 cellOf(vec2 grid) {
-  if (rigged()) {
-    float part = aPiece > 2.5 ? 0.0 : aPiece > 1.5 ? 1.0 + abs(headCellOf()) : 1.0;
-    float index = rigOf() * 5.0 + part + 0.5;
-    vec2 cell = vec2(floor(mod(index, uRigGrid.x)), floor(index / uRigGrid.x));
-    return vec4(cell / uRigGrid, 1.0 / uRigGrid);
-  }
+  if (rigged()) return rigCellUv(rigCellOf(aPiece > 2.5 ? 0.0 : aPiece > 1.5 ? 2.0 : 1.0));
   vec2 cell = vec2(floor(mod(aSprite + 0.5, grid.x)), floor((aSprite + 0.5) / grid.x));
   return vec4(cell / grid, 1.0 / grid);
 }
-// Where a corner of its piece reads its cell: a head looking left reads its side view mirrored.
+// Where a corner of its piece reads its cell: a rig looking left reads its side views mirrored.
 vec2 uvOf(vec2 corner, vec2 grid) {
   vec4 cell = cellOf(grid);
-  float x = aPiece > 1.5 && aPiece < 2.5 && rigged() && headCellOf() < 0.0 ? -corner.x : corner.x;
+  float x = rigged() && mirroredOf() ? -corner.x : corner.x;
   return cell.xy + vec2(x + 0.5, corner.y + 1.0) * cell.zw;
 }
 // How far past its piece's side of the cut a corner is (see kneelCut): never, standing, nor a head.
@@ -207,17 +247,15 @@ vec2 posedOf(vec2 corner, vec2 size) {
   vec2 p = corner * size;
   float kind = floor(aPose.x + 0.5);
   if (kind > 7.5) {
-    vec2 q = p;
+    vec2 m = vec2(0.0, -KNEEL_CUT * size.y);
+    vec2 q;
     if (aPiece > 1.5) {
-      vec2 n = vec2(0.0, -uRigNeck * size.y);
-      vec2 d = p - n;
-      float s = sin(KNEEL_BOW);
-      float k = cos(KNEEL_BOW);
-      q = n + vec2(k * d.x - s * d.y, s * d.x + k * d.y);
+      q = turnAbout(turnAbout(p, vec2(0.0, -uRigNeck * size.y), KNEEL_BOW), m, KNEEL_LEAN);
     } else if (aPiece > 0.5) {
-      vec2 m = vec2(0.0, -KNEEL_CUT * size.y);
       vec2 d = p - m;
       q = m + vec2(-d.y, -d.x);
+    } else {
+      q = turnAbout(p, m, KNEEL_LEAN);
     }
     q.y += KNEEL_CUT * size.y - KNEEL_HALF * size.x;
     if (aPose.y < 0.0) q.x = -q.x;
@@ -535,10 +573,10 @@ varying vec2 vUv;
 varying vec4 vCell;
 varying vec2 vReach;
 varying vec4 vGlow;
-varying vec2 vKneel;
+varying vec4 vKneel;
 
 void main() {
-  vKneel = vec2(0.0);
+  vKneel = vec4(0.0);
   // Find this sprite's glow range (the last match wins), then its colour on that range's ramp.
   float sprite = aSprite + 0.5;
   vec4 bounds = vec4(0.0);
@@ -586,8 +624,8 @@ void main() {
   if (kneeling() || rigged()) {
     // A kneeler's or a rig's halo is one, round all its pieces as posed (see glowFragment): on the first
     // piece, a quad its height (and the reach) about its feet each way, in its art's frame in vUv (posed px
-    // over its height); its body's cell; how it is drawn (x: 1 kneeling, 2 rigged, 3 both) and its head's
-    // cell after its body's (y, headCellOf).
+    // over its height); its body's cell; how it is drawn (x: 1 kneeling, 2 rigged, 3 both, 4 more mirrored),
+    // its head's rig cell (y) and its hair behind's (z, below 0 when not drawn).
     if (aPiece > 0.5) {
       gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
       vUv = vReach = vec2(0.0);
@@ -600,7 +638,12 @@ void main() {
     gl_Position = vec4(clipAt.xy, clamp(clipFeet.y * 0.5, -0.999, 0.999), 1.0);
     vUv = local / size.y;
     vReach = vec2(reach / size.y, size.x / size.y);
-    vKneel = vec2((kneeling() ? 1.0 : 0.0) + (rigged() ? 2.0 : 0.0), rigged() ? headCellOf() : 0.0);
+    bool rig = rigged();
+    vKneel = vec4(
+      (kneeling() ? 1.0 : 0.0) + (rig ? 2.0 : 0.0) + (rig && mirroredOf() ? 4.0 : 0.0),
+      rig ? rigCellOf(2.0) : 0.0,
+      rig && lookOf() < 0.5 ? rigCellOf(0.0) : -1.0,
+      0.0);
     vCell = cellOf(uGrid);
     return;
   }
@@ -622,15 +665,22 @@ varying vec2 vUv;
 varying vec4 vCell;
 varying vec2 vReach;
 varying vec4 vGlow;
-varying vec2 vKneel;
+varying vec4 vKneel;
 uniform sampler2D uAtlas;
 uniform sampler2D uRigAtlas;
 uniform highp float uRigNeck;
+uniform highp vec2 uRigGrid;
 ${KNEEL_GLSL}
 
 float coverage(vec2 uv) {
   if (uv.x < vCell.x || uv.y < vCell.y || uv.x > vCell.z || uv.y > vCell.w) return 0.0;
   return texture2D(uAtlas, uv).a;
+}
+
+// A rig part's cell (uv corner, uv size) by its index in the rig's atlas.
+vec4 rigCell(float index) {
+  vec2 cell = vec2(floor(mod(index + 0.5, uRigGrid.x)), floor((index + 0.5) / uRigGrid.x));
+  return vec4(cell / uRigGrid, 1.0 / uRigGrid);
 }
 
 // A kneeler's piece's coverage at corner c (quad corner units) of its cell (uv corner, uv size), from its
@@ -646,27 +696,24 @@ float partCoverage(vec2 c, vec4 cell, bool rig) {
 float kneelCoverage(vec2 l) {
   float aspect = vReach.y;
   bool kneel = mod(vKneel.x, 2.0) > 0.5;
-  bool rig = vKneel.x > 1.5;
+  bool rig = mod(vKneel.x, 4.0) > 1.5;
+  float flip = vKneel.x > 3.5 ? -1.0 : 1.0;
   vec2 toCorner = vec2(1.0 / aspect, 1.0);
   vec2 q = kneel ? l - vec2(0.0, KNEEL_CUT - KNEEL_HALF * aspect) : l;
-  vec2 c = q * toCorner;
-  float a = kneel && kneelCut(c, aspect, 0.0) > 0.0 ? 0.0 : partCoverage(c, vCell, rig);
-  vec2 d;
+  vec2 m = vec2(0.0, -KNEEL_CUT);
+  // The top's pose undone: its lean (kneeling).
+  vec2 top = kneel ? turnAbout(q, m, -KNEEL_LEAN) : q;
+  vec2 c = top * toCorner;
+  float a = kneel && kneelCut(c, aspect, 0.0) > 0.0 ? 0.0 : partCoverage(vec2(flip * c.x, c.y), vCell, rig);
   if (kneel) {
-    vec2 m = vec2(0.0, -KNEEL_CUT);
-    d = q - m;
+    vec2 d = q - m;
     c = (m + vec2(-d.y, -d.x)) * toCorner;
     if (kneelCut(c, aspect, 1.0) <= 0.0) a = max(a, partCoverage(c, vCell, rig));
   }
   if (rig) {
-    vec2 n = vec2(0.0, -uRigNeck);
-    d = q - n;
-    float s = kneel ? sin(KNEEL_BOW) : 0.0;
-    float k = kneel ? cos(KNEEL_BOW) : 1.0;
-    c = (n + vec2(k * d.x + s * d.y, k * d.y - s * d.x)) * toCorner;
-    float head = vKneel.y;
-    a = max(a, partCoverage(vec2(head < 0.0 ? -c.x : c.x, c.y), vCell + vec4(vCell.z * abs(head), 0.0, 0.0, 0.0), true));
-    if (head > 0.5 && head < 1.5) a = max(a, partCoverage(c, vCell - vec4(vCell.z, 0.0, 0.0, 0.0), true));
+    c = turnAbout(top, vec2(0.0, -uRigNeck), kneel ? -KNEEL_BOW : 0.0) * toCorner;
+    a = max(a, partCoverage(vec2(flip * c.x, c.y), rigCell(vKneel.y), true));
+    if (vKneel.z > -0.5) a = max(a, partCoverage(c, rigCell(vKneel.z), true));
   }
   return a;
 }
@@ -766,25 +813,34 @@ export type ChunkLayerStyle = {
   scales?: readonly SpriteScale[];
   /**
    * Sprites drawn as rigs of rigid parts when a pose moves their parts apart (POSE.Kneel: the head
-   * hung forward over the body) or the head looks away from the viewer (LOOK): an atlas (and tint mask,
-   * with `mask`) on `grid` of each rigged sprite's five parts side by side, each a cell the atlas's size
-   * where it sits in the standing sprite's: the hair behind the head, the body without its head, the
-   * head looking at the viewer, looking right (side on) and looking away. Each of `ranges` (at most
-   * MAX_RIGS) puts its sprites' parts from rig `at` on (rig r's in cells 5r to 5r + 4); `neck` is where
-   * the head turns, of the sprite's height above its feet.
+   * hung forward over the body) or they turn from the viewer (LOOK, or the way they walk: `follow`, how
+   * far in world px a standing sprite goes before it turns that way, holding it while it stands: Facings,
+   * and `place`d ones by the page's moves). An atlas (and
+   * tint mask, with `mask`) on `grid` of parts, each a cell the atlas's size where it sits in the standing
+   * sprite's. Each of `ranges` (at most MAX_RIGS) is `bodies` × `heads` looks (sprite `from + body × heads
+   * + head`), its parts from cell `at` on: each body's (headless) views, each head's hair behind (drawn
+   * looking at the viewer), then each head's views. The views are at the viewer, looking right (side on)
+   * and away, plus looking left with `sided` (asymmetric art; else left is right mirrored). `neck` is
+   * where the head turns, of the sprite's height above its feet.
    */
-  rig?: { atlas: PIXI.Texture; mask?: PIXI.Texture; grid: [number, number]; neck: number; ranges: readonly RigRange[] };
+  rig?: { atlas: PIXI.Texture; mask?: PIXI.Texture; grid: [number, number]; neck: number; follow?: number; ranges: readonly RigRange[] };
 };
 
-/** One range of sprites drawn as rigs (ChunkLayerStyle `rig`): sprite `from + i`'s parts are rig `at + i`'s. */
-export type RigRange = { from: number; to: number; at: number };
+/** One range of sprites drawn as rigs (ChunkLayerStyle `rig`): `heads` looks per body, its parts from cell `at`; `sided`, its own left views. */
+export type RigRange = { from: number; to: number; at: number; heads: number; sided?: boolean };
 
-/** `rig` as the shaders' uniforms: its ranges ([from, to, at] each, unused slots matching nothing), grid and neck. */
+/** A rig range's cells in the rig's atlas (see ChunkLayerStyle `rig`). */
+export const rigCells = ({ from, to, heads, sided }: RigRange) => {
+  const views = sided ? 4 : 3;
+  return ((to - from) / heads) * views + heads * (1 + views);
+};
+
+/** `rig` as the shaders' uniforms: its ranges ([from, to, at, heads × 2 + sided] each, unused slots matching nothing), grid and neck. */
 export function rigUniforms(rig?: ChunkLayerStyle["rig"]) {
   const ranges = rig?.ranges ?? [];
   if (ranges.length > MAX_RIGS) throw new Error(`ChunkLayerStyle.rig: at most ${MAX_RIGS} ranges, got ${ranges.length}`);
-  const uRigs = new Float32Array(MAX_RIGS * 3);
-  ranges.forEach((r, i) => uRigs.set([r.from, r.to, r.at], i * 3));
+  const uRigs = new Float32Array(MAX_RIGS * 4);
+  ranges.forEach((r, i) => uRigs.set([r.from, r.to, r.at, r.heads * 2 + (r.sided ? 1 : 0)], i * 4));
   return { uRigs, uRigGrid: new Float32Array(rig?.grid ?? [1, 1]), uRigNeck: rig?.neck ?? 0 };
 }
 
@@ -814,9 +870,12 @@ class LayerKind {
   /** Which sprites cast (`style.cast`), one texel per atlas cell. */
   readonly casting: PIXI.Texture | null = null;
   readonly style: ChunkLayerStyle;
+  /** Which way each entity faces, kept between frames (`rig.follow`), for every layer of this kind. */
+  readonly facings: Facings | null;
 
   constructor(style: ChunkLayerStyle) {
     this.style = style;
+    this.facings = style.rig?.follow ? new Facings(style.rig.follow) : null;
     for (const texture of [style.atlas, style.mask, style.rig?.atlas, style.rig?.mask]) {
       if (!texture) continue;
       texture.baseTexture.scaleMode = style.smooth ? PIXI.SCALE_MODES.LINEAR : PIXI.SCALE_MODES.NEAREST;
@@ -980,6 +1039,8 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   private extent: number;
   /** The entity drawn where the page puts it (`place`), not between its snapshots; -1 none. */
   private placedGid = -1;
+  /** Which way each entity faces (the kind's, shared across chunks), or null without a rig's follow. */
+  private readonly facings: Facings | null;
   /** The entity posed by gid (`poseEntity`), and its pose. */
   private posedGid = -1;
   private posedPose: PoseKind = POSE.Stand;
@@ -1035,6 +1096,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     state.depthMask = true;
     state.blend = false;
     super(geometry, kind.shader(false), state);
+    this.facings = kind.facings;
     const edgeState = PIXI.State.for2d();
     edgeState.depthTest = true;
     edgeState.depthMask = false;
@@ -1150,9 +1212,24 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     let ahead = 0;
     while (ahead < this.posesAhead.length && this.posesAhead[ahead].tick <= snapshot.tick) this.poses = this.posesAhead[ahead++].poses;
     if (ahead) this.posesAhead.splice(0, ahead);
+    this.follow();
     this.writePlaced();
     this.writePoses();
     return true;
+  }
+
+  /** Turns every entity in the new snapshot the way it has walked (Facings), but the placed one: `place` turns it. */
+  private follow() {
+    const facings = this.facings;
+    const snapshot = this.pair.current;
+    if (!facings || !snapshot) return;
+    const { x: ox, y: oy } = this.position;
+    for (let i = 0; i < snapshot.count; i++) {
+      const gid = snapshot.gid[i];
+      if (snapshot.tint[i] === EMPTY_SLOT || gid === this.placedGid) continue;
+      facings.move(gid, ox + snapshot.x[i] / POSITION_SCALE, oy + snapshot.y[i] / POSITION_SCALE);
+    }
+    facings.wrote();
   }
 
   /**
@@ -1218,6 +1295,13 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     else this.poseData.fill(0);
     if (this.lookData.length < count) this.lookData = new Uint8Array(count);
     else this.lookData.fill(0);
+    // Standing, each faces the way it last walked; a pose below says otherwise.
+    const current = this.pair.current;
+    if (this.facings && current) {
+      const n = Math.min(count, current.count);
+      for (let i = 0; i < n; i++) this.lookData[i] = this.facings.look(current.gid[i]);
+      if (this.placedGid >= 0 && count > current.count) this.lookData[current.count] = this.facings.look(this.placedGid);
+    }
     for (const p of this.poses) {
       if (p.slot >= count) continue;
       this.poseData[p.slot * 2] = p.pose;
@@ -1263,6 +1347,8 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     this.placedShown = shown;
     this.placedX = Math.round(x * POSITION_SCALE);
     this.placedY = Math.round(y * POSITION_SCALE);
+    // Steered between snapshots: it turns the way the page walks it.
+    if (gid >= 0 && shown) this.facings?.move(gid, this.position.x + x, this.position.y + y);
     if (this.pair.current) {
       this.writePlaced();
       this.writePoses();
