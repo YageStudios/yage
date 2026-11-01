@@ -19,7 +19,9 @@
  * whoever is behind it, half seen through it, and under whoever is in front.
  * The occluders stand in their own container (`StaticSet.occluders`, after the over parts).
  * An instance whose over part stands up the screen past its rectangle (a building's walls and the
- * roof on top of them: `rise`) has its occluder reach that far up too, at the same near-edge depth.
+ * roof on top of them: `rise`) has its occluder reach that far up too, at the same near-edge depth,
+ * and as far out all round as the over part overhangs it (`eave`), so what stands
+ * behind is hidden right to the roof's drawn edge, not cut a little inside it.
  */
 import * as PIXI from "pixi.js";
 import { withinFrame } from "../game/FrameBudget";
@@ -76,6 +78,10 @@ export type StaticSpec = {
   /** How far (world units) the over part reaches straight up the screen past the rectangle (a
    *  building's walls, its roof on top): culled with it, and its occluder reaches as far. */
   rise?: number;
+  /** How far (world units) the over part overhangs the rectangle all round (a roof's eaves): its
+   *  occluder covers that too, at the footprint's own near-edge depth, so what stands behind hides
+   *  right to the drawn edge while whoever stands in front of the walls stays over the eaves. */
+  eave?: number;
   /** Builds the parts in local coordinates; called once, when the id is first listed. */
   build: () => StaticParts;
 };
@@ -197,11 +203,20 @@ const nearEdgeOf = (w: number, h: number, angle: number, reach: number) => {
  * (`nearEdgeOf`; straight below on its lower edge for none); each strip reaching `rise` further up
  * the screen. Local units.
  */
-export const occluderSlabs = (w: number, h: number, angle: number, rise = 0, reach = 0) => {
-  const { world, xs, near, cuts } = nearEdgeOf(w, h, angle, reach);
+export const occluderSlabs = (w: number, h: number, angle: number, rise = 0, reach = 0, eave = 0) => {
+  const { xs: footXs, near, cuts } = nearEdgeOf(w, h, angle, reach);
   const c = Math.cos(angle);
   const s = Math.sin(angle);
   const local = (p: Point): Point => ({ x: p.x * c + p.y * s, y: -p.x * s + p.y * c });
+  // What it covers: the rectangle grown by `eave` all round (the over part's overhang), at the
+  // depth of the footprint's own near edge, so what stands in front of the walls stays over the eave.
+  const world = [
+    [-eave, -eave],
+    [w + eave, -eave],
+    [w + eave, h + eave],
+    [-eave, h + eave],
+  ].map(([x, y]) => ({ x: x * c - y * s, y: x * s + y * c }));
+  const xs = world.map((p) => p.x).sort((a, b) => a - b);
   // Lowest and highest world y of the rectangle at world x.
   const span = (x: number) => {
     let lo = Infinity;
@@ -223,7 +238,7 @@ export const occluderSlabs = (w: number, h: number, angle: number, rise = 0, rea
     }
     return { lo, hi };
   };
-  const at = cuts(xs[0], xs[3]);
+  const at = [...cuts(xs[0], xs[3]), ...xs, ...footXs].filter((x) => x >= xs[0] && x <= xs[3]).sort((a, b) => a - b).filter((x, i, all) => i === 0 || x - all[i - 1] > 1e-4);
   const slabs: { corners: Point[]; near: Point[] }[] = [];
   for (let i = 0; i + 1 < at.length; i++) {
     const xa = at[i];
@@ -243,11 +258,11 @@ export const occluderSlabs = (w: number, h: number, angle: number, rise = 0, rea
 };
 
 /** A depth-only mesh over a static's local rectangle; see the module notes. */
-export const occluderMesh = (w: number, h: number, angle: number, rise = 0, reach = 0) => {
+export const occluderMesh = (w: number, h: number, angle: number, rise = 0, reach = 0, eave = 0) => {
   const positions: number[] = [];
   const near: number[] = [];
   const indices: number[] = [];
-  for (const slab of occluderSlabs(w, h, angle, rise, reach)) {
+  for (const slab of occluderSlabs(w, h, angle, rise, reach, eave)) {
     const base = positions.length / 2;
     for (let k = 0; k < 4; k++) {
       positions.push(slab.corners[k].x, slab.corners[k].y);
@@ -565,7 +580,7 @@ export class StaticSet {
     tintTree(item.under, this.tint);
     tintTree(item.over, this.tint);
     if (this.occlude && parts.over) {
-      const occluder = occluderMesh(item.spec.w, item.spec.h, item.spec.angle, item.spec.rise, this.reach);
+      const occluder = occluderMesh(item.spec.w, item.spec.h, item.spec.angle, item.spec.rise, this.reach, item.spec.eave);
       place(occluder, item.spec);
       occluder.visible = item.over.visible;
       this.occluders.addChild(occluder);

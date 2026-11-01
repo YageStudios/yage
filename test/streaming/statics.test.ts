@@ -354,6 +354,44 @@ describe("ChunkScene static instances", () => {
     expect(Math.abs(area)).toBeCloseTo(w * h, 3);
   });
 
+  it("covers a roof's eaves past the rectangle, at the footprint's own near-edge depth", () => {
+    const [w, h, angle, eave] = [64, 48, Math.PI / 4, 3];
+    const [c, s] = [Math.cos(angle), Math.sin(angle)];
+    const toWorld = (p: { x: number; y: number }) => ({ x: p.x * c - p.y * s, y: p.x * s + p.y * c });
+    const plain = occluderSlabs(w, h, angle);
+    const eaved = occluderSlabs(w, h, angle, 0, 0, eave);
+    // The grown rectangle, exactly.
+    let area = 0;
+    for (const slab of eaved) {
+      const pts = slab.corners.map(toWorld);
+      for (let k = 0; k < 4; k++) area += (pts[k].x * pts[(k + 1) % 4].y - pts[(k + 1) % 4].x * pts[k].y) / 2;
+    }
+    expect(Math.abs(area)).toBeCloseTo((w + 2 * eave) * (h + 2 * eave), 3);
+    // Strip by strip, the depth under the footprint is the plain one's.
+    const depthAt = (slabs: typeof plain, x: number) => {
+      for (const slab of slabs) {
+        const [a, b] = [slab.near[0], slab.near[1]].map(toWorld);
+        if (x >= a.x - 1e-6 && x <= b.x + 1e-6) return b.x - a.x < 1e-6 ? a.y : a.y + ((b.y - a.y) * (x - a.x)) / (b.x - a.x);
+      }
+      return NaN;
+    };
+    for (const t of [0.1, 0.4, 0.7, 0.95]) {
+      const x = toWorld({ x: w * t, y: 0 }).x;
+      expect(depthAt(eaved, x)).toBeCloseTo(depthAt(plain, x), 4);
+    }
+    // Something just behind the far wall, under the eave: covered, and behind the depth there (hidden).
+    const behind = toWorld({ x: w / 2, y: -eave / 2 });
+    const covered = eaved.some((slab) => {
+      const pts = slab.corners.map(toWorld);
+      return behind.x >= Math.min(...pts.map((p) => p.x)) && behind.x <= Math.max(...pts.map((p) => p.x));
+    });
+    expect(covered).toBe(true);
+    expect(depthAt(eaved, behind.x)).toBeGreaterThan(behind.y);
+    // Someone just in front of the near wall, under its eave, stays in front of it.
+    const front = toWorld({ x: w / 2, y: h + eave / 2 });
+    expect(depthAt(eaved, front.x)).toBeLessThan(front.y);
+  });
+
   it("turns vector meshes into Pixi geometry", () => {
     const stroke = strokePolyline([{ x: 0, y: 0 }, { x: 10, y: 0 }], 2);
     const g = meshGeometry(stroke);
