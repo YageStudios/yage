@@ -532,7 +532,7 @@ export type ChunkLayerStyle = {
   surface?: PIXI.Texture;
   /**
    * Soft glowing halos around the silhouettes of some sprites (e.g. one sprite set), drawn under
-   * every sprite and unaffected by `setLight`. At most four ranges (see GlowRange: one colour or a
+   * every sprite and unaffected by `setLight`. At most MAX_GLOWS (6) ranges (see GlowRange: one colour or a
    * ramp picked by sprite offset or tint, an optional pulse and a wider ring). `radius` is in
    * world units; the halo is never thinner than `minPixels` on screen.
    */
