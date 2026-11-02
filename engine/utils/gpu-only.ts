@@ -65,3 +65,35 @@ const definePaintOnUpload = () =>
       this.made = null;
     }
   };
+
+/** A canvas painted over part of a texture, its corner at (x, y). */
+export type GpuPatch = { x: number; y: number; source: HTMLCanvasElement | OffscreenCanvas };
+
+/**
+ * Repaints parts of a gpuOnly texture whose source is gone (it is on the GPU): each patch goes onto
+ * it as the renderer next binds it, and is dropped then (`release`, as gpuOnly's). Only a texture that
+ * has been uploaded: while its source is still on the CPU, paint that and `update` the base instead.
+ */
+export const gpuPatch = (texture: PIXI.Texture, patches: readonly GpuPatch[], release?: () => void) => {
+  const base = texture.baseTexture;
+  if (base.resource) throw new Error("gpuPatch: the texture's source is still on the CPU; repaint that instead");
+  base.setResource(new (patchClass ??= definePatch())(base.realWidth, base.realHeight, patches));
+  gpuOnly(texture, release);
+  base.update();
+};
+
+let patchClass: ReturnType<typeof definePatch> | undefined;
+const definePatch = () =>
+  class Patches extends PIXI.Resource {
+    constructor(width: number, height: number, private readonly patches: readonly GpuPatch[]) {
+      super(width, height);
+    }
+    upload(renderer: PIXI.Renderer, baseTexture: PIXI.BaseTexture, glTexture: PIXI.GLTexture): boolean {
+      // Never allocated (a lost context, say): nothing to patch, so let the texture system allocate it blank.
+      if (glTexture.width !== baseTexture.realWidth || glTexture.height !== baseTexture.realHeight) return false;
+      const gl = renderer.gl;
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, baseTexture.alphaMode === PIXI.ALPHA_MODES.UNPACK);
+      for (const { x, y, source } of this.patches) gl.texSubImage2D(baseTexture.target, 0, x, y, baseTexture.format, glTexture.type, source);
+      return true;
+    }
+  };
