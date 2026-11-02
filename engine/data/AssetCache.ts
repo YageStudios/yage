@@ -1,5 +1,8 @@
-/** Immutable, content-addressed assets. A successful write means its transaction committed. */
-export type AssetRecord = { path: string; bytes: number; sha256: string };
+/**
+ * Immutable, content-addressed assets. A successful write means its transaction committed. With `offset`,
+ * the asset is the `bytes` at that offset in the file at `path` (fetched by HTTP range), hashed on their own.
+ */
+export type AssetRecord = { path: string; bytes: number; sha256: string; offset?: number };
 export type AssetStore = {
   read(key: string): Promise<ArrayBuffer | undefined>;
   write(key: string, bytes: ArrayBuffer): Promise<void>;
@@ -76,6 +79,7 @@ export class AssetCache {
       !/^[a-f0-9]{64}$/.test(asset.sha256) ||
       !Number.isSafeInteger(asset.bytes) ||
       asset.bytes < 0 ||
+      (asset.offset !== undefined && (!Number.isSafeInteger(asset.offset) || asset.offset < 0)) ||
       asset.path.split("/").some((part) => part === "..") ||
       asset.path.startsWith("/") ||
       asset.path.includes(":")
@@ -111,9 +115,15 @@ export class AssetCache {
       this.verified.add(asset.sha256);
       return cached;
     }
-    const response = await this.fetcher(new URL(asset.path, base));
+    const ranged = asset.offset !== undefined;
+    const response = await this.fetcher(
+      new URL(asset.path, base),
+      ranged && asset.bytes ? { headers: { Range: `bytes=${asset.offset}-${asset.offset! + asset.bytes - 1}` } } : undefined
+    );
     if (!response.ok) throw new Error(`${asset.path}: HTTP ${response.status}`);
-    const bytes = await response.arrayBuffer();
+    let bytes = await response.arrayBuffer();
+    // A server that ignores the range sends the whole file: the asset is still its slice.
+    if (ranged && response.status !== 206) bytes = bytes.slice(asset.offset!, asset.offset! + asset.bytes);
     if (!(await this.valid(bytes, asset)))
       throw new Error(`Asset integrity mismatch: ${asset.path}`);
     await this.store.write(asset.sha256, bytes);

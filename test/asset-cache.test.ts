@@ -52,6 +52,22 @@ describe("content-addressed assets", () => {
       spy.mockRestore();
     }
   });
+  it("reads a ranged asset as its own verified bytes, whether or not the server honours the range", async () => {
+    const file = new TextEncoder().encode("..world..").buffer;
+    for (const honour of [true, false]) {
+      const { store, entries } = memory();
+      const ranges: (string | null)[] = [];
+      const cache = new AssetCache(store, async (_url, init) => {
+        const range = new Headers(init?.headers).get("Range");
+        ranges.push(range);
+        return honour ? new Response(file.slice(2, 7), { status: 206 }) : new Response(file);
+      });
+      expect(await cache.load("https://local/", { ...asset, offset: 2 })).toEqual(bytes);
+      expect(ranges).toEqual(["bytes=2-6"]);
+      expect(entries.get(sha256)).toEqual(bytes);
+    }
+    await expect(new AssetCache(memory().store).load("https://local/", { ...asset, offset: -1 })).rejects.toThrow(/Invalid/);
+  });
   it("repairs corrupted cached bytes", async () => {
     const { store, entries } = memory();
     entries.set(sha256, new ArrayBuffer(5));
