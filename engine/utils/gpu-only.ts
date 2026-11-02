@@ -1,4 +1,4 @@
-import type * as PIXI from "pixi.js";
+import * as PIXI from "pixi.js";
 
 /**
  * A texture painted once and never changed: its source (a canvas, a buffer) is dropped as soon as it
@@ -30,3 +30,38 @@ export const gpuOnly = <T extends PIXI.Texture>(texture: T, release?: () => void
 export const dropCanvas = (canvas: HTMLCanvasElement | OffscreenCanvas) => () => {
   canvas.width = canvas.height = 0;
 };
+
+/**
+ * A texture `width` × `height` whose source is made only when the renderer first uploads it: `make`
+ * paints it then (and nothing is held before). Wrap it in gpuOnly and the source goes again once it is
+ * on the GPU, so a texture that is never drawn never costs its pixels. `release` runs as gpuOnly drops it.
+ */
+export const paintedOnUpload = (
+  width: number,
+  height: number,
+  make: () => Painted,
+  options?: PIXI.IBaseTextureOptions
+): PIXI.Texture => new PIXI.Texture(new PIXI.BaseTexture(paintOnUpload(width, height, make), options));
+
+type Painted = { resource: PIXI.Resource; release?: () => void };
+
+/** The resource behind paintedOnUpload: `make`'s resource does each upload, made on the first. */
+const paintOnUpload = (width: number, height: number, make: () => Painted): PIXI.Resource => new (paintOnUploadClass ??= definePaintOnUpload())(width, height, make);
+
+// Defined on first use, not at import: test setups that stub pixi.js need not provide Resource.
+let paintOnUploadClass: ReturnType<typeof definePaintOnUpload> | undefined;
+const definePaintOnUpload = () =>
+  class PaintOnUpload extends PIXI.Resource {
+    private made: Painted | null = null;
+    constructor(width: number, height: number, private readonly make: () => Painted) {
+      super(width, height);
+    }
+    upload(renderer: PIXI.Renderer, baseTexture: PIXI.BaseTexture, glTexture: PIXI.GLTexture): boolean {
+      return (this.made ??= this.make()).resource.upload(renderer, baseTexture, glTexture);
+    }
+    dispose() {
+      this.made?.resource.destroy();
+      this.made?.release?.();
+      this.made = null;
+    }
+  };
