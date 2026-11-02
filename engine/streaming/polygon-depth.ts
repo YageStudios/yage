@@ -1,3 +1,4 @@
+import type { Opening } from "./statics";
 import type { Point } from "./vector";
 
 /** One outer ring followed by courtyard rings, in a static's local world units. */
@@ -53,12 +54,13 @@ export const footprintCovers = (rings: StaticFootprint, from: Point, to: Point) 
  * column keeps its own near edge: a courtyard or alley must not inherit the enclosing box's depth.
  * Cuts include where the rising roof bridges a gap, since the silhouette changes topology there.
  */
-export const footprintSlabs = (rings: StaticFootprint, angle: number, rise = 0, reach = 0): DepthSlab[] => {
+export const footprintSlabs = (rings: StaticFootprint, angle: number, rise = 0, reach = 0, openings: readonly Opening[] = []): DepthSlab[] => {
   const c = Math.cos(angle),
     s = Math.sin(angle);
   const rotated = rings.map((ring) => ring.map(({ x, y }) => ({ x: x * c - y * s, y: x * s + y * c })));
+  const ways = openings.map(o => ({ x: o.x * c - o.y * s, y: o.x * s + o.y * c, half: o.half + reach }));
   const edges: { x0: number; x1: number; m: number; b: number }[] = [];
-  const cuts: number[] = [];
+  const cuts: number[] = ways.flatMap(o => [o.x - o.half, o.x + o.half]);
   for (const ring of rotated)
     for (let i = 0; i < ring.length; i++) {
       const a = ring[i],
@@ -93,7 +95,9 @@ export const footprintSlabs = (rings: StaticFootprint, angle: number, rise = 0, 
       }
       const y = (edge: typeof top, x: number) => edge.m * x + edge.b;
       // A sprite's feet have one depth; use the shallower end of its width on this column's edge.
-      const near = (x: number) => Math.min(y(bottom, Math.max(x0, x - reach)), y(bottom, Math.min(x1, x + reach)));
+      // A doorway changes only the occupied column containing its threshold, never a courtyard gap.
+      const opening = ways.find(o => Math.abs(mid - o.x) < o.half && o.y >= y(top, mid) - EPS && o.y <= y(bottom, mid) + EPS);
+      const near = (x: number) => opening?.y ?? Math.min(y(bottom, Math.max(x0, x - reach)), y(bottom, Math.min(x1, x + reach)));
       const a = { x: x0, y: near(x0) },
         b = { x: x1, y: near(x1) };
       slabs.push({

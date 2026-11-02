@@ -21,7 +21,7 @@ export const tintIndices = (tint: number, fields: [number, number, number]): [nu
 };
 
 /** At most this many glow ranges per layer, and ramp colours across all of them. */
-export const MAX_GLOWS = 4;
+export const MAX_GLOWS = 6;
 export const MAX_GLOW_RAMP = 16;
 
 /**

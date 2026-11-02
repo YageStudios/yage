@@ -5,7 +5,7 @@ import * as PIXI from "pixi.js";
 import { describe, expect, it } from "vitest";
 import { ChunkScene, type ChunkLayerStyle } from "yage/streaming/layer";
 import { beginFrame, frameSpent, resetFrameBudget } from "yage/game/FrameBudget";
-import { fillPolygon, meshGeometry, occluderSlabs, seeThroughSlabs, type StaticSpec } from "yage/streaming/statics";
+import { behind, fillPolygon, meshGeometry, occluderSlabs, seeThroughSlabs, type StaticSpec } from "yage/streaming/statics";
 import { meshArea, strokePolyline } from "yage/streaming/vector";
 
 HTMLCanvasElement.prototype.getContext = (() => null) as never;
@@ -124,6 +124,27 @@ describe("ChunkScene static instances", () => {
     scene.destroy();
   });
 
+  it("stacks turned neighbours by where their footprints lie at a shared x, not by their lowest corners", () => {
+    // A big diamond, and a small one just past its lower-right side: the small one stands in front,
+    // though the big one's bottom corner is far lower on the screen.
+    const turn = Math.PI / 4;
+    const sized = (id: string, x: number, y: number, side: number, z: number): StaticSpec => ({ ...spec(id, x, y, turn), w: side, h: side, z });
+    const big = sized("big", 0, 0, 200, 283);
+    const small = sized("small", 150, 150, 50, 221);
+    const far = sized("far", 400, 0, 50, 71);
+    expect(behind(big, small)).toBe(true);
+    expect(behind(small, big)).toBe(false);
+    expect(behind(big, far)).toBe(null);
+    const scene = new ChunkScene({ chunkSize: 1000, style });
+    scene.setStatics(0, 0, [small, big, far]);
+    scene.update(everywhere);
+    const z = (id: string) => scene.statics.items.get(id)!.over.zIndex;
+    expect(z("big")).toBeLessThan(z("small"));
+    // Apart from the rest, z orders it: lowest first.
+    expect(z("far")).toBe(1);
+    scene.destroy();
+  });
+
   it("finds instances under a world point in their rotated frame and culls by rotated bounds", () => {
     const scene = new ChunkScene({ chunkSize: 100, style });
     scene.setStatics(0, 0, [spec("a", 50, 50, Math.PI / 2)]);
@@ -168,6 +189,8 @@ describe("ChunkScene static instances", () => {
   it("stacks taller instances' over parts above lower ones, keeping listing order otherwise", () => {
     const scene = new ChunkScene({ chunkSize: 100, style });
     scene.setStatics(0, 0, [{ ...spec("tower", 10, 10), z: 6 }, spec("shed", 20, 10), { ...spec("walkup", 30, 10), z: 3 }, spec("barn", 40, 10)]);
+    // Stacked at the next cull.
+    scene.update(everywhere);
     scene.overRoot.sortChildren();
     const order = scene.overRoot.children.map((c) => [...scene.statics.items.values()].find((i) => i.over === c)!.spec.id);
     expect(order).toEqual(["shed", "barn", "walkup", "tower"]);
@@ -407,6 +430,82 @@ describe("ChunkScene static instances", () => {
     expect(Math.abs(area)).toBeCloseTo(w * h, 3);
   });
 
+  it("covers an overhang past the rectangle, at the rectangle's own near-edge depth", () => {
+    const [w, h, angle, overhang] = [64, 48, Math.PI / 4, 3];
+    const [c, s] = [Math.cos(angle), Math.sin(angle)];
+    const toWorld = (p: { x: number; y: number }) => ({ x: p.x * c - p.y * s, y: p.x * s + p.y * c });
+    const plain = occluderSlabs(w, h, angle);
+    const grown = occluderSlabs(w, h, angle, 0, 0, overhang);
+    // The grown rectangle, exactly.
+    let area = 0;
+    for (const slab of grown) {
+      const pts = slab.corners.map(toWorld);
+      for (let k = 0; k < 4; k++) area += (pts[k].x * pts[(k + 1) % 4].y - pts[(k + 1) % 4].x * pts[k].y) / 2;
+    }
+    expect(Math.abs(area)).toBeCloseTo((w + 2 * overhang) * (h + 2 * overhang), 3);
+    // Strip by strip, the depth under the footprint is the plain one's.
+    const depthAt = (slabs: typeof plain, x: number) => {
+      for (const slab of slabs) {
+        const [a, b] = [slab.near[0], slab.near[1]].map(toWorld);
+        if (x >= a.x - 1e-6 && x <= b.x + 1e-6) return b.x - a.x < 1e-6 ? a.y : a.y + ((b.y - a.y) * (x - a.x)) / (b.x - a.x);
+      }
+      return NaN;
+    };
+    for (const t of [0.1, 0.4, 0.7, 0.95]) {
+      const x = toWorld({ x: w * t, y: 0 }).x;
+      expect(depthAt(grown, x)).toBeCloseTo(depthAt(plain, x), 4);
+    }
+    // Something just behind the far wall, under the overhang: covered, and behind the depth there (hidden).
+    const behind = toWorld({ x: w / 2, y: -overhang / 2 });
+    const covered = grown.some((slab) => {
+      const pts = slab.corners.map(toWorld);
+      return behind.x >= Math.min(...pts.map((p) => p.x)) && behind.x <= Math.max(...pts.map((p) => p.x));
+    });
+    expect(covered).toBe(true);
+    expect(depthAt(grown, behind.x)).toBeGreaterThan(behind.y);
+    // Someone just in front of the near wall, under its overhang, stays in front of it.
+    const front = toWorld({ x: w / 2, y: h + overhang / 2 });
+    expect(depthAt(grown, front.x)).toBeLessThan(front.y);
+  });
+
+  it("holds a doorway at its threshold's depth, so whoever walks through goes behind all at once", () => {
+    const [w, h, angle, reach] = [64, 48, Math.PI / 4, 9];
+    const [c, s] = [Math.cos(angle), Math.sin(angle)];
+    const toWorld = (p: { x: number; y: number }) => ({ x: p.x * c - p.y * s, y: p.x * s + p.y * c });
+    // A door in the bottom edge (local +y out), its threshold half a tile in.
+    const door = { x: 24, y: h - 8, half: 8 * c };
+    const plain = occluderSlabs(w, h, angle, 0, reach);
+    const opened = occluderSlabs(w, h, angle, 0, reach, 0, [door]);
+    const depthAt = (slabs: typeof plain, x: number) => {
+      for (const slab of slabs) {
+        const [a, b] = [slab.near[0], slab.near[1]].map(toWorld);
+        if (x >= a.x + 1e-6 && x <= b.x - 1e-6) return a.y + ((b.y - a.y) * (x - a.x)) / (b.x - a.x);
+      }
+      return NaN;
+    };
+    // Which of a sprite's columns (feet at `f`, `reach` either side) the occluder hides.
+    const hidden = (slabs: typeof plain, f: { x: number; y: number }) => {
+      let n = 0;
+      for (let k = -8; k <= 8; k++) if (depthAt(slabs, f.x + (k / 8) * reach + 0.01) > f.y) n++;
+      return n;
+    };
+    let plainCut = 0;
+    for (let y = h + 8; y >= h - 24; y -= 1) {
+      const f = toWorld({ x: door.x, y });
+      const n = hidden(opened, f);
+      // Outside the wall: wholly seen; past the threshold: wholly hidden.
+      if (y >= h) expect(n).toBe(0);
+      if (y <= door.y - 1 && y >= door.y - 12) expect(n).toBe(17);
+      if (y > door.y + 1) expect(n).toBe(0);
+      if (hidden(plain, f) > 0 && hidden(plain, f) < 17) plainCut++;
+    }
+    // Without the opening the turned wall cuts them slantwise over many steps.
+    expect(plainCut).toBeGreaterThan(8);
+    // Away from the door the wall is as it was.
+    const far = toWorld({ x: 56, y: h }).x;
+    expect(depthAt(opened, far)).toBeCloseTo(depthAt(plain, far), 4);
+  });
+
   it("turns vector meshes into Pixi geometry", () => {
     const stroke = strokePolyline([{ x: 0, y: 0 }, { x: 10, y: 0 }], 2);
     const g = meshGeometry(stroke);
@@ -417,4 +516,19 @@ describe("ChunkScene static instances", () => {
     const square = fillPolygon([{ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 4, y: 3 }, { x: 0, y: 3 }]);
     expect(meshArea(square)).toBeCloseTo(12);
   });
+});
+
+it("passes doorway thresholds through the measured static occluder path", () => {
+  const scene = new ChunkScene({ chunkSize: 100, style, roofDepth: true });
+  const ring = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }];
+  scene.setStatics(0, 0, [{ ...spec("door", 0, 0), w: 100, h: 100, footprint: [ring], openings: [{ x: 50, y: 99.5, half: 2 }] }]);
+  scene.update(everywhere);
+  const geometry = scene.statics.items.get("door")!.occluder!.geometry;
+  const positions = geometry.getBuffer("aVertexPosition").data;
+  const near = geometry.getBuffer("aNear").data;
+  const depths: number[] = [];
+  for (let i = 0; i < positions.length; i += 2) if (positions[i] >= 48 && positions[i] <= 52) depths.push(near[i + 1]);
+  expect(depths).toContain(99.5);
+  expect(near).toContain(100);
+  scene.destroy();
 });

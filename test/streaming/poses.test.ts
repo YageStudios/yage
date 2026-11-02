@@ -3,7 +3,7 @@ import { vi } from "vitest";
 vi.unmock("pixi.js");
 import * as PIXI from "pixi.js";
 import { describe, expect, it } from "vitest";
-import { ChunkScene, POSE, type ChunkLayerStyle } from "yage/streaming/layer";
+import { ChunkScene, LOOK, POSE, type ChunkLayerStyle } from "yage/streaming/layer";
 import { createSnapshot } from "yage/streaming/protocol";
 
 HTMLCanvasElement.prototype.getContext = (() => null) as never;
@@ -47,6 +47,22 @@ describe("ChunkScene poses", () => {
     expect([...layer.poseArray]).toEqual([0, 0, 7, 0, 0, 0]);
     scene.poseEntity(-1);
     expect([...layer.poseArray]).toEqual([0, 0, 1, 0.5, 0, 0]);
+    scene.destroy();
+  });
+
+  it("turns heads with the poses: a slot's look, an entity's over it, everyone else at the viewer", () => {
+    const scene = new ChunkScene({ chunkSize: 2048, style });
+    const first = createSnapshot(0, 0, 1, 3);
+    first.gid.set([10, 11, 12]);
+    scene.push(first, 0);
+    const layer = scene.view(0, 0).layer!;
+    scene.setPoses(0, 0, [{ slot: 0, pose: POSE.Kneel, turn: -1, look: LOOK.Left }, { slot: 2, pose: POSE.Lie, turn: 0 }]);
+    expect([...layer.lookArray]).toEqual([LOOK.Left, LOOK.Front, LOOK.Front]);
+    scene.poseEntity(11, POSE.Stand, 0, LOOK.Back);
+    expect([...layer.lookArray]).toEqual([LOOK.Left, LOOK.Back, LOOK.Front]);
+    scene.poseEntity(-1);
+    scene.setPoses(0, 0, []);
+    expect([...layer.lookArray]).toEqual([0, 0, 0]);
     scene.destroy();
   });
 

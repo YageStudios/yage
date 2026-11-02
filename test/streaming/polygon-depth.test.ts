@@ -104,3 +104,12 @@ describe("measured static footprint depths", () => {
     expect(slab.near[1]).toEqual({ x: 50, y: 78 });
   });
 });
+
+it("holds a measured doorway at its threshold without changing the depth across its courtyard", () => {
+  const slabs = footprintSlabs(courtyard, 0, 0, 0, [{ x: 50, y: 99.5, half: 2 }]);
+  expect(area(slabs.map(slab => slab.corners))).toBeCloseTo(8400);
+  const doorColumns = slabs.filter(slab => slab.corners[0].x === 48 && slab.corners[1].x === 52);
+  expect(doorColumns.map(slab => slab.near[0].y)).toEqual([30, 99.5]);
+  const outsideDoor = slabs.filter(slab => slab.corners[0].x === 30 && slab.corners[1].x === 48);
+  expect(outsideDoor.map(slab => slab.near[0].y)).toEqual([30, 100]);
+});
