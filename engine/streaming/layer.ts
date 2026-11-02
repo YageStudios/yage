@@ -1050,6 +1050,10 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   private posedLook: LookKind = LOOK.Front;
   /** Entities held in a pose by gid (`holdPose`), any number at once. */
   private held = new Map<number, { pose: PoseKind; turn: number; look: LookKind }>();
+  /** A pose call changed what writePoses would write (written at the next interpolate/render/read, once per frame however many calls). */
+  private posesDirty = false;
+  /** The current snapshot's first slot per gid, for held poses. */
+  private slotsOf: { snapshot: object; version: number; slots: Map<number, number> } | null = null;
   private placedX = 0;
   private placedY = 0;
   /** False: the placed entity is drawn by another layer (its copy here is hidden). */
@@ -1282,7 +1286,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     this.posedPose = pose;
     this.posedTurn = turn;
     this.posedLook = look;
-    if (this.pair.current) this.writePoses();
+    if (this.pair.current) this.posesDirty = true;
   }
 
   /**
@@ -1292,25 +1296,37 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
    */
   holdPose(gid: number, pose: PoseKind, turn = 0, look: LookKind = LOOK.Front) {
     this.held.set(gid, { pose, turn, look });
-    if (this.pair.current) this.writePoses();
+    if (this.pair.current) this.posesDirty = true;
   }
 
   /** Lets an entity `holdPose` held go. */
   releasePose(gid: number) {
-    if (this.held.delete(gid) && this.pair.current) this.writePoses();
+    if (this.held.delete(gid) && this.pair.current) this.posesDirty = true;
   }
 
   /** Which way each instance faces (LOOK): as its head looks when posed, else the way it last walked. */
   get lookArray(): Uint8Array {
+    this.flushPoses();
     return this.lookData.subarray(0, this.geometry.instanceCount);
   }
 
   /** The pose data per instance (mode, turn), for tests. */
   get poseArray(): Float32Array {
+    this.flushPoses();
     return this.poseData.subarray(0, this.geometry.instanceCount * 2);
   }
 
+  private flushPoses() {
+    if (this.posesDirty) this.writePoses();
+  }
+
+  override render(renderer: PIXI.Renderer) {
+    this.flushPoses();
+    super.render(renderer);
+  }
+
   private writePoses() {
+    this.posesDirty = false;
     const count = Math.max(1, this.geometry.instanceCount);
     if (this.poseData.length < count * 2) this.poseData = new Float32Array(count * 2);
     else this.poseData.fill(0);
@@ -1331,9 +1347,13 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     }
     const snapshot = this.pair.current;
     if (this.held.size && snapshot) {
-      const gids = snapshot.gid.subarray(0, snapshot.count);
+      if (this.slotsOf?.snapshot !== snapshot || this.slotsOf.version !== this.pair.version) {
+        const slots = new Map<number, number>();
+        for (let i = snapshot.count - 1; i >= 0; i--) slots.set(snapshot.gid[i], i);
+        this.slotsOf = { snapshot, version: this.pair.version, slots };
+      }
       for (const [gid, held] of this.held) {
-        const slot = gids.indexOf(gid);
+        const slot = this.slotsOf.slots.get(gid) ?? -1;
         if (slot < 0 || slot >= count) continue;
         this.poseData[slot * 2] = held.pose;
         this.poseData[slot * 2 + 1] = held.turn;
@@ -1437,6 +1457,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   interpolate(now: number) {
     this.pair.advance(now);
     this.write();
+    this.flushPoses();
     const alpha = this.pair.alpha(now);
     for (const mesh of this.companions()) mesh.shader.uniforms.uAlpha = alpha;
   }
