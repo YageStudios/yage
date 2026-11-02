@@ -699,20 +699,52 @@ export class StaticSet {
     // leave them to z) breaks at its lowest z.
     const byZ = (a: StaticInstance, b: StaticInstance) => a.spec.z! - b.spec.z!;
     const left = new Set(stacked);
-    const ready = stacked.filter((item) => waits.get(item) === 0).sort(byZ);
+    // Ready instances as a heap on (z, arrival): the lowest z first, equal z in the order they came ready.
+    const heap: [StaticInstance, number][] = [];
+    let arrivals = 0;
+    const before = (u: [StaticInstance, number], v: [StaticInstance, number]) => byZ(u[0], v[0]) < 0 || (byZ(u[0], v[0]) === 0 && u[1] < v[1]);
+    const push = (item: StaticInstance) => {
+      let i = heap.push([item, arrivals++]) - 1;
+      while (i > 0) {
+        const up = (i - 1) >> 1;
+        if (!before(heap[i], heap[up])) break;
+        [heap[i], heap[up]] = [heap[up], heap[i]];
+        i = up;
+      }
+    };
+    const pop = () => {
+      const top = heap[0][0];
+      const last = heap.pop()!;
+      if (heap.length) {
+        heap[0] = last;
+        for (let i = 0; ; ) {
+          const l = i * 2 + 1, r = l + 1;
+          let low = i;
+          if (l < heap.length && before(heap[l], heap[low])) low = l;
+          if (r < heap.length && before(heap[r], heap[low])) low = r;
+          if (low === i) break;
+          [heap[i], heap[low]] = [heap[low], heap[i]];
+          i = low;
+        }
+      }
+      return top;
+    };
+    for (const item of stacked.filter((item) => waits.get(item) === 0).sort(byZ)) push(item);
     let rank = 1;
     while (left.size) {
-      if (!ready.length) ready.push([...left].sort(byZ)[0]);
-      const item = ready.shift()!;
+      let item: StaticInstance;
+      if (heap.length) item = pop();
+      else {
+        // The first of the lowest z left, as a stable sort of `left` would give.
+        item = left.values().next().value!;
+        for (const other of left) if (byZ(other, item) < 0) item = other;
+      }
       if (!left.delete(item)) continue;
       item.over.zIndex = item.tops.zIndex = rank++;
       for (const then of after.get(item)!) {
         const n = waits.get(then)! - 1;
         waits.set(then, n);
-        if (n === 0 && left.has(then)) {
-          const at = ready.findIndex((r) => byZ(then, r) < 0);
-          ready.splice(at < 0 ? ready.length : at, 0, then);
-        }
+        if (n === 0 && left.has(then)) push(then);
       }
     }
   }
