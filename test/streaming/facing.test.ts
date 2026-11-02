@@ -27,4 +27,17 @@ describe("Facings", () => {
     f.move(1, 10, 0);
     expect(f.move(1, 10, 500)).toBe(LOOK.Right);
   });
+
+  it("held to a look by face, walks on as it faces until let go", () => {
+    const f = new Facings(3);
+    f.face(2, LOOK.Left);
+    expect(f.look(2)).toBe(LOOK.Front);
+    f.move(2, 0, 0);
+    f.face(2, LOOK.Back);
+    expect(f.move(2, 10, 0)).toBe(LOOK.Back);
+    expect(f.move(2, 10, 10)).toBe(LOOK.Back);
+    f.face(2, -1);
+    expect(f.move(2, 10, 10)).toBe(LOOK.Back);
+    expect(f.move(2, 20, 10)).toBe(LOOK.Right);
+  });
 });

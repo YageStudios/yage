@@ -5,7 +5,7 @@
  * back to the viewer. Shared by every layer of a kind, so it keeps facing across a chunk hand-off.
  */
 export class Facings {
-  private readonly at = new Map<number, { look: number; x: number; y: number; seen: number }>();
+  private readonly at = new Map<number, { look: number; x: number; y: number; seen: number; held: boolean }>();
   private writes = 0;
 
   constructor(readonly step: number) {}
@@ -14,7 +14,7 @@ export class Facings {
   move(gid: number, x: number, y: number) {
     const f = this.at.get(gid);
     if (!f) {
-      this.at.set(gid, { look: 0, x, y, seen: this.writes });
+      this.at.set(gid, { look: 0, x, y, seen: this.writes, held: false });
       return 0;
     }
     f.seen = this.writes;
@@ -22,11 +22,22 @@ export class Facings {
     const dy = y - f.y;
     const d = dx * dx + dy * dy;
     if (d < this.step * this.step) return f.look;
-    // A jump (moved by the run, a teleport) turns it nowhere: it starts over from there.
-    if (d < (this.step * JUMP) ** 2) f.look = lookFrom(dx, dy, f.look);
+    // A jump (moved by the run, a teleport) turns it nowhere: it starts over from there. Held (`face`), it walks on as it faces.
+    if (d < (this.step * JUMP) ** 2 && !f.held) f.look = lookFrom(dx, dy, f.look);
     f.x = x;
     f.y = y;
     return f.look;
+  }
+
+  /**
+   * Entity `gid` turned to `look` and held so whichever way it walks (someone shooting faces their aim);
+   * -1 lets it go, to turn the way it walks again. Nothing for an entity never seen.
+   */
+  face(gid: number, look: number) {
+    const f = this.at.get(gid);
+    if (!f) return;
+    f.held = look >= 0;
+    if (f.held) f.look = look;
   }
 
   /** Entity `gid`'s look (0 if it was never seen). */

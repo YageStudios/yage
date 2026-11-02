@@ -1279,7 +1279,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     if (this.held.delete(gid) && this.pair.current) this.writePoses();
   }
 
-  /** Which way each instance's head looks (LOOK), for tests. */
+  /** Which way each instance faces (LOOK): as its head looks when posed, else the way it last walked. */
   get lookArray(): Uint8Array {
     return this.lookData.subarray(0, this.geometry.instanceCount);
   }
@@ -1697,6 +1697,11 @@ export class ChunkScene {
   /** Holds entity `gid` in a pose in whichever chunk's layer draws it (see `ChunkLayer.holdPose`). */
   holdPose(gid: number, pose: PoseKind, turn = 0, look: LookKind = LOOK.Front) {
     for (const view of this.views.values()) view.layer?.holdPose(gid, pose, turn, look);
+  }
+
+  /** Holds entity `gid` turned to `look` whichever way it walks (see `Facings.face`), -1 lets it go; nothing without a rig's follow. */
+  face(gid: number, look: LookKind | -1) {
+    this.entities.facings?.face(gid, look);
   }
 
   /** Lets go an entity `holdPose` held. */
