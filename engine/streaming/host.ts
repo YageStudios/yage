@@ -1070,7 +1070,14 @@ export class ChunkHost {
       remaining.set(snapshot, left);
       connection.transport.send(snapshot.bytes, left === 0);
     }
-    for (const [connection, bytes] of overlaySends) connection.transport.send(bytes, false);
+    // Overlays are encoded per send round too, so their last send moves the buffer as well.
+    const overlaysLeft = new Map<Uint8Array, number>();
+    for (const [, bytes] of overlaySends) overlaysLeft.set(bytes, (overlaysLeft.get(bytes) ?? 0) + 1);
+    for (const [connection, bytes] of overlaySends) {
+      const left = overlaysLeft.get(bytes)! - 1;
+      overlaysLeft.set(bytes, left);
+      connection.transport.send(bytes, left === 0);
+    }
   }
 
   // -------------------------------------------------------------------------------------------

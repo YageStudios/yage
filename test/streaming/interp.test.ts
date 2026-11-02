@@ -77,4 +77,14 @@ describe("SnapshotPair", () => {
     expect(pair.queue).toHaveLength(0);
     expect(pair.alpha(20)).toBe(1);
   });
+
+  test("bounds the queue during a render stall, applying the oldest", () => {
+    const pair = new SnapshotPair(100);
+    pair.push(snap(0, [[1, 0]]), 0);
+    for (let tick = 1; tick <= 100; tick++) pair.push(snap(tick, [[1, tick]]), 0);
+    expect(pair.queue.length).toBe(32);
+    expect(pair.current!.tick).toBe(68);
+    pair.advance(Infinity);
+    expect(pair.current!.tick).toBe(100);
+  });
 });

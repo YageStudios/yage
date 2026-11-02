@@ -18,6 +18,9 @@ import { EMPTY_SLOT, type Snapshot } from "./protocol";
 /** Ticks behind the newest arrival kept besides the gap and the measured jitter. */
 const MARGIN = 0.5;
 
+/** Snapshots kept waiting for the drawn tick before the oldest are applied regardless. */
+const QUEUE_LIMIT = 32;
+
 export class SnapshotPair {
   current: Snapshot | null = null;
   /** Previous positions, aligned to `current` (length ≥ current.count). */
@@ -65,6 +68,8 @@ export class SnapshotPair {
     this.gap = next.tick - this.newest;
     this.newest = next.tick;
     this.queue.push(next);
+    // A render stall must not grow a long stale tail: past the bound, the oldest are reached at once.
+    while (this.queue.length > QUEUE_LIMIT) this.apply(this.queue.shift()!);
     const late = this.origin - sample;
     // Earlier than ever (or long late: a pause, a stall): the clock follows at once.
     if (late < 0 || late > this.gap + 250 / this.tickMs) {
