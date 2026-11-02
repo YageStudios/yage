@@ -1645,7 +1645,8 @@ export class ChunkScene {
    * chunk lists it. Null or empty clears this chunk's listings.
    */
   setStatics(cx: number, cy: number, specs: readonly StaticSpec[] | null) {
-    this.view(cx, cy);
+    // Clearing never makes a view: teardown clears every chunk ever listed, most long gone.
+    if (specs) this.view(cx, cy);
     this.statics.list(chunkKey(cx, cy), specs ?? []);
   }
 
