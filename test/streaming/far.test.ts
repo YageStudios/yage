@@ -135,6 +135,23 @@ describe("FarBake", () => {
     expect(tight.bytes).toBeLessThanOrEqual(9 * 128 * 128 * 4);
   });
 
+  it("keeps a picture's depth mesh when only the tint makes it again", () => {
+    const far = new FarBake(100, { below: 0.2, budget: 100, pad: 0 });
+    const house = instance(50, 50);
+    far.add(house);
+    const depth = vi.spyOn(far as unknown as { bakeDepth: () => void }, "bakeDepth");
+    const r = renderer();
+    far.update(r, 0.1, view, 0);
+    expect(depth).toHaveBeenCalledTimes(1);
+    far.setTint(0x404060);
+    far.update(r, 0.1, view, 600);
+    expect(r.render.mock.calls.length).toBeGreaterThan(2);
+    expect(depth).toHaveBeenCalledTimes(1);
+    far.changed(house);
+    far.update(r, 0.1, view, 1200);
+    expect(depth).toHaveBeenCalledTimes(2);
+  });
+
   it("drops the pictures furthest off the view's ring once past the byte budget", () => {
     const far = new FarBake(100, { below: 1, budget: 100, pad: 0, resolution: 0.32, bytes: 9 * 32 * 32 * 4 + 1 });
     for (let i = 0; i < 6; i++) far.add(instance(50 + i * 100, 50));

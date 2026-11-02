@@ -55,6 +55,8 @@ type Tile = {
   tint: number;
   /** Texture px per world unit it was made at. */
   res: number;
+  /** An instance reaching it was added, built, changed or dropped since its depth mesh (made again only then: a tint or resolution alone leaves it). */
+  reshaped: boolean;
   baked: Set<FarInstance>;
   at: number;
   /** Showing as it is this frame (`changed` or `opening`). */
@@ -122,6 +124,7 @@ export class FarBake {
       const tile = this.tiles.get(key);
       if (!tile) continue;
       tile.dirty = true;
+      tile.reshaped = true;
       // An instance with nothing built is in no picture and shows nothing as it is: nothing to show differently.
       if (tile.baked.delete(item) || item.under.children.length || item.over.children.length) tile.changed = true;
     }
@@ -333,7 +336,7 @@ export class FarBake {
     const left = x * size, top = y * size;
     const width = Math.ceil(size * res), height = width;
     let tile = this.tiles.get(key);
-    if (!tile) this.tiles.set(key, (tile = { sprite: null, depth: null, dirty: true, tint: this.tint, res, baked: new Set(), at: 0, open: false, changed: false, faded: false, opening: false }));
+    if (!tile) this.tiles.set(key, (tile = { sprite: null, depth: null, dirty: true, tint: this.tint, res, reshaped: true, baked: new Set(), at: 0, open: false, changed: false, faded: false, opening: false }));
     if (tile.sprite && (tile.sprite.texture.width !== width || tile.sprite.texture.height !== height)) {
       tile.sprite.destroy({ texture: true, baseTexture: true });
       tile.sprite = null;
@@ -374,7 +377,8 @@ export class FarBake {
     if (clear) renderer.render(EMPTY, { renderTexture, clear });
     // Each instance's occluder once, with the chunk it stands in (its bounds' centre).
     const home = (item: FarInstance) => Math.floor((item.bounds.minX + item.bounds.maxX) / 2 / size) === x && Math.floor((item.bounds.minY + item.bounds.maxY) / 2 / size) === y;
-    this.bakeDepth(tile, ordered.filter(home));
+    if (tile.reshaped) this.bakeDepth(tile, ordered.filter(home));
+    tile.reshaped = false;
     tile.dirty = false;
     tile.changed = false;
     // Shown from this frame (it is in the view's ring), unless faded.
