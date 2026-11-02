@@ -1522,6 +1522,8 @@ export type ChunkSceneOptions = {
   farBake?: FarBakeOptions;
   /** How dark the sun's shadows from static instances (`StaticParts.heights`) lie, 0–1 at full light (default 0.2); scaled by `setLight`'s sun. */
   castShadow?: number;
+  /** Zoom (screen px per world px) the sun's shadows fade out between, gone below the first (ShadowPass `fade`); default at every zoom. */
+  castFade?: [number, number];
 };
 
 type ChunkView = {
@@ -1581,6 +1583,7 @@ export class ChunkScene {
     this.castRoot = new ShadowPass(!!options.roofDepth);
     this.statics = new StaticSet(this.staticRoot, this.overRoot, !!options.roofDepth, options.buildStatics === "seen", options.staticBudget, options.staticFloor, this.castRoot, options.roofReach ?? 0);
     this.castRoot.darkness = options.castShadow ?? 0.2;
+    if (options.castFade) this.castRoot.fade = options.castFade;
     this.entities = new LayerKind(options.style);
     const props = options.props ? (Array.isArray(options.props) ? options.props : [options.props]) : [];
     this.propKinds = props.map((style: ChunkLayerStyle) => new LayerKind(style));

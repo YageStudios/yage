@@ -272,6 +272,12 @@ const bufferOf = () => {
 export class ShadowPass extends PIXI.Container {
   /** How dark a shadow lies, 0–1. */
   darkness = 0.2;
+  /**
+   * Zoomed out (screen px per world px), shadows a px or two long: fading out from `fade[1]` down to
+   * `fade[0]`, and below that the pass doesn't run at all (its buffers cost the same at any zoom).
+   * [0, 0]: shadows at every zoom.
+   */
+  fade: [number, number] = [0, 0];
   /** The tallest anything stands (world px, to 255): how far toward the sun a pixel looks. */
   reach = 160;
   /** Instances' heights, from above (StaticSet adds them). */
@@ -316,6 +322,9 @@ export class ShadowPass extends PIXI.Container {
     const m = renderer.projection.projectionMatrix;
     const t = this.worldTransform;
     const scale = (Math.hypot(m.a, m.b) * Math.hypot(t.a, t.b) * width) / 2;
+    const [low, high] = this.fade;
+    const faded = scale >= high ? 1 : scale <= low ? 0 : (scale - low) / (high - low);
+    if (faded <= 0) return;
     // The heights reach past the screen toward the sun, and down it by the tallest rise (a roof at
     // the screen's foot stands on ground below it).
     const toward = Math.ceil(this.reach * scale);
@@ -363,7 +372,7 @@ export class ShadowPass extends PIXI.Container {
     uniforms.uSunScale = scale;
     uniforms.uSunReach = Math.min(255, this.reach);
     renderInto(renderer, this.shadeBuffer, [0, 0, 0, 0], () => this.quad.render(renderer));
-    Object.assign(this.blur.shader.uniforms, { uRes: renderer.view.width / width, uBlur: scale >= 2 ? 2 : 1, uDarkness: this.darkness });
+    Object.assign(this.blur.shader.uniforms, { uRes: renderer.view.width / width, uBlur: scale >= 2 ? 2 : 1, uDarkness: this.darkness * faded });
     this.blur.render(renderer);
     renderer.batch.flush();
   }
