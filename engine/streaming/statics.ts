@@ -648,6 +648,7 @@ export class StaticSet {
         item = { spec, under, over, heights, tops, occluder: null, bounds: boundsOf(spec), holders: new Set() };
         this.items.set(spec.id, item);
         this.index(item, true);
+        this.fresh.add(item);
         this.far?.add(item);
         if (this.lazy) {
           // Hidden until a cull sees it and builds it.
@@ -770,6 +771,8 @@ export class StaticSet {
     this.items.delete(item.spec.id);
     this.index(item, false);
     this.unbuilt.delete(item);
+    this.lookedAt.delete(item);
+    this.fresh.delete(item);
   }
 
   /** Adds `item` to (or takes it from) every lookup cell its bounds reach. */
@@ -844,13 +847,45 @@ export class StaticSet {
     return this.at(x, y).some((it) => it.over.visible && it.over.alpha > 0.6 && it.over.children.length > 0);
   }
 
+  /** The instances the last cull looked at, and the set the next fills (swapped each cull). */
+  private lookedAt = new Set<StaticInstance>();
+  private looking = new Set<StaticInstance>();
+  /** Instances made since the last cull: it looks at them wherever they are (one built at once shows until hidden). */
+  private readonly fresh = new Set<StaticInstance>();
+
+  /** Hides an instance the view has left, as a cull that looked at it would. */
+  private hide(item: StaticInstance) {
+    item.under.visible = item.over.visible = item.heights.visible = item.tops.visible = false;
+    if (item.occluder) {
+      item.occluder.visible = false;
+      this.seeThrough.set(item, false);
+    }
+  }
+
   cull(view: Rect) {
     if (this.unstacked) {
       this.unstacked = false;
       this.restack();
     }
     const seen = this.seen;
-    for (const item of this.items.values()) {
+    // Only the instances whose lookup cells reach the view (and their shadows' reach) are looked at,
+    // and those looked at last time that this misses are hidden; a view wider than the cells held
+    // looks at every instance instead.
+    const x0 = Math.floor((view.minX - CAST_REACH) / CELL), x1 = Math.floor((view.maxX + CAST_REACH) / CELL);
+    const y0 = Math.floor((view.minY - CAST_REACH) / CELL), y1 = Math.floor((view.maxY + CAST_REACH) / CELL);
+    let near: Iterable<StaticInstance> = this.items.values();
+    const looked = this.looking;
+    looked.clear();
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) <= this.cells.size) {
+      for (let j = y0; j <= y1; j++) for (let i = x0; i <= x1; i++) for (const item of this.cells.get(cellKey(i, j)) ?? []) looked.add(item);
+      near = looked;
+    } else for (const item of this.items.values()) looked.add(item);
+    for (const item of this.lookedAt) if (!looked.has(item)) this.hide(item);
+    for (const item of this.fresh) if (!looked.has(item)) this.hide(item);
+    this.fresh.clear();
+    this.looking = this.lookedAt;
+    this.lookedAt = looked;
+    for (const item of near) {
       const b = item.bounds;
       const visible = b.maxX >= view.minX && b.minX <= view.maxX && b.maxY >= view.minY && b.minY <= view.maxY;
       if (visible && this.unbuilt.has(item)) {
@@ -930,6 +965,8 @@ export class StaticSet {
     this.cells.clear();
     this.byChunk.clear();
     this.unbuilt.clear();
+    this.lookedAt.clear();
+    this.fresh.clear();
     this.far?.clear();
   }
 }
