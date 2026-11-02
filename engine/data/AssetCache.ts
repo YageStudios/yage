@@ -64,6 +64,8 @@ export class IndexedDBAssetStore implements AssetStore {
 
 export class AssetCache {
   private readonly pending = new Map<string, Promise<ArrayBuffer>>();
+  /** Content hashes this cache has already verified this session: their stored bytes are read without hashing again. */
+  private readonly verified = new Set<string>();
   constructor(
     private readonly store: AssetStore,
     private readonly fetcher: typeof fetch = (input, init) => fetch(input, init)
@@ -104,17 +106,25 @@ export class AssetCache {
 
   private async read(base: string, asset: AssetRecord): Promise<ArrayBuffer> {
     const cached = await this.store.read(asset.sha256);
-    if (cached && (await this.valid(cached, asset))) return cached;
+    if (cached && this.verified.has(asset.sha256) && cached.byteLength === asset.bytes) return cached;
+    if (cached && (await this.valid(cached, asset))) {
+      this.verified.add(asset.sha256);
+      return cached;
+    }
     const response = await this.fetcher(new URL(asset.path, base));
     if (!response.ok) throw new Error(`${asset.path}: HTTP ${response.status}`);
     const bytes = await response.arrayBuffer();
     if (!(await this.valid(bytes, asset)))
       throw new Error(`Asset integrity mismatch: ${asset.path}`);
     await this.store.write(asset.sha256, bytes);
+    this.verified.add(asset.sha256);
     return bytes;
   }
 
-  /** Sequential downloads bound peak memory and resume after interruption by content hash. */
+  /**
+   * Sequential downloads bound peak memory and resume after interruption by content hash. An asset
+   * already verified this session is stored and whole, so it is not read again.
+   */
   async preload(
     base: string,
     assets: readonly AssetRecord[],
@@ -124,7 +134,7 @@ export class AssetCache {
     let complete = 0;
     progress(complete, total);
     for (const asset of assets) {
-      await this.load(base, asset);
+      if (!this.verified.has(asset.sha256)) await this.load(base, asset);
       complete += asset.bytes;
       progress(complete, total);
     }

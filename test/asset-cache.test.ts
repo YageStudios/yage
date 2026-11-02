@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { AssetCache, type AssetStore } from "../engine/data/AssetCache";
 
 const bytes = new TextEncoder().encode("world").buffer;
@@ -34,6 +34,23 @@ describe("content-addressed assets", () => {
     });
     expect(await offline.load("https://local/", asset)).toEqual(bytes);
     expect(calls).toBe(1);
+  });
+  it("hashes and reads an asset once a session: a preload again or a later load skips both", async () => {
+    const { store } = memory();
+    let reads = 0, digests = 0;
+    const counted: AssetStore = { read: async (key) => (reads++, store.read(key)), write: store.write };
+    const digest = crypto.subtle.digest.bind(crypto.subtle);
+    const spy = vi.spyOn(crypto.subtle, "digest").mockImplementation((...args) => (digests++, digest(...args)));
+    try {
+      const cache = new AssetCache(counted, async () => new Response(bytes));
+      await cache.preload("https://local/", [asset]);
+      await cache.preload("https://local/", [asset]);
+      expect([reads, digests]).toEqual([1, 1]);
+      expect(await cache.load("https://local/", asset)).toEqual(bytes);
+      expect([reads, digests]).toEqual([2, 1]);
+    } finally {
+      spy.mockRestore();
+    }
   });
   it("repairs corrupted cached bytes", async () => {
     const { store, entries } = memory();
