@@ -26,6 +26,7 @@ import { withinFrame } from "../game/FrameBudget";
 import type { FarBake } from "./far";
 import type { ShadowPass } from "./shadow-pass";
 import { rotatedBounds, toLocal, type Point, type Rect, type VectorMesh } from "./vector";
+import { footprintContains, footprintCovers, footprintSlabs, type StaticFootprint } from "./polygon-depth";
 
 /** A Pixi geometry with `aVertexPosition` plus one attribute per mesh attribute (`uv` → `aUv`). */
 export const meshGeometry = (mesh: VectorMesh) => {
@@ -68,6 +69,8 @@ export type StaticSpec = {
   /** Local size, world units: bounds for culling and `at`. */
   w: number;
   h: number;
+  /** Measured outer outline and holes, in the same local units as w/h. Omitted for rectangles. */
+  footprint?: StaticFootprint;
   /** Stacking of the `over` part among other instances' (e.g. a building's height, so a tall roof and
    *  the shadow it casts lie over a lower neighbour's). Equal heights keep listing order. */
   z?: number;
@@ -241,11 +244,11 @@ export const occluderSlabs = (w: number, h: number, angle: number, rise = 0, rea
 };
 
 /** A depth-only mesh over a static's local rectangle; see the module notes. */
-export const occluderMesh = (w: number, h: number, angle: number, rise = 0, reach = 0) => {
+export const occluderMesh = (w: number, h: number, angle: number, rise = 0, reach = 0, footprint?: StaticFootprint) => {
   const positions: number[] = [];
   const near: number[] = [];
   const indices: number[] = [];
-  for (const slab of occluderSlabs(w, h, angle, rise, reach)) {
+  for (const slab of footprint ? footprintSlabs(footprint, angle, rise, reach) : occluderSlabs(w, h, angle, rise, reach)) {
     const base = positions.length / 2;
     for (let k = 0; k < 4; k++) {
       positions.push(slab.corners[k].x, slab.corners[k].y);
@@ -390,7 +393,13 @@ class SeeThrough extends PIXI.Container {
       const positions: number[] = [];
       const near: number[] = [];
       const indices: number[] = [];
-      for (const slab of seeThroughSlabs(item.spec.w, item.spec.h, item.spec.angle, around, this.reach)) {
+      const c = Math.cos(item.spec.angle), s = Math.sin(item.spec.angle);
+      const screen = (p: Point) => ({ x: p.x * c - p.y * s, y: p.x * s + p.y * c });
+      const slabs = item.spec.footprint
+        ? footprintSlabs(item.spec.footprint, item.spec.angle, item.spec.rise, this.reach).map((slab) => ({
+          corners: slab.corners.map(screen), near: slab.near.map(screen),
+        })) : seeThroughSlabs(item.spec.w, item.spec.h, item.spec.angle, around, this.reach);
+      for (const slab of slabs) {
         const base = positions.length / 2;
         for (let k = 0; k < 4; k++) {
           positions.push(slab.corners[k].x, slab.corners[k].y);
@@ -401,7 +410,7 @@ class SeeThrough extends PIXI.Container {
       const geometry = mesh.geometry;
       geometry.getBuffer("aVertexPosition").update(new Float32Array(positions));
       geometry.getBuffer("aNear").update(new Float32Array(near));
-      geometry.getIndex().update(new Uint16Array(indices));
+      geometry.getIndex().update(positions.length / 2 > 65535 ? new Uint32Array(indices) : new Uint16Array(indices));
       const uniforms = mesh.shader.uniforms;
       const [u, v] = [w / picture.width, h / picture.height];
       uniforms.uFrame = new Float32Array([minX, minY, u / (maxX - minX), v / (maxY - minY)]);
@@ -522,7 +531,7 @@ export class StaticSet {
     tintTree(item.under, this.tint);
     tintTree(item.over, this.tint);
     if (this.occlude && parts.over) {
-      const occluder = occluderMesh(item.spec.w, item.spec.h, item.spec.angle, item.spec.rise, this.reach);
+      const occluder = occluderMesh(item.spec.w, item.spec.h, item.spec.angle, item.spec.rise, this.reach, item.spec.footprint);
       place(occluder, item.spec);
       occluder.visible = item.over.visible;
       this.occluders.addChild(occluder);
@@ -618,7 +627,7 @@ export class StaticSet {
       if (x < b.minX || x > b.maxX || y < b.minY || y > b.maxY) continue;
       const s = item.spec;
       const p = toLocal(s.x, s.y, s.angle, x, y);
-      if (p.x >= 0 && p.y >= 0 && p.x <= s.w && p.y <= s.h) hits.push(item);
+      if (p.x >= 0 && p.y >= 0 && p.x <= s.w && p.y <= s.h && (!s.footprint || footprintContains(s.footprint, p))) hits.push(item);
     }
     return hits;
   }
@@ -636,6 +645,10 @@ export class StaticSet {
       const s = item.spec;
       const a = toLocal(s.x, s.y, s.angle, x, y);
       const e = toLocal(s.x, s.y, s.angle, x, y + (s.rise ?? 0));
+      if (s.footprint) {
+        if (footprintCovers(s.footprint, a, e)) hits.push(item);
+        continue;
+      }
       let t0 = 0;
       let t1 = 1;
       for (const [p, d, lo, hi] of [

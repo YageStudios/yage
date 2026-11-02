@@ -713,8 +713,13 @@ export class ChunkHost {
     const key = spaceChunkKey(space, cx, cy);
     const chunk = this.chunks.get(key);
     const back = (count: number, rows: Uint8Array) => {
-      if (returned) this.dropped += count;
-      else this.post(PostKind.Transfer, key, spaceChunkKey(space, fx, fy), encodeTransfer(fx, fy, fx, fy, true, count, rows, space));
+      const origin = spaceChunkKey(space, fx, fy);
+      const upstream = this.connections[0]?.transport;
+      // A view can cool both ends while this hand-off is in flight. Its rows still use the origin's frame.
+      if ((this.module.exits || this.shadow) && !this.chunks.has(origin) && !this.route.has(origin) && upstream) {
+        upstream.send(encodeExited({ tick: this.running, space, cx: fx, cy: fy, fx, fy, count, rows }), true);
+      } else if (returned) this.dropped += count;
+      else this.post(PostKind.Transfer, key, origin, encodeTransfer(fx, fy, fx, fy, true, count, rows, space));
     };
     if (!chunk) {
       back(message.count, message.rows);

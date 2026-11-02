@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "vitest";
-import { beginFrame, endFrame, FRAME_TARGET_MS, frameAllowance, frameQuiet, frameSpent, LOADING_TARGET_MS, resetFrameBudget, setFrameLoading, SPARE_AFTER_FRAMES, withinSpare } from "../../engine/game/FrameBudget";
+import { beginFrame, endFrame, FRAME_TARGET_MS, frameAllowance, frameBuildIdleMs, frameQuiet, frameSpent, LOADING_TARGET_MS, resetFrameBudget, setFrameLoading, SPARE_AFTER_FRAMES, withinSpare } from "../../engine/game/FrameBudget";
 
 describe("FrameBudget", () => {
   afterEach(resetFrameBudget);
@@ -89,4 +89,25 @@ describe("FrameBudget", () => {
     expect(withinSpare(4, (b) => { budget = b; })).toBe(true);
     expect(budget).toBe(4);
   });
+});
+
+
+test("build idleness measures elapsed time independently of a slow renderer and resets on new work", () => {
+  resetFrameBudget();
+  expect(frameBuildIdleMs()).toBe(0);
+  beginFrame(0); endFrame(400);
+  beginFrame(425); endFrame(825);
+  beginFrame(850);
+  expect(frameQuiet()).toBe(0);
+  expect(frameBuildIdleMs()).toBe(850);
+  frameSpent(2);
+  expect(frameBuildIdleMs()).toBe(0);
+  endFrame(1250);
+  beginFrame(1275);
+  expect(frameBuildIdleMs()).toBe(0);
+  endFrame(1675);
+  beginFrame(1700);
+  expect(frameBuildIdleMs()).toBe(425);
+  resetFrameBudget();
+  expect(frameBuildIdleMs()).toBe(0);
 });

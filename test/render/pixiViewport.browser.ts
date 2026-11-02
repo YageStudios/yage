@@ -6,11 +6,11 @@
 import * as PIXI from "pixi.js";
 import { createLeanGameModel } from "yage/game/LeanGameModel";
 import { PixiViewport } from "yage/schemas/render/PixiViewport";
-import { PixiViewportSystem, type PixiViewportOptions } from "yage/systems/render/PixiViewport";
+import { PixiViewportSystem, PixiViewportCleanupSystem, type PixiViewportOptions } from "yage/systems/render/PixiViewport";
 import { leanWorldType } from "yage/world/lean";
 
 type Result = { name: string; pass: boolean; error?: string };
-const Scene = leanWorldType({ size: 8, systems: [PixiViewportSystem as any] });
+const Scene = leanWorldType({ size: 8, systems: [PixiViewportSystem as any, PixiViewportCleanupSystem as any] });
 
 const check = (condition: boolean, message: string, detail?: unknown) => {
   if (!condition) throw new Error(`${message}${detail === undefined ? "" : `: ${JSON.stringify(detail)}`}`);
@@ -38,6 +38,50 @@ const box = (width: number, height: number) => {
 };
 
 const cases: [string, () => void][] = [
+  [
+    "cleanup: a viewport stays visible for its player and hides when the player leaves",
+    () => {
+      const { model, viewport } = mount({});
+      const cleanup = model.getSystem(PixiViewportCleanupSystem as any) as PixiViewportCleanupSystem;
+      cleanup.run(model as any);
+      check(viewport.visible, "hid a viewport with a local player");
+      model.localNetIds = [];
+      cleanup.run(model as any);
+      check(!viewport.visible, "kept a viewport after the player left");
+      model.destroy();
+    },
+  ],
+  [
+    "renderWhen: preparation and resize continue while drawing waits for the caller",
+    () => {
+      let ready = false;
+      const own = new PIXI.Application({ width: 640, height: 360, autoStart: false });
+      document.body.appendChild(own.view as HTMLCanvasElement);
+      let renders = 0;
+      const render = own.renderer.render.bind(own.renderer);
+      own.renderer.render = (...args) => { renders++; return render(...args); };
+      let model: ReturnType<typeof createLeanGameModel> | undefined;
+      try {
+        const mounted = mount({ app: own, renderWhen: () => ready });
+        model = mounted.model;
+        const { viewport } = mounted;
+        check(renders === 0, "rendered before the caller was ready", renders);
+        own.renderer.resize(800, 450);
+        model.run();
+        check(viewport.screenWidth === 800, "resize stopped while rendering was held");
+        check(renders === 0, "rendered while held", renders);
+        ready = true;
+        model.run();
+        check(renders === 1, "did not render when released", renders);
+        ready = false;
+        model.run();
+        check(renders === 1, "did not hold a later draw", renders);
+      } finally {
+        model?.destroy();
+        own.destroy(true);
+      }
+    },
+  ],
   [
     "resizeTo: the app fills the element, the viewport follows renderer.screen on draw, base zoom spans 1920 units",
     () => {

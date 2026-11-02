@@ -86,6 +86,29 @@ beforeAll(async () => {
 });
 
 describe("lean physics", () => {
+  test("steps a dense chunk with more than sixteen thousand colliders", () => {
+    const world = Kind.create(6000);
+    try {
+      for (let i = 0; i < 5377; i++) spawn(world, (i % 100) * 5, Math.floor(i / 100) * 5, (i % 100) * 5, Math.floor(i / 100) * 5,
+        { kind: i < 1345 ? LeanBodyKind.Off : LeanBodyKind.Dynamic });
+      expect(() => step(world, true, state => {
+        for (let i = 0; i < 11747; i++) addFixedBox(state, (i % 128) * 5 + 2, Math.floor(i / 128) * 5 + 2, 0.1, 0.1);
+      })).not.toThrow();
+      expect(leanPhysicsOf(world).bodies!.size).toBe(5377);
+    } finally { Kind.dispose(world); }
+  });
+  test("rejects invalid positions even on disabled bodies before passing them to Rapier", () => {
+    const world = Kind.create();
+    try {
+      const eid = spawn(world, Number.NaN, 0, 0, 0, { kind: LeanBodyKind.Off });
+      expect(armLeanPhysics(world, { dt: DT })).toBe(true);
+      expect(() => stepWorld(world)).toThrow(`Invalid physics position for entity ${eid}: NaN, 0 (kind ${LeanBodyKind.Off})`);
+      expect(leanPhysicsOf(world).bodies!.size).toBe(0);
+      world(PhysicsTestPos).store.x[eid] = 0;
+      expect(armLeanPhysics(world, { dt: DT })).toBe(true);
+      expect(() => stepWorld(world)).not.toThrow();
+    } finally { Kind.dispose(world); }
+  });
   test("loads Rapier once without the asset loader", async () => {
     expect(rapierLoaded()).toBe(true);
     const again = await loadRapier();

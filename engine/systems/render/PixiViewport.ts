@@ -8,6 +8,8 @@ import { DEPTHS } from "yage/constants/enums";
 import { setGlobalSingleton } from "yage/global";
 
 export interface PixiViewportOptions {
+  /** Hold scene drawing behind a loading screen while the model continues preparing. Default: render every frame. */
+  renderWhen?: (gameModel: ReadOnlyGameModel) => boolean;
   /** Renderer clear colour (e.g. 0x10140f). Default: Pixi's default (black). */
   background?: number;
   /** Keep the drawing buffer between frames (needed for canvas screenshots). Default true. */
@@ -275,7 +277,8 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
       PixiViewportSystem.viewports.forEach((candidate, roomId) => {
         candidate.visible = roomId === PixiViewportSystem.activeRoomId;
       });
-      PixiViewportSystem.pixiApp.renderer.render(PixiViewportSystem.pixiApp.stage);
+      if (PixiViewportSystem.options.renderWhen?.(gameModel) !== false)
+        PixiViewportSystem.pixiApp.renderer.render(PixiViewportSystem.pixiApp.stage);
     }
   };
 

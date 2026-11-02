@@ -7,6 +7,9 @@ import {
   encodeConfig,
   encodeGenerate,
   encodeHello,
+  encodeLimit,
+  encodeRestore,
+  PostKind,
   encodeInput,
   encodeLoad,
   encodeRoute,
@@ -21,6 +24,8 @@ import {
   Tier,
   type Message,
 } from "yage/streaming/protocol";
+import { takeRows } from "yage/streaming/rows";
+import { spaceChunkKey } from "yage/streaming/coord";
 import { memoryTransportPair } from "yage/streaming/transport";
 import { SIZE, testModule, TestGid, TestPos, TestVel, type Walker } from "./fixture";
 
@@ -59,6 +64,20 @@ const positionOf = (host: ChunkHost, gid: number) => {
 };
 
 describe("ChunkHost", () => {
+  test.each([false, true])("returns an in-flight walker to cold ownership when both chunks unload before arrival (returned=%s)", (returned) => {
+    const module = { ...testModule({ "0,0": [{ x: 108, y: 30, gid: 41 }] }), lockstep: 1, exits: true };
+    const world = module.generate(1, 0, 0, 0);
+    const rows = takeRows(world, module.components, [...world.entitySparseSet.dense]);
+    const host = new ChunkHost(module), client = connect(host);
+    client.send(encodeRestore(new Uint8Array(0), [{ tick: 0, kind: PostKind.Transfer, source: spaceChunkKey(0, 0, 0), seq: 0,
+      bytes: encodeTransfer(returned ? 0 : 1, 0, 0, 0, returned, 1, rows) }]));
+    client.send(encodeLimit(1));
+    expect(host.tick()).toBe(true);
+    expect(client.last(Op.Exited)).toMatchObject({ tick: 0, space: 0, cx: 0, cy: 0, fx: 0, fy: 0, count: 1, rows });
+    expect(client.all(Op.Log)).toEqual([]);
+    expect(host.dropped).toBe(0);
+  });
+
   test("generates a chunk, reports Ready, and snapshots it while hot", () => {
     const host = new ChunkHost(testModule({ "0,0": [{ x: 10, y: 20, vx: 1, gid: 41 }] }));
     const client = connect(host);

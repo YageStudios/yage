@@ -27,6 +27,82 @@ const spec = (id: string, x: number, y: number, angle = 0, built?: string[]): St
 });
 
 describe("ChunkScene static instances", () => {
+  it.each([false, true])("renders faded measured=%s roofs through their own depth silhouette and frees the picture", (measured) => {
+    const scene = new ChunkScene({ chunkSize: 100, style, roofDepth: true });
+    const ring = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }];
+    const hole = [{ x: 30, y: 30 }, { x: 70, y: 30 }, { x: 70, y: 70 }, { x: 30, y: 70 }];
+    scene.setStatics(0, 0, [{ id: "faded", x: 0, y: 0, w: 100, h: 100, angle: 0,
+      ...(measured ? { footprint: [ring, hole] } : {}),
+      build: () => {
+        const over = new PIXI.Sprite(PIXI.Texture.EMPTY);
+        over.width = over.height = 100;
+        return { over };
+      },
+    }]);
+    scene.update(everywhere);
+    const item = scene.statics.items.get("faded")!;
+    item.over.alpha = 0.5;
+    scene.update(everywhere);
+    vi.spyOn(item.over, "render").mockImplementation(() => {});
+    const rendered: PIXI.Mesh[] = [];
+    vi.spyOn(PIXI.Mesh.prototype, "render").mockImplementation(function (this: PIXI.Mesh) { rendered.push(this); });
+    const projectionMatrix = new PIXI.Matrix(0.02, 0, 0, -0.02, -1, 1);
+    const renderer = {
+      resolution: 1, projection: { projectionMatrix }, batch: { flush: vi.fn() }, globalUniforms: { update: vi.fn() },
+      renderTexture: { current: null, sourceFrame: new PIXI.Rectangle(0, 0, 100, 100), destinationFrame: new PIXI.Rectangle(0, 0, 100, 100), bind: vi.fn(), clear: vi.fn() },
+    };
+    try {
+      scene.statics.seeThrough.render(renderer as unknown as PIXI.Renderer);
+      expect(rendered).toHaveLength(1);
+      const mesh = rendered[0], positions = mesh.geometry.getBuffer("aVertexPosition").data;
+      const index = mesh.geometry.getIndex().data;
+      let area = 0;
+      for (let i = 0; i < index.length; i += 3) {
+        const a = index[i] * 2, b = index[i + 1] * 2, c = index[i + 2] * 2;
+        area += Math.abs((positions[b] - positions[a]) * (positions[c + 1] - positions[a + 1]) - (positions[b + 1] - positions[a + 1]) * (positions[c] - positions[a])) / 2;
+      }
+      expect(area).toBeCloseTo(measured ? 8400 : 10000);
+      expect(renderer.renderTexture.bind).toHaveBeenCalledTimes(2);
+      expect(projectionMatrix.toArray(true)).toEqual(new PIXI.Matrix(0.02, 0, 0, -0.02, -1, 1).toArray(true));
+      scene.statics.seeThrough.render(renderer as unknown as PIXI.Renderer);
+      expect(rendered[1]).toBe(mesh);
+      const picture = mesh.shader.uniforms.uPicture as PIXI.RenderTexture;
+      item.over.alpha = 1;
+      scene.update(everywhere);
+      expect(mesh.destroyed).toBe(true);
+      expect(picture.destroyed).toBe(true);
+    } finally {
+      scene.destroy();
+      vi.restoreAllMocks();
+    }
+  });
+  it("uses measured concavities and courtyards for picking, fading and depth masks", () => {
+    const scene = new ChunkScene({ chunkSize: 100, style, roofDepth: true });
+    const footprint = [[{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 40 }, { x: 40, y: 40 }, { x: 40, y: 100 }, { x: 0, y: 100 }],
+      [{ x: 10, y: 10 }, { x: 30, y: 10 }, { x: 30, y: 30 }, { x: 10, y: 30 }]];
+    const angle = 0.4, x = 200, y = -100;
+    scene.setStatics(2, -1, [{ ...spec("native", x, y, angle), w: 100, h: 100, rise: 5, footprint }]);
+    const world = (u: number, v: number) => [x + u * Math.cos(angle) - v * Math.sin(angle), y + u * Math.sin(angle) + v * Math.cos(angle)] as const;
+    expect(scene.statics.at(...world(5, 50)).map((it) => it.spec.id)).toEqual(["native"]);
+    expect(scene.statics.at(...world(20, 20))).toEqual([]);
+    expect(scene.statics.at(...world(70, 70))).toEqual([]);
+    expect(scene.statics.covering(...world(20, 20))).toEqual([]);
+    expect(scene.statics.covering(...world(5, 50)).map((it) => it.spec.id)).toEqual(["native"]);
+    const item = scene.statics.items.get("native")!;
+    const positions = item.occluder!.geometry.getBuffer("aVertexPosition").data;
+    expect(positions.length).toBeGreaterThan(8);
+    const meshArea = (data: ArrayLike<number>, indices: ArrayLike<number>) => {
+      let sum = 0;
+      for (let i = 0; i < indices.length; i += 3) {
+        const a = indices[i] * 2, b = indices[i + 1] * 2, c = indices[i + 2] * 2;
+        sum += Math.abs((data[b] - data[a]) * (data[c + 1] - data[a + 1]) - (data[b + 1] - data[a + 1]) * (data[c] - data[a])) / 2;
+      }
+      return sum;
+    };
+    expect(meshArea(positions, item.occluder!.geometry.getIndex().data)).toBeLessThan(100 * 105);
+    scene.destroy();
+    expect(item.occluder!.destroyed).toBe(true);
+  });
   it("builds an instance listed by several chunks once and keeps it until the last drops it", () => {
     const scene = new ChunkScene({ chunkSize: 100, style });
     const built: string[] = [];

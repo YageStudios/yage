@@ -291,6 +291,7 @@ export const stepLeanPhysics = (world: World, position: LeanPosition, entities: 
     const eid = sorted[i];
     const x = xs[eid];
     const y = ys[eid];
+    if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error(`Invalid physics position for entity ${eid}: ${x}, ${y} (kind ${shape.kind[eid]})`);
     let entry = bodies.get(eid);
     if (!entry) {
       entry = createBody(physics, shape, eid, x, y);

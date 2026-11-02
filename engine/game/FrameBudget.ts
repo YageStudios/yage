@@ -38,10 +38,14 @@ let fixed = 0;
 let loading = false;
 let lastBegin = -1;
 let quiet = 0;
+let buildIdleSince = -1;
 let spare = 0;
 
 /** Marks a frame's start (and judges the last one, begin to begin, as quiet or not). */
 export const beginFrame = (now = performance.now()) => {
+  if (lastBegin >= 0 && now >= lastBegin && spent - spare < QUIET_SPENT_MS) {
+    if (buildIdleSince < 0) buildIdleSince = lastBegin;
+  } else buildIdleSince = -1;
   quiet = lastBegin >= 0 && now - lastBegin < QUIET_FRAME_MS && spent - spare < QUIET_SPENT_MS ? quiet + 1 : 0;
   lastBegin = now;
   started = now;
@@ -80,6 +84,10 @@ export const setFrameLoading = (on: boolean) => {
 /** The frames in a row, up to the last begun, that were quiet: nothing much built and none slow. */
 export const frameQuiet = () => quiet;
 
+/** How long required builders have been idle, independently of render speed. Optional spare work is excluded. */
+export const frameBuildIdleMs = () =>
+  buildIdleSince < 0 || spent - spare >= QUIET_SPENT_MS ? 0 : lastBegin - buildIdleSince;
+
 /** Forgets the estimate (a new scene). */
 export const resetFrameBudget = () => {
   started = -1;
@@ -88,6 +96,7 @@ export const resetFrameBudget = () => {
   loading = false;
   lastBegin = -1;
   quiet = 0;
+  buildIdleSince = -1;
   spare = 0;
 };
 
