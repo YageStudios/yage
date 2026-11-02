@@ -325,6 +325,15 @@ describe("ChunkScene static instances", () => {
     other.update({ minX: -100, minY: -100, maxX: 200, maxY: 200 });
     expect(built.length).toBe(0);
     other.destroy();
+    // Under the far pictures' zoom a backlog waits at the floor: the scene's far pictures stand in for buildings that small.
+    beginFrame();
+    frameSpent(1000);
+    const far = new ChunkScene({ chunkSize: 100, style, buildStatics: "seen", staticBudget: 3, farBake: { below: 0.5, budget: 0 } });
+    const farBuilt: string[] = [];
+    far.setStatics(0, 0, Array.from({ length: 20 }, (_, i) => spec(`f${i}`, (i % 5) * 20, Math.floor(i / 5) * 20, 0, farBuilt)));
+    far.update({ minX: -100, minY: -100, maxX: 200, maxY: 200 }, 0, { zoom: 0.1, renderer: { resolution: 1, render: vi.fn() } as unknown as PIXI.Renderer });
+    expect(farBuilt.length).toBeLessThan(20);
+    far.destroy();
     resetFrameBudget();
     vi.restoreAllMocks();
   });

@@ -859,7 +859,10 @@ export class StaticSet {
     // A backlog in view (a jump, a zoom-out) asks for the whole budget as its floor: at the floor
     // alone a few hundred buildings stand as empty lots for a second. The frame's one floor goes to
     // whichever builder has waited longest, so this never stacks on the ground's or the roofs'.
-    const floor = seen.length > BUILD_BACKLOG ? Math.max(this.buildFloor, this.buildBudget) : this.buildFloor;
+    // Zoomed out under the far pictures' zoom the backlog waits at the floor: the scene's own far
+    // pictures (the ground's, from the plan) stand in for buildings that small, and a picture takes
+    // each building in once built, so standing hundreds at once buys nothing a frame can show.
+    const floor = seen.length > BUILD_BACKLOG && !this.far?.active ? Math.max(this.buildFloor, this.buildBudget) : this.buildFloor;
     if (budgeted) withinFrame(this.buildBudget, build, "statics", Math.max(floor, MIN_STEP_MS));
     else build(Infinity);
     seen.length = 0;
