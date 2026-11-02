@@ -21,7 +21,8 @@ import { chunkX, chunkY, keySpace, spaceChunkKey } from "./coord";
 import { Tier } from "./protocol";
 import type { ChunkPool } from "./pool";
 
-export type StreamerPool = Pick<ChunkPool, "chunks" | "generate" | "load" | "unload" | "setTier">;
+/** A pool without `revision` is rescanned every update. */
+export type StreamerPool = Pick<ChunkPool, "chunks" | "generate" | "load" | "unload" | "setTier"> & { readonly revision?: number };
 
 export type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
 
@@ -64,12 +65,18 @@ const rectAround = (bounds: Bounds, size: number, ring: number) => ({
 type Rect = ReturnType<typeof rectAround>;
 const inside = (rect: Rect, cx: number, cy: number) => cx >= rect.x0 && cx <= rect.x1 && cy >= rect.y0 && cy <= rect.y1;
 
+/** Skipped updates before a settled streamer reruns anyway (keepWarm/owned/exists can change unseen). */
+const SETTLED_REFRESH = 30;
+
 export class ChunkStreamer {
   readonly hot = new Set<number>();
   /** Serialized worlds of chunks that went cold (the `cold` option's store, if given). */
   readonly cold: Map<number, Uint8Array>;
   /** Chunks being unloaded right now. */
   private readonly unloading = new Set<number>();
+  /** The rectangles/pool revision of the last update that left nothing to do, and updates skipped since. */
+  private settled: string | undefined;
+  private quiet = 0;
   private readonly options: Required<Omit<ChunkStreamerOptions, "onHot" | "onCool" | "cold">> &
     Pick<ChunkStreamerOptions, "onHot" | "onCool">;
 
@@ -126,6 +133,14 @@ export class ChunkStreamer {
     const { chunkSize, ring, warmRing, hysteresis, exists, keepWarm, owned, space } = this.options;
     const enter = rectAround(bounds, chunkSize, ring);
     const stay = rectAround(bounds, chunkSize, ring + hysteresis);
+    const warm = rectAround(bounds, chunkSize, warmRing + hysteresis);
+    // A settled update (everything wanted heated, nothing to unload) need not rerun while its chunk
+    // rectangles and the pool stay the same; a periodic full pass still catches keepWarm/owned changes.
+    const settledKey = `${enter.x0},${enter.y0},${enter.x1},${enter.y1}/${stay.x0},${stay.y0},${stay.x1},${stay.y1}/${warm.x0},${warm.y0},${warm.x1},${warm.y1}/${this.pool.revision}/${this.cold.size}`;
+    if (this.pool.revision !== undefined && settledKey === this.settled && ++this.quiet < SETTLED_REFRESH) return;
+    this.quiet = 0;
+    this.settled = undefined;
+    let settled = true;
     const centreX = (bounds.minX + bounds.maxX) / 2 / chunkSize - 0.5;
     const centreY = (bounds.minY + bounds.maxY) / 2 / chunkSize - 0.5;
     const budget = { left: this.options.budget };
@@ -149,17 +164,25 @@ export class ChunkStreamer {
     const distance = (key: number) => (chunkX(key) - centreX) ** 2 + (chunkY(key) - centreY) ** 2;
     wanted.sort((a, b) => distance(a) - distance(b));
     for (const key of wanted) {
-      if (!this.ensure(key, budget)) continue;
+      if (!this.ensure(key, budget)) {
+        // Owned chunks wait for the run to load them, which changes the pool revision.
+        if (!owned(chunkX(key), chunkY(key))) settled = false;
+        continue;
+      }
       this.hot.add(key);
       this.pool.setTier(chunkX(key), chunkY(key), Tier.Hot, this.options.snapshotEvery, space);
       this.options.onHot?.(chunkX(key), chunkY(key));
     }
 
     // Unload chunks that are neither kept warm nor near the view.
-    const warm = rectAround(bounds, chunkSize, warmRing + hysteresis);
     for (const [key, state] of this.pool.chunks) {
-      if (keySpace(key) !== space || this.hot.has(key) || this.unloading.has(key) || !state.ready) continue;
+      if (keySpace(key) !== space || this.hot.has(key) || this.unloading.has(key)) continue;
+      if (!state.ready) {
+        settled = false;
+        continue;
+      }
       if (keepWarm(state.cx, state.cy) || owned(state.cx, state.cy) || inside(warm, state.cx, state.cy)) continue;
+      settled = false;
       this.unloading.add(key);
       this.pool.unload(state.cx, state.cy, space).then(
         (bytes) => {
@@ -169,5 +192,6 @@ export class ChunkStreamer {
         () => this.unloading.delete(key)
       );
     }
+    if (settled && !this.unloading.size) this.settled = settledKey;
   }
 }

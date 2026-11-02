@@ -188,4 +188,25 @@ describe("ChunkStreamer", () => {
     streamer.setSnapshotEvery(3);
     expect(pool.chunks.get(chunkKey(0, 0))!.snapshotEvery).toBe(3);
   });
+
+  test("skips a settled update until its rectangles or the pool revision change", () => {
+    const fake = fakePool();
+    const pool = Object.assign(fake.pool, { revision: 0 });
+    let asked = 0;
+    const streamer = new ChunkStreamer(pool, { chunkSize: SIZE, seed: 1, ring: 1, budget: 16, exists: (cx) => (asked++, cx !== 1) });
+    streamer.update(at(0, 0));
+    streamer.update(at(0, 0));
+    const settled = asked;
+    streamer.update(at(0, 0));
+    expect(asked).toBe(settled);
+    pool.revision++;
+    streamer.update(at(0, 0));
+    expect(asked).toBeGreaterThan(settled);
+    const moved = asked;
+    streamer.update(at(0, 0));
+    expect(asked).toBe(moved);
+    streamer.update(at(5, 0));
+    expect(asked).toBeGreaterThan(moved);
+    expect(hotList(streamer)).toContain(chunkKey(5, 0));
+  });
 });

@@ -136,6 +136,8 @@ export const bandedPlacement =
 export class ChunkPool {
   readonly hosts: ChunkHostHandle[] = [];
   readonly chunks = new Map<number, ChunkState>();
+  /** Bumped whenever a chunk is added, removed or becomes ready, so watchers can skip unchanged frames. */
+  revision = 0;
   private readonly events: ChunkPoolEvents = {};
   private readonly routeChanges = new Map<number, number>();
   private routeFlushQueued = false;
@@ -231,6 +233,7 @@ export class ChunkPool {
       moving: false,
     };
     this.chunks.set(key, state);
+    this.revision++;
     this.hosts[host].chunks++;
     this.setRoute(key, host);
     this.flushRoutes();
@@ -279,6 +282,7 @@ export class ChunkPool {
     return new Promise((resolve) => {
       this.unloadWaiters.set(key, (bytes) => {
         this.chunks.delete(key);
+        this.revision++;
         this.hosts[state.host].chunks--;
         if (!lockstep) {
           this.setRoute(key, NO_HOST);
@@ -402,6 +406,7 @@ export class ChunkPool {
     };
     state.host = host;
     this.chunks.set(key, state);
+    this.revision++;
     if (!loaded) this.hosts[host].chunks++;
     this.setRoute(key, host);
     this.flushRoutes();
@@ -677,6 +682,7 @@ export class ChunkPool {
         const state = this.chunks.get(spaceChunkKey(message.space, message.cx, message.cy));
         if (state) {
           state.ready = true;
+          this.revision++;
           state.population = message.population;
           this.events.ready?.(state);
         }
