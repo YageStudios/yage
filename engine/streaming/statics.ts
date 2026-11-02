@@ -540,7 +540,9 @@ const CELL = 512;
 const cellKey = (i: number, j: number) => (i & 0xffff) * 65536 + (j & 0xffff);
 
 /** The instances of a scene; see ChunkScene.setStatics. */
-/** Newly seen instances past which a cull builds its whole budget, whatever the frame has left. */
+/** The least a waiting cull asks the frame's floor for: any room at all builds the nearest item. */
+const MIN_STEP_MS = 1e-3;
+/** Newly seen instances past which a cull asks for its whole budget, whatever the frame has left. */
 const BUILD_BACKLOG = 16;
 /** How far (world units) past its instance's bounds a ground shadow may reach: drawn while that near the view. */
 const CAST_REACH = 320;
@@ -836,6 +838,8 @@ export class StaticSet {
     const budgeted = this.buildBudget < Infinity;
     if (budgeted) seen.sort((a, b) => distance(a.bounds, cx, cy) - distance(b.bounds, cx, cy));
     const build = (budget: number) => {
+      // Nothing left this frame and the frame's floor went elsewhere: they wait their turn (FrameBudget).
+      if (budget <= 0) return;
       const started = performance.now();
       for (const item of seen) {
         if (item !== seen[0] && performance.now() - started >= budget) break;
@@ -852,10 +856,11 @@ export class StaticSet {
       }
     };
     // A budget is shared with the frame's other deferrable work (yage/game/FrameBudget).
-    // A backlog in view (a jump, a zoom-out) builds the whole budget a cull, full frame or not: at the
-    // floor alone a few hundred buildings stand as empty lots for a second.
+    // A backlog in view (a jump, a zoom-out) asks for the whole budget as its floor: at the floor
+    // alone a few hundred buildings stand as empty lots for a second. The frame's one floor goes to
+    // whichever builder has waited longest, so this never stacks on the ground's or the roofs'.
     const floor = seen.length > BUILD_BACKLOG ? Math.max(this.buildFloor, this.buildBudget) : this.buildFloor;
-    if (budgeted) withinFrame(this.buildBudget, (allowed) => build(Math.max(allowed, floor)));
+    if (budgeted) withinFrame(this.buildBudget, build, "statics", Math.max(floor, MIN_STEP_MS));
     else build(Infinity);
     seen.length = 0;
   }

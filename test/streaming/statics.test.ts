@@ -302,12 +302,12 @@ describe("ChunkScene static instances", () => {
     vi.restoreAllMocks();
   });
 
-  it("built when seen, a backlog in view builds its whole budget even when the frame has nothing left", () => {
+  it("built when seen, a backlog in view gets its whole budget as the frame's floor even when the frame has nothing left", () => {
     let t = 0;
     vi.spyOn(performance, "now").mockImplementation(() => (t += 0.01));
-    beginFrame();
-    frameSpent(1000);
     const builds = (count: number) => {
+      beginFrame();
+      frameSpent(1000);
       const scene = new ChunkScene({ chunkSize: 100, style, buildStatics: "seen", staticBudget: 3 });
       const built: string[] = [];
       scene.setStatics(0, 0, Array.from({ length: count }, (_, i) => spec(`s${i}`, (i % 5) * 20, Math.floor(i / 5) * 20, 0, built)));
@@ -315,9 +315,16 @@ describe("ChunkScene static instances", () => {
       scene.destroy();
       return built.length;
     };
-    // A few: the one a cull always gets. A backlog: all of them, inside the 3ms.
+    // A few: the one the frame's floor gives a waiting cull. A backlog: all of them, inside the 3ms.
     expect(builds(3)).toBe(1);
     expect(builds(20)).toBe(20);
+    // The frame's one floor taken, another backlog in the same frame waits for the next.
+    const other = new ChunkScene({ chunkSize: 100, style, buildStatics: "seen", staticBudget: 3 });
+    const built: string[] = [];
+    other.setStatics(0, 0, Array.from({ length: 20 }, (_, i) => spec(`o${i}`, (i % 5) * 20, Math.floor(i / 5) * 20, 0, built)));
+    other.update({ minX: -100, minY: -100, maxX: 200, maxY: 200 });
+    expect(built.length).toBe(0);
+    other.destroy();
     resetFrameBudget();
     vi.restoreAllMocks();
   });

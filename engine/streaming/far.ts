@@ -245,13 +245,16 @@ export class FarBake {
     // Missing pictures first (their buildings are live vector art, the costly kind), then stale ones.
     const missing = (key: number) => (this.tiles.get(key)?.sprite ? 1 : 0);
     wanted.sort((a, b) => missing(a) - missing(b) || near(a).d - near(b).d);
+    // Shared with the frame's other deferrable work; with nothing left, a bake waits for the frame's
+    // one floor (FrameBudget.frameFloor) rather than always taking a picture's worth.
     withinFrame(this.options.budget ?? 4, (allowed) => {
+      if (allowed <= 0) return;
       const started = performance.now();
       for (const key of wanted) {
         if (key !== wanted[0] && performance.now() - started >= allowed) break;
         this.bake(renderer, key, now);
       }
-    });
+    }, "far-bake", 1e-3);
     return true;
   }
 

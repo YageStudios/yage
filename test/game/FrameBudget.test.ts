@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, test } from "vitest";
-import { beginFrame, endFrame, FRAME_TARGET_MS, frameAllowance, frameBuildIdleMs, frameQuiet, frameSpent, LOADING_TARGET_MS, resetFrameBudget, setFrameLoading, SPARE_AFTER_FRAMES, withinSpare } from "../../engine/game/FrameBudget";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { beginFrame, endFrame, FRAME_TARGET_MS, frameAllowance, frameBuildIdleMs, frameFloor, frameQuiet, frameSpent, frameStats, frameTarget, LOADING_TARGET_MS, resetFrameBudget, setFrameLoading, setFrameTarget, SPARE_AFTER_FRAMES, withinFrame, withinSpare } from "../../engine/game/FrameBudget";
 
 describe("FrameBudget", () => {
-  afterEach(resetFrameBudget);
+  afterEach(() => { resetFrameBudget(); vi.restoreAllMocks(); });
 
   test("outside a marked frame, deferrable work gets its whole cap", () => {
     expect(frameAllowance(4)).toBe(4);
@@ -10,6 +10,7 @@ describe("FrameBudget", () => {
   });
 
   test("builders in one frame share what is left of the target", () => {
+    vi.spyOn(performance, "now").mockReturnValue(0);
     beginFrame(0);
     expect(frameAllowance()).toBe(FRAME_TARGET_MS);
     frameSpent(5);
@@ -82,6 +83,73 @@ describe("FrameBudget", () => {
     beginFrame(at);
     expect(tryWork()).toBe(true);
     expect(ran).toEqual([4]);
+  });
+
+  test("one floor a frame, to whichever builder has waited longest: backlogs move on in turn and floors never stack", () => {
+    let at = 0;
+    const frame = (asks: string[]) => {
+      beginFrame(at);
+      frameSpent(FRAME_TARGET_MS);
+      const got = asks.filter((owner) => frameFloor(owner, frameAllowance(), 5) === 5);
+      endFrame(at + FRAME_TARGET_MS);
+      at += 16;
+      return got;
+    };
+    // The ground asks first each frame, but statics have waited longer by the second frame.
+    expect(frame(["ground", "statics", "roofs"])).toEqual(["ground"]);
+    expect(frame(["ground", "statics", "roofs"])).toEqual(["statics"]);
+    expect(frame(["ground", "statics", "roofs"])).toEqual(["roofs"]);
+    expect(frame(["ground", "statics", "roofs"])).toEqual(["ground"]);
+    // A builder whose share covers its floor takes no floor and stops waiting.
+    beginFrame(at);
+    expect(frameFloor("statics", 6, 5)).toBe(6);
+    expect(frameFloor("roofs", 0, 5)).toBe(5);
+  });
+
+  test("a frame whose fixed work ran past the estimate leaves only what is truly left of the target", () => {
+    const real = performance.now;
+    let clock = 1000;
+    performance.now = () => clock;
+    try {
+      beginFrame(0);
+      endFrame(4);
+      beginFrame(16);
+      // Estimate: 4 ms fixed.
+      expect(frameAllowance()).toBe(FRAME_TARGET_MS - 4);
+      // A spike: 9 ms of fixed work already this frame.
+      clock += 9;
+      expect(frameAllowance()).toBe(FRAME_TARGET_MS - 9);
+    } finally { performance.now = real; }
+  });
+
+  test("the target follows the display's rate (a 120 Hz screen leaves half), unless fixed", () => {
+    for (let i = 0; i <= 120; i++) { beginFrame(i * 8.33); endFrame(i * 8.33 + 1); }
+    expect(frameTarget()).toBeCloseTo(8.33 * 0.72, 1);
+    setFrameTarget(10);
+    expect(frameTarget()).toBe(10);
+    setFrameTarget(null);
+    resetFrameBudget();
+    for (let i = 0; i <= 120; i++) { beginFrame(i * 16.7); endFrame(i * 16.7 + 1); }
+    expect(frameTarget()).toBe(FRAME_TARGET_MS);
+  });
+
+  test("the readout gives interval percentiles and each named builder's spend", () => {
+    const real = performance.now;
+    let clock = 0;
+    performance.now = () => clock;
+    try {
+      for (let i = 0; i < 10; i++) {
+        beginFrame(i * 16);
+        withinFrame(4, () => { clock += i === 9 ? 3 : 1; }, "ground");
+        endFrame(i * 16 + 5);
+      }
+      beginFrame(160);
+      const stats = frameStats();
+      expect(stats.p50).toBe(16);
+      expect(stats.stages.ground.frames).toBe(10);
+      expect(stats.stages.ground.max).toBe(3);
+      expect(stats.stages.ground.mean).toBeCloseTo(1.2);
+    } finally { performance.now = real; }
   });
 
   test("outside a marked frame, spare work runs with its cap", () => {
