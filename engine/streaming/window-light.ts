@@ -139,7 +139,8 @@ export const windowLightGeometry = (lights: WindowLight[]) => {
 };
 
 let program: PIXI.Program | null = null;
-const lights = new Set<{ draw(renderer: PIXI.Renderer): void }>();
+/** Every light; `lit` says whether it would add anything now, `drawLit` adds it (only once lit). */
+const lights = new Set<{ lit(): boolean; drawLit(renderer: PIXI.Renderer): void }>();
 
 /** A wall's window light, from its shared geometry; its alpha (with its parents') scales the light. */
 export class WindowLightMesh extends PIXI.Mesh<PIXI.Shader> {
@@ -154,11 +155,18 @@ export class WindowLightMesh extends PIXI.Mesh<PIXI.Shader> {
   /** Not drawn into the scene: `LightPass` adds it into the light buffer. */
   render() {}
 
-  draw(renderer: PIXI.Renderer) {
+  lit() {
     // A wall with none lit holds an empty geometry (windowLightGeometry([])), to be given one later.
-    if (this.worldAlpha <= 0.01 || !this.worldVisible || !this.geometry.indexBuffer?.data.length) return;
+    return this.worldAlpha > 0.01 && this.worldVisible && !!this.geometry.indexBuffer?.data.length;
+  }
+
+  drawLit(renderer: PIXI.Renderer) {
     this.shader.uniforms.uAlpha = this.worldAlpha;
     this._render(renderer);
+  }
+
+  draw(renderer: PIXI.Renderer) {
+    if (this.lit()) this.drawLit(renderer);
   }
 }
 
@@ -252,11 +260,17 @@ export class LampLightMesh extends PIXI.Mesh<PIXI.Shader> {
   /** Not drawn into the scene: `LightPass` adds it into the light buffer. */
   render() {}
 
-  draw(renderer: PIXI.Renderer) {
-    const alpha = this.worldAlpha * this.level.value;
-    if (alpha <= 0.01 || !this.worldVisible) return;
-    this.shader.uniforms.uAlpha = alpha;
+  lit() {
+    return this.worldAlpha * this.level.value > 0.01 && this.worldVisible;
+  }
+
+  drawLit(renderer: PIXI.Renderer) {
+    this.shader.uniforms.uAlpha = this.worldAlpha * this.level.value;
     this._render(renderer);
+  }
+
+  draw(renderer: PIXI.Renderer) {
+    if (this.lit()) this.drawLit(renderer);
   }
 }
 
@@ -272,6 +286,9 @@ export const lightUniforms = () => {
   buffer ??= PIXI.RenderTexture.create({ width: 1, height: 1 });
   return (uniforms ??= PIXI.UniformGroup.from({ uLights: buffer, uLightScreen: new Float32Array([1, 1]) }));
 };
+
+/** The light buffer holds nothing (cleared with no light lit since its last resize): an unlit frame needn't clear it again. */
+let bufferClear = false;
 
 /** How much finer the screen is than the light buffer: light is soft, so a coarse buffer does. */
 const COARSE = 2;
@@ -293,10 +310,18 @@ export class LightPass extends PIXI.Container {
       group.update();
     }
     const fine = Math.max(1e-3, renderer.resolution / COARSE);
-    if (buffer.width !== width || buffer.height !== height || buffer.baseTexture.resolution !== fine) buffer.setResolution(fine), buffer.resize(width, height);
+    if (buffer.width !== width || buffer.height !== height || buffer.baseTexture.resolution !== fine) {
+      buffer.setResolution(fine);
+      buffer.resize(width, height);
+      bufferClear = false;
+    }
+    const lit = [...lights].filter((light) => light.lit());
+    // Daylight, or no light in view: one clear, then nothing until a light shows.
+    if (!lit.length && bufferClear) return;
     renderInto(renderer, buffer, [0, 0, 0, 0], () => {
-      for (const light of lights) light.draw(renderer);
+      for (const light of lit) light.drawLit(renderer);
     });
+    bufferClear = !lit.length;
   }
 }
 
