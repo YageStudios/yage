@@ -36,6 +36,13 @@ describe("FarBake", () => {
     expect(far.covers(house)).toBe(true);
     far.update(r, 0.3, view, 20);
     expect(far.covers(house)).toBe(false);
+    expect(far.root.visible).toBe(false);
+    // Kept a while, so zooming straight back in shows them without making them again.
+    far.update(r, 0.1, view, 1000);
+    expect(far.covers(house)).toBe(true);
+    expect(r.render).toHaveBeenCalledTimes(2);
+    far.update(r, 0.3, view, 1100);
+    far.update(r, 0.3, view, 6000);
     expect(far.root.children.length).toBe(0);
   });
 
@@ -99,7 +106,44 @@ describe("FarBake", () => {
     // Chunk 1's picture has the tower stacked with the shed; each picture just its chunk.
     expect(drawn.some((parts) => parts.includes(tower.over) && parts.includes(shed.over))).toBe(true);
     const sprites = far.root.children.filter((c): c is PIXI.Sprite => c instanceof PIXI.Sprite);
-    expect(sprites.map((s) => [s.x, s.texture.width])).toEqual(expect.arrayContaining([[0, 50], [100, 50]]));
+    // Toward the screen's density, not the 0.5 most (halving stops before a picture is under 32 px a side).
+    expect(sprites.map((s) => [s.x, s.texture.width])).toEqual(expect.arrayContaining([[0, 25], [100, 25]]));
+    expect(sprites.every((s) => s.width === 100)).toBe(true);
+  });
+
+  it("makes pictures at the screen's density, again when the zoom leaves it behind, and within the byte budget", () => {
+    const far = new FarBake(1000, { below: 1, budget: 100, pad: 0, resolution: 1 });
+    far.add(instance(500, 500));
+    const r = renderer();
+    const width = () => (far.root.children.find((c) => c instanceof PIXI.Sprite) as PIXI.Sprite).texture.width;
+    const one = { minX: 0, minY: 0, maxX: 999, maxY: 999 };
+    far.update(r, 0.3, one, 0);
+    expect(width()).toBe(500);
+    // A little further out keeps it (within a level); far out it is made again smaller, after REBAKE_MS.
+    far.update(r, 0.2, one, 600);
+    expect(width()).toBe(500);
+    far.update(r, 0.05, one, 1200);
+    expect(width()).toBe(63);
+    // Back in past the hysteresis it is blurry: made again finer.
+    far.update(r, 0.3, one, 1800);
+    expect(width()).toBe(500);
+    // A budget too small for the view's ring at that density makes it coarser.
+    const tight = new FarBake(1000, { below: 1, budget: 100, pad: 0, resolution: 1, bytes: 9 * 128 * 128 * 4 });
+    tight.add(instance(500, 500));
+    tight.update(r, 0.9, one, 0);
+    expect((tight.root.children.find((c) => c instanceof PIXI.Sprite) as PIXI.Sprite).texture.width).toBe(125);
+    expect(tight.bytes).toBeLessThanOrEqual(9 * 128 * 128 * 4);
+  });
+
+  it("drops the pictures furthest off the view's ring once past the byte budget", () => {
+    const far = new FarBake(100, { below: 1, budget: 100, pad: 0, resolution: 0.32, bytes: 9 * 32 * 32 * 4 + 1 });
+    for (let i = 0; i < 6; i++) far.add(instance(50 + i * 100, 50));
+    const r = renderer();
+    for (let i = 0; i < 6; i++) far.update(r, 0.3, { minX: i * 100, minY: 0, maxX: i * 100 + 99, maxY: 99 }, i * 10);
+    // Pictures of chunks 0..5 were all made; only the ring around the last view (and what fits) stays.
+    const xs = far.root.children.filter((c) => c instanceof PIXI.Sprite).map((c) => c.x);
+    expect(xs).toEqual(expect.arrayContaining([400, 500]));
+    expect(far.bytes).toBeLessThanOrEqual(9 * 32 * 32 * 4 + 1);
   });
 
   it("shows every chunk a changed instance reaches as it is until their pictures are made again", () => {

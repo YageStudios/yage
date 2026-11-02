@@ -11,7 +11,8 @@
  * is hidden (StaticSet.cull) while every chunk it reaches has a picture with it in. A chunk without
  * a picture yet shows its instances as they are, so nothing goes blank while pictures are made:
  * nearest the view's centre first, within the frame's shared budget (yage/game/FrameBudget), at
- * least one a frame.
+ * least one a frame. Pictures are made at the screen's density (halving down from `resolution` as the
+ * zoom does), all of them within a byte budget, and kept a few seconds after the zoom leaves their range.
  *
  * A chunk's picture is made again when an instance reaching it is added, built or dropped, when the
  * display tree under one changes (a child added or removed anywhere in it), or when the scene's
@@ -30,8 +31,14 @@ import type { Rect } from "./vector";
 export type FarBakeOptions = {
   /** Zoom (screen px per world unit) under which chunks show their pictures. */
   below: number;
-  /** Texture px per world unit (default `below` times the renderer's resolution, at most 0.25). */
+  /**
+   * The most texture px per world unit a picture gets (default `below` times the renderer's
+   * resolution, at most 0.25). Pictures are made at the screen's own density under it, halving as the
+   * zoom does (see `level`), so a wide view holds many small pictures rather than many full ones.
+   */
   resolution?: number;
+  /** Bytes the pictures may hold in all (default 192 MiB): the view's ring gets coarser to fit, and pictures off it go first. */
+  bytes?: number;
   /** World units past its bounds an instance may draw (a shadow, an awning): the chunks that far take it into their pictures (default 160). */
   pad?: number;
   /** Milliseconds a frame may spend making pictures, from the frame's shared budget (default 4). */
@@ -46,6 +53,8 @@ type Tile = {
   depth: PIXI.Mesh<PIXI.Shader> | null;
   dirty: boolean;
   tint: number;
+  /** Texture px per world unit it was made at. */
+  res: number;
   baked: Set<FarInstance>;
   at: number;
   /** Showing as it is this frame (`changed` or `opening`). */
@@ -65,6 +74,10 @@ const TINT_STEP = 6;
 const REBAKE_MS = 500;
 /** Out of zoom's way: pictures stay on until the zoom passes `below` by this much. */
 const HYSTERESIS = 1.1;
+/** A picture made at more than this many times the screen's density is made again smaller (one level of zoom out is kept: 2× wouldn't be). */
+const OVER_RES = 4;
+/** Milliseconds pictures are kept (hidden) after the zoom passes out of their range, so wheeling back and forth over it doesn't make them all again. */
+const WARM_MS = 4000;
 
 const tintFar = (a: number, b: number) => {
   for (let shift = 0; shift <= 16; shift += 8) if (Math.abs(((a >> shift) & 255) - ((b >> shift) & 255)) > TINT_STEP) return true;
@@ -201,8 +214,9 @@ export class FarBake {
       if (this.active) {
         this.active = false;
         this.root.visible = false;
-        for (const key of [...this.tiles.keys()]) this.drop(key);
+        this.offAt = now;
       }
+      if (this.tiles.size && now - this.offAt >= WARM_MS) for (const key of [...this.tiles.keys()]) this.drop(key);
       return false;
     }
     this.active = true;
@@ -216,10 +230,14 @@ export class FarBake {
       const x = (key / 65536) << 16 >> 16, y = (key & 0xffff) << 16 >> 16;
       return { x, y, d: (x - cx) ** 2 + (y - cy) ** 2 };
     };
+    const res = (this.res = this.level(renderer, zoom, (x1 - x0 + 3) * (y1 - y0 + 3)));
+    const want = zoom * renderer.resolution;
     for (const [key, tile] of this.tiles) {
       const { x, y } = near(key);
       if (x < x0 - 2 || x > x1 + 2 || y < y0 - 2 || y > y1 + 2) this.drop(key);
       else {
+        // Blurry for this zoom, or far finer than it needs (and the budget allows): made again at `res`, shown as it is meanwhile.
+        if (!tile.dirty && tile.res !== res && (tile.res < Math.min(res, want / HYSTERESIS) || tile.res > Math.max(res, want * OVER_RES))) tile.dirty = true;
         const near = x >= x0 - 1 && x <= x1 + 1 && y >= y0 - 1 && y <= y1 + 1;
         tile.faded = tile.opening;
         tile.open = tile.faded || tile.changed;
@@ -229,6 +247,7 @@ export class FarBake {
         if (!tile.dirty && tintFar(tile.tint, this.tint)) tile.dirty = true;
       }
     }
+    this.evict(near, x0, x1, y0, y1);
     const wanted = this.wanted;
     wanted.length = 0;
     // A ring past the view too: a chunk's instances overhang it (a tall building rises up the
@@ -258,17 +277,63 @@ export class FarBake {
     return true;
   }
 
+  /** The resolution pictures are made at now. */
+  private res = 0;
+  /** When the pictures were last turned off (they go WARM_MS after). */
+  private offAt = 0;
+
+  /**
+   * Texture px per world unit for pictures at `zoom`: the top resolution halved while half still
+   * meets the screen's density, and coarser again until `ring` chunks' pictures fit the byte budget.
+   */
+  private level(renderer: PIXI.Renderer, zoom: number, ring: number) {
+    const top = this.options.resolution ?? Math.min(0.25, this.options.below * renderer.resolution);
+    const want = zoom * renderer.resolution;
+    const fits = Math.sqrt((this.options.bytes ?? 192 * 1048576) / (ring * 4)) / this.chunkSize;
+    let res = top;
+    while ((res / 2 >= want || res > fits) && res * this.chunkSize >= 32) res /= 2;
+    return res;
+  }
+
+  /** Past the byte budget, drops the pictures furthest from the view's centre that are off its ring. */
+  private evict(near: (key: number) => { x: number; y: number; d: number }, x0: number, x1: number, y0: number, y1: number) {
+    const budget = this.options.bytes ?? 192 * 1048576;
+    let bytes = 0;
+    const off: number[] = [];
+    for (const [key, tile] of this.tiles) {
+      if (!tile.sprite) continue;
+      bytes += tile.sprite.texture.width * tile.sprite.texture.height * 4;
+      const { x, y } = near(key);
+      if (x < x0 - 1 || x > x1 + 1 || y < y0 - 1 || y > y1 + 1) off.push(key);
+    }
+    if (bytes <= budget) return;
+    off.sort((a, b) => near(b).d - near(a).d);
+    for (const key of off) {
+      if (bytes <= budget) break;
+      const texture = this.tiles.get(key)!.sprite!.texture;
+      bytes -= texture.width * texture.height * 4;
+      this.drop(key);
+    }
+  }
+
+  /** Bytes the pictures hold now. */
+  get bytes() {
+    let bytes = 0;
+    for (const tile of this.tiles.values()) if (tile.sprite) bytes += tile.sprite.texture.width * tile.sprite.texture.height * 4;
+    return bytes;
+  }
+
   private bake(renderer: PIXI.Renderer, key: number, now: number) {
     const items = this.members.get(key);
     if (!items) return;
     const size = this.chunkSize;
-    const res = this.options.resolution ?? Math.min(0.25, this.options.below * renderer.resolution);
+    const res = this.res || this.level(renderer, this.options.below, 9);
     const { x, y } = { x: (key / 65536) << 16 >> 16, y: (key & 0xffff) << 16 >> 16 };
     // Exactly the chunk: what reaches past it is drawn by the next chunk's picture, stacked there with what is in front of it.
     const left = x * size, top = y * size;
     const width = Math.ceil(size * res), height = width;
     let tile = this.tiles.get(key);
-    if (!tile) this.tiles.set(key, (tile = { sprite: null, depth: null, dirty: true, tint: this.tint, baked: new Set(), at: 0, open: false, changed: false, faded: false, opening: false }));
+    if (!tile) this.tiles.set(key, (tile = { sprite: null, depth: null, dirty: true, tint: this.tint, res, baked: new Set(), at: 0, open: false, changed: false, faded: false, opening: false }));
     if (tile.sprite && (tile.sprite.texture.width !== width || tile.sprite.texture.height !== height)) {
       tile.sprite.destroy({ texture: true, baseTexture: true });
       tile.sprite = null;
@@ -276,10 +341,10 @@ export class FarBake {
     if (!tile.sprite) {
       const texture = PIXI.RenderTexture.create({ width, height, resolution: 1 });
       tile.sprite = new PIXI.Sprite(texture);
-      tile.sprite.scale.set(1 / res);
       tile.sprite.eventMode = "none";
       this.root.addChild(tile.sprite);
     }
+    tile.sprite.scale.set(size / width);
     tile.sprite.position.set(left, top);
     const transform = new PIXI.Matrix(res, 0, 0, res, -left * res, -top * res);
     const renderTexture = tile.sprite.texture as PIXI.RenderTexture;
@@ -317,6 +382,7 @@ export class FarBake {
     tile.sprite.visible = !tile.open;
     if (tile.depth) tile.depth.visible = !tile.open;
     tile.tint = this.tint;
+    tile.res = res;
     tile.at = now;
     // An instance with nothing built yet isn't in the picture: built, it shows as it is until the next.
     tile.baked = new Set(ordered.filter((item) => item.under.children.length || item.over.children.length));
