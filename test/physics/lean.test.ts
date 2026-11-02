@@ -14,6 +14,7 @@ import {
   rapierLoaded,
   releaseLeanPhysics,
   releaseLeanPhysicsState,
+  tileSpeed,
 } from "yage/physics/lean";
 import { leanWorldType } from "yage/world/lean";
 
@@ -125,6 +126,36 @@ describe("lean physics", () => {
     expect(x).toBeGreaterThan(7.5);
     expect(world(LeanBody).store.reach[eid]).toBeLessThan(0.2);
     Kind.dispose(world);
+  });
+
+  test("ground speed slows a walker where it stands, and only there", () => {
+    const world = Kind.create();
+    try {
+      const slow = spawn(world, 0, 0, 100, 0);
+      const fast = spawn(world, 0, 20, 100, 20);
+      // Tiles 4 units square: the band x in [0, 40) at y < 8 is shallow water (tile 1), half speed.
+      const columns = 32, tiles = new Uint8Array(columns * 8);
+      for (let j = 0; j < 2; j++) for (let i = 0; i < 10; i++) tiles[j * columns + i] = 1;
+      const speedAt = tileSpeed(tiles, columns, 4, [1, 0.5]);
+      expect(speedAt(2, 2)).toBe(0.5);
+      expect(speedAt(50, 2)).toBe(1);
+      expect(speedAt(-1, 2)).toBe(1);
+      const pos = world(PhysicsTestPos).store;
+      for (let i = 0; i < 10; i++) {
+        step(world, false);
+        expect(armLeanPhysics(world, { dt: DT, speedAt })).toBe(true);
+        stepWorld(world);
+      }
+      // Ten steps of 2 units: the dry walker covers 20, the wader half that.
+      expect(pos.x[fast]).toBeCloseTo(20, 0);
+      expect(pos.x[slow]).toBeGreaterThan(9);
+      expect(pos.x[slow]).toBeLessThan(11.5);
+      expect(world(LeanBody).store.reach[slow]).toBeLessThan(0.6);
+      // The option lasts one step: unarmed with it, the next step goes at full speed.
+      const before = pos.x[slow];
+      step(world);
+      expect(pos.x[slow] - before).toBeCloseTo(2, 0);
+    } finally { Kind.dispose(world); }
   });
 
   test("walkers heading for the same spot push each other apart", () => {

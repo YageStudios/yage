@@ -126,6 +126,11 @@ export class LeanPhysics extends Schema {
   @type("number")
   @defaultValue(0.1)
   maxStep: number;
+
+  /** The armed step's ground speed: a factor on a dynamic body's speed where it stands (ArmOptions.speedAt). */
+  @nullable()
+  @type("object")
+  speedAt: ((x: number, y: number) => number) | null;
 }
 
 // -------------------------------------------------------------------------------------------
@@ -156,6 +161,27 @@ export type ArmOptions = {
   build?: (state: LeanPhysics) => void;
   /** Longest Rapier substep, in seconds. Default 0.1. */
   maxStep?: number;
+  /**
+   * Ground speed: a factor (1 full speed, 0.5 half) on how fast a dynamic body may go where it
+   * stands at the start of the step, per tile or per anything else the game keeps (wading, mud,
+   * snow). It scales the body's capped speed, so a slowed body falls behind its position (its
+   * `reach` says by how much). Kinematic bodies are not slowed. Default: none (always 1).
+   */
+  speedAt?: (x: number, y: number) => number;
+};
+
+/**
+ * A ground speed over a tile grid (ArmOptions.speedAt): `tiles` row-major, `columns` wide, each
+ * tile `size` units square with its top-left at (`x0`, `y0`); `speed[tile]` the factor for that
+ * tile value (missing values, and points off the grid, go at full speed).
+ */
+export const tileSpeed = (tiles: ArrayLike<number>, columns: number, size: number, speed: ArrayLike<number | undefined>, x0 = 0, y0 = 0) => {
+  const rows = Math.floor(tiles.length / columns);
+  return (x: number, y: number): number => {
+    const i = Math.floor((x - x0) / size), j = Math.floor((y - y0) / size);
+    if (i < 0 || j < 0 || i >= columns || j >= rows) return 1;
+    return speed[tiles[j * columns + i]] ?? 1;
+  };
 };
 
 /**
@@ -180,6 +206,7 @@ export const armLeanPhysics = (world: World, options: ArmOptions): boolean => {
   }
   state.dt = options.dt;
   state.maxStep = options.maxStep ?? 0.1;
+  state.speedAt = options.speedAt ?? null;
   return true;
 };
 
@@ -193,6 +220,7 @@ export const releaseLeanPhysicsState = (state: LeanPhysics): void => {
   state.bodies = null;
   state.fixed = 0;
   state.dt = 0;
+  state.speedAt = null;
   if (physics) {
     live--;
     physics.free();
@@ -274,7 +302,9 @@ export const stepLeanPhysics = (world: World, position: LeanPosition, entities: 
   const state = leanPhysicsOf(world);
   const physics = state.world;
   const dt = state.dt;
+  const speedAt = state.speedAt;
   state.dt = 0;
+  state.speedAt = null;
   if (!physics || !(dt > 0)) return;
   const bodies = state.bodies!;
   const shape = world(LeanBody).store as any;
@@ -334,6 +364,7 @@ export const stepLeanPhysics = (world: World, position: LeanPosition, entities: 
     let speed = distance / dt;
     const cap = shape.maxSpeed[eid];
     if (cap > 0 && speed > cap) speed = cap;
+    if (speedAt) speed *= Math.max(0, speedAt(at.x, at.y));
     const scale = distance > 0 ? speed / distance : 0;
     entry.body.setLinvel({ x: dx * scale, y: dy * scale }, true);
     // Contact is predicted as far as the body goes in a substep, so a quick body stops at a wall
@@ -421,7 +452,7 @@ export type LeanProbe = {
 export const createLeanProbe = (build: (state: LeanPhysics) => void): LeanProbe | null => {
   if (!loaded) return null;
   const physics = new RAPIER.World({ x: 0, y: 0 });
-  const state = { world: physics, bodies: null, fixed: 0, dt: 0, maxStep: 0.1 } as LeanPhysics;
+  const state = { world: physics, bodies: null, fixed: 0, dt: 0, maxStep: 0.1, speedAt: null } as LeanPhysics;
   live++;
   try {
     build(state);
