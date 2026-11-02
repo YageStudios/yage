@@ -41,6 +41,8 @@ const KNEEL_CUT = 0.26;
 const KNEEL_HALF = 0.25;
 const KNEEL_LEAN = 0.45;
 const KNEEL_BOW = 0.7;
+/** Sprites shorter than this on screen (px) draw without their rims and drop shadows (ChunkLayer `setDetail`). */
+export const DETAIL_PIXELS = 6;
 /** At most this many rigged sprite ranges (ChunkLayerStyle `rig`). */
 export const MAX_RIGS = 8;
 // A kneeler (POSE.Kneel) is drawn as its body in two pieces (aPiece 0, 1), each keeping its side of a
@@ -1060,6 +1062,11 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   private placeY = new Int16Array(0);
   private placeSprite = new Uint16Array(0);
   private placeTint = new Uint8Array(0);
+  /** The style's sprite height (world units), for `setDetail`'s screen size. */
+  readonly spriteHeight: number;
+  /** Shown, and drawn with the edge and shadow passes (false: a few pixels tall, without them). */
+  private shown = false;
+  private detail = true;
 
   constructor(kind: LayerKind, extent: number, expectedInterval: number, tickInterval = expectedInterval) {
     // Each layer has its own shader objects (one program, shared uniform group) for its own alpha.
@@ -1102,6 +1109,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     edgeState.depthMask = false;
     edgeState.blend = true;
     this.edges = new PIXI.Mesh(geometry, kind.shader(true), edgeState);
+    this.spriteHeight = kind.style.size[1];
     if (kind.shadowProgram) {
       const shared = kind.shadowShared;
       if (!shared) throw new Error("Chunk shadow program requires shared uniforms");
@@ -1185,7 +1193,20 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   }
 
   setVisible(visible: boolean) {
+    this.shown = visible;
     for (const mesh of this.companions()) mesh.visible = visible;
+    this.edges.visible = visible && this.detail;
+    if (this.shadow) this.shadow.visible = visible && this.detail;
+  }
+
+  /**
+   * Whether the soft rims and drop shadows draw: sprites a few pixels tall show neither, so far zooms
+   * skip those two passes a chunk. Halos stay (their `minPixels` keeps them marking far sprites).
+   */
+  setDetail(full: boolean) {
+    if (this.detail === full) return;
+    this.detail = full;
+    this.setVisible(this.shown);
   }
 
   /** Queues a snapshot for the pair's playout (the first, or a stale one, shows at once). */
@@ -1785,6 +1806,7 @@ export class ChunkScene {
         // Off screen too, so what reads the pair (effects, sounds) keeps time and the queue drains.
         chunk.layer.pair.advance(now);
         const visible = inView && chunk.layer.drawnCount > 0;
+        if (far) chunk.layer.setDetail(chunk.layer.spriteHeight * far.zoom >= DETAIL_PIXELS);
         chunk.layer.setVisible(visible);
         if (visible) {
           chunk.layer.interpolate(now);

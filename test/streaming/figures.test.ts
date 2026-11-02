@@ -39,3 +39,19 @@ it("keeps independent shadow and glow uniforms consistent with the scene light",
   figure.destroy();
   scene.destroy();
 });
+
+it("drops the rim and drop-shadow passes of sprites a few pixels tall, keeping the sprites and halos", () => {
+  const style: ChunkLayerStyle = { atlas: PIXI.Texture.EMPTY, grid: [1, 1], size: [16, 16], palette: [0xffffff], shadow: { size: [10, 4], alpha: 0.4 }, glow: { radius: 8, ranges: [] } };
+  const scene = new ChunkScene({ chunkSize: 2048, style });
+  scene.push(createSnapshot(0, 0, 3, 2), 0);
+  const layer = scene.view(0, 0).layer!;
+  const view = { minX: 0, minY: 0, maxX: 2048, maxY: 2048 };
+  const renderer = {} as PIXI.Renderer;
+  scene.update(view, 0, { zoom: 0.1, renderer });
+  expect([layer.visible, layer.edges.visible, layer.shadow?.visible, layer.glow?.visible]).toEqual([true, false, false, true]);
+  scene.update(view, 0, { zoom: 1, renderer });
+  expect([layer.visible, layer.edges.visible, layer.shadow?.visible, layer.glow?.visible]).toEqual([true, true, true, true]);
+  scene.update(view, 0);
+  expect(layer.edges.visible).toBe(true);
+  scene.destroy();
+});
