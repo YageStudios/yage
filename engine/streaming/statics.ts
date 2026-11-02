@@ -551,6 +551,8 @@ export class StaticSet {
   readonly items = new Map<string | number, StaticInstance>();
   /** Each lookup cell's instances (those whose bounds reach it), so `at` looks only near the point. */
   private readonly cells = new Map<number, StaticInstance[]>();
+  /** Each chunk's listed instances, so relisting or dropping a chunk touches only its own. */
+  private readonly byChunk = new Map<number, Set<StaticInstance>>();
   private tint = 0xffffff;
   /** The over parts' depth occluders, placed as their instances are; drawn after the over parts, before the sprites. */
   readonly occluders = new PIXI.Container();
@@ -621,9 +623,8 @@ export class StaticSet {
   list(key: number, specs: readonly StaticSpec[]) {
     const ids = new Set(specs.map((s) => s.id));
     let stacked = false;
-    for (const item of this.items.values()) {
-      if (item.holders.has(key) && !ids.has(item.spec.id)) this.release(item, key);
-    }
+    const held = this.byChunk.get(key);
+    if (held) for (const item of [...held]) if (!ids.has(item.spec.id)) this.release(item, key);
     for (const spec of specs) {
       let item = this.items.get(spec.id);
       if (!item) {
@@ -655,6 +656,9 @@ export class StaticSet {
         } else this.build(item);
       }
       item.holders.add(key);
+      let listed = this.byChunk.get(key);
+      if (!listed) this.byChunk.set(key, (listed = new Set()));
+      listed.add(item);
     }
     if (stacked) this.unstacked = true;
   }
@@ -715,11 +719,14 @@ export class StaticSet {
 
   /** Drops chunk `key`'s listings. */
   drop(key: number) {
-    for (const item of [...this.items.values()]) if (item.holders.has(key)) this.release(item, key);
+    const held = this.byChunk.get(key);
+    if (held) for (const item of [...held]) this.release(item, key);
   }
 
   private release(item: StaticInstance, key: number) {
     item.holders.delete(key);
+    const listed = this.byChunk.get(key);
+    if (listed?.delete(item) && !listed.size) this.byChunk.delete(key);
     if (item.holders.size) return;
     item.under.destroy({ children: true });
     this.seeThrough.drop(item);
@@ -889,6 +896,7 @@ export class StaticSet {
     }
     this.items.clear();
     this.cells.clear();
+    this.byChunk.clear();
     this.unbuilt.clear();
     this.far?.clear();
   }
