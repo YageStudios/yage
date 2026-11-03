@@ -3,35 +3,38 @@
  *
  * A chunk is addressed by integer `(cx, cy)`; positions inside it are chunk-local, so float32
  * precision holds however far from the origin a chunk is. Keys pack both coordinates into one
- * number (each in -32768..32767), which keeps Map lookups and wire encoding cheap.
+ * exact integer (each in -262144..262143: 19 bits, room for a whole Earth of 128 m chunks), which
+ * keeps Map lookups and wire encoding cheap.
  */
 
-export const CHUNK_COORD_MIN = -32768;
-export const CHUNK_COORD_MAX = 32767;
-/** Key distance between spaces (see spaceChunkKey). */
-const SPACE_STRIDE = 4294967296;
+export const CHUNK_COORD_MIN = -262144;
+export const CHUNK_COORD_MAX = 262143;
+/** Key distance between y rows (one axis's 19 bits). */
+const AXIS = 524288;
+/** Key distance between spaces (see spaceChunkKey): above both axes' 38 bits. */
+const SPACE_STRIDE = AXIS * AXIS;
 
 export const chunkKey = (cx: number, cy: number): number => {
   if (cx < CHUNK_COORD_MIN || cx > CHUNK_COORD_MAX || cy < CHUNK_COORD_MIN || cy > CHUNK_COORD_MAX) {
     throw new RangeError(`Chunk (${cx}, ${cy}) is outside the supported range`);
   }
-  return (cx + 32768) * 65536 + (cy + 32768);
+  return (cx - CHUNK_COORD_MIN) * AXIS + (cy - CHUNK_COORD_MIN);
 };
 
-export const chunkX = (key: number): number => Math.floor((key % SPACE_STRIDE) / 65536) - 32768;
-export const chunkY = (key: number): number => (key % 65536) - 32768;
+export const chunkX = (key: number): number => Math.floor((key % SPACE_STRIDE) / AXIS) + CHUNK_COORD_MIN;
+export const chunkY = (key: number): number => (key % AXIS) + CHUNK_COORD_MIN;
 
 // ---------------------------------------------------------------------------------------------
 // Spaces. A game may run several independent maps ("spaces": regions, interiors, a second city)
 // on the same hosts. Each has its own chunk grid, so chunk (0, 0) of space 1 and chunk (0, 0) of
 // space 2 are different chunks. Space 0 is the default space; single-space games never mention it.
 //
-// A space-qualified key is `space × 2³² + chunkKey(cx, cy)`: the space is its own field above the
+// A space-qualified key is `space × 2³⁸ + chunkKey(cx, cy)`: the space is its own field above the
 // packed coordinates (not squeezed into spare coordinate bits), it stays an exact integer for
-// every u16 space id, and space 0 keys equal plain `chunkKey`s.
+// every space id up to 32767 (2⁵³ / 2³⁸), and space 0 keys equal plain `chunkKey`s.
 
 export const DEFAULT_SPACE = 0;
-export const SPACE_MAX = 65535;
+export const SPACE_MAX = 32767;
 
 /** One runtime chunk: which space it belongs to and its coordinates there. */
 export type ChunkAddress = { space: number; cx: number; cy: number };

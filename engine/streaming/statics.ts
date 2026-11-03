@@ -537,7 +537,8 @@ export const behind = (a: StaticSpec, b: StaticSpec): boolean | null => {
 /** Squared distance from a bounds' centre to a point. */
 const distance = (b: Rect, x: number, y: number) => ((b.minX + b.maxX) / 2 - x) ** 2 + ((b.minY + b.maxY) / 2 - y) ** 2;
 const CELL = 512;
-const cellKey = (i: number, j: number) => (i & 0xffff) * 65536 + (j & 0xffff);
+/** A lookup cell's exact key: ±2²⁰ cells a side (a whole Earth of 512 px cells at 16 px a metre). */
+const cellKey = (i: number, j: number) => (i + 1048576) * 2097152 + (j + 1048576);
 
 /** The instances of a scene; see ChunkScene.setStatics. */
 /** The least a waiting cull asks the frame's floor for: any room at all builds the nearest item. */

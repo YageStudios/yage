@@ -27,6 +27,7 @@ import * as PIXI from "pixi.js";
 import { withinFrame } from "../game/FrameBudget";
 import { depthMesh } from "./statics";
 import type { Rect } from "./vector";
+import { chunkKey, chunkX, chunkY } from "./coord";
 
 export type FarBakeOptions = {
   /** Zoom (screen px per world unit) under which chunks show their pictures. */
@@ -113,7 +114,7 @@ export class FarBake {
     const pad = this.options.pad ?? 160;
     const keys: number[] = [];
     for (let cy = Math.floor((b.minY - pad) / size); cy <= Math.floor((b.maxY + pad) / size); cy++) {
-      for (let cx = Math.floor((b.minX - pad) / size); cx <= Math.floor((b.maxX + pad) / size); cx++) keys.push((cx & 0xffff) * 65536 + (cy & 0xffff));
+      for (let cx = Math.floor((b.minX - pad) / size); cx <= Math.floor((b.maxX + pad) / size); cx++) keys.push(chunkKey(cx, cy));
     }
     return keys;
   }
@@ -230,7 +231,7 @@ export class FarBake {
     const cx = (view.minX + view.maxX) / 2 / size - 0.5;
     const cy = (view.minY + view.maxY) / 2 / size - 0.5;
     const near = (key: number) => {
-      const x = (key / 65536) << 16 >> 16, y = (key & 0xffff) << 16 >> 16;
+      const x = chunkX(key), y = chunkY(key);
       return { x, y, d: (x - cx) ** 2 + (y - cy) ** 2 };
     };
     const res = (this.res = this.level(renderer, zoom, (x1 - x0 + 3) * (y1 - y0 + 3)));
@@ -257,7 +258,7 @@ export class FarBake {
     // screen into the next), and left as they are they would stack out of order with the pictures.
     for (let y = y0 - 1; y <= y1 + 1; y++) {
       for (let x = x0 - 1; x <= x1 + 1; x++) {
-        const key = (x & 0xffff) * 65536 + (y & 0xffff);
+        const key = chunkKey(x, y);
         if (!this.members.has(key)) continue;
         const tile = this.tiles.get(key);
         if (!tile || (tile.dirty && now - tile.at >= REBAKE_MS)) wanted.push(key);
@@ -331,7 +332,7 @@ export class FarBake {
     if (!items) return;
     const size = this.chunkSize;
     const res = this.res || this.level(renderer, this.options.below, 9);
-    const { x, y } = { x: (key / 65536) << 16 >> 16, y: (key & 0xffff) << 16 >> 16 };
+    const { x, y } = { x: chunkX(key), y: chunkY(key) };
     // Exactly the chunk: what reaches past it is drawn by the next chunk's picture, stacked there with what is in front of it.
     const left = x * size, top = y * size;
     const width = Math.ceil(size * res), height = width;

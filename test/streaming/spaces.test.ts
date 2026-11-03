@@ -119,13 +119,14 @@ describe("space-qualified chunk addresses", () => {
     expect(spaceChunkKey(0, -3, 7)).toBe(chunkKey(-3, 7));
     for (const address of [
       { space: 0, cx: 0, cy: 0 },
-      { space: 1, cx: -32768, cy: 32767 },
-      { space: 65535, cx: 12, cy: -40 },
+      { space: 1, cx: -262144, cy: 262143 },
+      { space: 32767, cx: 12, cy: -40 },
+      { space: 3, cx: -52800, cy: 108000 },
     ]) {
       expect(keyAddress(spaceChunkKey(address.space, address.cx, address.cy))).toEqual(address);
     }
     expect(spaceChunkKey(1, 0, 0)).not.toBe(spaceChunkKey(2, 0, 0));
-    expect(() => spaceChunkKey(65536, 0, 0)).toThrow(RangeError);
+    expect(() => spaceChunkKey(32768, 0, 0)).toThrow(RangeError);
   });
 
   test("chunk (0,0) of two spaces are separate chunks with their own static data, stats and tracking", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createSnapshot, decodeMessage, decodeSnapshot, MAX_SPRITE, Op, PROTOCOL_VERSION, snapshotBytes } from "yage/streaming/protocol";
+import { createSnapshot, decodeMessage, decodeSnapshot, encodeGenerate, encodeTransfer, MAX_SPRITE, Op, PROTOCOL_VERSION, snapshotBytes } from "yage/streaming/protocol";
 
 describe("snapshot sprite ids", () => {
   it("carries u16 sprite ids through encode and decode", () => {
@@ -31,6 +31,24 @@ describe("snapshot sprite ids", () => {
       const s = createSnapshot(0, 0, 0, n);
       expect(s.sprite.byteOffset % 2).toBe(0);
       expect(s.gid.byteOffset % 4).toBe(0);
+    }
+  });
+});
+
+describe("far chunk addresses", () => {
+  // A true-scale Earth spans ~312k chunks of 128 m: Tampa and Sydney from a Seville origin sit past i16.
+  const far = [
+    [-52_800, 9_400],
+    [108_000, 52_700],
+    [-262_144, 262_143],
+  ];
+  it("carries chunk coordinates past ±32767 through snapshots and chunk messages", () => {
+    for (const [cx, cy] of far) {
+      const s = createSnapshot(cx, cy, 9, 2, 3);
+      expect([decodeSnapshot(s.bytes).cx, decodeSnapshot(s.bytes).cy]).toEqual([cx, cy]);
+      const transfer = decodeMessage(encodeTransfer(cx, cy, cy, cx, true, 1, new Uint8Array([7]), 3));
+      expect(transfer).toMatchObject({ op: Op.Transfer, space: 3, cx, cy, fx: cy, fy: cx, count: 1 });
+      expect(decodeMessage(encodeGenerate(cx, cy, 5, 2))).toMatchObject({ op: Op.Generate, space: 2, cx, cy, seed: 5 });
     }
   });
 });

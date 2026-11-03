@@ -31,7 +31,7 @@
 import type { ChunkAddress } from "./coord";
 
 /** Wire format version. Bump on any layout change. */
-export const PROTOCOL_VERSION = 11;
+export const PROTOCOL_VERSION = 12;
 
 export enum Op {
   // client -> host
@@ -268,16 +268,16 @@ export class ByteReader {
 export const encodeHello = (version = PROTOCOL_VERSION) => new ByteWriter(4).u8(Op.Hello).u8(0).u16(version).finish();
 
 export const encodeGenerate = (cx: number, cy: number, seed: number, space = 0, init?: Uint8Array) =>
-  new ByteWriter(16 + (init?.byteLength ?? 0)).u8(Op.Generate).u8(0).u16(space).i16(cx).i16(cy).u32(seed >>> 0).raw(init ?? new Uint8Array(0)).finish();
+  new ByteWriter(16 + (init?.byteLength ?? 0)).u8(Op.Generate).u8(0).u16(space).i32(cx).i32(cy).u32(seed >>> 0).raw(init ?? new Uint8Array(0)).finish();
 
 export const encodeLoad = (cx: number, cy: number, bytes: Uint8Array, space = 0) =>
-  new ByteWriter(bytes.byteLength + 8).u8(Op.Load).u8(0).u16(space).i16(cx).i16(cy).raw(bytes).finish();
+  new ByteWriter(bytes.byteLength + 12).u8(Op.Load).u8(0).u16(space).i32(cx).i32(cy).raw(bytes).finish();
 
 export const encodeUnload = (cx: number, cy: number, space = 0) =>
-  new ByteWriter(8).u8(Op.Unload).u8(0).u16(space).i16(cx).i16(cy).finish();
+  new ByteWriter(12).u8(Op.Unload).u8(0).u16(space).i32(cx).i32(cy).finish();
 
 export const encodeTier = (cx: number, cy: number, tier: Tier, snapshotEvery: number, space = 0) =>
-  new ByteWriter(12).u8(Op.Tier).u8(0).u16(space).i16(cx).i16(cy).u8(tier).u8(snapshotEvery).finish();
+  new ByteWriter(16).u8(Op.Tier).u8(0).u16(space).i32(cx).i32(cy).u8(tier).u8(snapshotEvery).finish();
 
 export const encodeConfig = (bytes: Uint8Array) => new ByteWriter(bytes.byteLength + 4).u8(Op.Config).raw(bytes).finish();
 
@@ -293,8 +293,8 @@ export const encodeTrack = (gids: readonly number[]) => {
 export type RouteEntry = { cx: number; cy: number; host: number; space?: number };
 
 export const encodeRoute = (self: number, entries: readonly RouteEntry[]) => {
-  const writer = new ByteWriter(16 + entries.length * 8).u8(Op.Route).i16(self).u32(entries.length);
-  for (const entry of entries) writer.u16(entry.space ?? 0).i16(entry.cx).i16(entry.cy).i16(entry.host);
+  const writer = new ByteWriter(16 + entries.length * 12).u8(Op.Route).i16(self).u32(entries.length);
+  for (const entry of entries) writer.u16(entry.space ?? 0).i32(entry.cx).i32(entry.cy).i16(entry.host);
   return writer.finish();
 };
 
@@ -349,7 +349,7 @@ export type SavedChunk = ChunkAddress & { bytes: Uint8Array };
 /** Request `id`: the chunks to serialize; the host skips any it doesn't have. */
 export const encodeSave = (id: number, chunks: readonly SaveAddress[]) => {
   const writer = new ByteWriter(12 + chunks.length * 6).u8(Op.Save).u8(0).u16(0).u32(id).u32(chunks.length);
-  for (const chunk of chunks) writer.u16(chunk.space ?? 0).i16(chunk.cx).i16(chunk.cy);
+  for (const chunk of chunks) writer.u16(chunk.space ?? 0).i32(chunk.cx).i32(chunk.cy);
   return writer.finish();
 };
 
@@ -380,7 +380,7 @@ export const encodeSaved = (id: number, tick: number, chunks: readonly SavedChun
   let size = 20 + shared.byteLength + postsSize(posts);
   for (const chunk of chunks) size += 10 + chunk.bytes.byteLength;
   const writer = new ByteWriter(size).u8(Op.Saved).u8(0).u16(0).u32(id).u32(tick).u32(chunks.length);
-  for (const chunk of chunks) writer.u16(chunk.space).i16(chunk.cx).i16(chunk.cy).block(chunk.bytes);
+  for (const chunk of chunks) writer.u16(chunk.space).i32(chunk.cx).i32(chunk.cy).block(chunk.bytes);
   return writePosts(writer.block(shared), posts).finish();
 };
 
@@ -404,14 +404,14 @@ export const encodeTransfer = (
   rows: Uint8Array,
   space = 0
 ) =>
-  new ByteWriter(rows.byteLength + 20)
+  new ByteWriter(rows.byteLength + 28)
     .u8(Op.Transfer)
     .u8(returned ? 1 : 0)
     .u16(space)
-    .i16(cx)
-    .i16(cy)
-    .i16(fx)
-    .i16(fy)
+    .i32(cx)
+    .i32(cy)
+    .i32(fx)
+    .i32(fy)
     .u32(count)
     .raw(rows)
     .finish();
@@ -420,19 +420,19 @@ export const encodeTransfer = (
 export type ExitedMessage = { tick: number; space: number; cx: number; cy: number; fx: number; fy: number; count: number; rows: Uint8Array };
 
 export const encodeExited = ({ tick, space, cx, cy, fx, fy, count, rows }: ExitedMessage) =>
-  new ByteWriter(rows.byteLength + 24).u8(Op.Exited).u8(0).u16(space).u32(tick).i16(cx).i16(cy).i16(fx).i16(fy).u32(count).raw(rows).finish();
+  new ByteWriter(rows.byteLength + 32).u8(Op.Exited).u8(0).u16(space).u32(tick).i32(cx).i32(cy).i32(fx).i32(fy).u32(count).raw(rows).finish();
 
 export const encodeEnter = (space: number, cx: number, cy: number, fx: number, fy: number, count: number, rows: Uint8Array) =>
-  new ByteWriter(rows.byteLength + 20).u8(Op.Enter).u8(0).u16(space).i16(cx).i16(cy).i16(fx).i16(fy).u32(count).raw(rows).finish();
+  new ByteWriter(rows.byteLength + 28).u8(Op.Enter).u8(0).u16(space).i32(cx).i32(cy).i32(fx).i32(fy).u32(count).raw(rows).finish();
 
 export const encodeCommand = (space: number, cx: number, cy: number, bytes: Uint8Array) =>
-  new ByteWriter(bytes.byteLength + 8).u8(Op.Command).u8(0).u16(space).i16(cx).i16(cy).raw(bytes).finish();
+  new ByteWriter(bytes.byteLength + 12).u8(Op.Command).u8(0).u16(space).i32(cx).i32(cy).raw(bytes).finish();
 
 export const encodeSurvey = (space: number, cx: number, cy: number, seed: number) =>
-  new ByteWriter(12).u8(Op.Survey).u8(0).u16(space).i16(cx).i16(cy).u32(seed >>> 0).finish();
+  new ByteWriter(16).u8(Op.Survey).u8(0).u16(space).i32(cx).i32(cy).u32(seed >>> 0).finish();
 
 export const encodeSurveyed = (space: number, cx: number, cy: number, bytes: Uint8Array) =>
-  new ByteWriter(bytes.byteLength + 8).u8(Op.Surveyed).u8(0).u16(space).i16(cx).i16(cy).raw(bytes).finish();
+  new ByteWriter(bytes.byteLength + 12).u8(Op.Surveyed).u8(0).u16(space).i32(cx).i32(cy).raw(bytes).finish();
 
 export type TransferMessage = {
   space: number;
@@ -452,7 +452,7 @@ export type TransferMessage = {
 // answers Arrived, also for repeats, so retries cannot create extra passengers.
 
 export const encodeDepart = (txn: number, space: number, cx: number, cy: number, count: number, rows: Uint8Array) =>
-  new ByteWriter(rows.byteLength + 20).u8(Op.Depart).u8(0).u16(space).u32(txn).i16(cx).i16(cy).u32(count).raw(rows).finish();
+  new ByteWriter(rows.byteLength + 24).u8(Op.Depart).u8(0).u16(space).u32(txn).i32(cx).i32(cy).u32(count).raw(rows).finish();
 
 export const encodeArrive = (
   txn: number,
@@ -464,13 +464,13 @@ export const encodeArrive = (
   count: number,
   rows: Uint8Array
 ) =>
-  new ByteWriter(rows.byteLength + 28)
+  new ByteWriter(rows.byteLength + 32)
     .u8(Op.Arrive)
     .u8(0)
     .u16(space)
     .u32(txn)
-    .i16(cx)
-    .i16(cy)
+    .i32(cx)
+    .i32(cy)
     .f32(x)
     .f32(y)
     .u32(count)
@@ -478,17 +478,17 @@ export const encodeArrive = (
     .finish();
 
 export const encodeArrived = (txn: number, space: number, cx: number, cy: number, count: number) =>
-  new ByteWriter(16).u8(Op.Arrived).u8(0).u16(space).u32(txn).i16(cx).i16(cy).u32(count).finish();
+  new ByteWriter(20).u8(Op.Arrived).u8(0).u16(space).u32(txn).i32(cx).i32(cy).u32(count).finish();
 
 export type DepartMessage = { txn: number; space: number; cx: number; cy: number; count: number; rows: Uint8Array };
 export type ArriveMessage = DepartMessage & { x: number; y: number };
 
 // ---------------------------------------------------------------------------------------------
-// Snapshot: header (16 bytes: op u8, pad u8, space u16, cx i16, cy i16, tick u32, count u32),
+// Snapshot: header (20 bytes: op u8, pad u8, space u16, cx i32, cy i32, tick u32, count u32),
 // then gid u32[n], x i16[n], y i16[n], sprite u16[n], tint u8[n]. Arrays are indexed by entity
 // slot, so an entity keeps its index from one snapshot to the next.
 
-export const SNAPSHOT_HEADER = 16;
+export const SNAPSHOT_HEADER = 20;
 export const snapshotBytes = (count: number) => SNAPSHOT_HEADER + count * 11;
 /** Largest snapshot sprite id. */
 export const MAX_SPRITE = 65535;
@@ -515,10 +515,10 @@ export const createSnapshot = (cx: number, cy: number, tick: number, count: numb
   const view = new DataView(buffer);
   view.setUint8(0, Op.Snapshot);
   view.setUint16(2, space, true);
-  view.setInt16(4, cx, true);
-  view.setInt16(6, cy, true);
-  view.setUint32(8, tick, true);
-  view.setUint32(12, count, true);
+  view.setInt32(4, cx, true);
+  view.setInt32(8, cy, true);
+  view.setUint32(12, tick, true);
+  view.setUint32(16, count, true);
   return snapshotViews(new Uint8Array(buffer), space, cx, cy, tick, count);
 };
 
@@ -543,10 +543,10 @@ export const decodeSnapshot = (input: Uint8Array): Snapshot => {
   const bytes = input.byteOffset % 4 === 0 ? input : input.slice();
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const space = view.getUint16(2, true);
-  const cx = view.getInt16(4, true);
-  const cy = view.getInt16(6, true);
-  const tick = view.getUint32(8, true);
-  const count = view.getUint32(12, true);
+  const cx = view.getInt32(4, true);
+  const cy = view.getInt32(8, true);
+  const tick = view.getUint32(12, true);
+  const count = view.getUint32(16, true);
   if (bytes.byteLength < snapshotBytes(count)) throw new Error("Truncated chunk snapshot");
   return snapshotViews(bytes, space, cx, cy, tick, count);
 };
@@ -564,39 +564,39 @@ export const encodeStats = (tick: number, busyMs: number, entries: readonly Stat
   let size = 20;
   for (const entry of entries) size += 10 + entry.bytes.byteLength;
   const writer = new ByteWriter(size).u8(Op.Stats).u32(tick).f32(busyMs).u32(entries.length);
-  for (const entry of entries) writer.u16(entry.space ?? 0).i16(entry.cx).i16(entry.cy).u16(entry.bytes.byteLength).raw(entry.bytes);
+  for (const entry of entries) writer.u16(entry.space ?? 0).i32(entry.cx).i32(entry.cy).u16(entry.bytes.byteLength).raw(entry.bytes);
   return writer.finish();
 };
 
 export const encodeUnloaded = (cx: number, cy: number, bytes: Uint8Array, space = 0) =>
-  new ByteWriter(bytes.byteLength + 8).u8(Op.Unloaded).u8(0).u16(space).i16(cx).i16(cy).raw(bytes).finish();
+  new ByteWriter(bytes.byteLength + 12).u8(Op.Unloaded).u8(0).u16(space).i32(cx).i32(cy).raw(bytes).finish();
 
 export type LocateEntry = { gid: number; cx: number; cy: number; x: number; y: number; tint: number; space?: number };
 
 export const encodeLocate = (tick: number, entries: readonly LocateEntry[]) => {
   const writer = new ByteWriter(16 + entries.length * 19).u8(Op.Locate).u32(tick).u32(entries.length);
   for (const entry of entries) {
-    writer.u32(entry.gid).u16(entry.space ?? 0).i16(entry.cx).i16(entry.cy).f32(entry.x).f32(entry.y).u8(entry.tint);
+    writer.u32(entry.gid).u16(entry.space ?? 0).i32(entry.cx).i32(entry.cy).f32(entry.x).f32(entry.y).u8(entry.tint);
   }
   return writer.finish();
 };
 
 export const encodeStatic = (cx: number, cy: number, bytes: Uint8Array, space = 0) =>
-  new ByteWriter(bytes.byteLength + 8).u8(Op.Static).u8(0).u16(space).i16(cx).i16(cy).raw(bytes).finish();
+  new ByteWriter(bytes.byteLength + 12).u8(Op.Static).u8(0).u16(space).i32(cx).i32(cy).raw(bytes).finish();
 
 export const encodeLog = (level: number, text: string) => {
   const utf8 = new TextEncoder().encode(text);
   return new ByteWriter(utf8.byteLength + 4).u8(Op.Log).u8(level).raw(utf8).finish();
 };
 
-/** Overlay header: op u8, pad u8, space u16, cx i16, cy i16, tick u32; then the game's bytes. */
+/** Overlay header: op u8, pad u8, space u16, cx i32, cy i32, tick u32; then the game's bytes. */
 export const encodeOverlay = (cx: number, cy: number, tick: number, bytes: Uint8Array, space = 0) =>
-  new ByteWriter(bytes.byteLength + 12).u8(Op.Overlay).u8(0).u16(space).i16(cx).i16(cy).u32(tick).raw(bytes).finish();
+  new ByteWriter(bytes.byteLength + 16).u8(Op.Overlay).u8(0).u16(space).i32(cx).i32(cy).u32(tick).raw(bytes).finish();
 
 export type OverlayMessage = { space: number; cx: number; cy: number; tick: number; bytes: Uint8Array };
 
 export const encodeReady = (cx: number, cy: number, population: number, space = 0) =>
-  new ByteWriter(12).u8(Op.Ready).u8(0).u16(space).i16(cx).i16(cy).u32(population).finish();
+  new ByteWriter(16).u8(Op.Ready).u8(0).u16(space).i32(cx).i32(cy).u32(population).finish();
 
 // ---------------------------------------------------------------------------------------------
 // Decoding
@@ -643,7 +643,7 @@ export type Message =
 /** Reads the (pad, space, cx, cy) prefix shared by chunk-addressed messages. */
 const address = (reader: ByteReader) => {
   reader.u8();
-  return { space: reader.u16(), cx: reader.i16(), cy: reader.i16() };
+  return { space: reader.u16(), cx: reader.i32(), cy: reader.i32() };
 };
 
 export const decodeMessage = (bytes: Uint8Array): Message => {
@@ -677,7 +677,7 @@ export const decodeMessage = (bytes: Uint8Array): Message => {
       const self = reader.i16();
       const count = reader.u32();
       const entries: RouteEntry[] = [];
-      for (let i = 0; i < count; i++) entries.push({ space: reader.u16(), cx: reader.i16(), cy: reader.i16(), host: reader.i16() });
+      for (let i = 0; i < count; i++) entries.push({ space: reader.u16(), cx: reader.i32(), cy: reader.i32(), host: reader.i16() });
       return { op, self, entries };
     }
     case Op.Speed: {
@@ -712,7 +712,7 @@ export const decodeMessage = (bytes: Uint8Array): Message => {
       const id = reader.u32();
       const count = reader.u32();
       const chunks: ChunkAddress[] = [];
-      for (let i = 0; i < count; i++) chunks.push({ space: reader.u16(), cx: reader.i16(), cy: reader.i16() });
+      for (let i = 0; i < count; i++) chunks.push({ space: reader.u16(), cx: reader.i32(), cy: reader.i32() });
       return { op, id, chunks };
     }
     case Op.Saved: {
@@ -722,7 +722,7 @@ export const decodeMessage = (bytes: Uint8Array): Message => {
       const tick = reader.u32();
       const count = reader.u32();
       const chunks: SavedChunk[] = [];
-      for (let i = 0; i < count; i++) chunks.push({ space: reader.u16(), cx: reader.i16(), cy: reader.i16(), bytes: reader.block() });
+      for (let i = 0; i < count; i++) chunks.push({ space: reader.u16(), cx: reader.i32(), cy: reader.i32(), bytes: reader.block() });
       const shared = reader.block();
       return { op, id, tick, chunks, shared, posts: readPosts(reader) };
     }
@@ -743,10 +743,10 @@ export const decodeMessage = (bytes: Uint8Array): Message => {
         op,
         returned,
         space: reader.u16(),
-        cx: reader.i16(),
-        cy: reader.i16(),
-        fx: reader.i16(),
-        fy: reader.i16(),
+        cx: reader.i32(),
+        cy: reader.i32(),
+        fx: reader.i32(),
+        fy: reader.i32(),
         count: reader.u32(),
         rows: reader.rest(),
       };
@@ -755,21 +755,21 @@ export const decodeMessage = (bytes: Uint8Array): Message => {
       reader.u8();
       const space = reader.u16();
       const txn = reader.u32();
-      return { op, space, txn, cx: reader.i16(), cy: reader.i16(), count: reader.u32(), rows: reader.rest() };
+      return { op, space, txn, cx: reader.i32(), cy: reader.i32(), count: reader.u32(), rows: reader.rest() };
     }
     case Op.Arrive: {
       reader.u8();
       const space = reader.u16();
       const txn = reader.u32();
-      const cx = reader.i16();
-      const cy = reader.i16();
+      const cx = reader.i32();
+      const cy = reader.i32();
       return { op, space, txn, cx, cy, x: reader.f32(), y: reader.f32(), count: reader.u32(), rows: reader.rest() };
     }
     case Op.Arrived: {
       reader.u8();
       const space = reader.u16();
       const txn = reader.u32();
-      return { op, space, txn, cx: reader.i16(), cy: reader.i16(), count: reader.u32() };
+      return { op, space, txn, cx: reader.i32(), cy: reader.i32(), count: reader.u32() };
     }
     case Op.Stats: {
       const tick = reader.u32();
@@ -778,8 +778,8 @@ export const decodeMessage = (bytes: Uint8Array): Message => {
       const entries: StatsEntry[] = [];
       for (let i = 0; i < count; i++) {
         const space = reader.u16();
-        const cx = reader.i16();
-        const cy = reader.i16();
+        const cx = reader.i32();
+        const cy = reader.i32();
         entries.push({ space, cx, cy, bytes: reader.raw(reader.u16()) });
       }
       return { op, tick, busyMs, entries };
@@ -790,10 +790,10 @@ export const decodeMessage = (bytes: Uint8Array): Message => {
       reader.u8();
       const space = reader.u16();
       const tick = reader.u32();
-      return { op, tick, space, cx: reader.i16(), cy: reader.i16(), fx: reader.i16(), fy: reader.i16(), count: reader.u32(), rows: reader.rest() };
+      return { op, tick, space, cx: reader.i32(), cy: reader.i32(), fx: reader.i32(), fy: reader.i32(), count: reader.u32(), rows: reader.rest() };
     }
     case Op.Enter:
-      return { op, ...address(reader), fx: reader.i16(), fy: reader.i16(), count: reader.u32(), rows: reader.rest() };
+      return { op, ...address(reader), fx: reader.i32(), fy: reader.i32(), count: reader.u32(), rows: reader.rest() };
     case Op.Command:
     case Op.Surveyed:
       return { op, ...address(reader), bytes: reader.rest() };
@@ -807,8 +807,8 @@ export const decodeMessage = (bytes: Uint8Array): Message => {
         entries.push({
           gid: reader.u32(),
           space: reader.u16(),
-          cx: reader.i16(),
-          cy: reader.i16(),
+          cx: reader.i32(),
+          cy: reader.i32(),
           x: reader.f32(),
           y: reader.f32(),
           tint: reader.u8(),
