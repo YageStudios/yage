@@ -199,6 +199,30 @@ describe("FarBake", () => {
     expect(r.render).toHaveBeenCalledTimes(4);
   });
 
+  it("leaves a piece hidden in place out of the picture: the instance shows as it is until the picture is made again without it", () => {
+    const far = new FarBake(100, { below: 0.2, budget: 100, pad: 0 });
+    const house = instance(50, 50);
+    const stall = new PIXI.Container();
+    stall.addChild(new PIXI.Sprite(PIXI.Texture.EMPTY));
+    house.over.addChild(stall);
+    far.add(house);
+    const r = renderer();
+    far.update(r, 0.1, view, 0);
+    expect(far.covers(house)).toBe(true);
+    // Packed away in place: no child added or removed, only a flag flipped.
+    stall.children[0].visible = false;
+    expect(far.covers(house)).toBe(false);
+    far.update(r, 0.1, view, 100);
+    expect(far.covers(house)).toBe(false);
+    far.update(r, 0.1, view, 600);
+    expect(r.render).toHaveBeenCalledTimes(4);
+    expect(far.covers(house)).toBe(true);
+    // Unchanged since, it stays in the picture.
+    far.update(r, 0.1, view, 1200);
+    expect(far.covers(house)).toBe(true);
+    expect(r.render).toHaveBeenCalledTimes(4);
+  });
+
   it("shows a chunk as it is while a roof in it is faded, and pictures its roofs whole", () => {
     const far = new FarBake(100, { below: 0.2, budget: 100, pad: 0 });
     const house = instance(50, 50);

@@ -71,6 +71,21 @@ type Tile = {
 };
 
 const EMPTY = new PIXI.Container();
+
+/**
+ * Which of an instance's pieces are hidden: its parts' children and theirs (a built part and what it
+ * holds), as one number. A piece the game hides or shows in place (a stall packed away, a lit window,
+ * a layer) changes it without adding or removing anything, which no container event reports.
+ */
+const shownPieces = (item: FarInstance) => {
+  let h = 17;
+  for (const part of [item.under, item.over])
+    for (const child of part.children) {
+      h = (Math.imul(h, 31) + (child.visible ? 1 : 2)) | 0;
+      if (child instanceof PIXI.Container) for (const piece of child.children) h = (Math.imul(h, 31) + (piece.visible ? 3 : 4)) | 0;
+    }
+  return h;
+};
 /** Channels further apart than this make a picture stale. */
 const TINT_STEP = 6;
 /** Milliseconds a stale picture keeps showing before it is made again (pictures yet to be made come first). */
@@ -98,6 +113,8 @@ export class FarBake {
   private readonly keys = new Map<FarInstance, number[]>();
   private readonly watched = new WeakSet<PIXI.Container>();
   private tint = 0xffffff;
+  /** Each baked instance's hidden pieces when it was last drawn into a picture (shownPieces). */
+  private readonly drawnAs = new WeakMap<FarInstance, number>();
   private readonly wanted: number[] = [];
 
   constructor(
@@ -189,6 +206,13 @@ export class FarBake {
     if (!this.active) return false;
     const keys = this.keys.get(item);
     if (!keys) return false;
+    // Hidden or shown in place since its picture: in no picture as it is, so it shows itself until they are made again.
+    const drawn = this.drawnAs.get(item);
+    if (drawn !== undefined && drawn !== shownPieces(item)) {
+      this.drawnAs.delete(item);
+      this.changed(item);
+      return false;
+    }
     let covered = true;
     for (const key of keys) {
       const tile = this.tiles.get(key);
@@ -373,7 +397,10 @@ export class FarBake {
     // In the scene's order: under parts as listed, over parts by depth (ties as listed).
     const listed = [...items];
     const ordered = listed.map((item, i) => ({ item, i })).sort((a, b) => a.item.over.zIndex - b.item.over.zIndex || a.i - b.i).map((o) => o.item);
-    for (const item of listed) draw(item.under, item);
+    for (const item of listed) {
+      this.drawnAs.set(item, shownPieces(item));
+      draw(item.under, item);
+    }
     for (const item of ordered) draw(item.over, item);
     if (clear) renderer.render(EMPTY, { renderTexture, clear });
     // Each instance's occluder once, with the chunk it stands in (its bounds' centre).
