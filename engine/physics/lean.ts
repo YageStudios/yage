@@ -13,6 +13,9 @@
  * - LeanPhysics: the per-world resource (the Rapier world, body handles and fixed colliders). Add
  *   it to the world's context spec (yage/world/lean) and call releaseLeanPhysicsState from the
  *   spec's dispose, so the Rapier world is freed with the lean world.
+ * - Guards: a body that becomes dynamic inside a fixed collider (which can stall Rapier's step
+ *   for good) is moved to the nearest free spot, or let off walls until clear of them, and a step
+ *   over budget is logged; each logged once per process (leanPhysicsGuards counts them).
  * - LeanPhysicsSystem: the system that steps it, subclassed by the game with its position
  *   columns. It only steps on steps the game armed with armLeanPhysics, so other steps of the
  *   same world (cheaper tiers, tests) never touch Rapier.
@@ -98,7 +101,15 @@ export class LeanBody extends Schema {
   reach: number;
 }
 
-type BodyEntry = { body: RAPIER.RigidBody; collider: RAPIER.Collider; kind: number; ghost: boolean; dominance: number };
+type BodyEntry = {
+  body: RAPIER.RigidBody;
+  collider: RAPIER.Collider;
+  kind: number;
+  ghost: boolean;
+  dominance: number;
+  /** Became dynamic inside fixed colliders with no free spot near: meets bodies only until it is clear of them. */
+  stuck: boolean;
+};
 
 @Component("LeanPhysics")
 export class LeanPhysics extends Schema {
@@ -116,6 +127,11 @@ export class LeanPhysics extends Schema {
   @type("number")
   @defaultValue(0)
   fixed: number;
+
+  /** `fixed` when the query structures last took in the fixed colliders (a step does it). */
+  @type("number")
+  @defaultValue(0)
+  synced: number;
 
   /** The armed step's length in seconds. 0 means not armed. */
   @type("number")
@@ -196,6 +212,7 @@ export const armLeanPhysics = (world: World, options: ArmOptions): boolean => {
     state.world = new RAPIER.World({ x: 0, y: 0 });
     state.bodies = new Map();
     state.fixed = 0;
+    state.synced = 0;
     live++;
     try {
       options.build?.(state);
@@ -219,6 +236,7 @@ export const releaseLeanPhysicsState = (state: LeanPhysics): void => {
   state.world = null;
   state.bodies = null;
   state.fixed = 0;
+  state.synced = 0;
   state.dt = 0;
   state.speedAt = null;
   if (physics) {
@@ -279,7 +297,107 @@ const createBody = (physics: RAPIER.World, shape: any, eid: number, x: number, y
   const colliderDesc = radius > 0 ? RAPIER.ColliderDesc.ball(radius) : RAPIER.ColliderDesc.cuboid(Math.max(shape.hw[eid], 1e-3), Math.max(shape.hh[eid], 1e-3));
   const collider = physics.createCollider(colliderDesc.setCollisionGroups(SOLID_BODY).setFriction(0), body);
   if (kind === LeanBodyKind.Off) collider.setEnabled(false);
-  return { body, collider, kind, ghost: false, dominance };
+  return { body, collider, kind, ghost: false, dominance, stuck: false };
+};
+
+// -------------------------------------------------------------------------------------------
+// Guards
+
+/**
+ * A dynamic body that starts inside fixed colliders can stall Rapier's step for good (pressed
+ * between walls it never resolves), freezing the thread with no error. So a body that becomes
+ * dynamic inside a wall is moved to the nearest free spot first, searched in rings outward in a
+ * fixed order (runs repeat exactly); with none near, it is let off walls (it meets bodies only)
+ * until it is clear of them. Each is logged once per process.
+ */
+const guards = { nudged: 0, stuck: 0, slowSteps: 0 };
+let warnedNudge = false;
+let warnedStuck = false;
+let warnedSlow = false;
+let stepBudgetMs = 100;
+
+/** How often the guards fired in this process: bodies moved out of walls, bodies let off walls, steps over budget. */
+export const leanPhysicsGuards = (): Readonly<typeof guards> => ({ ...guards });
+
+/**
+ * Sets the time (ms) a world's step may take before it is logged (once per process). Default 100.
+ * The clock only decides the log; it never changes what the step does.
+ */
+export const setLeanStepBudget = (ms: number): void => {
+  stepBudgetMs = ms;
+  warnedSlow = false;
+};
+
+const RINGS = 16;
+
+/** Overlap a body's step resolves on its own (a share of its size): only deeper counts as inside a wall. */
+const SHALLOW = 0.1;
+const cores = new Map<string, RAPIER.Shape>();
+
+/** The body's shape less the shallow overlap: touching a wall, or just into it, is not inside it. */
+const coreOf = (shape: any, eid: number): RAPIER.Shape => {
+  const radius = shape.radius[eid];
+  const key = radius > 0 ? `b${radius}` : `c${shape.hw[eid]},${shape.hh[eid]}`;
+  let core = cores.get(key);
+  if (!core) {
+    const keep = 1 - SHALLOW;
+    core = radius > 0 ? new RAPIER.Ball(radius * keep) : new RAPIER.Cuboid(Math.max(shape.hw[eid], 1e-3) * keep, Math.max(shape.hh[eid], 1e-3) * keep);
+    cores.set(key, core);
+  }
+  return core;
+};
+
+/** The shape at (x, y) is inside a fixed collider. */
+const inWall = (physics: RAPIER.World, core: RAPIER.Shape, x: number, y: number): boolean =>
+  physics.intersectionWithShape({ x, y }, 0, core, undefined, WALLS_ONLY) !== null;
+
+/** The nearest spot clear of fixed colliders around (x, y), rings outward in a fixed order; null when none is near. */
+const freeSpot = (physics: RAPIER.World, core: RAPIER.Shape, size: number, x: number, y: number): { x: number; y: number } | null => {
+  const gap = Math.max(size, 0.05) * 0.5;
+  for (let ring = 1; ring <= RINGS; ring++) {
+    const r = ring * gap;
+    const around = 8 * ring;
+    for (let k = 0; k < around; k++) {
+      const a = (k / around) * Math.PI * 2;
+      const cx = x + Math.cos(a) * r;
+      const cy = y + Math.sin(a) * r;
+      if (!inWall(physics, core, cx, cy)) return { x: cx, y: cy };
+    }
+  }
+  return null;
+};
+
+/** A body just made dynamic: out of any wall it is in (see guards above). */
+const clearOfWalls = (physics: RAPIER.World, entry: BodyEntry, shape: any, eid: number) => {
+  const at = entry.body.translation();
+  const core = coreOf(shape, eid);
+  if (!inWall(physics, core, at.x, at.y)) return;
+  const size = shape.radius[eid] > 0 ? shape.radius[eid] : Math.max(shape.hw[eid], shape.hh[eid]);
+  const spot = freeSpot(physics, core, size, at.x, at.y);
+  if (spot) {
+    entry.body.setTranslation(spot, false);
+    guards.nudged++;
+    if (!warnedNudge) {
+      warnedNudge = true;
+      console.warn(`yage lean physics: entity ${eid} became dynamic inside a fixed collider at (${at.x.toFixed(2)}, ${at.y.toFixed(2)}); moved to the nearest free spot (${spot.x.toFixed(2)}, ${spot.y.toFixed(2)}). Logged once.`);
+    }
+    return;
+  }
+  entry.stuck = true;
+  entry.collider.setCollisionGroups(GHOST_BODY);
+  guards.stuck++;
+  if (!warnedStuck) {
+    warnedStuck = true;
+    console.warn(`yage lean physics: entity ${eid} became dynamic inside fixed colliders at (${at.x.toFixed(2)}, ${at.y.toFixed(2)}) with no free spot within ${RINGS} rings; it passes through walls until it is clear of them. Logged once.`);
+  }
+};
+
+/** Puts fixed colliders added since the last step into the query structures: a step of no time, which moves nothing. */
+const syncQueries = (state: LeanPhysics, physics: RAPIER.World) => {
+  if (state.synced === state.fixed) return;
+  physics.timestep = 0;
+  physics.step();
+  state.synced = state.fixed;
 };
 
 const setKind = (entry: BodyEntry, kind: number) => {
@@ -314,6 +432,7 @@ export const stepLeanPhysics = (world: World, position: LeanPosition, entities: 
 
   const substeps = Math.max(1, Math.ceil(dt / state.maxStep - 1e-9));
   const sorted = entities.slice().sort(byNumber);
+  syncQueries(state, physics);
   const n = sorted.length;
   // Where each body started this step, and its way to the entity's position.
   const from = new Float64Array(n * 4);
@@ -323,16 +442,33 @@ export const stepLeanPhysics = (world: World, position: LeanPosition, entities: 
     const y = ys[eid];
     if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error(`Invalid physics position for entity ${eid}: ${x}, ${y} (kind ${shape.kind[eid]})`);
     let entry = bodies.get(eid);
+    const kind = shape.kind[eid];
+    let becameDynamic = kind === LeanBodyKind.Dynamic;
     if (!entry) {
       entry = createBody(physics, shape, eid, x, y);
       bodies.set(eid, entry);
-    }
-    const kind = shape.kind[eid];
+    } else becameDynamic &&= entry.kind !== LeanBodyKind.Dynamic;
     setKind(entry, kind);
+    if (entry.stuck && (kind !== LeanBodyKind.Dynamic || !inWall(physics, coreOf(shape, eid), entry.body.translation().x, entry.body.translation().y))) {
+      entry.stuck = false;
+      entry.collider.setCollisionGroups(entry.ghost ? GHOST_BODY : SOLID_BODY);
+    }
     const dominance = shape.dominance[eid];
     if (entry.dominance !== dominance) {
       entry.body.setDominanceGroup(dominance);
       entry.dominance = dominance;
+    }
+    if (kind === LeanBodyKind.Dynamic && !entry.stuck) {
+      // Passing through walls past its slack, or back on them (maybe inside one).
+      const was = entry.ghost;
+      const slack = shape.slack[eid];
+      if (slack > 0) {
+        const pre = entry.body.translation();
+        const far = Math.sqrt((x - pre.x) * (x - pre.x) + (y - pre.y) * (y - pre.y));
+        entry.ghost = entry.ghost ? far > slack * 0.25 : far > slack;
+      } else entry.ghost = false;
+      if (entry.ghost !== was) entry.collider.setCollisionGroups(entry.ghost ? GHOST_BODY : SOLID_BODY);
+      if (!entry.ghost && (becameDynamic || was)) clearOfWalls(physics, entry, shape, eid);
     }
     const at = entry.body.translation();
     from[i * 4] = at.x;
@@ -350,17 +486,6 @@ export const stepLeanPhysics = (world: World, position: LeanPosition, entities: 
       continue;
     }
     const distance = Math.sqrt(dx * dx + dy * dy);
-    const slack = shape.slack[eid];
-    if (slack > 0) {
-      const ghost = entry.ghost ? distance > slack * 0.25 : distance > slack;
-      if (ghost !== entry.ghost) {
-        entry.ghost = ghost;
-        entry.collider.setCollisionGroups(ghost ? GHOST_BODY : SOLID_BODY);
-      }
-    } else if (entry.ghost) {
-      entry.ghost = false;
-      entry.collider.setCollisionGroups(SOLID_BODY);
-    }
     let speed = distance / dt;
     const cap = shape.maxSpeed[eid];
     if (cap > 0 && speed > cap) speed = cap;
@@ -373,7 +498,18 @@ export const stepLeanPhysics = (world: World, position: LeanPosition, entities: 
   }
 
   physics.timestep = dt / substeps;
+  // The clock only decides the log below; the step is the same either way.
+  const started = performance.now();
   for (let s = 0; s < substeps; s++) physics.step();
+  state.synced = state.fixed;
+  const took = performance.now() - started;
+  if (took > stepBudgetMs) {
+    guards.slowSteps++;
+    if (!warnedSlow) {
+      warnedSlow = true;
+      console.warn(`yage lean physics: a step took ${took.toFixed(0)} ms (budget ${stepBudgetMs} ms): ${n} bodies, ${state.fixed} fixed colliders, ${substeps} substeps. Logged once.`);
+    }
+  }
 
   for (let i = 0; i < n; i++) {
     const eid = sorted[i];
@@ -452,7 +588,7 @@ export type LeanProbe = {
 export const createLeanProbe = (build: (state: LeanPhysics) => void): LeanProbe | null => {
   if (!loaded) return null;
   const physics = new RAPIER.World({ x: 0, y: 0 });
-  const state = { world: physics, bodies: null, fixed: 0, dt: 0, maxStep: 0.1, speedAt: null } as LeanPhysics;
+  const state = { world: physics, bodies: null, fixed: 0, synced: 0, dt: 0, maxStep: 0.1, speedAt: null } as LeanPhysics;
   live++;
   try {
     build(state);

@@ -9,11 +9,13 @@ import {
   leanPhysicsOf,
   LeanPhysicsSystem,
   LeanPhysics,
+  leanPhysicsGuards,
   liveLeanPhysicsWorlds,
   loadRapier,
   rapierLoaded,
   releaseLeanPhysics,
   releaseLeanPhysicsState,
+  setLeanStepBudget,
   tileSpeed,
 } from "yage/physics/lean";
 import { leanWorldType } from "yage/world/lean";
@@ -262,5 +264,83 @@ describe("lean physics", () => {
     expect(leanPhysicsOf(worlds[0]).bodies!.size).toBe(1);
     for (const world of worlds) Kind.dispose(world);
     expect(liveLeanPhysicsWorlds()).toBe(before);
+  });
+});
+
+describe("lean physics guards", () => {
+  /** A wall 4 wide (x 8..12) and tall: a body spawned in it is nearer its left face. */
+  const thick = (state: LeanPhysics) => addFixedBox(state, 10, 0, 2, 10);
+
+  test("a body spawned inside a wall is moved to the nearest free spot, logged once, and the step finishes", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const world = Kind.create();
+    try {
+      const before = leanPhysicsGuards().nudged;
+      const a = spawn(world, 9, 0, 9, 0);
+      const b = spawn(world, 9, 3, 9, 3);
+      step(world, true, thick);
+      const pos = world(PhysicsTestPos).store;
+      // Out of the wall on its near side: clear of x 8 by the radius, give or take a ring.
+      for (const eid of [a, b]) {
+        expect(pos.x[eid]).toBeLessThanOrEqual(7.11);
+        expect(pos.x[eid]).toBeGreaterThan(5.5);
+      }
+      expect(leanPhysicsGuards().nudged).toBe(before + 2);
+      expect(warn.mock.calls.filter(([m]) => String(m).includes("moved to the nearest free spot")).length).toBeLessThanOrEqual(1);
+    } finally { Kind.dispose(world); warn.mockRestore(); }
+  });
+
+  test("a body inside walls with no free spot near passes through them until it is clear", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const world = Kind.create();
+    try {
+      const before = leanPhysicsGuards().stuck;
+      // Deep in a block 200 across; it walks out to the right.
+      const eid = spawn(world, 0, 0, 120, 0);
+      const block = (state: LeanPhysics) => addFixedBox(state, 0, 0, 100, 100);
+      step(world, true, block);
+      expect(leanPhysicsGuards().stuck).toBe(before + 1);
+      for (let i = 0; i < 60; i++) step(world, true, block);
+      // Out past the block's face, and on walls again: walking back in stops at the face.
+      expect(world(PhysicsTestPos).store.x[eid]).toBeGreaterThan(101);
+      world(PhysicsTestGoal).store.x[eid] = 50;
+      for (let i = 0; i < 20; i++) step(world, true, block);
+      expect(world(PhysicsTestPos).store.x[eid]).toBeGreaterThan(100.5);
+    } finally { Kind.dispose(world); warn.mockRestore(); }
+  });
+
+  test("walls added after the world first stepped are seen by the guard", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const world = Kind.create();
+    try {
+      step(world, true, wall);
+      addFixedBox(leanPhysicsOf(world), -10, 0, 2, 10);
+      const eid = spawn(world, -9, 0, -9, 0);
+      step(world, true);
+      // Out of the new wall (x -12..-8): past its right face or its left one.
+      const x = world(PhysicsTestPos).store.x[eid];
+      expect(x >= -7.01 || x <= -12.99).toBe(true);
+    } finally { Kind.dispose(world); warn.mockRestore(); }
+  });
+
+  test("a step over budget is logged once and changes nothing", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const run = (budget: number) => {
+      setLeanStepBudget(budget);
+      const world = Kind.create();
+      for (let i = 0; i < 6; i++) spawn(world, i * 3, 9, 20, 0);
+      for (let i = 0; i < 10; i++) step(world, true, thick);
+      const bytes = new Uint8Array(serializeWorld(SerialMode.BINARY, world) as ArrayBuffer);
+      Kind.dispose(world);
+      return bytes;
+    };
+    try {
+      const before = leanPhysicsGuards().slowSteps;
+      const quick = run(1e9);
+      const slow = run(-1);
+      expect(slow).toEqual(quick);
+      expect(leanPhysicsGuards().slowSteps).toBe(before + 10);
+      expect(warn.mock.calls.filter(([m]) => String(m).includes("budget")).length).toBe(1);
+    } finally { setLeanStepBudget(100); warn.mockRestore(); }
   });
 });
