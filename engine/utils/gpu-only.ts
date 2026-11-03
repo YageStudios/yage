@@ -66,6 +66,24 @@ const definePaintOnUpload = () =>
     }
   };
 
+/**
+ * Replaces all of a gpuOnly texture's pixels with `resource` (the same size): it goes up as the renderer
+ * next binds the texture and is dropped then (`release`, as gpuOnly's). The old source goes now, whether
+ * it is already on the GPU or was never drawn, so nothing is copied and no CPU mirror is kept.
+ */
+export const gpuReplace = (texture: PIXI.Texture, resource: PIXI.Resource, release?: () => void) => {
+  const base = texture.baseTexture;
+  const old = base.resource;
+  if (old) {
+    old.unbind(base);
+    base.resource = null as never;
+    old.destroy();
+  }
+  base.setResource(resource);
+  gpuOnly(texture, release);
+  base.update();
+};
+
 /** A canvas painted over part of a texture, its corner at (x, y). */
 export type GpuPatch = { x: number; y: number; source: HTMLCanvasElement | OffscreenCanvas };
 
