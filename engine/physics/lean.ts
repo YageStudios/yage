@@ -114,6 +114,12 @@ type BodyEntry = {
   dominance: number;
   /** Became dynamic inside fixed colliders with no free spot near: meets bodies only until it is clear of them. */
   stuck: boolean;
+  /**
+   * While off, where the entity is: the body (no collider, so it meets nothing) is moved there
+   * only when it turns back on, not every step, so Rapier is not handed a moved body per step.
+   */
+  offX: number;
+  offY: number;
 };
 
 @Component("LeanPhysics")
@@ -313,7 +319,7 @@ const createBody = (physics: RAPIER.World, shape: any, eid: number, x: number, y
   const desc = new RAPIER.RigidBodyDesc(bodyTypeOf(kind)).setTranslation(x, y).lockRotations().setDominanceGroup(dominance);
   const body = physics.createRigidBody(desc);
   const collider = kind === LeanBodyKind.Off ? null : colliderFor(physics, shape, eid, body, SOLID_BODY);
-  return { body, collider, kind, ghost: false, dominance, stuck: false };
+  return { body, collider, kind, ghost: false, dominance, stuck: false, offX: x, offY: y };
 };
 
 // -------------------------------------------------------------------------------------------
@@ -385,10 +391,9 @@ const freeSpot = (physics: RAPIER.World, core: RAPIER.Shape, size: number, x: nu
 };
 
 /** A body just made dynamic: out of any wall it is in (see guards above). */
-const clearOfWalls = (physics: RAPIER.World, entry: BodyEntry, shape: any, eid: number) => {
-  const at = entry.body.translation();
+const clearOfWalls = (physics: RAPIER.World, entry: BodyEntry, shape: any, eid: number, at: { x: number; y: number }): { x: number; y: number } => {
   const core = coreOf(shape, eid);
-  if (!entry.collider || !inWall(physics, core, at.x, at.y)) return;
+  if (!entry.collider || !inWall(physics, core, at.x, at.y)) return at;
   const size = shape.radius[eid] > 0 ? shape.radius[eid] : Math.max(shape.hw[eid], shape.hh[eid]);
   const spot = freeSpot(physics, core, size, at.x, at.y);
   if (spot) {
@@ -398,7 +403,7 @@ const clearOfWalls = (physics: RAPIER.World, entry: BodyEntry, shape: any, eid: 
       warnedNudge = true;
       console.warn(`yage lean physics: entity ${eid} became dynamic inside a fixed collider at (${at.x.toFixed(2)}, ${at.y.toFixed(2)}); moved to the nearest free spot (${spot.x.toFixed(2)}, ${spot.y.toFixed(2)}). Logged once.`);
     }
-    return;
+    return entry.body.translation();
   }
   entry.stuck = true;
   entry.collider!.setCollisionGroups(GHOST_BODY);
@@ -407,6 +412,7 @@ const clearOfWalls = (physics: RAPIER.World, entry: BodyEntry, shape: any, eid: 
     warnedStuck = true;
     console.warn(`yage lean physics: entity ${eid} became dynamic inside fixed colliders at (${at.x.toFixed(2)}, ${at.y.toFixed(2)}) with no free spot within ${RINGS} rings; it passes through walls until it is clear of them. Logged once.`);
   }
+  return at;
 };
 
 /** Puts fixed colliders added since the last step into the query structures: a step of no time, which moves nothing. */
@@ -430,6 +436,18 @@ const setKind = (physics: RAPIER.World, shape: any, eid: number, entry: BodyEntr
 };
 
 const byNumber = (a: number, b: number) => a - b;
+
+/**
+ * Sets a body's velocity through one reused raw vector: RigidBody.setLinvel makes and frees a
+ * wasm vector per call, which at a few hundred calls a step costs more than the call itself.
+ */
+let linvel: ReturnType<typeof RAPIER.VectorOps.intoRaw> | null = null;
+const setLinvel = (body: RAPIER.RigidBody, x: number, y: number, wake: boolean) => {
+  linvel ??= RAPIER.VectorOps.intoRaw({ x: 0, y: 0 });
+  linvel.x = x;
+  linvel.y = y;
+  (body as any).rawSet.rbSetLinvel(body.handle, linvel, wake);
+};
 
 /**
  * Steps the world's bodies once: creates the missing ones (in entity order, so runs repeat
@@ -468,8 +486,11 @@ export const stepLeanPhysics = (world: World, position: LeanPosition, entities: 
       entry = createBody(physics, shape, eid, x, y);
       bodies.set(eid, entry);
     } else becameDynamic &&= entry.kind !== LeanBodyKind.Dynamic;
+    if (entry.kind === LeanBodyKind.Off && kind !== LeanBodyKind.Off) entry.body.setTranslation({ x: entry.offX, y: entry.offY }, false);
     setKind(physics, shape, eid, entry, kind);
-    if (entry.stuck && (kind !== LeanBodyKind.Dynamic || !inWall(physics, coreOf(shape, eid), entry.body.translation().x, entry.body.translation().y))) {
+    // Where a dynamic body is now (read once: each read crosses into wasm and makes a vector).
+    let at: { x: number; y: number } | null = null;
+    if (entry.stuck && (kind !== LeanBodyKind.Dynamic || !inWall(physics, coreOf(shape, eid), (at = entry.body.translation()).x, at.y))) {
       entry.stuck = false;
       entry.collider?.setCollisionGroups(entry.ghost ? GHOST_BODY : SOLID_BODY);
     }
@@ -483,35 +504,37 @@ export const stepLeanPhysics = (world: World, position: LeanPosition, entities: 
       const was = entry.ghost;
       const slack = shape.slack[eid];
       if (slack > 0) {
-        const pre = entry.body.translation();
+        const pre = (at ??= entry.body.translation());
         const far = Math.sqrt((x - pre.x) * (x - pre.x) + (y - pre.y) * (y - pre.y));
         entry.ghost = entry.ghost ? far > slack * 0.25 : far > slack;
       } else entry.ghost = false;
       if (entry.ghost !== was) entry.collider!.setCollisionGroups(entry.ghost ? GHOST_BODY : SOLID_BODY);
-      if (!entry.ghost && (becameDynamic || was)) clearOfWalls(physics, entry, shape, eid);
+      if (!entry.ghost && (becameDynamic || was)) at = clearOfWalls(physics, entry, shape, eid, at ?? entry.body.translation());
     }
-    const at = entry.body.translation();
-    from[i * 4] = at.x;
-    from[i * 4 + 1] = at.y;
-    const dx = x - at.x;
-    const dy = y - at.y;
-    from[i * 4 + 2] = dx;
-    from[i * 4 + 3] = dy;
+    // Off and kinematic bodies go straight to the entity's position (their start is never read).
     if (kind === LeanBodyKind.Off) {
-      entry.body.setTranslation({ x, y }, false);
+      entry.offX = x;
+      entry.offY = y;
       continue;
     }
     if (kind === LeanBodyKind.Kinematic) {
       entry.body.setNextKinematicTranslation({ x, y });
       continue;
     }
+    at ??= entry.body.translation();
+    from[i * 4] = at.x;
+    from[i * 4 + 1] = at.y;
+    const dx = x - at.x;
+    const dy = y - at.y;
+    from[i * 4 + 2] = dx;
+    from[i * 4 + 3] = dy;
     const distance = Math.sqrt(dx * dx + dy * dy);
     let speed = distance / dt;
     const cap = shape.maxSpeed[eid];
     if (cap > 0 && speed > cap) speed = cap;
     if (speedAt) speed *= Math.max(0, speedAt(at.x, at.y));
     const scale = distance > 0 ? speed / distance : 0;
-    entry.body.setLinvel({ x: dx * scale, y: dy * scale }, true);
+    setLinvel(entry.body, dx * scale, dy * scale, true);
     // Contact is predicted as far as the body goes in a substep, so a quick body stops at a wall
     // instead of sinking into it and being pushed back out over the next steps.
     entry.body.setSoftCcdPrediction((speed * dt) / substeps);
@@ -539,7 +562,7 @@ export const stepLeanPhysics = (world: World, position: LeanPosition, entities: 
       continue;
     }
     const at = entry.body.translation();
-    entry.body.setLinvel({ x: 0, y: 0 }, false);
+    setLinvel(entry.body, 0, 0, false);
     const dx = from[i * 4 + 2];
     const dy = from[i * 4 + 3];
     const want = dx * dx + dy * dy;
