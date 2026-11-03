@@ -120,6 +120,9 @@ type BodyEntry = {
    */
   offX: number;
   offY: number;
+  /** Where a kinematic body was last sent (NaN until it is): a body that stays put is not sent again. */
+  kinX: number;
+  kinY: number;
 };
 
 @Component("LeanPhysics")
@@ -319,7 +322,7 @@ const createBody = (physics: RAPIER.World, shape: any, eid: number, x: number, y
   const desc = new RAPIER.RigidBodyDesc(bodyTypeOf(kind)).setTranslation(x, y).lockRotations().setDominanceGroup(dominance);
   const body = physics.createRigidBody(desc);
   const collider = kind === LeanBodyKind.Off ? null : colliderFor(physics, shape, eid, body, SOLID_BODY);
-  return { body, collider, kind, ghost: false, dominance, stuck: false, offX: x, offY: y };
+  return { body, collider, kind, ghost: false, dominance, stuck: false, offX: x, offY: y, kinX: NaN, kinY: NaN };
 };
 
 // -------------------------------------------------------------------------------------------
@@ -432,6 +435,8 @@ const setKind = (physics: RAPIER.World, shape: any, eid: number, entry: BodyEntr
     entry.collider = null;
   } else if (kind !== LeanBodyKind.Off && !entry.collider) entry.collider = colliderFor(physics, shape, eid, entry.body, entry.ghost || entry.stuck ? GHOST_BODY : SOLID_BODY);
   if (kind !== LeanBodyKind.Dynamic) entry.body.setLinvel({ x: 0, y: 0 }, false);
+  entry.kinX = NaN;
+  entry.kinY = NaN;
   entry.kind = kind;
 };
 
@@ -518,7 +523,12 @@ export const stepLeanPhysics = (world: World, position: LeanPosition, entities: 
       continue;
     }
     if (kind === LeanBodyKind.Kinematic) {
-      entry.body.setNextKinematicTranslation({ x, y });
+      // One that stays put is left alone: Rapier then treats it as still and wakes nothing round it.
+      if (x !== entry.kinX || y !== entry.kinY) {
+        entry.body.setNextKinematicTranslation({ x, y });
+        entry.kinX = x;
+        entry.kinY = y;
+      }
       continue;
     }
     at ??= entry.body.translation();
@@ -534,6 +544,8 @@ export const stepLeanPhysics = (world: World, position: LeanPosition, entities: 
     if (cap > 0 && speed > cap) speed = cap;
     if (speedAt) speed *= Math.max(0, speedAt(at.x, at.y));
     const scale = distance > 0 ? speed / distance : 0;
+    // Rapier wakes a body only when its velocity changes: one with nowhere to go (zero, as left after
+    // the last step) is not woken, and sleeps once still a while, until a new way to go or a touch wakes it.
     setLinvel(entry.body, dx * scale, dy * scale, true);
     // Contact is predicted as far as the body goes in a substep, so a quick body stops at a wall
     // instead of sinking into it and being pushed back out over the next steps.
