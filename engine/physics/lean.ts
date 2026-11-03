@@ -103,7 +103,12 @@ export class LeanBody extends Schema {
 
 type BodyEntry = {
   body: RAPIER.RigidBody;
-  collider: RAPIER.Collider;
+  /**
+   * Null while the body is off: Rapier keeps even a disabled collider in its query tree, and a
+   * crowd of them on one spot (people parked in one room) makes the tree's rebuild take seconds
+   * to minutes, a freeze with no error.
+   */
+  collider: RAPIER.Collider | null;
   kind: number;
   ghost: boolean;
   dominance: number;
@@ -252,6 +257,14 @@ export const releaseLeanPhysics = (world: World): void => releaseLeanPhysicsStat
 export const addFixedBox = (state: LeanPhysics, x: number, y: number, hw: number, hh: number, angle = 0): void => {
   const physics = state.world;
   if (!physics) throw new Error("yage lean physics: addFixedBox needs a live world (armLeanPhysics)");
+  if (![x, y, hw, hh, angle].every(Number.isFinite) || hw <= 0 || hh <= 0) {
+    guards.badBoxes++;
+    if (!warnedBadBox) {
+      warnedBadBox = true;
+      console.warn(`yage lean physics: fixed box (${x}, ${y}) half ${hw} × ${hh} angle ${angle} skipped: not a finite box with positive extents. Logged once.`);
+    }
+    return;
+  }
   const body = physics.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(x, y).setRotation(angle));
   physics.createCollider(RAPIER.ColliderDesc.cuboid(hw, hh).setCollisionGroups(FIXED_GROUPS).setFriction(0), body);
   state.fixed++;
@@ -288,15 +301,18 @@ export type LeanPosition = { component: typeof Schema; x: string; y: string };
 
 const bodyTypeOf = (kind: number) => (kind === LeanBodyKind.Dynamic ? RAPIER.RigidBodyType.Dynamic : RAPIER.RigidBodyType.KinematicPositionBased);
 
+const colliderFor = (physics: RAPIER.World, shape: any, eid: number, body: RAPIER.RigidBody, groups: number): RAPIER.Collider => {
+  const radius = shape.radius[eid];
+  const desc = radius > 0 ? RAPIER.ColliderDesc.ball(radius) : RAPIER.ColliderDesc.cuboid(Math.max(shape.hw[eid], 1e-3), Math.max(shape.hh[eid], 1e-3));
+  return physics.createCollider(desc.setCollisionGroups(groups).setFriction(0), body);
+};
+
 const createBody = (physics: RAPIER.World, shape: any, eid: number, x: number, y: number): BodyEntry => {
   const kind = shape.kind[eid];
   const dominance = shape.dominance[eid];
   const desc = new RAPIER.RigidBodyDesc(bodyTypeOf(kind)).setTranslation(x, y).lockRotations().setDominanceGroup(dominance);
   const body = physics.createRigidBody(desc);
-  const radius = shape.radius[eid];
-  const colliderDesc = radius > 0 ? RAPIER.ColliderDesc.ball(radius) : RAPIER.ColliderDesc.cuboid(Math.max(shape.hw[eid], 1e-3), Math.max(shape.hh[eid], 1e-3));
-  const collider = physics.createCollider(colliderDesc.setCollisionGroups(SOLID_BODY).setFriction(0), body);
-  if (kind === LeanBodyKind.Off) collider.setEnabled(false);
+  const collider = kind === LeanBodyKind.Off ? null : colliderFor(physics, shape, eid, body, SOLID_BODY);
   return { body, collider, kind, ghost: false, dominance, stuck: false };
 };
 
@@ -310,7 +326,8 @@ const createBody = (physics: RAPIER.World, shape: any, eid: number, x: number, y
  * fixed order (runs repeat exactly); with none near, it is let off walls (it meets bodies only)
  * until it is clear of them. Each is logged once per process.
  */
-const guards = { nudged: 0, stuck: 0, slowSteps: 0 };
+const guards = { nudged: 0, stuck: 0, slowSteps: 0, badBoxes: 0 };
+let warnedBadBox = false;
 let warnedNudge = false;
 let warnedStuck = false;
 let warnedSlow = false;
@@ -331,7 +348,7 @@ export const setLeanStepBudget = (ms: number): void => {
 const RINGS = 16;
 
 /** Overlap a body's step resolves on its own (a share of its size): only deeper counts as inside a wall. */
-const SHALLOW = 0.1;
+const SHALLOW = 0.01;
 const cores = new Map<string, RAPIER.Shape>();
 
 /** The body's shape less the shallow overlap: touching a wall, or just into it, is not inside it. */
@@ -371,7 +388,7 @@ const freeSpot = (physics: RAPIER.World, core: RAPIER.Shape, size: number, x: nu
 const clearOfWalls = (physics: RAPIER.World, entry: BodyEntry, shape: any, eid: number) => {
   const at = entry.body.translation();
   const core = coreOf(shape, eid);
-  if (!inWall(physics, core, at.x, at.y)) return;
+  if (!entry.collider || !inWall(physics, core, at.x, at.y)) return;
   const size = shape.radius[eid] > 0 ? shape.radius[eid] : Math.max(shape.hw[eid], shape.hh[eid]);
   const spot = freeSpot(physics, core, size, at.x, at.y);
   if (spot) {
@@ -384,7 +401,7 @@ const clearOfWalls = (physics: RAPIER.World, entry: BodyEntry, shape: any, eid: 
     return;
   }
   entry.stuck = true;
-  entry.collider.setCollisionGroups(GHOST_BODY);
+  entry.collider!.setCollisionGroups(GHOST_BODY);
   guards.stuck++;
   if (!warnedStuck) {
     warnedStuck = true;
@@ -400,11 +417,14 @@ const syncQueries = (state: LeanPhysics, physics: RAPIER.World) => {
   state.synced = state.fixed;
 };
 
-const setKind = (entry: BodyEntry, kind: number) => {
+const setKind = (physics: RAPIER.World, shape: any, eid: number, entry: BodyEntry, kind: number) => {
   if (entry.kind === kind) return;
   const wasDynamic = entry.kind === LeanBodyKind.Dynamic;
   if (wasDynamic !== (kind === LeanBodyKind.Dynamic)) entry.body.setBodyType(bodyTypeOf(kind), true);
-  if ((entry.kind === LeanBodyKind.Off) !== (kind === LeanBodyKind.Off)) entry.collider.setEnabled(kind !== LeanBodyKind.Off);
+  if (kind === LeanBodyKind.Off && entry.collider) {
+    physics.removeCollider(entry.collider, false);
+    entry.collider = null;
+  } else if (kind !== LeanBodyKind.Off && !entry.collider) entry.collider = colliderFor(physics, shape, eid, entry.body, entry.ghost || entry.stuck ? GHOST_BODY : SOLID_BODY);
   if (kind !== LeanBodyKind.Dynamic) entry.body.setLinvel({ x: 0, y: 0 }, false);
   entry.kind = kind;
 };
@@ -448,10 +468,10 @@ export const stepLeanPhysics = (world: World, position: LeanPosition, entities: 
       entry = createBody(physics, shape, eid, x, y);
       bodies.set(eid, entry);
     } else becameDynamic &&= entry.kind !== LeanBodyKind.Dynamic;
-    setKind(entry, kind);
+    setKind(physics, shape, eid, entry, kind);
     if (entry.stuck && (kind !== LeanBodyKind.Dynamic || !inWall(physics, coreOf(shape, eid), entry.body.translation().x, entry.body.translation().y))) {
       entry.stuck = false;
-      entry.collider.setCollisionGroups(entry.ghost ? GHOST_BODY : SOLID_BODY);
+      entry.collider?.setCollisionGroups(entry.ghost ? GHOST_BODY : SOLID_BODY);
     }
     const dominance = shape.dominance[eid];
     if (entry.dominance !== dominance) {
@@ -467,7 +487,7 @@ export const stepLeanPhysics = (world: World, position: LeanPosition, entities: 
         const far = Math.sqrt((x - pre.x) * (x - pre.x) + (y - pre.y) * (y - pre.y));
         entry.ghost = entry.ghost ? far > slack * 0.25 : far > slack;
       } else entry.ghost = false;
-      if (entry.ghost !== was) entry.collider.setCollisionGroups(entry.ghost ? GHOST_BODY : SOLID_BODY);
+      if (entry.ghost !== was) entry.collider!.setCollisionGroups(entry.ghost ? GHOST_BODY : SOLID_BODY);
       if (!entry.ghost && (becameDynamic || was)) clearOfWalls(physics, entry, shape, eid);
     }
     const at = entry.body.translation();

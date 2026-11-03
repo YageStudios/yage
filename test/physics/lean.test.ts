@@ -343,4 +343,32 @@ describe("lean physics guards", () => {
       expect(warn.mock.calls.filter(([m]) => String(m).includes("budget")).length).toBe(1);
     } finally { setLeanStepBudget(100); warn.mockRestore(); }
   });
+
+  test("a crowd of off bodies on one spot steps at once (Rapier keeps no collider for them)", () => {
+    const world = Kind.create(2500);
+    try {
+      // People parked on one spot: with a disabled collider each, Rapier's second step rebuilt its
+      // query tree over 2000 equal boxes for minutes.
+      for (let i = 0; i < 2000; i++) spawn(world, 5, 5, 5, 5, { kind: LeanBodyKind.Off });
+      for (let i = 0; i < 3; i++) step(world, true, wall);
+      expect(leanPhysicsOf(world).world!.colliders.len()).toBe(1);
+      // Turned on again, a body meets walls.
+      const eid = 1;
+      world(LeanBody).store.kind[eid] = LeanBodyKind.Dynamic;
+      world(PhysicsTestGoal).store.x[eid] = 20;
+      for (let i = 0; i < 20; i++) step(world, true, wall);
+      expect(world(PhysicsTestPos).store.x[eid]).toBeLessThan(8.05);
+    } finally { Kind.dispose(world); }
+  });
+
+  test("a fixed box that is not a finite box with positive extents is skipped", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const world = Kind.create();
+    try {
+      const before = leanPhysicsGuards().badBoxes;
+      step(world, true, (state) => { addFixedBox(state, Number.NaN, 0, 1, 1); addFixedBox(state, 0, 0, 0, 1); wall(state); });
+      expect(leanPhysicsGuards().badBoxes).toBe(before + 2);
+      expect(leanPhysicsOf(world).fixed).toBe(1);
+    } finally { Kind.dispose(world); warn.mockRestore(); }
+  });
 });
