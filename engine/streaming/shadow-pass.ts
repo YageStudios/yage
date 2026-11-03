@@ -203,59 +203,88 @@ void main() {
  */
 export const paintSurface = (art: ImageData, heights: ImageData, cell: [number, number], per: number, lift: number, rise: number) => {
   const { width, height } = art;
+  const a = art.data, hd = heights.data;
   const out = { width, height, data: new Uint8ClampedArray(width * height * 4) };
+  const od = out.data;
   const found = new Int32Array(width * height).fill(-1);
   const shift = Math.round(lift * per);
-  const queue: number[] = [];
-  for (let y = 0; y < height; y++) {
-    const [y0, y1] = [Math.floor(y / cell[1]) * cell[1], Math.floor(y / cell[1]) * cell[1] + cell[1]];
+  // A row of cells at a time, each texel's nearest solid heights texel at or above it in its column within the cell
+  // (-1: none): a view ray skips the open heights between solids instead of stepping through them a px at a time.
+  const [cw, ch] = cell;
+  const solidAt = new Int32Array(ch * width);
+  let queue = new Int32Array(1024), queued = 0;
+  for (let y0 = 0; y0 < height; y0 += ch) {
+    const y1 = Math.min(height, y0 + ch);
     for (let x = 0; x < width; x++) {
+      let last = -1;
+      for (let hy = y0; hy < y1; hy++) {
+        if (hd[4 * (hy * width + x) + 3] >= 128) last = hy;
+        solidAt[(hy - y0) * width + x] = last;
+      }
+    }
+    for (let y = y0; y < y1; y++) for (let x = 0; x < width; x++) {
       const k = y * width + x;
-      if (art.data[4 * k + 3] < 8) continue;
+      if (a[4 * k + 3] < 8) continue;
       // Down the view ray from the far end of the cell: the first solid it's inside is the nearest.
-      let over = false;
-      for (let hy = y1 - 1; hy >= Math.max(y0, y - shift); hy--) {
+      // (Only solid heights texels can stop it: one past a stretch of open ones meets them with none above.)
+      const end = Math.max(y0, y - shift);
+      let hy = y0 + ch - 1, above = false;
+      while (hy >= end) {
+        if (hy >= y1) { hy--; above = false; continue; }
+        const next = solidAt[(hy - y0) * width + x];
+        if (next !== hy) {
+          above = false;
+          hy = next;
+          if (hy < end) break;
+        }
         const up = hy - (y - shift);
         const j = 4 * (hy * width + x);
-        const above = over;
-        over = heights.data[j + 3] >= 128;
-        if (!over) continue;
-        const [top, base] = [heights.data[j], heights.data[j + 1]];
+        const top = hd[j], base = hd[j + 1], at = up / per / rise;
         // Within a px of the solid, on it: never a hair under or over what it stands on.
-        const z = Math.min(top, Math.max(base, up / per / rise));
-        if (base <= up / per / rise + 1 && top >= up / per / rise - 1) {
+        if (base <= at + 1 && top >= at - 1) {
+          const z = Math.min(top, Math.max(base, at));
           // Meeting it over half a px above its top, or over a solid's plan the step before and higher
           // than this one's top, it's come down onto its top; else in through its side (from open
           // ground, or from under something), on its face.
-          const onTop = up / per / rise > top + 0.5 || (above && (up + 1) / per / rise > top);
+          const onTop = at > top + 0.5 || (above && (up + 1) / per / rise > top);
           const color = heightColor(z, onTop ? up / per : 0);
-          out.data.set([color >> 16, (color >> 8) & 255, onTop ? color & 255 : 128, Math.min(254, Math.max(1, heights.data[j + 2]))], 4 * k);
+          od[4 * k] = color >> 16;
+          od[4 * k + 1] = (color >> 8) & 255;
+          od[4 * k + 2] = onTop ? color & 255 : 128;
+          od[4 * k + 3] = Math.min(254, Math.max(1, hd[j + 2]));
           found[k] = k;
-          queue.push(k);
+          if (queued === queue.length) { const grown = new Int32Array(queued * 2); grown.set(queue); queue = grown; }
+          queue[queued++] = k;
           break;
         }
+        above = true;
+        hy--;
       }
     }
   }
   // Fringes: the nearest surface, a px a round.
-  for (let round = 0; round < 4 && queue.length; round++) {
-    const next: number[] = [];
-    for (const k of queue) {
-      const [x, y] = [k % width, Math.floor(k / width)];
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const [nx, ny] = [x + dx, y + dy];
-        if (nx < 0 || ny < 0 || nx >= width || ny >= height || Math.floor(nx / cell[0]) !== Math.floor(x / cell[0]) || Math.floor(ny / cell[1]) !== Math.floor(y / cell[1])) continue;
-        const n = ny * width + nx;
-        if (found[n] >= 0 || art.data[4 * n + 3] < 8) continue;
-        found[n] = found[k];
-        out.data.set(out.data.subarray(4 * k, 4 * k + 4), 4 * n);
-        next.push(n);
-      }
+  let next = new Int32Array(Math.max(1024, queued)), nexted = 0;
+  const spread = (k: number, n: number) => {
+    if (found[n] >= 0 || a[4 * n + 3] < 8) return;
+    found[n] = found[k];
+    od.copyWithin(4 * n, 4 * k, 4 * k + 4);
+    if (nexted === next.length) { const grown = new Int32Array(nexted * 2); grown.set(next); next = grown; }
+    next[nexted++] = n;
+  };
+  for (let round = 0; round < 4 && queued; round++) {
+    nexted = 0;
+    for (let q = 0; q < queued; q++) {
+      const k = queue[q], x = k % width, y = (k - x) / width;
+      const cx = Math.floor(x / cw), cy = Math.floor(y / ch);
+      if (x + 1 < width && Math.floor((x + 1) / cw) === cx) spread(k, k + 1);
+      if (x > 0 && Math.floor((x - 1) / cw) === cx) spread(k, k - 1);
+      if (y + 1 < height && Math.floor((y + 1) / ch) === cy) spread(k, k + width);
+      if (y > 0 && Math.floor((y - 1) / ch) === cy) spread(k, k - width);
     }
-    queue.length = 0;
-    queue.push(...next);
+    [queue, next] = [next, queue];
+    queued = nexted;
   }
-  for (let k = 0; k < width * height; k++) if (found[k] < 0 && art.data[4 * k + 3] >= 8) out.data.set([0, 0, 0, 255], 4 * k);
+  for (let k = 0; k < width * height; k++) if (found[k] < 0 && a[4 * k + 3] >= 8) { od[4 * k] = 0; od[4 * k + 1] = 0; od[4 * k + 2] = 0; od[4 * k + 3] = 255; }
   return out;
 };
 
