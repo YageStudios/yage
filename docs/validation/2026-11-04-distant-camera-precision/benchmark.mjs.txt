@@ -1,0 +1,29 @@
+import {readFileSync,writeFileSync} from 'node:fs';
+
+import {createRequire} from 'node:module';
+const root='/data/workspace/sky-harbor/worldmap-integration/yage',require=createRequire(root+'/package.json');
+const PIXI=require('pixi.js'),{transform}=require('esbuild');
+const file='engine/systems/render/ProjectedCamera.ts';
+const before=readFileSync('/tmp/ProjectedCamera-before.ts','utf8'),after=readFileSync(root+'/'+file,'utf8');
+const load=async source=>{const out={exports:{}};new Function('require','module','exports',(await transform(source,{loader:'ts',format:'cjs'})).code)(require,out,out.exports);return out.exports.ProjectedCamera};
+const variants={before:await load(before),after:await load(after)},rows=[];
+const median=a=>a.sort((a,b)=>a-b)[Math.floor(a.length/2)];
+for(const [name,Camera]of Object.entries(variants)){
+ const stage=new PIXI.Container();stage.parent=new PIXI.Container();const camera=stage.addChild(new Camera());
+ for(let i=0;i<2104;i++){const child=camera.addChild(new PIXI.Container());child.position.set(160000+i%100,352296900+Math.floor(i/100))}
+ camera.setView(4,-640000,-352296900*4);stage.updateTransform();
+ for(let i=0;i<1000;i++){camera.setView(4,-640000-i%300,-352296900*4-i%300);stage.updateTransform()}
+ const pans=[],rebases=[];let finalId;
+ for(let round=0;round<9;round++){
+  const id=camera.children[0].transform._worldID,start=performance.now();
+  for(let i=0;i<3000;i++){camera.setView(4,-640000-i%300,-352296900*4-i%300);stage.updateTransform()}
+  pans.push((performance.now()-start)/3000);finalId=camera.children[0].transform._worldID-id;
+  const begin=performance.now();
+  for(let i=0;i<100;i++){camera.setView(4,-(160000+i*100000)*4,-352296900*4);stage.updateTransform()}
+  rebases.push((performance.now()-begin)/100);
+  camera.setView(4,-640000,-352296900*4);stage.updateTransform();
+ }
+ rows.push({name,children:2104,panMedianMs:median(pans),panSamplesMs:pans,panChildTransformUpdates:finalId,rareJumpMedianMs:median(rebases),rareJumpSamplesMs:rebases});stage.destroy({children:true});
+}
+const result={baselineCommit:readFileSync('/tmp/camera-baseline-commit.txt','utf8').trim(),scope:'CPU setView+real PIXI tree updateTransform, no GPU/FPS claim',rows};
+writeFileSync('/tmp/facade-camera-bench.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));
