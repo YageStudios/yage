@@ -1,0 +1,45 @@
+import{chromium}from'/data/workspace/sky-harbor/worldmap-integration/infected/node_modules/playwright-core/index.mjs';
+import{readFileSync,writeFileSync}from'node:fs';
+const root='/tmp/far-bake-prototype',prior=JSON.parse(readFileSync(root+'/native-r4/comparison.json'));
+const browser=await chromium.launch({executablePath:'/usr/bin/chromium',headless:false,args:[]});
+const deadline=setTimeout(()=>browser.close().catch(()=>{}),15000),page=await browser.newPage({viewport:{width:96,height:96}}),errors=[],warnings=[];page.on('pageerror',e=>errors.push(e.stack));page.on('console',m=>{if(['error','warning'].includes(m.type()))warnings.push(m.text())});
+try{
+ await page.goto('http://127.0.0.1:5412/__diagnostic/asset-status');
+ const result=await page.evaluate(async({pixiUrl,farUrl,baselineUrl})=>{
+  const[PIXI,current,baseline]=await Promise.all([import(pixiUrl),import(farUrl),import(baselineUrl)]);
+  // No scene is running; this tiny fixture uses only white-texture graphics and one filter sampler.
+  PIXI.BatchRenderer.defaultMaxTextures=1;
+  const renderer=new PIXI.Renderer({width:96,height:96,resolution:1,backgroundAlpha:0,antialias:false});
+  const parents=[new PIXI.Container(),new PIXI.Container()];parents[0].position.set(3000,7000);parents[0].alpha=.32;parents[0].scale.set(2,.7);parents[1].position.set(-500,400);parents[1].alpha=.6;
+  const parts=[];
+  const make=(id,x,y,z)=>{
+   const under=new PIXI.Container(),over=new PIXI.Container();under.position.set(x,y);over.position.set(x,y);under.rotation=.17;over.rotation=-.23;under.scale.set(.9,1.1);over.scale.set(1.2,.8);over.zIndex=z;under.alpha=.42;over.alpha=.55;under.visible=false;over.visible=false;
+   under.addChild(new PIXI.Graphics().beginFill(0x5b7fa2,.8).drawRect(0,0,30,21).endFill());
+   over.addChild(new PIXI.Graphics().beginFill(0xb37244).drawRect(-3,-8,35,15).endFill());
+   parents[0].addChild(under);parents[1].addChild(over);parts.push(under,over);
+   return{id,under,over,occluder:null,bounds:{minX:x-5,minY:y-10,maxX:x+35,maxY:y+30}};
+  };
+  const a=make('masked',7,18,2),b=make('filtered',24,32,1),c=make('same-depth-tie',35,20,1);
+  const mask=new PIXI.Graphics().beginFill(0xffffff).drawCircle(12,6,14).endFill();a.over.addChild(mask);a.over.mask=mask;
+  const filter=new PIXI.AlphaFilter(.65);b.under.filters=[filter];b.over.filters=[filter];
+  c.over.children[0].blendMode=PIXI.BLEND_MODES.ADD;
+  const far=new current.FarBake(64,{below:1,resolution:1,pad:0});for(const item of[a,b,c])far.add(item);
+  const key=[...far.members.keys()].find(key=>key===0||far.members.get(key).size===3);if(key===undefined)throw Error('Fixture tile missing');
+  const state=()=>parts.map(part=>({visible:part.visible,alpha:part.alpha,parent:part.parent,mask:part.mask,filters:part.filters,children:[...part.children],position:[part.x,part.y],scale:[part.scale.x,part.scale.y],rotation:part.rotation}));
+  const before=state(),same=()=>state().every((row,i)=>Object.keys(row).every(key=>Array.isArray(row[key])?row[key].length===before[i][key].length&&row[key].every((v,j)=>v===before[i][key][j]):row[key]===before[i][key]));
+  const rows=[];
+  try{
+   for(const[name,bake]of[['before',baseline.FarBake.prototype.bake],['after',current.FarBake.prototype.bake]]){
+    bake.call(far,renderer,key,0);const tile=far.tiles.get(key),bytes=renderer.extract.pixels(tile.sprite.texture),glError=renderer.gl.getError();
+    const canvas=document.createElement('canvas');canvas.width=tile.sprite.texture.width;canvas.height=tile.sprite.texture.height;canvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(bytes),canvas.width,canvas.height),0,0);
+    rows.push({name,bytes:[...bytes],width:canvas.width,height:canvas.height,glError,stateRestored:same(),projectionNull:renderer.projection.transform===null,maskDepth:renderer.mask.maskStack?.length??null,filterDepth:renderer.filter.defaultFilterStack?.length??null,png:canvas.toDataURL('image/png')});
+   }
+   let differentChannels=0,maxDifference=0,alpha=0;for(let i=0;i<rows[0].bytes.length;i++){const d=Math.abs(rows[0].bytes[i]-rows[1].bytes[i]);if(d)differentChannels++;maxDifference=Math.max(maxDifference,d);if(i%4===3&&rows[0].bytes[i]>0)alpha++;}
+   for(const row of rows)delete row.bytes;
+   return{pass:!differentChannels&&alpha>0&&rows.every(row=>!row.glError&&row.stateRestored&&row.projectionNull)&&rows[0].maskDepth===rows[1].maskDepth&&rows[0].filterDepth===rows[1].filterDepth,differentChannels,maxDifference,alphaPixels:alpha,rows,features:['nonidentity parents','rotated/scaled parts','initial alpha/visibility','child mask','under/over AlphaFilter','additive child','stable z tie'],note:'Isolated actual Pixi/WebGL fixture; no world/FPS claim; fixture-only1texture batch cap.'};
+  }finally{far.clear();for(const parent of parents)parent.destroy({children:true});renderer.destroy(true)}
+ },{pixiUrl:prior.pixiUrl,farUrl:prior.farUrl,baselineUrl:prior.baselineUrl});
+ for(const row of result.rows){writeFileSync(root+'/mask-filter-'+row.name+'.png',Buffer.from(row.png.split(',')[1],'base64'));delete row.png;}
+ writeFileSync(root+'/mask-filter-preflight.json',JSON.stringify({result,errors,warnings},null,2));console.log(JSON.stringify({result,errors,warnings}));
+ if(!result.pass||errors.length||warnings.some(message=>/shader|INVALID_/i.test(message)))throw Error('Actual mask/filter parity failed');
+}finally{clearTimeout(deadline);await browser.close()}

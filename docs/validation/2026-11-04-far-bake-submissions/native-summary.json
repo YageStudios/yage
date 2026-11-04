@@ -1,0 +1,149 @@
+{
+  "before": {
+    "n": 12,
+    "medianMs": 10.817499995231628,
+    "minMs": 8.28999999165535,
+    "maxMs": 14.370000004768372,
+    "meanMs": 11.463749998559555,
+    "renderCalls": [
+      326
+    ]
+  },
+  "after": {
+    "n": 12,
+    "medianMs": 8.122500002384186,
+    "minMs": 4.355000004172325,
+    "maxMs": 12.41499999165535,
+    "meanMs": 7.981250001738469,
+    "renderCalls": [
+      3
+    ]
+  },
+  "blocks": [
+    {
+      "name": "before",
+      "medianMs": 11.16499999910593,
+      "rangeMs": [
+        9.844999998807907,
+        14.234999999403954
+      ]
+    },
+    {
+      "name": "after",
+      "medianMs": 9.4375,
+      "rangeMs": [
+        4.770000010728836,
+        11.599999994039536
+      ]
+    },
+    {
+      "name": "after",
+      "medianMs": 6.565000005066395,
+      "rangeMs": [
+        4.355000004172325,
+        12.41499999165535
+      ]
+    },
+    {
+      "name": "before",
+      "medianMs": 10.6875,
+      "rangeMs": [
+        8.28999999165535,
+        14.370000004768372
+      ]
+    }
+  ],
+  "selection": [
+    {
+      "key": 137439215615,
+      "members": 161,
+      "under": 77,
+      "over": 147,
+      "parts": 224
+    },
+    {
+      "key": 137439739903,
+      "members": 190,
+      "under": 41,
+      "over": 60,
+      "parts": 101
+    },
+    {
+      "key": 137437642750,
+      "members": 12,
+      "under": 0,
+      "over": 0,
+      "parts": 0
+    }
+  ],
+  "parity": [
+    {
+      "key": 137439215615,
+      "selection": {
+        "key": 137439215615,
+        "members": 161,
+        "under": 77,
+        "over": 147,
+        "parts": 224
+      },
+      "resolution": 0.46,
+      "parts": 224,
+      "width": 943,
+      "height": 943,
+      "colorAlpha": 431083,
+      "depthAlpha": 404904,
+      "colorDifferentChannels": 0,
+      "maxColorDifference": 0,
+      "derivedStateEqual": true,
+      "geometryEqual": true,
+      "depthEqual": true,
+      "sourceStateRestored": true
+    },
+    {
+      "key": 137439739903,
+      "selection": {
+        "key": 137439739903,
+        "members": 190,
+        "under": 41,
+        "over": 60,
+        "parts": 101
+      },
+      "resolution": 0.46,
+      "parts": 101,
+      "width": 943,
+      "height": 943,
+      "colorAlpha": 205050,
+      "depthAlpha": 195294,
+      "colorDifferentChannels": 0,
+      "maxColorDifference": 0,
+      "derivedStateEqual": true,
+      "geometryEqual": true,
+      "depthEqual": true,
+      "sourceStateRestored": true
+    },
+    {
+      "key": 137437642750,
+      "selection": {
+        "key": 137437642750,
+        "members": 12,
+        "under": 0,
+        "over": 0,
+        "parts": 0
+      },
+      "resolution": 0.46,
+      "parts": 0,
+      "width": 943,
+      "height": 943,
+      "colorAlpha": 0,
+      "depthAlpha": 0,
+      "colorDifferentChannels": 0,
+      "maxColorDifference": 0,
+      "derivedStateEqual": true,
+      "geometryEqual": true,
+      "depthEqual": true,
+      "sourceStateRestored": true
+    }
+  ],
+  "changePercent": -24.913334818908282,
+  "note": "Same actual FarBake instances/materials/parts, old/new canonical source methods; depth geometry forced rebuilt equally. Exact pixel/state parity precedes CPU microbenchmark. Depth PNG diagnostically encodes the actual vertex shader gl_FragCoord.z; it is not a direct depth-buffer read. No FPS/loading acceptance."
+}

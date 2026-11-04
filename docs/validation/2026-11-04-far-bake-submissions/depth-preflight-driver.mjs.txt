@@ -1,0 +1,33 @@
+import{chromium}from'/data/workspace/sky-harbor/worldmap-integration/infected/node_modules/playwright-core/index.mjs';
+import{readFileSync,writeFileSync}from'node:fs';
+const root='/tmp/far-bake-prototype',prior=JSON.parse(readFileSync(root+'/native-r3/result.json'));
+const pixiUrl=prior.vendorUrls.find(url=>new URL(url).pathname.endsWith('/pixi__js.js'));
+const g=prior.epochs[0],staticsUrl='http://127.0.0.1:5412/@fs/data/workspace/sky-harbor/worldmap-integration/yage/engine/streaming/statics.ts?g='+g;
+const browser=await chromium.launch({executablePath:'/usr/bin/chromium',headless:false,args:[]});const deadline=setTimeout(()=>browser.close().catch(()=>{}),10000);const page=await browser.newPage({viewport:{width:64,height:64}}),errors=[],messages=[];page.on('pageerror',e=>errors.push(e.stack));page.on('console',m=>{if(['error','warning'].includes(m.type()))messages.push(m.text())});let result;
+try{
+ await page.goto('http://127.0.0.1:5412/__diagnostic/asset-status');
+ result=await page.evaluate(async({pixiUrl,staticsUrl})=>{
+  const [PIXI,{depthMesh}]=await Promise.all([import(pixiUrl),import(staticsUrl)]);
+  // This fixture has no texture samples. Avoid compiling an unrelated32-sampler batch shader.
+  PIXI.BatchRenderer.defaultMaxTextures=1;
+  const renderer=new PIXI.Renderer({width:16,height:16,resolution:1,backgroundAlpha:0,antialias:false});
+  const mesh=depthMesh([0,0,16,0,16,16,0,16],[0,0,16,0,16,16,0,16],[0,1,2,0,2,3]);
+  const target=PIXI.RenderTexture.create({width:16,height:16,resolution:1});
+  const vertex=mesh.shader.program.vertexSrc.replace(/^\s*#define SHADER_NAME[^\n]*$/gm,'');
+  const fragment='precision highp float; void main(){float d=gl_FragCoord.z;gl_FragColor=vec4(d,d,d,1.0);}';
+  const shader=new PIXI.Shader(PIXI.Program.from(vertex,fragment,'diagnostic-far-depth'),mesh.shader.uniforms);
+  const encoded=new PIXI.Mesh(mesh.geometry,shader,mesh.state);
+  try{
+   renderer.render(mesh,{renderTexture:target,clear:true});const productionError=renderer.gl.getError();
+   renderer.render(encoded,{renderTexture:target,clear:true});const bytes=renderer.extract.pixels(target),glError=renderer.gl.getError();
+   let alpha=0;const shades=new Set();for(let i=0;i<bytes.length;i+=4){if(bytes[i+3]){alpha++;shades.add(bytes[i])}}
+   const debug=renderer.gl.getExtension('WEBGL_debug_renderer_info');
+   const canvas=document.createElement('canvas');canvas.width=16;canvas.height=16;canvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(bytes),16,16),0,0);
+   return{productionError,glError,alphaPixels:alpha,shades:[...shades],contextLost:renderer.gl.isContextLost(),renderer:debug?renderer.gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):renderer.gl.getParameter(renderer.gl.RENDERER),shaderNameDefines:(encoded.shader.program.vertexSrc.match(/#define SHADER_NAME/g)??[]).length,png:canvas.toDataURL('image/png'),fixtureOnlyBatchTextureCap:1};
+  }finally{encoded.destroy();mesh.destroy();target.destroy(true);renderer.destroy(true)}
+ },{pixiUrl,staticsUrl});
+ if(result.png){writeFileSync(root+'/depth-preflight.png',Buffer.from(result.png.split(',')[1],'base64'));delete result.png;}
+ writeFileSync(root+'/depth-preflight.json',JSON.stringify({result,errors,messages,pixiUrl,staticsUrl},null,2));
+ if(result.productionError||result.glError||result.contextLost||result.alphaPixels!==256||result.shades.length<2||result.shaderNameDefines!==1||errors.length||messages.some(message=>/shader|INVALID_/i.test(message)))throw Error('Depth encoder actual WebGL guard failed');
+ console.log(JSON.stringify(result));
+}finally{clearTimeout(deadline);await browser.close()}

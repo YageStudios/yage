@@ -1,0 +1,10 @@
+
+ RUN  v4.0.18 /data/workspace/sky-harbor/worldmap-integration/yage
+
+ ✓ test/streaming/far-paint.test.ts (5 tests) 8ms
+ ✓ test/streaming/far.test.ts (11 tests) 11ms
+
+ Test Files  2 passed (2)
+      Tests  16 passed (16)
+   Start at  15:16:17
+   Duration  1.20s (transform 326ms, setup 86ms, import 672ms, tests 18ms, environment 1.44s)

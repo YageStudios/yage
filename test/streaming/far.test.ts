@@ -12,10 +12,16 @@ const instance = (x: number, y: number): FarInstance => {
   const over = new PIXI.Container();
   under.addChild(new PIXI.Sprite(PIXI.Texture.EMPTY));
   over.addChild(new PIXI.Sprite(PIXI.Texture.EMPTY));
+  under.render = vi.fn();
+  over.render = vi.fn();
   return { under, over, occluder: null, bounds: { minX: x - 5, minY: y - 5, maxX: x + 5, maxY: y + 5 } };
 };
 
-const renderer = () => ({ resolution: 1, render: vi.fn() }) as unknown as PIXI.Renderer & { render: ReturnType<typeof vi.fn> };
+const renderer = () => {
+  const r = { resolution: 1, render: vi.fn() };
+  r.render.mockImplementation((picture: PIXI.Container) => picture.render(r as unknown as PIXI.Renderer));
+  return r as unknown as PIXI.Renderer & { render: ReturnType<typeof vi.fn> };
+};
 const view = { minX: 0, minY: 0, maxX: 99, maxY: 99 };
 
 describe("FarBake", () => {
@@ -29,8 +35,9 @@ describe("FarBake", () => {
     expect(far.update(r, 0.1, view, 0)).toBe(true);
     expect(far.covers(house)).toBe(true);
     // Under then over, into the chunk's own texture.
-    expect(r.render).toHaveBeenCalledTimes(2);
-    expect(r.render.mock.calls[0][0]).toBe(house.under);
+    expect(r.render).toHaveBeenCalledTimes(1);
+    expect(house.under.render).toHaveBeenCalledWith(r);
+    expect(house.over.render).toHaveBeenCalledWith(r);
     // Past the zoom (with a little give) the pictures go.
     far.update(r, 0.21, view, 10);
     expect(far.covers(house)).toBe(true);
@@ -40,7 +47,7 @@ describe("FarBake", () => {
     // Kept a while, so zooming straight back in shows them without making them again.
     far.update(r, 0.1, view, 1000);
     expect(far.covers(house)).toBe(true);
-    expect(r.render).toHaveBeenCalledTimes(2);
+    expect(r.render).toHaveBeenCalledTimes(1);
     far.update(r, 0.3, view, 1100);
     far.update(r, 0.3, view, 6000);
     expect(far.root.children.length).toBe(0);
@@ -56,16 +63,18 @@ describe("FarBake", () => {
     far.add(shed);
     far.update(r, 0.1, view, 100);
     expect(far.covers(shed)).toBe(false);
-    expect(r.render).toHaveBeenCalledTimes(2);
+    expect(r.render).toHaveBeenCalledTimes(1);
     far.update(r, 0.1, view, 600);
     expect(far.covers(shed)).toBe(true);
-    expect(r.render).toHaveBeenCalledTimes(6);
+    expect(r.render).toHaveBeenCalledTimes(2);
   });
 
   it("shows an instance built or changed since its picture as it is, not as the picture drew it (or didn't)", () => {
     const far = new FarBake(100, { below: 0.2, budget: 100, pad: 0 });
     const house = instance(50, 50);
-    const shed = { ...instance(60, 60), under: new PIXI.Container(), over: new PIXI.Container() };
+    const shed = instance(60, 60);
+    shed.under.removeChildren();
+    shed.over.removeChildren();
     far.add(house);
     far.add(shed);
     // Built (StaticSet.build): its tree is watched from here on.
@@ -95,7 +104,12 @@ describe("FarBake", () => {
     far.changed(shed);
     const r = renderer();
     const drawn: PIXI.Container[][] = [];
-    r.render.mockImplementation((part: PIXI.Container, o: { clear: boolean }) => (o.clear ? drawn.push([part]) : drawn[drawn.length - 1].push(part)));
+    r.render.mockImplementation((picture: PIXI.Container) => {
+      const parts: PIXI.Container[] = [];
+      for (const part of [tower.under, tower.over, shed.under, shed.over]) part.render = () => { parts.push(part); };
+      picture.render(r);
+      drawn.push(parts);
+    });
     // Only chunk 0's picture: chunk 1 shows as it is, the tower in it too.
     far.update(r, 0.1, { minX: -100, minY: 0, maxX: -1, maxY: 99 }, 0);
     expect(far.root.children.filter((c) => c instanceof PIXI.Sprite).map((c) => c.x)).toEqual([0]);
@@ -145,7 +159,7 @@ describe("FarBake", () => {
     expect(depth).toHaveBeenCalledTimes(1);
     far.setTint(0x404060);
     far.update(r, 0.1, view, 600);
-    expect(r.render.mock.calls.length).toBeGreaterThan(2);
+    expect(r.render.mock.calls.length).toBeGreaterThan(1);
     expect(depth).toHaveBeenCalledTimes(1);
     far.changed(house);
     far.update(r, 0.1, view, 1200);
@@ -194,9 +208,9 @@ describe("FarBake", () => {
     far.update(r, 0.1, view, 0);
     house.over.addChild(new PIXI.Sprite(PIXI.Texture.EMPTY));
     far.update(r, 0.1, view, 600);
-    expect(r.render).toHaveBeenCalledTimes(4);
+    expect(r.render).toHaveBeenCalledTimes(2);
     far.update(r, 0.1, view, 1200);
-    expect(r.render).toHaveBeenCalledTimes(4);
+    expect(r.render).toHaveBeenCalledTimes(2);
   });
 
   it("leaves a piece hidden in place out of the picture: the instance shows as it is until the picture is made again without it", () => {
@@ -215,12 +229,12 @@ describe("FarBake", () => {
     far.update(r, 0.1, view, 100);
     expect(far.covers(house)).toBe(false);
     far.update(r, 0.1, view, 600);
-    expect(r.render).toHaveBeenCalledTimes(4);
+    expect(r.render).toHaveBeenCalledTimes(2);
     expect(far.covers(house)).toBe(true);
     // Unchanged since, it stays in the picture.
     far.update(r, 0.1, view, 1200);
     expect(far.covers(house)).toBe(true);
-    expect(r.render).toHaveBeenCalledTimes(4);
+    expect(r.render).toHaveBeenCalledTimes(2);
   });
 
   it("shows a chunk as it is while a roof in it is faded, and pictures its roofs whole", () => {
@@ -232,9 +246,9 @@ describe("FarBake", () => {
     house.over.alpha = 0.1;
     const r = renderer();
     let alphas: number[] = [];
-    r.render.mockImplementation((part: PIXI.Container) => alphas.push(part.alpha));
+    for (const part of [house.under, house.over, shop.under, shop.over]) part.render = () => { alphas.push(part.alpha); };
     far.update(r, 0.1, view, 0);
-    expect(alphas.every((a) => a === 1)).toBe(true);
+    expect(alphas).toEqual([1, 1, 1, 1]);
     expect(house.over.alpha).toBe(0.1);
     // Seen faded, the whole chunk (its neighbours too) shows as it is from the next frame.
     far.covers(house);
@@ -249,6 +263,6 @@ describe("FarBake", () => {
     far.update(r, 0.1, view, 30);
     expect(far.covers(house)).toBe(true);
     expect(far.covers(shop)).toBe(true);
-    expect(r.render).toHaveBeenCalledTimes(4);
+    expect(r.render).toHaveBeenCalledTimes(1);
   });
 });

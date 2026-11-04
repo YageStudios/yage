@@ -1,0 +1,35 @@
+{
+  "result": {
+    "productionError": 0,
+    "glError": 0,
+    "alphaPixels": 256,
+    "shades": [
+      68,
+      76,
+      84,
+      92,
+      100,
+      108,
+      116,
+      124,
+      131,
+      139,
+      147,
+      155,
+      163,
+      171,
+      179,
+      187
+    ],
+    "contextLost": false,
+    "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 5090/PCIe/SSE2, OpenGL ES 3.2)",
+    "shaderNameDefines": 1,
+    "fixtureOnlyBatchTextureCap": 1
+  },
+  "errors": [],
+  "messages": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "pixiUrl": "http://127.0.0.1:5412/@fs/tmp/infected-far-bake-candidate/cache/deps/pixi__js.js?v=fa870dbb&g=mw2iar8n0",
+  "staticsUrl": "http://127.0.0.1:5412/@fs/data/workspace/sky-harbor/worldmap-integration/yage/engine/streaming/statics.ts?g=mw2iar8n0"
+}

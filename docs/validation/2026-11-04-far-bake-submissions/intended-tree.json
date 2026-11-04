@@ -1,0 +1,18 @@
+{
+  "head": "e16e1a21e20dcb76844ecdd89bd1614c2936647f",
+  "trackedChanges": [
+    "engine/streaming/far.ts",
+    "test/streaming/far.test.ts"
+  ],
+  "untrackedCompilerInputs": [
+    "test/streaming/far-paint.test.ts"
+  ],
+  "compilerScope": "tsconfig.json includes engine and test/**/*.ts; only these three compiler inputs differ from HEAD",
+  "intendedTree": "HEAD plus exact three source/test files. No unrelated runtime or dependency draft enters the checked engine tree.",
+  "excludedUntracked": ".ui-final-build/ is outside tsconfig include and outside this commit",
+  "sourceHashes": {
+    "engine/streaming/far.ts": "bea775fc35f5f591647f2260abca631630702902a4bfd5b3a2e09372b30b8b96",
+    "test/streaming/far.test.ts": "1fd6f4037e39a43b6d3bd21a3f7fcd3eef5fc014243302f300d2c40537498966",
+    "test/streaming/far-paint.test.ts": "d13b2425cb5fd68b60572a192c3cb883742a79127f8df88a1de6a73bd67ade4b"
+  }
+}

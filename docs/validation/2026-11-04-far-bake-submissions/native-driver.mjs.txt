@@ -1,0 +1,253 @@
+import {chromium} from '/data/workspace/sky-harbor/worldmap-integration/infected/node_modules/playwright-core/index.mjs';
+import {mkdir,writeFile,readFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {createReadStream} from 'node:fs';
+import {gunzipSync} from 'node:zlib';
+import {compareFarTiles} from '/tmp/far-bake-prototype/compare-tiles.mjs';
+import {installBudgetSystemObserver} from '/tmp/infected-perf-harness/budget-system-observer.mjs';
+import {measureBuildingFill} from '/tmp/infected-perf-harness/building-fill-meter.mjs';
+const installMeters = ({ light = false, gpuTimers = true } = {}) => {
+  const game = globalThis.__infected, renderer = game.app.renderer, gl = renderer.gl;
+  const timer = gpuTimers ? gl.getExtension("EXT_disjoint_timer_query_webgl2") : null;
+  const m = (globalThis.__perf = { light, intervals: [], update: [], render: [], gpu: [], queries: [], last: 0, frameRecords: [], updateRecords: [], renderRecords: [], gpuRecords: [], uploads: [], renderTotal: 0, screenRecords: [], activeRun: false, runNumber: 0, frameQuery: null, longTasks: [] });
+  if (PerformanceObserver.supportedEntryTypes.includes("longtask")) new PerformanceObserver(list => {
+    for (const entry of list.getEntries()) m.longTasks.push({ at: entry.startTime, ms: entry.duration });
+  }).observe({ type: "longtask", buffered: true });
+  const tick = (now) => {
+    if (m.last) { m.intervals.push(now - m.last); m.frameRecords.push({ at: now, ms: now - m.last }); }
+    m.last = now;
+    // GPU readings arrive a frame or more late.
+    while (!m.light && m.queries.length && gl.getQueryParameter(m.queries[0].query, gl.QUERY_RESULT_AVAILABLE)) {
+      const { query, at, kind } = m.queries.shift();
+      if (!gl.getParameter(timer.GPU_DISJOINT_EXT)) { const ms = gl.getQueryParameter(query, gl.QUERY_RESULT) / 1e6; m.gpu.push(ms); m.gpuRecords.push({ at, ms, kind }); }
+      gl.deleteQuery(query);
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+  const run = game.sceneModel.run.bind(game.sceneModel);
+  const query = () => timer && m.queries.length < 8 ? gl.createQuery() : null;
+  if (!light) game.sceneModel.run = (...args) => {
+    if (m.light) return run(...args);
+    const at = performance.now(), renderedBefore = m.renderTotal, screenBefore = m.screenRecords.length;
+    m.activeRun = true;
+    // Alternate the full model span and final screen pass: WebGL timer queries cannot nest.
+    const q = ++m.runNumber % 2 ? query() : null;
+    m.frameQuery = q;
+    if (q) gl.beginQuery(timer.TIME_ELAPSED_EXT, q);
+    try { return run(...args); } finally {
+      if (q) { gl.endQuery(timer.TIME_ELAPSED_EXT); m.queries.push({ query: q, at, kind: "wholeModelFrame" }); }
+      m.frameQuery = null; m.activeRun = false;
+      const ms = performance.now() - at, renderedMs = m.renderTotal - renderedBefore;
+      m.update.push(ms); m.updateRecords.push({ at, ms, renderMs: renderedMs, exclusiveMs: ms - renderedMs, screenPasses: m.screenRecords.length - screenBefore });
+    }
+  };
+  const render = renderer.render.bind(renderer);
+  let depth = 0;
+  if (!light) renderer.render = (...args) => {
+    if (m.light) return render(...args);
+    const outer = depth++ === 0, at = performance.now();
+    const screen = outer && args[0] === game.app.stage && !args[1]?.renderTexture;
+    const q = screen && !m.frameQuery ? query() : null;
+    if (q) gl.beginQuery(timer.TIME_ELAPSED_EXT, q);
+    try { return render(...args); } finally {
+      depth--;
+      if (q) { gl.endQuery(timer.TIME_ELAPSED_EXT); m.queries.push({ query: q, at, kind: "finalScreenPass" }); }
+      if (outer) { const ms = performance.now() - at; m.render.push(ms); m.renderRecords.push({ at, ms, screen }); m.renderTotal += ms;
+        if (screen) m.screenRecords.push({ at, ms, insideModel: m.activeRun });
+      }
+    }
+  };
+  if (!light) for (const method of ["texImage2D", "texSubImage2D"]) {
+    const real = gl[method];
+    gl[method] = function(...args) {
+      if (m.light) return real.apply(this, args);
+      const at = performance.now();
+      try { return real.apply(this, args); } finally {
+        const source = args.find(a => a && typeof a === "object" && "width" in a);
+        m.uploads.push({ at, ms: performance.now() - at, method, width: source?.width ?? args[3], height: source?.height ?? args[4], source: source?.constructor.name ?? "data" });
+      }
+    };
+  }
+  const debug = gl.getExtension("WEBGL_debug_renderer_info");
+  return { gpu: !!timer, renderer: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : "unknown",
+    vendor: debug ? gl.getParameter(debug.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR),
+    version: gl.getParameter(gl.VERSION), shadingLanguage: gl.getParameter(gl.SHADING_LANGUAGE_VERSION),
+    context: gl.getContextAttributes(), drawingBuffer: [gl.drawingBufferWidth, gl.drawingBufferHeight],
+    devicePixelRatio, rendererResolution: renderer.resolution, screen: [game.app.screen.width, game.app.screen.height] };
+
+};
+const resetMeters = () => {
+  const m = globalThis.__perf;
+  m.intervals.length = m.update.length = m.render.length = m.gpu.length = 0;
+  for (const records of [m.frameRecords, m.updateRecords, m.renderRecords, m.gpuRecords, m.uploads, m.longTasks, m.screenRecords]) records.length = 0;
+  m.last = 0;
+  globalThis.__infected.frameStats(true);
+  m.snap0 = globalThis.__infected.metrics.snapshotRate;
+};
+const readMeters = ({ startedAt = -Infinity, endedAt = Infinity } = {}) => {
+  const m = globalThis.__perf, game = globalThis.__infected;
+  const q = (xs) => {
+    const a = [...xs].sort((x, y) => x - y), at = (f) => (a.length ? a[Math.min(a.length - 1, Math.floor(f * a.length))] : 0);
+    return { n: a.length, p50: at(0.5), p95: at(0.95), p99: at(0.99), max: a.length ? a[a.length - 1] : 0 };
+  };
+  const inWindow = rows => rows.filter(r => r.at >= startedAt && r.at <= endedAt);
+  const frame = inWindow(m.frameRecords).map(r => r.ms), update = inWindow(m.updateRecords), render = inWindow(m.renderRecords), gpu = inWindow(m.gpuRecords), uploads = inWindow(m.uploads);
+  const f = game.frameStats();
+  const screenTimes=inWindow(m.screenRecords).map(r=>r.at),screenIntervals=screenTimes.slice(1).map((t,i)=>t-screenTimes[i]);
+  return {
+    frame: { ...q(frame), over16_67: frame.filter(x => x > 16.67).length, estimatedMissed60HzSlots: frame.reduce((n, ms) => n + Math.max(0, Math.round(ms / (1000 / 60)) - 1), 0), over20: frame.filter(x => x > 20).length, over33: frame.filter(x => x > 33).length },
+    update: q(update.map(r => r.ms)), updateExclusive: q(update.map(r => r.exclusiveMs)), render: q(update.map(r => r.renderMs)), screenRender: q(inWindow(m.screenRecords).map(r => r.ms)),
+    renderCalls: { all: render.length, offscreen: render.filter(r => !r.screen).length },
+    renderPhases: Object.fromEntries([...new Set((m.renderPhases ?? []).map(r => r.label))].map(label=>{const rows=inWindow(m.renderPhases).filter(r=>r.label===label);return [label,{calls:rows.length,totalMs:rows.reduce((n,r)=>n+r.ms,0),cost:q(rows.map(r=>r.ms))}]})),
+    contextLost: game.app.renderer.gl.isContextLost(), viewport: { width: game.app.renderer.view.width, height: game.app.renderer.view.height, stageVisible: game.app.stage.visible, visibility: document.visibilityState },
+    finalScreenIntervals:{...q(screenIntervals),over16_67:screenIntervals.filter(ms=>ms>16.67).length,over20:screenIntervals.filter(ms=>ms>20).length},
+    screenPassesPerModel: q(update.map(r => r.screenPasses)), screenOutsideModel: inWindow(m.screenRecords).filter(r => !r.insideModel).length,
+    gpu: q(gpu.filter(r => r.kind === "wholeModelFrame").map(r => r.ms)), gpuScreen: q(gpu.filter(r => r.kind === "finalScreenPass").map(r => r.ms)),
+    ahead: (globalThis.__aheadTiming ?? []).filter(r => r.askedAt >= startedAt && r.askedAt <= endedAt),
+    uploads: { count: uploads.length, cpu: q(uploads.map(r => r.ms)), details: uploads }, longTasks: inWindow(m.longTasks),
+    stages: f.stages, floors: f.floors, overruns: f.overruns,
+    hot: game.hot.size, blend: game.view.blend, snapKBs: game.metrics.snapshotRate / 1024,
+    heapMB: performance.memory ? performance.memory.usedJSHeapSize / 2 ** 20 : null,
+  };
+};
+
+const url=process.argv[2]??'http://127.0.0.1:5411/',out=process.argv[3]??'/tmp/far-bake-prototype/native';await mkdir(out,{recursive:true});
+const headless=false,launchArgs=[];
+const snapshotRoot=process.argv[4];if(!snapshotRoot)throw Error('Explicit joined immutable source root required');
+const manifestBytes=await readFile(snapshotRoot+'/manifest.json'), manifest=JSON.parse(manifestBytes), moduleMap=JSON.parse(await readFile(snapshotRoot+'/module-map.json'));
+const sourcePin={manifestSha256:createHash('sha256').update(manifestBytes).digest('hex'),appHead:manifest.appHead,engineHead:manifest.engineHead,sourceFiles:manifest.files.length,assets:manifest.assets.length};
+const expectedManifest=process.argv[5];if(!expectedManifest||sourcePin.manifestSha256!==expectedManifest)throw Error('Unexpected joined manifest identity');
+const guardSource=async()=>{
+ if(createHash('sha256').update(await readFile(snapshotRoot+'/manifest.json')).digest('hex')!==expectedManifest)throw Error('Joined manifest changed');
+ for(const row of [...manifest.files.map(r=>({...r,actual:moduleMap[r.path].file})),...manifest.assets.map(r=>({...r,actual:snapshotRoot+'/public/'+r.path}))]){
+  const hash=createHash('sha256');let bytes=0;for await(const chunk of createReadStream(row.actual)){hash.update(chunk);bytes+=chunk.length;}
+  if(bytes!==row.bytes||hash.digest('hex')!==row.sha256)throw Error('Immutable input changed: '+row.path);
+ }
+ return{...sourcePin,checkedAt:new Date().toISOString()};
+};
+const hashFile = async path => {const hash=createHash('sha256');let bytes=0;for await(const chunk of createReadStream(path)){hash.update(chunk);bytes+=chunk.length;}return{bytes,sha256:hash.digest('hex')}};
+const lazy=manifest.lazyRoadAssets;
+if(!lazy)throw Error('Joined cohort lazy-asset contract missing');
+const lazyIndexBytes=await readFile(snapshotRoot+'/public/'+lazy.indexPath);
+if(createHash('sha256').update(lazyIndexBytes).digest('hex')!==lazy.indexSHA256)throw Error('Frozen road index changed');
+const declaredRoads=new Map(Object.values(JSON.parse(gunzipSync(lazyIndexBytes)).tiles).map(row=>[row.path,row]));
+let previousLedger=[];
+const readLazyState=async verify=>{
+ let text='';try{text=await readFile(lazy.ledger,'utf8')}catch(error){if(error.code!=='ENOENT')throw error}
+ const rows=text.split('\n').filter(Boolean).map(line=>JSON.parse(line));
+ if(JSON.stringify(rows.slice(0,previousLedger.length))!==JSON.stringify(previousLedger))throw Error('Lazy tile ledger prefix changed');
+ for(const row of rows){
+  if(row.kind==='error')throw Error('Lazy asset materialization failed: '+row.error);
+  const expected=declaredRoads.get(row.path);
+  if(row.kind!=='pinned'||!expected||row.bytes!==expected.bytes||row.sha256!==expected.sha256)throw Error('Lazy tile pin differs from frozen index: '+row.path);
+  if(verify){const actual=await hashFile(snapshotRoot+'/public/world-data/'+row.path);if(actual.bytes!==row.bytes||actual.sha256!==row.sha256)throw Error('Materialized tile changed: '+row.path)}
+ }
+ const response=await fetch(new URL('/__diagnostic/asset-status',url));if(!response.ok)throw Error('Lazy asset status HTTP '+response.status);
+ const status=await response.json();if(status.failure||status.bytes>status.limit)throw Error('Lazy asset status failure: '+JSON.stringify(status));
+ previousLedger=rows;
+ return{at:new Date().toISOString(),indexSHA256:lazy.indexSHA256,ledgerSHA256:createHash('sha256').update(text).digest('hex'),rows,status};
+};
+for(const row of manifest.diagnosticFiles??[]){const actual=await hashFile(row.path);if(actual.sha256!==row.sha256)throw Error('Diagnostic helper changed: '+row.path)}
+const diagnosticGuard={config:await hashFile(snapshotRoot+'/vite.config.ts'),moduleMap:await hashFile(snapshotRoot+'/module-map.json')};
+const lazyBefore=await readLazyState(true),lazyPhases=[],roadRequests=[];
+const sourceBefore=await guardSource();
+const browser=await chromium.launch({executablePath:'/usr/bin/chromium',headless,args:launchArgs});
+const cdp=await browser.newBrowserCDPSession();const backend=await cdp.send('SystemInfo.getInfo');const launch=await cdp.send('Browser.getBrowserCommandLine');await cdp.detach();
+const page=await browser.newPage({viewport:{width:1687,height:1067}}),errors=[],warnings=[],failedRequests=[],epochs=new Set(),stages=[];
+const phases=[]; let startup=null,rendererInfo=null;
+const vendorUrls=new Set(),budgetUrls=new Set();page.on('request',r=>{if(r.url().includes('pixi'))vendorUrls.add(r.url());if(r.url().includes('/FrameBudget.ts'))budgetUrls.add(r.url())});
+const inFlight=new Set(),requestStats={all:0,module:0,peak:0};
+page.on('request',r=>{requestStats.all++;if(new URL(r.url()).searchParams.has('g'))requestStats.module++;inFlight.add(r);requestStats.peak=Math.max(requestStats.peak,inFlight.size)});page.on('requestfinished',r=>inFlight.delete(r));page.on('requestfailed',r=>inFlight.delete(r));
+page.on('console',m=>{if(['warning','error'].includes(m.type()))warnings.push({type:m.type(),text:m.text(),location:m.location()})});page.on('requestfailed',r=>failedRequests.push({url:r.url(),error:r.failure()?.errorText}));
+await page.addInitScript(()=>{const RealWorker=Worker;globalThis.__probeWorkers=[];globalThis.Worker=new Proxy(RealWorker,{construct(Target,args){const worker=Reflect.construct(Target,args),row={url:String(args[0]),createdAt:performance.now(),sent:0,replies:0,errors:[],lastSent:null,lastReply:null};__probeWorkers.push(row);const post=worker.postMessage.bind(worker);worker.postMessage=(...a)=>{row.sent++;row.lastSent={at:performance.now(),kind:a[0]?.kind??a[0]?.type??null,cx:a[0]?.cx,cy:a[0]?.cy};return post(...a)};worker.addEventListener('message',event=>{row.replies++;row.lastReply={at:performance.now(),kind:event.data?.kind??event.data?.type??null}});worker.addEventListener('error',e=>row.errors.push({type:e.type,eventClass:e.constructor.name,message:e.message??e.error?.message,filename:e.filename,lineno:e.lineno,stack:e.error?.stack,error:String(e.error??e)}));return worker;}})});
+const roadPending=new WeakMap();
+page.on('request',request=>{if(new URL(request.url()).pathname.startsWith('/world-data/data/map-roads/')){const row={url:request.url(),startedUnixMs:Date.now()};roadRequests.push(row);roadPending.set(request,row)}});
+page.on('requestfinished',request=>{const row=roadPending.get(request);if(row){row.finishedUnixMs=Date.now();row.durationMs=row.finishedUnixMs-row.startedUnixMs}});
+page.on('requestfailed',request=>{const row=roadPending.get(request);if(row){row.finishedUnixMs=Date.now();row.error=request.failure()?.errorText}});
+page.on('pageerror',e=>errors.push(e.stack));page.on('request',r=>{const g=new URL(r.url()).searchParams.get('g');if(g)epochs.add(g)});
+const capture=async label=>{
+ // Save actual compositor evidence before the optional production download can fail.
+ await page.screenshot({path:`${out}/${label}.compositor.png`});
+ const statePromise=page.evaluate(()=>new Promise((resolve,reject)=>{
+  const game=__infected,renderer=game.app.renderer,gl=renderer.gl;
+  const deadline=setTimeout(()=>{renderer.off('postrender',drawn);reject(Error('No natural final screen metadata'))},1000);
+  const drawn=()=>{
+   if(!renderer.renderingToScreen)return;renderer.off('postrender',drawn);clearTimeout(deadline);
+   const roots=[];const visit=(n,depth)=>{roots.push({depth,name:n.name,type:n.constructor.name,visible:n.visible,renderable:n.renderable,alpha:n.alpha,children:n.children?.length??0,transform:[n.worldTransform.a,n.worldTransform.b,n.worldTransform.c,n.worldTransform.d,n.worldTransform.tx,n.worldTransform.ty]});if(depth<2)for(const c of n.children??[])visit(c,depth+1)};visit(game.app.stage,0);
+   const glErrors=[];for(let i=0;i<16;i++){const code=gl.getError();if(!code)break;glErrors.push(code);}
+   const debug=gl.getExtension('WEBGL_debug_renderer_info');
+   resolve({gpu:{renderer:debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER),vendor:debug?gl.getParameter(debug.UNMASKED_VENDOR_WEBGL):gl.getParameter(gl.VENDOR),version:gl.getParameter(gl.VERSION)},glErrors,contextLost:gl.isContextLost(),renderTarget:renderer.renderTexture.current?{width:renderer.renderTexture.current.width,height:renderer.renderTexture.current.height}:null,framebuffer:gl.getParameter(gl.FRAMEBUFFER_BINDING)?'bound':'default',readFramebuffer:gl.READ_FRAMEBUFFER_BINDING?!!gl.getParameter(gl.READ_FRAMEBUFFER_BINDING):null,readBuffer:gl.READ_BUFFER?gl.getParameter(gl.READ_BUFFER):null,viewport:[...gl.getParameter(gl.VIEWPORT)],roots,tick:game.step.last,loading:game.step.geographicLoading,view:{x:game.view.x,y:game.view.y,zoom:game.view.zoom,following:game.view.following},canvases:[...document.querySelectorAll('canvas')].map(c=>({width:c.width,height:c.height,rect:c.getBoundingClientRect().toJSON()}))});
+  };renderer.on('postrender',drawn);
+ })).catch(error=>({metadataError:error.message}));
+ const downloadPromise=page.waitForEvent('download',{timeout:5000});
+ await page.getByRole('button',{name:'Screenshot',exact:true}).click();
+ const download=await downloadPromise;await download.saveAs(`${out}/${label}.production.png`);
+ const state=await statePromise;
+ const png=(await readFile(`${out}/${label}.production.png`)).toString('base64');
+ const pixels=await page.evaluate(async png=>{
+  const image=new Image();image.src='data:image/png;base64,'+png;await image.decode();
+  const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;
+  const ctx=canvas.getContext('2d');ctx.drawImage(image,0,0);const data=ctx.getImageData(0,0,canvas.width,canvas.height).data;
+  let colored=0;for(let i=0;i<data.length-canvas.width*64*4;i+=4)if(data[i]>5||data[i+1]>5||data[i+2]>5)colored++;
+  return{width:canvas.width,height:canvas.height,coloredPixels:colored};
+ },png);
+ const record={label,...state,...pixels};stages.push(record);await writeFile(`${out}/result.json`,JSON.stringify({url,headless,launchArgs,backend:backend.gpu,launch,stages,errors,warnings,failedRequests,requestStats,phases,startup,rendererInfo,sourceBefore,budgetUrls:[...budgetUrls],vendorUrls:[...vendorUrls],epochs:[...epochs]},null,2));
+ if(record.metadataError||record.contextLost||record.coloredPixels<10000)throw Error(`Actual ${label} nonempty guard failed: ${record.coloredPixels}`);
+};
+const farUrls=new Set();page.on('request',request=>{if(new URL(request.url()).pathname.endsWith('/streaming/far.ts'))farUrls.add(request.url())});
+const optimizerPath=snapshotRoot+'/cache/deps/_metadata.json';
+const optimizerBefore=createHash('sha256').update(await readFile(optimizerPath)).digest('hex');
+const minecsUrls=new Set();page.context().on('request',request=>{if(new URL(request.url()).pathname.endsWith('/minecs.js'))minecsUrls.add(request.url())});
+const deadline=setTimeout(()=>browser.close().catch(()=>{}),90000);
+try{
+ await page.goto(url);
+ await page.waitForFunction(()=>globalThis.__infected?.app?.renderer?.gl,null,{timeout:60000});
+ rendererInfo=await page.evaluate(installMeters,{light:true,gpuTimers:false});
+ await page.waitForFunction(()=>__infected.hudBus.state.get('generating')===null,null,{timeout:60000});
+ await page.getByRole('button',{name:/Begin/}).first().click();
+ await page.waitForFunction(()=>__infected.outbreak.started&&__infected.step.last>=120&&__infected.view.following&&!__infected.step.geographicLoading,null,{timeout:60000});
+ const dialog=page.getByRole('dialog',{name:'Mutation: choose one',exact:true});if(await dialog.isVisible())await dialog.getByRole('button',{name:/^1: /}).click();
+ await page.waitForTimeout(1000);
+ await capture('normal-running-before-comparison');
+ if(epochs.size!==1||errors.length)throw Error('Normal scene source/error guard failed');
+ await page.evaluate(source=>{globalThis.__measureBuildingFill=(0,eval)('('+source+')')},measureBuildingFill.toString());
+ const fill=await page.evaluate(async()=>{
+  const fill=await __measureBuildingFill({world:true,at:[60,-60],minimal:true,collectGeometry:false,sampleEveryMs:0,zoom:.5,durationMs:3000});
+  __infected.hudBus.send('speed:pause',{paused:true});__infected.app.ticker.stop();
+  return fill;
+ });
+ phases.push({zoom:.5,fill,note:fill.allCompleteMs===null?'Fixed3s city input remains incomplete; preserved as a separate full-city failure. Authority/ticker frozen immediately after sample.':'Fixed3s city input completed before freeze; actual allCompleteMs retained. Authority/ticker frozen immediately after sample; no further admissions enter either variant.'});
+ await writeFile(`${out}/fixed-input.json`,JSON.stringify(phases[0],null,2));
+ await page.screenshot({path:`${out}/fixed-input.compositor.png`});
+ if(farUrls.size!==1)throw Error('Expected one canonical FarBake source: '+JSON.stringify([...farUrls]));
+ const pixiUrl=[...vendorUrls].find(url=>new URL(url).pathname.endsWith('/pixi__js.js'));if(!pixiUrl)throw Error('Observed canonical Pixi URL missing');
+ const baselineUrl=new URL([...farUrls][0]);baselineUrl.searchParams.set('farBaseline','1');
+ if(minecsUrls.size!==1||createHash('sha256').update(await readFile(optimizerPath)).digest('hex')!==optimizerBefore)throw Error('Optimizer identity changed before comparison');
+ const comparison=await page.evaluate(compareFarTiles,{baselineUrl:baselineUrl.href,pixiUrl});
+ for(const row of comparison.parity??[])for(const variant of row.outputs??[])for(const kind of ['color','depth']){
+  const key=kind+'PNG';if(variant[key]){await writeFile(`${out}/${row.key}-${variant.name}-${kind}.png`,Buffer.from(variant[key].split(',')[1],'base64'));delete variant[key];}
+ }
+ await writeFile(`${out}/comparison.json`,JSON.stringify({comparison,farUrl:[...farUrls][0],baselineUrl:baselineUrl.href,pixiUrl,optimizerBefore,minecsUrls:[...minecsUrls],errors,warnings,failedRequests,epochs:[...epochs]},null,2));
+ if(!comparison.pass||errors.length||epochs.size!==1)throw Error(comparison.error??'Comparison source/error guard failed');
+ console.log(JSON.stringify({done:true,selected:comparison.selected,parity:comparison.parity.map(row=>({key:row.key,parts:row.parts,colorDifferentChannels:row.colorDifferentChannels,depthEqual:row.depthEqual,geometryEqual:row.geometryEqual})),trials:comparison.trials,errorCleanup:comparison.errorCleanup}));
+
+}catch(error){
+ await page.screenshot({path:`${out}/failure.compositor.png`}).catch(()=>{});
+ const state=await page.evaluate(()=>{
+  const g=globalThis.__infected;
+  const actual=name=>{const c=g?.sceneModel?.componentList?.find(c=>c?.schema?.name===name);return c?g.sceneModel.single(c.schema):null};
+  const watch=actual('HotWatch');
+  return{dom:document.body.innerText.slice(-7000),hasGame:!!g,buttons:[...document.querySelectorAll('button')].map(b=>({text:b.textContent,disabled:b.disabled})),generating:g?.hudBus?.state?.get('generating'),tick:g?.step?.last,started:g?.outbreak?.started,following:g?.view?.following,geographicLoading:g?.step?.geographicLoading,watch:watch?.geographic?{pending:watch.geographic.pending,dirty:watch.geographic.dirty}:null,workers:globalThis.__probeWorkers??[],readyState:document.readyState};
+ }).catch(e=>({inspectionError:e.message}));
+ await writeFile(`${out}/failure.json`,JSON.stringify({url,headless,launchArgs,backend:backend.gpu,launch,error:error.stack,state,stages,errors,warnings,failedRequests,requestStats,phases,startup,rendererInfo,sourceBefore,budgetUrls:[...budgetUrls],vendorUrls:[...vendorUrls],epochs:[...epochs]},null,2));throw error}
+
+finally{clearTimeout(deadline);await browser.close();
+const optimizerAfter=createHash('sha256').update(await readFile(optimizerPath)).digest('hex');
+await writeFile(`${out}/optimizer-guards.json`,JSON.stringify({optimizerBefore,optimizerAfter,minecsUrls:[...minecsUrls]},null,2));
+if(optimizerBefore!==optimizerAfter||minecsUrls.size>1)throw Error('Optimizer identity split or late reload');
+const sourceAfter=await guardSource();const lazyAfter=await readLazyState(true);
+for(const row of manifest.diagnosticFiles??[]){const actual=await hashFile(row.path);if(actual.sha256!==row.sha256)throw Error('Diagnostic helper changed: '+row.path)}
+const finalDiagnosticGuard={config:await hashFile(snapshotRoot+'/vite.config.ts'),moduleMap:await hashFile(snapshotRoot+'/module-map.json')};
+if(JSON.stringify(finalDiagnosticGuard)!==JSON.stringify(diagnosticGuard))throw Error('Diagnostic config/module map changed');
+await writeFile(`${out}/source-guards.json`,JSON.stringify({sourceBefore,sourceAfter,diagnosticGuard,lazyBefore,lazyAfter,lazyPhases,roadRequests},null,2));}

@@ -1,0 +1,351 @@
+{
+  "comparison": {
+    "pass": true,
+    "selected": [
+      137439215615,
+      137439739903,
+      137437642750
+    ],
+    "selection": [
+      {
+        "key": 137439215615,
+        "members": 161,
+        "under": 77,
+        "over": 147,
+        "parts": 224
+      },
+      {
+        "key": 137439739903,
+        "members": 190,
+        "under": 41,
+        "over": 60,
+        "parts": 101
+      },
+      {
+        "key": 137437642750,
+        "members": 12,
+        "under": 0,
+        "over": 0,
+        "parts": 0
+      }
+    ],
+    "parity": [
+      {
+        "key": 137439215615,
+        "selection": {
+          "key": 137439215615,
+          "members": 161,
+          "under": 77,
+          "over": 147,
+          "parts": 224
+        },
+        "resolution": 0.46,
+        "parts": 224,
+        "width": 943,
+        "height": 943,
+        "colorAlpha": 431083,
+        "depthAlpha": 404904,
+        "colorDifferentChannels": 0,
+        "maxColorDifference": 0,
+        "derivedStateEqual": true,
+        "geometryEqual": true,
+        "depthEqual": true,
+        "sourceStateRestored": true,
+        "outputs": [
+          {
+            "name": "before",
+            "colorSHA256": "9970fdfe9782479e3742952ff381d0a88d42548655ea16c1e44e7fc0d0edb599",
+            "depthSHA256": "3312e3866fc1fe524c5ec831517e01be69eaf0982b9687e5fc0f9c4f80eebd64",
+            "geometrySHA256": "baa188711899eca7dff49f288e054d6fd7b66c0a8c50bab1f642ca320e8fb7b1",
+            "derivedStateSHA256": "823343bf740a1de7c80bff07f60902e0c40cd5c1bed64070329b1e47fb7ac9e7"
+          },
+          {
+            "name": "after",
+            "colorSHA256": "9970fdfe9782479e3742952ff381d0a88d42548655ea16c1e44e7fc0d0edb599",
+            "depthSHA256": "3312e3866fc1fe524c5ec831517e01be69eaf0982b9687e5fc0f9c4f80eebd64",
+            "geometrySHA256": "baa188711899eca7dff49f288e054d6fd7b66c0a8c50bab1f642ca320e8fb7b1",
+            "derivedStateSHA256": "823343bf740a1de7c80bff07f60902e0c40cd5c1bed64070329b1e47fb7ac9e7"
+          }
+        ]
+      },
+      {
+        "key": 137439739903,
+        "selection": {
+          "key": 137439739903,
+          "members": 190,
+          "under": 41,
+          "over": 60,
+          "parts": 101
+        },
+        "resolution": 0.46,
+        "parts": 101,
+        "width": 943,
+        "height": 943,
+        "colorAlpha": 205050,
+        "depthAlpha": 195294,
+        "colorDifferentChannels": 0,
+        "maxColorDifference": 0,
+        "derivedStateEqual": true,
+        "geometryEqual": true,
+        "depthEqual": true,
+        "sourceStateRestored": true,
+        "outputs": [
+          {
+            "name": "before",
+            "colorSHA256": "91e9d95e78337019000e9956789046246d7ca95ae6e31e406756361761686ff6",
+            "depthSHA256": "1fa72136c4d32d90df48960b6101ab7db04d5a308aed03172903e2135e9924ad",
+            "geometrySHA256": "e7f22d1709dc9a4873fce29de934b08856bf8dcf03e6702426f643a9305ee28e",
+            "derivedStateSHA256": "8d2d1d0a230da828929e51e3452e99dfa494b145ef6c83435d5dd4f1153b506c"
+          },
+          {
+            "name": "after",
+            "colorSHA256": "91e9d95e78337019000e9956789046246d7ca95ae6e31e406756361761686ff6",
+            "depthSHA256": "1fa72136c4d32d90df48960b6101ab7db04d5a308aed03172903e2135e9924ad",
+            "geometrySHA256": "e7f22d1709dc9a4873fce29de934b08856bf8dcf03e6702426f643a9305ee28e",
+            "derivedStateSHA256": "8d2d1d0a230da828929e51e3452e99dfa494b145ef6c83435d5dd4f1153b506c"
+          }
+        ]
+      },
+      {
+        "key": 137437642750,
+        "selection": {
+          "key": 137437642750,
+          "members": 12,
+          "under": 0,
+          "over": 0,
+          "parts": 0
+        },
+        "resolution": 0.46,
+        "parts": 0,
+        "width": 943,
+        "height": 943,
+        "colorAlpha": 0,
+        "depthAlpha": 0,
+        "colorDifferentChannels": 0,
+        "maxColorDifference": 0,
+        "derivedStateEqual": true,
+        "geometryEqual": true,
+        "depthEqual": true,
+        "sourceStateRestored": true,
+        "outputs": [
+          {
+            "name": "before",
+            "colorSHA256": "bb8745c992ab9b41d854589b21385491cce210980ee34d401427239417e0c893",
+            "depthSHA256": null,
+            "geometrySHA256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "derivedStateSHA256": "ae22454ef6e399daf2ee69f585b5c78b3880694f9ec64a7ae37f1bb01127f2be",
+            "depthPNG": null
+          },
+          {
+            "name": "after",
+            "colorSHA256": "bb8745c992ab9b41d854589b21385491cce210980ee34d401427239417e0c893",
+            "depthSHA256": null,
+            "geometrySHA256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "derivedStateSHA256": "ae22454ef6e399daf2ee69f585b5c78b3880694f9ec64a7ae37f1bb01127f2be",
+            "depthPNG": null
+          }
+        ]
+      }
+    ],
+    "errorCleanup": [
+      {
+        "method": "render",
+        "caught": true,
+        "sourceStateRestored": true
+      },
+      {
+        "method": "updateTransform",
+        "caught": true,
+        "sourceStateRestored": true
+      }
+    ],
+    "trials": [
+      {
+        "name": "before",
+        "trial": 0,
+        "ms": 11.925000011920929,
+        "renderCalls": 326
+      },
+      {
+        "name": "before",
+        "trial": 1,
+        "ms": 13.984999999403954,
+        "renderCalls": 326
+      },
+      {
+        "name": "before",
+        "trial": 2,
+        "ms": 14.234999999403954,
+        "renderCalls": 326
+      },
+      {
+        "name": "before",
+        "trial": 3,
+        "ms": 9.844999998807907,
+        "renderCalls": 326
+      },
+      {
+        "name": "before",
+        "trial": 4,
+        "ms": 10.375,
+        "renderCalls": 326
+      },
+      {
+        "name": "before",
+        "trial": 5,
+        "ms": 10.404999986290932,
+        "renderCalls": 326
+      },
+      {
+        "name": "after",
+        "trial": 0,
+        "ms": 10.20499999821186,
+        "renderCalls": 3
+      },
+      {
+        "name": "after",
+        "trial": 1,
+        "ms": 4.770000010728836,
+        "renderCalls": 3
+      },
+      {
+        "name": "after",
+        "trial": 2,
+        "ms": 8.67000000178814,
+        "renderCalls": 3
+      },
+      {
+        "name": "after",
+        "trial": 3,
+        "ms": 6.0250000059604645,
+        "renderCalls": 3
+      },
+      {
+        "name": "after",
+        "trial": 4,
+        "ms": 11.599999994039536,
+        "renderCalls": 3
+      },
+      {
+        "name": "after",
+        "trial": 5,
+        "ms": 10.219999998807907,
+        "renderCalls": 3
+      },
+      {
+        "name": "after",
+        "trial": 0,
+        "ms": 9.625,
+        "renderCalls": 3
+      },
+      {
+        "name": "after",
+        "trial": 1,
+        "ms": 5.555000007152557,
+        "renderCalls": 3
+      },
+      {
+        "name": "after",
+        "trial": 2,
+        "ms": 7.575000002980232,
+        "renderCalls": 3
+      },
+      {
+        "name": "after",
+        "trial": 3,
+        "ms": 4.760000005364418,
+        "renderCalls": 3
+      },
+      {
+        "name": "after",
+        "trial": 4,
+        "ms": 4.355000004172325,
+        "renderCalls": 3
+      },
+      {
+        "name": "after",
+        "trial": 5,
+        "ms": 12.41499999165535,
+        "renderCalls": 3
+      },
+      {
+        "name": "before",
+        "trial": 0,
+        "ms": 11.230000004172325,
+        "renderCalls": 326
+      },
+      {
+        "name": "before",
+        "trial": 1,
+        "ms": 8.28999999165535,
+        "renderCalls": 326
+      },
+      {
+        "name": "before",
+        "trial": 2,
+        "ms": 13.469999998807907,
+        "renderCalls": 326
+      },
+      {
+        "name": "before",
+        "trial": 3,
+        "ms": 10.144999995827675,
+        "renderCalls": 326
+      },
+      {
+        "name": "before",
+        "trial": 4,
+        "ms": 14.370000004768372,
+        "renderCalls": 326
+      },
+      {
+        "name": "before",
+        "trial": 5,
+        "ms": 9.28999999165535,
+        "renderCalls": 326
+      }
+    ],
+    "note": "Same actual FarBake instances/materials/parts, old/new canonical source methods; depth geometry forced rebuilt equally. Exact pixel/state parity precedes CPU microbenchmark. Depth PNG diagnostically encodes the actual vertex shader gl_FragCoord.z; it is not a direct depth-buffer read. No FPS/loading acceptance."
+  },
+  "farUrl": "http://127.0.0.1:5412/@fs/data/workspace/sky-harbor/worldmap-integration/yage/engine/streaming/far.ts?g=mw2iar8n0",
+  "baselineUrl": "http://127.0.0.1:5412/@fs/data/workspace/sky-harbor/worldmap-integration/yage/engine/streaming/far.ts?g=mw2iar8n0&farBaseline=1",
+  "pixiUrl": "http://127.0.0.1:5412/@fs/tmp/infected-far-bake-candidate/cache/deps/pixi__js.js?v=fa870dbb&g=mw2iar8n0",
+  "optimizerBefore": "036db29fb468136ca4524a2827599813c331d163a41f487c9ae11cac43a38f5a",
+  "minecsUrls": [
+    "http://127.0.0.1:5412/@fs/tmp/infected-far-bake-candidate/cache/deps/minecs.js?v=fa870dbb&g=mw2iar8n0"
+  ],
+  "errors": [],
+  "warnings": [
+    {
+      "type": "warning",
+      "text": "using deprecated parameters for the initialization function; pass a single object instead",
+      "location": {
+        "url": "http://127.0.0.1:5412/@fs/tmp/infected-far-bake-candidate/cache/deps/yage___@dimforge_rapier2d-deterministic-compat.js?v=fa870dbb&g=mw2iar8n0",
+        "lineNumber": 2219,
+        "columnNumber": 107
+      }
+    },
+    {
+      "type": "warning",
+      "text": "using deprecated parameters for the initialization function; pass a single object instead",
+      "location": {
+        "url": "http://127.0.0.1:5412/@fs/tmp/infected-far-bake-candidate/cache/deps/yage___@dimforge_rapier2d-deterministic-compat.js?v=fa870dbb&g=mw2iar8n0",
+        "lineNumber": 2219,
+        "columnNumber": 107
+      }
+    },
+    {
+      "type": "warning",
+      "text": "using deprecated parameters for the initialization function; pass a single object instead",
+      "location": {
+        "url": "http://127.0.0.1:5412/@fs/tmp/infected-far-bake-candidate/cache/deps/yage___@dimforge_rapier2d-deterministic-compat.js?v=fa870dbb&g=mw2iar8n0",
+        "lineNumber": 2219,
+        "columnNumber": 107
+      }
+    }
+  ],
+  "failedRequests": [],
+  "epochs": [
+    "mw2iar8n0"
+  ]
+}

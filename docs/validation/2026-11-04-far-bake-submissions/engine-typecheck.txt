@@ -1,0 +1,3 @@
+
+> yage@0.0.7 typecheck
+> tsc --noEmit

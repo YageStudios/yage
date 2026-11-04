@@ -1,0 +1,8 @@
+{
+  "actualExpected": 98,
+  "actualAllCompleteMs": 298.02500000596046,
+  "actualLastComplete": 98,
+  "actualLastUnbuilt": 0,
+  "noteCorrection": "The static inherited partial-input note in fixed-input.json is inaccurate for r3. Preserve raw, use these actual recorded completion fields. r2 remains a distinct16/82 incomplete failure.",
+  "diagnosticShaderCause": "PIXI.Program.from prepends SHADER_NAME; passing preprocessed production vertexSrc duplicated that macro. The error belongs to the diagnostic encoding program, not the production depthMesh. No parity/benchmark passed."
+}

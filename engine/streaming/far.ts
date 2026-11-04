@@ -70,8 +70,6 @@ type Tile = {
   opening: boolean;
 };
 
-const EMPTY = new PIXI.Container();
-
 /**
  * Which of an instance's pieces are hidden: its parts' children and theirs (a built part and what it
  * holds), as one number. A piece the game hides or shows in place (a stall packed away, a lit window,
@@ -376,33 +374,46 @@ export class FarBake {
     tile.sprite.position.set(left, top);
     const transform = new PIXI.Matrix(res, 0, 0, res, -left * res, -top * res);
     const renderTexture = tile.sprite.texture as PIXI.RenderTexture;
-    let clear = true;
-    // Under parts, then over parts, as the scene stacks them; hidden ones (culled, or covered by this
-    // very picture) drawn all the same, and no depth occluders (a picture has no depth).
+    // One submission keeps adjacent pieces in the same Pixi batch. Each piece still starts from
+    // its own local transform, exactly as a standalone renderer.render(part) did.
+    const picture = new PIXI.Container();
     const draw = (part: PIXI.Container, item: FarInstance) => {
       if (!part.children.length) return;
       const shown = part.visible;
       const alpha = part.alpha;
       const occluded = item.occluder?.visible ?? false;
-      // Whole: a faded roof shows only while its chunk is open, not in the picture.
       part.visible = true;
       part.alpha = 1;
       if (item.occluder) item.occluder.visible = false;
-      renderer.render(part, { renderTexture, clear, transform });
-      clear = false;
-      part.visible = shown;
-      part.alpha = alpha;
-      if (item.occluder) item.occluder.visible = occluded;
+      try {
+        const parent = part.enableTempParent();
+        try {
+          part.updateTransform();
+        } finally {
+          part.disableTempParent(parent);
+        }
+        part.render(renderer);
+      } finally {
+        part.visible = shown;
+        part.alpha = alpha;
+        if (item.occluder) item.occluder.visible = occluded;
+      }
     };
     // In the scene's order: under parts as listed, over parts by depth (ties as listed).
     const listed = [...items];
     const ordered = listed.map((item, i) => ({ item, i })).sort((a, b) => a.item.over.zIndex - b.item.over.zIndex || a.i - b.i).map((o) => o.item);
-    for (const item of listed) {
-      this.drawnAs.set(item, shownPieces(item));
-      draw(item.under, item);
+    picture.render = () => {
+      for (const item of listed) {
+        this.drawnAs.set(item, shownPieces(item));
+        draw(item.under, item);
+      }
+      for (const item of ordered) draw(item.over, item);
+    };
+    try {
+      renderer.render(picture, { renderTexture, clear: true, transform });
+    } finally {
+      picture.destroy();
     }
-    for (const item of ordered) draw(item.over, item);
-    if (clear) renderer.render(EMPTY, { renderTexture, clear });
     // Each instance's occluder once, with the chunk it stands in (its bounds' centre).
     const home = (item: FarInstance) => Math.floor((item.bounds.minX + item.bounds.maxX) / 2 / size) === x && Math.floor((item.bounds.minY + item.bounds.maxY) / 2 / size) === y;
     if (tile.reshaped) this.bakeDepth(tile, ordered.filter(home));

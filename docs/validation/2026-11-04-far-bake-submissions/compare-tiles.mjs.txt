@@ -1,0 +1,78 @@
+export const compareFarTiles = async ({ baselineUrl, pixiUrl }) => {
+ const game=__infected,model=game.sceneModel,renderer=game.app.renderer;
+ const actual=name=>{const type=model.componentList.find(row=>row?.schema?.name===name);return model.single(type.schema)};
+ const far=actual('GroundResources').scene.statics.far;
+ const [baseline,PIXI]=await Promise.all([import(baselineUrl),import(pixiUrl)]);
+ const oldBake=baseline.FarBake.prototype.bake,newBake=far.bake;
+ if(!oldBake.toString().includes('render(part')||!newBake.toString().includes('picture.render'))throw Error('Actual old/new bake source guard failed');
+ const candidates=[...far.members.entries()].map(([key,items])=>({key,members:items.size,under:[...items].filter(item=>item.under.children.length).length,over:[...items].filter(item=>item.over.children.length).length,parts:[...items].reduce((n,item)=>n+!!item.under.children.length+!!item.over.children.length,0)})).sort((a,b)=>b.parts-a.parts||a.key-b.key);
+ const meaningful=candidates.filter(row=>row.parts>0),empty=candidates.filter(row=>row.parts===0).sort((a,b)=>a.key-b.key)[0];
+ const selected=[meaningful[0]?.key,meaningful[1]?.key,empty?.key].filter(key=>key!==undefined);
+ if(selected.length!==3||meaningful[0].parts<32||meaningful[1].parts<8)throw Error('Insufficient actual built-parts tile inputs');
+ const selection=selected.map(key=>candidates.find(row=>row.key===key));
+ const digest=async bytes=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(v=>v.toString(16).padStart(2,'0')).join('');
+ const state=key=>[...far.members.get(key)].map(item=>[item.spec?.id,...['under','over'].map(part=>{const p=item[part];return{part,visible:p.visible,alpha:p.alpha,parent:p.parent,children:[...p.children],position:[p.x,p.y],scale:[p.scale.x,p.scale.y],rotation:p.rotation,zIndex:p.zIndex,skew:[p.skew.x,p.skew.y],pivot:[p.pivot.x,p.pivot.y],mask:p.mask,filters:p.filters,filterArea:p.filterArea?{x:p.filterArea.x,y:p.filterArea.y,width:p.filterArea.width,height:p.filterArea.height}:null,renderable:p.renderable}}),item.occluder?.visible]);
+ const sameState=(a,b)=>a.length===b.length&&a.every((row,i)=>row.every((v,j)=>{
+  const other=b[i][j];if(!v||typeof v!=='object')return v===other;
+  return v.part===other.part&&v.visible===other.visible&&v.alpha===other.alpha&&v.parent===other.parent&&v.rotation===other.rotation&&v.zIndex===other.zIndex&&v.mask===other.mask&&v.filters===other.filters&&v.renderable===other.renderable&&JSON.stringify(v.filterArea)===JSON.stringify(other.filterArea)&&JSON.stringify(v.skew)===JSON.stringify(other.skew)&&JSON.stringify(v.pivot)===JSON.stringify(other.pivot)&&JSON.stringify(v.position)===JSON.stringify(other.position)&&JSON.stringify(v.scale)===JSON.stringify(other.scale)&&v.children.length===other.children.length&&v.children.every((child,k)=>child===other.children[k]);
+ }));
+ const transformedState=key=>[...far.members.get(key)].flatMap((item,index)=>['under','over'].flatMap(part=>{
+  const rows=[];const visit=(node,path)=>{rows.push({path,visible:node.visible,renderable:node.renderable,alpha:node.alpha,worldAlpha:node.worldAlpha,world:[node.worldTransform.a,node.worldTransform.b,node.worldTransform.c,node.worldTransform.d,node.worldTransform.tx,node.worldTransform.ty]});for(let i=0;i<(node.children?.length??0);i++)visit(node.children[i],path+'/'+i)};visit(item[part],index+'/'+part);return rows;
+ }));
+ const geometry=key=>{const mesh=far.tiles.get(key).depth;return mesh?{buffers:mesh.geometry.buffers.map(buffer=>Array.from(buffer.data)),index:Array.from(mesh.geometry.getIndex().data),state:mesh.state.data,vertex:mesh.shader.program.vertexSrc,fragment:mesh.shader.program.fragmentSrc}:null};
+ const pixelsToPng=(bytes,w,h)=>{const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;canvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(bytes),w,h),0,0);return canvas.toDataURL('image/png')};
+ // Encode the actual depth mesh's vertex-computed depth into color for portable WebGL readback.
+ // This diagnostic render does not replace the production mesh or add any retained scene texture.
+ const depthPixels=key=>{
+  const tile=far.tiles.get(key),source=tile.depth;
+  if(!source)return null;
+  const texture=PIXI.RenderTexture.create({width:tile.sprite.texture.width,height:tile.sprite.texture.height,resolution:1});
+  const fragment='precision highp float; void main(){float d=gl_FragCoord.z;gl_FragColor=vec4(d,d,d,1.0);}';
+  const mesh=new PIXI.Mesh(source.geometry,new PIXI.Shader(PIXI.Program.from(source.shader.program.vertexSrc.replace(/^\s*#define SHADER_NAME[^\n]*$/gm,''),fragment,'diagnostic-far-depth'),source.shader.uniforms),source.state);
+  const left=tile.sprite.x,top=tile.sprite.y,res=tile.res;
+  try{renderer.render(mesh,{renderTexture:texture,clear:true,transform:new PIXI.Matrix(res,0,0,res,-left*res,-top*res)});return{bytes:renderer.extract.pixels(texture),width:texture.width,height:texture.height};}
+  finally{mesh.destroy();texture.destroy(true);}
+ };
+ const parity=[];
+ for(const key of selected){
+  const before=state(key),outputs=[];
+  for(const [name,bake]of [['before',oldBake],['after',newBake]]){
+   if(far.tiles.has(key))far.tiles.get(key).reshaped=true;bake.call(far,renderer,key,game.view.now);
+   if(!sameState(before,state(key)))throw Error(name+' changed actual part state');
+   const tile=far.tiles.get(key),color=renderer.extract.pixels(tile.sprite.texture),depth=depthPixels(key),shape=geometry(key);
+   outputs.push({name,color,depth,derivedStateSHA256:await digest(new TextEncoder().encode(JSON.stringify(transformedState(key)))),geometrySHA256:await digest(new TextEncoder().encode(JSON.stringify(shape))),colorSHA256:await digest(color),depthSHA256:depth?await digest(depth.bytes):null,width:tile.sprite.texture.width,height:tile.sprite.texture.height});
+  }
+  const [a,b]=outputs;
+  const colorAlpha=a.color.reduce((n,value,i)=>n+(i%4===3&&value>0?1:0),0);
+  const depthAlpha=a.depth?.bytes.reduce((n,value,i)=>n+(i%4===3&&value>0?1:0),0)??0;
+  let differences=0,maxDifference=0;
+  for(let i=0;i<a.color.length;i++){const d=Math.abs(a.color[i]-b.color[i]);if(d)differences++;maxDifference=Math.max(maxDifference,d);}
+  const row={key,selection:candidates.find(row=>row.key===key),resolution:far.tiles.get(key).res,parts:candidates.find(row=>row.key===key).parts,width:a.width,height:a.height,colorAlpha,depthAlpha,colorDifferentChannels:differences,maxColorDifference:maxDifference,derivedStateEqual:a.derivedStateSHA256===b.derivedStateSHA256,geometryEqual:a.geometrySHA256===b.geometrySHA256,depthEqual:a.depthSHA256===b.depthSHA256,sourceStateRestored:true,outputs:outputs.map(o=>({name:o.name,colorSHA256:o.colorSHA256,depthSHA256:o.depthSHA256,geometrySHA256:o.geometrySHA256,derivedStateSHA256:o.derivedStateSHA256,colorPNG:pixelsToPng(o.color,o.width,o.height),depthPNG:o.depth?pixelsToPng(o.depth.bytes,o.depth.width,o.depth.height):null}))};
+  parity.push(row);
+  if(key===selected[0]&&(!colorAlpha||!depthAlpha))return{pass:false,error:'Actual dense tile color/depth coverage is empty',selection,parity};
+  if(differences||!row.geometryEqual||!row.depthEqual||!row.derivedStateEqual)return {pass:false,error:'Actual color/depth parity failed',parity};
+ }
+ const key=selected[0],part=[...far.members.get(key)].find(item=>item.under.children.length)?.under;
+ const errors=[];
+ for(const method of ['render','updateTransform']){
+  const before=state(key),original=part[method],descriptor=Object.getOwnPropertyDescriptor(part,method);part[method]=()=>{throw Error('diagnostic-'+method)};
+  let caught=false;try{newBake.call(far,renderer,key,game.view.now)}catch(error){caught=error.message==='diagnostic-'+method}finally{if(descriptor)Object.defineProperty(part,method,descriptor);else delete part[method]}
+  if(!caught||!sameState(before,state(key)))throw Error('Candidate error cleanup failed: '+method);
+  errors.push({method,caught,sourceStateRestored:true});
+ }
+ // Repaint cleanly after the deliberate failures before collecting cost.
+ for(const bake of [oldBake,newBake])for(const key of selected){if(far.tiles.has(key))far.tiles.get(key).reshaped=true;bake.call(far,renderer,key,game.view.now)}
+ const trials=[],originalRender=renderer.render;
+ try{
+  for(const name of ['before','after','after','before']){
+   const bake=name==='before'?oldBake:newBake;
+   for(let trial=0;trial<6;trial++){
+    let calls=0;renderer.render=function(...args){calls++;return originalRender.apply(this,args)};
+    const at=performance.now();
+    for(const key of selected){if(far.tiles.has(key))far.tiles.get(key).reshaped=true;bake.call(far,renderer,key,game.view.now)}
+    const ms=performance.now()-at;renderer.render=originalRender;trials.push({name,trial,ms,renderCalls:calls});
+   }
+  }
+ }finally{renderer.render=originalRender;}
+ return{pass:true,selected,selection,parity,errorCleanup:errors,trials,note:'Same actual FarBake instances/materials/parts, old/new canonical source methods; depth geometry forced rebuilt equally. Exact pixel/state parity precedes CPU microbenchmark. Depth PNG diagnostically encodes the actual vertex shader gl_FragCoord.z; it is not a direct depth-buffer read. No FPS/loading acceptance.'};
+};

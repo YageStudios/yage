@@ -1,0 +1,8 @@
+
+> yage@0.0.7 typecheck
+> tsc --noEmit
+
+test/streaming/far-paint.test.ts(135,5): error TS2322: Type '(() => void) | ((renderer: Renderer) => void)' is not assignable to type '((renderer: Renderer) => void) & (() => void)'.
+  Type '(renderer: Renderer) => void' is not assignable to type '((renderer: Renderer) => void) & (() => void)'.
+    Type '(renderer: Renderer) => void' is not assignable to type '() => void'.
+      Target signature provides too few arguments. Expected 1 or more, but got 0.

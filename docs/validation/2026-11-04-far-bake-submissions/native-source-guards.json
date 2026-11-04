@@ -1,0 +1,2167 @@
+{
+  "sourceBefore": {
+    "manifestSha256": "a333d6a81434bceab3a2945e982a4d8bb9cf19ddde4e187fcbf458fcfcf9964c",
+    "appHead": "c27d08e8013d99b8c588fa10e96bdb85ef6563f4",
+    "engineHead": "e16e1a21e20dcb76844ecdd89bd1614c2936647f",
+    "sourceFiles": 2107,
+    "assets": 10454,
+    "checkedAt": "2026-11-04T19:58:55.528Z"
+  },
+  "sourceAfter": {
+    "manifestSha256": "a333d6a81434bceab3a2945e982a4d8bb9cf19ddde4e187fcbf458fcfcf9964c",
+    "appHead": "c27d08e8013d99b8c588fa10e96bdb85ef6563f4",
+    "engineHead": "e16e1a21e20dcb76844ecdd89bd1614c2936647f",
+    "sourceFiles": 2107,
+    "assets": 10454,
+    "checkedAt": "2026-11-04T19:59:32.788Z"
+  },
+  "diagnosticGuard": {
+    "config": {
+      "bytes": 35187,
+      "sha256": "8bfafff53d4e9405986a6aadd0b24161fd225399de83f52b9e9de4bd789c7f88"
+    },
+    "moduleMap": {
+      "bytes": 333966,
+      "sha256": "079bef972af96157814c6fe6f3f6a31761ec9e5a4a4adfcae6a12470f89cb7df"
+    }
+  },
+  "lazyBefore": {
+    "at": "2026-11-04T19:58:51.312Z",
+    "indexSHA256": "91545b8896b1b11bbff70e3e56ec0cd68ffad07a428fb70fc72e0f4740534545",
+    "ledgerSHA256": "f0ec4c2958b60dd713dd19307b992c95a0e164c67a9cf7d2ca5d55ad89a58e61",
+    "rows": [
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/494/397.bin",
+        "bytes": 341783,
+        "sha256": "4aa1f88211504babb36fa2cea262e234a6b3513f2f00930f28ded099e2e10954",
+        "at": "2026-11-04T19:02:57.716Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/495/397.bin",
+        "bytes": 214310,
+        "sha256": "ef59115b08f42a202197bba7cfee5b4b9b652abf43e6e5caaf510afe30a4313b",
+        "at": "2026-11-04T19:02:57.717Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/492/395.bin",
+        "bytes": 258,
+        "sha256": "d982b992baa3ff131d9ea09cbdb8db33bc35dacede65ec38a1529cea429e4504",
+        "at": "2026-11-04T19:02:57.718Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/493/395.bin",
+        "bytes": 173,
+        "sha256": "b29b11a4d8dd87416f64421e76fb5a93ead485e7e245734fee96e105b7bb8b75",
+        "at": "2026-11-04T19:02:57.718Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/494/395.bin",
+        "bytes": 231,
+        "sha256": "70ee10d764058398c6fd4347aa6d51aebda864b6bbb760ba562705ec35063529",
+        "at": "2026-11-04T19:02:57.752Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/492/396.bin",
+        "bytes": 208,
+        "sha256": "bda2723c4a75e0b2a5472b34646c0b8983863f6cffe3676537203e91b4aee6b5",
+        "at": "2026-11-04T19:02:57.752Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/493/396.bin",
+        "bytes": 581,
+        "sha256": "28ba5dd011d812c0e5b04607b6e43913e9e1e1749e6aa99162b1dfa238cb83c6",
+        "at": "2026-11-04T19:02:57.758Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/494/396.bin",
+        "bytes": 50781,
+        "sha256": "0edbf1571e01391b01eedd6e039344fa24e8d0ccff2f10df5cffb061e173e45f",
+        "at": "2026-11-04T19:02:57.760Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/495/396.bin",
+        "bytes": 39898,
+        "sha256": "9cc4b9c212b01f9183f54691484961ef33ce1e291f440e59de9aca1f7b2a0e77",
+        "at": "2026-11-04T19:02:57.764Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/496/396.bin",
+        "bytes": 173,
+        "sha256": "7d91b381b51bb69c46dd4bf42291f43ceb77d76f64069a1de00fde80d3958506",
+        "at": "2026-11-04T19:02:57.765Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/492/397.bin",
+        "bytes": 44655,
+        "sha256": "54fed274705cf16c2445149cb521c6ec7e97c8c321de759b897edd3dc5ad6fba",
+        "at": "2026-11-04T19:02:57.767Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/493/397.bin",
+        "bytes": 15276,
+        "sha256": "af5d6a3c66799108f350b014d5da628ced48319ad3d4c8d7cf250afbf07c0f73",
+        "at": "2026-11-04T19:02:57.801Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/496/397.bin",
+        "bytes": 167,
+        "sha256": "0e22ee2b27e1484f220c644ee49ab55a45683d0c1747cb79df49943adced4be0",
+        "at": "2026-11-04T19:02:57.802Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/492/398.bin",
+        "bytes": 2259,
+        "sha256": "399ec7c760ffcb644b74235e91690308ec7873f6421b28fd7680bee69cfa69f0",
+        "at": "2026-11-04T19:02:57.802Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/494/398.bin",
+        "bytes": 143,
+        "sha256": "801ebea2a8f1795f0ec30148897e33af8dd80f302169793f2f0287221f5998c8",
+        "at": "2026-11-04T19:02:57.805Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/495/398.bin",
+        "bytes": 279,
+        "sha256": "0e78084253a79cba42b4642c7ceea1478acc7c8fdb9845899ce5f598e430e843",
+        "at": "2026-11-04T19:02:57.813Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/496/398.bin",
+        "bytes": 155,
+        "sha256": "73b0a6e3fb53739e35d6c41c827d15b932d031757f769cf4c0da684959796e86",
+        "at": "2026-11-04T19:02:57.813Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/7/61/49.bin",
+        "bytes": 361290,
+        "sha256": "0416e0916f9cfc18c45cf3deb401f5a2d512adcd3b92dab2ad374c28822d8318",
+        "at": "2026-11-04T19:02:57.814Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/7/6.bin",
+        "bytes": 1867679,
+        "sha256": "fd07df7e6ade0fdcb89f87680ccf5c6abe69d7bc91039e14c7d243225ac61d48",
+        "at": "2026-11-04T19:02:57.816Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/1/3.bin",
+        "bytes": 1844,
+        "sha256": "ff50d753dd79f7db65d92b6b351bf020fef6ec5658ec5dedcdc8250389e0e601",
+        "at": "2026-11-04T19:03:06.827Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/2/3.bin",
+        "bytes": 4314,
+        "sha256": "e34f6f96c9bf5db843f5ddec5b8e237c86fbbabe94863744341741b435eb0b00",
+        "at": "2026-11-04T19:03:06.828Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/5/3.bin",
+        "bytes": 1000,
+        "sha256": "9a36b7fa05a550ee6379b8db6550bf75cd5bf46d4179e9a380d8de1f6396677e",
+        "at": "2026-11-04T19:03:06.828Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/8/3.bin",
+        "bytes": 59219,
+        "sha256": "8aac86bb530a041e449c95351be5bfbe72e0e71a107a29f5895babcb327b2f03",
+        "at": "2026-11-04T19:03:06.828Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/9/3.bin",
+        "bytes": 45398,
+        "sha256": "c1cf6f9114cac06e95d95d0484177c5e9c19725bbaf377ad41c0087d423da106",
+        "at": "2026-11-04T19:03:06.911Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/0/4.bin",
+        "bytes": 707,
+        "sha256": "7b718551eabfef9e8267567792779e52dab804f10fc00bff9df1c83e7e1942df",
+        "at": "2026-11-04T19:03:06.912Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/1/4.bin",
+        "bytes": 79695,
+        "sha256": "c56398a48d4299c97e21997906dfe0deb6654e5b77c06baa7ff437fd0beebf16",
+        "at": "2026-11-04T19:03:06.912Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/2/4.bin",
+        "bytes": 36974,
+        "sha256": "2e2513825b870a0e89e329c5aa202902d52a74e6e9c9a2b5c1f3ecc808683eac",
+        "at": "2026-11-04T19:03:06.912Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/3/4.bin",
+        "bytes": 11322,
+        "sha256": "8b42fa5fcf06bff5215950158d34c76f325605686cb4384d65841306b9ee318a",
+        "at": "2026-11-04T19:03:06.922Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/5/4.bin",
+        "bytes": 202,
+        "sha256": "a564374c9f540dde6fdd345c3545f96211eb7e6b82b27e5afd79329b19557af8",
+        "at": "2026-11-04T19:03:06.932Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/6/4.bin",
+        "bytes": 12598,
+        "sha256": "2df389339da2a991914c8eaa355f3b8a81161d4a4ee9bbdadd77783214cf920d",
+        "at": "2026-11-04T19:03:06.932Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/7/4.bin",
+        "bytes": 327988,
+        "sha256": "31f1c3393a3b958f6e0ec579bbd92d002be7a63e4f63fffda2e93ccb92dbdd33",
+        "at": "2026-11-04T19:03:06.934Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/8/4.bin",
+        "bytes": 994332,
+        "sha256": "2fc38e270425f9bd0521dcda98cf510d5c8e8a0d49783ad2c769ad1d22b6e38b",
+        "at": "2026-11-04T19:03:06.938Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/9/4.bin",
+        "bytes": 594507,
+        "sha256": "c4c782c70ba224562c139120a45687212a4fbcf825b6a7984199b23b1c5944af",
+        "at": "2026-11-04T19:03:06.971Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/2/5.bin",
+        "bytes": 1060295,
+        "sha256": "5c0ccfc59a5a16915fbd55e95daa2d3748f060aea3c74bd0d9951d2880844c0d",
+        "at": "2026-11-04T19:03:06.976Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/3/5.bin",
+        "bytes": 1040263,
+        "sha256": "e3191ceff1f77cdff8ab9bc89d329d71210960f5de26a239359af03e6ac958ac",
+        "at": "2026-11-04T19:03:06.982Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/4/5.bin",
+        "bytes": 2923074,
+        "sha256": "ab3a6012f3c87fd993e50068980542e9615b30e2ce59dd57bce4887ae821e3d0",
+        "at": "2026-11-04T19:03:07.075Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/5/5.bin",
+        "bytes": 289805,
+        "sha256": "ab6b5a074f84ca86879fdfb53f73ca017663b609107b247db5c89106e9823830",
+        "at": "2026-11-04T19:03:07.159Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/7/5.bin",
+        "bytes": 3460521,
+        "sha256": "341db530138de8fe3c03398a2dcff14bf81b93690665c96c8ee8d969c1ed445d",
+        "at": "2026-11-04T19:03:07.168Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/8/5.bin",
+        "bytes": 9267377,
+        "sha256": "708599d82b0409e1cc9cf1db4c31f7c058843983a2d98d3b888051f2a62ee52a",
+        "at": "2026-11-04T19:03:07.268Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/9/5.bin",
+        "bytes": 2192023,
+        "sha256": "16392285664ec9d7ede2491a9c90b1c253509dae216dca536e11dace3e8b9a52",
+        "at": "2026-11-04T19:03:07.291Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/0/6.bin",
+        "bytes": 1287,
+        "sha256": "a0061374f04483be3a3245eaa4ded0822543b1c55861748c3d478ebfb296264b",
+        "at": "2026-11-04T19:03:07.294Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/2/6.bin",
+        "bytes": 1560347,
+        "sha256": "dd33ca0c5fc1852427ef453e312bc59ad57188058ffd38a12c30696c72faaef2",
+        "at": "2026-11-04T19:03:07.628Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/292/391.bin",
+        "bytes": 1372042,
+        "sha256": "14fbae3f0605d9b0a67e67dd7e583314698466b0db252952e8e41086624069c7",
+        "at": "2026-11-04T19:03:07.722Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/293/391.bin",
+        "bytes": 723637,
+        "sha256": "338293d7b609dad1a1ace8fdfbb21d59ffd90b5104f032339d19c3e99eddec38",
+        "at": "2026-11-04T19:03:07.728Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/10/3.bin",
+        "bytes": 2289,
+        "sha256": "ef4f7990e88cec9e8629b53cf5e6fad506ae4f2c70db829b8411bc51c61e65ec",
+        "at": "2026-11-04T19:03:21.714Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/11/3.bin",
+        "bytes": 346,
+        "sha256": "4fd008ccff6dbedcc9a307bac53aebde5085decc839ba5fae1717fea9c4632b7",
+        "at": "2026-11-04T19:03:21.714Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/12/3.bin",
+        "bytes": 444,
+        "sha256": "f259833e03053231e863ecc3a416a01066aa51cd337b342964159e74d2901107",
+        "at": "2026-11-04T19:03:21.714Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/10/4.bin",
+        "bytes": 203485,
+        "sha256": "15644c2c5b87048c6bb05294be3e3dab66539ef06be28c5b818c9df7f46c1023",
+        "at": "2026-11-04T19:03:21.715Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/11/4.bin",
+        "bytes": 51811,
+        "sha256": "6d91a93c3b272dc995404a8b66ffbe8b2077d1ed9dae680fde3c8e1d4d500933",
+        "at": "2026-11-04T19:03:21.794Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/12/4.bin",
+        "bytes": 50729,
+        "sha256": "25c2e2c1ef3e453b054831ca2414e85ecfa1a312e0069bd25006e90d97ad685e",
+        "at": "2026-11-04T19:03:21.795Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/10/5.bin",
+        "bytes": 336396,
+        "sha256": "3b5d3ce4ed55f4cb2e09e4a943182a393d4b022790e8c15f22ffd0f4f4aa8d22",
+        "at": "2026-11-04T19:03:21.799Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/11/5.bin",
+        "bytes": 631754,
+        "sha256": "add093ac57518d723dfff24128343f788198d75ffb6d93ee0e4362a80e4e0ff6",
+        "at": "2026-11-04T19:03:21.802Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/12/5.bin",
+        "bytes": 152507,
+        "sha256": "033c9111d4bcdd0a2c79d146bd677179ea0a0d4381982181843bd241aaf23156",
+        "at": "2026-11-04T19:03:21.836Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/3/6.bin",
+        "bytes": 3368929,
+        "sha256": "56ff4adf7275031c27b1fd90832a7c1a300881c28be4afaff9b47762c3277833",
+        "at": "2026-11-04T19:03:21.844Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/4/6.bin",
+        "bytes": 5729633,
+        "sha256": "3d400999c8b756e7b14cad6a67b51ba67a16fad76b23d1a0e0d087f2fd5d139a",
+        "at": "2026-11-04T19:03:21.942Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/5/6.bin",
+        "bytes": 3905,
+        "sha256": "7d3bd940c4db922d5e09228bdd4a9e1946ab5a9d01541db92d1601f405b0bd0c",
+        "at": "2026-11-04T19:03:22.008Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/6/6.bin",
+        "bytes": 28767,
+        "sha256": "9fedc76c4cdab9caba0db58f08aacbdbb9af0d417c1d7942a3b3f2cfb6b3f8cf",
+        "at": "2026-11-04T19:03:22.009Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/8/6.bin",
+        "bytes": 1730457,
+        "sha256": "0701761a3b06ccb38a8f31ecd9052f98918f0a666b8686dbc8b2eac854304c11",
+        "at": "2026-11-04T19:03:22.013Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/9/6.bin",
+        "bytes": 3331357,
+        "sha256": "9398e475cbc862c95fc44ded884d10d16590204eddd73a7fdbfddc7b1f1258d0",
+        "at": "2026-11-04T19:03:22.165Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/10/6.bin",
+        "bytes": 2575075,
+        "sha256": "34bb873ba1a833efa1dbfeac18e6986cf6f98af37d2e21f924e97b65e9052882",
+        "at": "2026-11-04T19:03:22.175Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/11/6.bin",
+        "bytes": 3073790,
+        "sha256": "e5114133f9ff44cbb3c9174163460419d1195b83b74c2bdc72bb46afd89edafd",
+        "at": "2026-11-04T19:03:22.187Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/12/6.bin",
+        "bytes": 5668104,
+        "sha256": "025854d467a91430f778a44c5d6c79d1b37d20f60aa66da6219432855cd3e6b1",
+        "at": "2026-11-04T19:03:22.205Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/3/7.bin",
+        "bytes": 1308196,
+        "sha256": "7c26dabd8efd67f816bfafe753e9f304f6699e7498588f8c4f2b65c920fd8fe4",
+        "at": "2026-11-04T19:03:22.590Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/4/7.bin",
+        "bytes": 1638500,
+        "sha256": "fd3e20bf9c1d3d15706371ed84463cdaad3367b0d5d30d18ddb60eea2a6bcfca",
+        "at": "2026-11-04T19:03:22.596Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/5/7.bin",
+        "bytes": 447708,
+        "sha256": "91a5a0038f90ba93b8865416c204f732ed45ee7ef388d62bdc99a0c785c3ba68",
+        "at": "2026-11-04T19:03:22.708Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/6/7.bin",
+        "bytes": 8962,
+        "sha256": "0134a5a96f65341decfe55726828c012800868337b43c9bfe51a5f7391bf41c5",
+        "at": "2026-11-04T19:03:22.709Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/7/7.bin",
+        "bytes": 671943,
+        "sha256": "33365b6683c73f65f6c36f3ca5804c527c3630f81a47fe4f9ccd6ababdaa1579",
+        "at": "2026-11-04T19:03:22.924Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/8/7.bin",
+        "bytes": 1149143,
+        "sha256": "7b197f6bc6ab83c1508eeb2e7f1af65600493461c031054e873860d30629013e",
+        "at": "2026-11-04T19:03:22.929Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/9/7.bin",
+        "bytes": 1017594,
+        "sha256": "bc85847353b327f9a85f7814badf5a4e99ff0ce40f3603578ad97af3dfe599ba",
+        "at": "2026-11-04T19:03:22.933Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/10/7.bin",
+        "bytes": 114717,
+        "sha256": "195cfcad8357c3c68c0d5489929c030a7f60ecfe668d3e44b73ba01a114c2800",
+        "at": "2026-11-04T19:03:22.935Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/11/7.bin",
+        "bytes": 2896575,
+        "sha256": "7e7136b63db8969316b57a39dd18ff6f1e298b5f554ecb734d7b230cdbffeeb1",
+        "at": "2026-11-04T19:03:24.753Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/12/7.bin",
+        "bytes": 3585857,
+        "sha256": "c54a45c57fec11a7fffd4e8750455de04e873a0b5f923482e21a777a243507b5",
+        "at": "2026-11-04T19:03:24.769Z"
+      }
+    ],
+    "status": {
+      "limit": 536870912,
+      "bytes": 68780043,
+      "failure": null,
+      "declaredTiles": 73451,
+      "materialized": [
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/494/397.bin",
+          "bytes": 341783,
+          "sha256": "4aa1f88211504babb36fa2cea262e234a6b3513f2f00930f28ded099e2e10954",
+          "at": "2026-11-04T19:02:57.716Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/495/397.bin",
+          "bytes": 214310,
+          "sha256": "ef59115b08f42a202197bba7cfee5b4b9b652abf43e6e5caaf510afe30a4313b",
+          "at": "2026-11-04T19:02:57.717Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/492/395.bin",
+          "bytes": 258,
+          "sha256": "d982b992baa3ff131d9ea09cbdb8db33bc35dacede65ec38a1529cea429e4504",
+          "at": "2026-11-04T19:02:57.718Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/493/395.bin",
+          "bytes": 173,
+          "sha256": "b29b11a4d8dd87416f64421e76fb5a93ead485e7e245734fee96e105b7bb8b75",
+          "at": "2026-11-04T19:02:57.718Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/494/395.bin",
+          "bytes": 231,
+          "sha256": "70ee10d764058398c6fd4347aa6d51aebda864b6bbb760ba562705ec35063529",
+          "at": "2026-11-04T19:02:57.752Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/492/396.bin",
+          "bytes": 208,
+          "sha256": "bda2723c4a75e0b2a5472b34646c0b8983863f6cffe3676537203e91b4aee6b5",
+          "at": "2026-11-04T19:02:57.752Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/493/396.bin",
+          "bytes": 581,
+          "sha256": "28ba5dd011d812c0e5b04607b6e43913e9e1e1749e6aa99162b1dfa238cb83c6",
+          "at": "2026-11-04T19:02:57.758Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/494/396.bin",
+          "bytes": 50781,
+          "sha256": "0edbf1571e01391b01eedd6e039344fa24e8d0ccff2f10df5cffb061e173e45f",
+          "at": "2026-11-04T19:02:57.760Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/495/396.bin",
+          "bytes": 39898,
+          "sha256": "9cc4b9c212b01f9183f54691484961ef33ce1e291f440e59de9aca1f7b2a0e77",
+          "at": "2026-11-04T19:02:57.764Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/496/396.bin",
+          "bytes": 173,
+          "sha256": "7d91b381b51bb69c46dd4bf42291f43ceb77d76f64069a1de00fde80d3958506",
+          "at": "2026-11-04T19:02:57.765Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/492/397.bin",
+          "bytes": 44655,
+          "sha256": "54fed274705cf16c2445149cb521c6ec7e97c8c321de759b897edd3dc5ad6fba",
+          "at": "2026-11-04T19:02:57.767Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/493/397.bin",
+          "bytes": 15276,
+          "sha256": "af5d6a3c66799108f350b014d5da628ced48319ad3d4c8d7cf250afbf07c0f73",
+          "at": "2026-11-04T19:02:57.801Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/496/397.bin",
+          "bytes": 167,
+          "sha256": "0e22ee2b27e1484f220c644ee49ab55a45683d0c1747cb79df49943adced4be0",
+          "at": "2026-11-04T19:02:57.802Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/492/398.bin",
+          "bytes": 2259,
+          "sha256": "399ec7c760ffcb644b74235e91690308ec7873f6421b28fd7680bee69cfa69f0",
+          "at": "2026-11-04T19:02:57.802Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/494/398.bin",
+          "bytes": 143,
+          "sha256": "801ebea2a8f1795f0ec30148897e33af8dd80f302169793f2f0287221f5998c8",
+          "at": "2026-11-04T19:02:57.805Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/495/398.bin",
+          "bytes": 279,
+          "sha256": "0e78084253a79cba42b4642c7ceea1478acc7c8fdb9845899ce5f598e430e843",
+          "at": "2026-11-04T19:02:57.813Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/496/398.bin",
+          "bytes": 155,
+          "sha256": "73b0a6e3fb53739e35d6c41c827d15b932d031757f769cf4c0da684959796e86",
+          "at": "2026-11-04T19:02:57.813Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/7/61/49.bin",
+          "bytes": 361290,
+          "sha256": "0416e0916f9cfc18c45cf3deb401f5a2d512adcd3b92dab2ad374c28822d8318",
+          "at": "2026-11-04T19:02:57.814Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/7/6.bin",
+          "bytes": 1867679,
+          "sha256": "fd07df7e6ade0fdcb89f87680ccf5c6abe69d7bc91039e14c7d243225ac61d48",
+          "at": "2026-11-04T19:02:57.816Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/1/3.bin",
+          "bytes": 1844,
+          "sha256": "ff50d753dd79f7db65d92b6b351bf020fef6ec5658ec5dedcdc8250389e0e601",
+          "at": "2026-11-04T19:03:06.827Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/2/3.bin",
+          "bytes": 4314,
+          "sha256": "e34f6f96c9bf5db843f5ddec5b8e237c86fbbabe94863744341741b435eb0b00",
+          "at": "2026-11-04T19:03:06.828Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/5/3.bin",
+          "bytes": 1000,
+          "sha256": "9a36b7fa05a550ee6379b8db6550bf75cd5bf46d4179e9a380d8de1f6396677e",
+          "at": "2026-11-04T19:03:06.828Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/8/3.bin",
+          "bytes": 59219,
+          "sha256": "8aac86bb530a041e449c95351be5bfbe72e0e71a107a29f5895babcb327b2f03",
+          "at": "2026-11-04T19:03:06.828Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/9/3.bin",
+          "bytes": 45398,
+          "sha256": "c1cf6f9114cac06e95d95d0484177c5e9c19725bbaf377ad41c0087d423da106",
+          "at": "2026-11-04T19:03:06.911Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/0/4.bin",
+          "bytes": 707,
+          "sha256": "7b718551eabfef9e8267567792779e52dab804f10fc00bff9df1c83e7e1942df",
+          "at": "2026-11-04T19:03:06.912Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/1/4.bin",
+          "bytes": 79695,
+          "sha256": "c56398a48d4299c97e21997906dfe0deb6654e5b77c06baa7ff437fd0beebf16",
+          "at": "2026-11-04T19:03:06.912Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/2/4.bin",
+          "bytes": 36974,
+          "sha256": "2e2513825b870a0e89e329c5aa202902d52a74e6e9c9a2b5c1f3ecc808683eac",
+          "at": "2026-11-04T19:03:06.912Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/3/4.bin",
+          "bytes": 11322,
+          "sha256": "8b42fa5fcf06bff5215950158d34c76f325605686cb4384d65841306b9ee318a",
+          "at": "2026-11-04T19:03:06.922Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/5/4.bin",
+          "bytes": 202,
+          "sha256": "a564374c9f540dde6fdd345c3545f96211eb7e6b82b27e5afd79329b19557af8",
+          "at": "2026-11-04T19:03:06.932Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/6/4.bin",
+          "bytes": 12598,
+          "sha256": "2df389339da2a991914c8eaa355f3b8a81161d4a4ee9bbdadd77783214cf920d",
+          "at": "2026-11-04T19:03:06.932Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/7/4.bin",
+          "bytes": 327988,
+          "sha256": "31f1c3393a3b958f6e0ec579bbd92d002be7a63e4f63fffda2e93ccb92dbdd33",
+          "at": "2026-11-04T19:03:06.934Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/8/4.bin",
+          "bytes": 994332,
+          "sha256": "2fc38e270425f9bd0521dcda98cf510d5c8e8a0d49783ad2c769ad1d22b6e38b",
+          "at": "2026-11-04T19:03:06.938Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/9/4.bin",
+          "bytes": 594507,
+          "sha256": "c4c782c70ba224562c139120a45687212a4fbcf825b6a7984199b23b1c5944af",
+          "at": "2026-11-04T19:03:06.971Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/2/5.bin",
+          "bytes": 1060295,
+          "sha256": "5c0ccfc59a5a16915fbd55e95daa2d3748f060aea3c74bd0d9951d2880844c0d",
+          "at": "2026-11-04T19:03:06.976Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/3/5.bin",
+          "bytes": 1040263,
+          "sha256": "e3191ceff1f77cdff8ab9bc89d329d71210960f5de26a239359af03e6ac958ac",
+          "at": "2026-11-04T19:03:06.982Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/4/5.bin",
+          "bytes": 2923074,
+          "sha256": "ab3a6012f3c87fd993e50068980542e9615b30e2ce59dd57bce4887ae821e3d0",
+          "at": "2026-11-04T19:03:07.075Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/5/5.bin",
+          "bytes": 289805,
+          "sha256": "ab6b5a074f84ca86879fdfb53f73ca017663b609107b247db5c89106e9823830",
+          "at": "2026-11-04T19:03:07.159Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/7/5.bin",
+          "bytes": 3460521,
+          "sha256": "341db530138de8fe3c03398a2dcff14bf81b93690665c96c8ee8d969c1ed445d",
+          "at": "2026-11-04T19:03:07.168Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/8/5.bin",
+          "bytes": 9267377,
+          "sha256": "708599d82b0409e1cc9cf1db4c31f7c058843983a2d98d3b888051f2a62ee52a",
+          "at": "2026-11-04T19:03:07.268Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/9/5.bin",
+          "bytes": 2192023,
+          "sha256": "16392285664ec9d7ede2491a9c90b1c253509dae216dca536e11dace3e8b9a52",
+          "at": "2026-11-04T19:03:07.291Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/0/6.bin",
+          "bytes": 1287,
+          "sha256": "a0061374f04483be3a3245eaa4ded0822543b1c55861748c3d478ebfb296264b",
+          "at": "2026-11-04T19:03:07.294Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/2/6.bin",
+          "bytes": 1560347,
+          "sha256": "dd33ca0c5fc1852427ef453e312bc59ad57188058ffd38a12c30696c72faaef2",
+          "at": "2026-11-04T19:03:07.628Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/292/391.bin",
+          "bytes": 1372042,
+          "sha256": "14fbae3f0605d9b0a67e67dd7e583314698466b0db252952e8e41086624069c7",
+          "at": "2026-11-04T19:03:07.722Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/293/391.bin",
+          "bytes": 723637,
+          "sha256": "338293d7b609dad1a1ace8fdfbb21d59ffd90b5104f032339d19c3e99eddec38",
+          "at": "2026-11-04T19:03:07.728Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/10/3.bin",
+          "bytes": 2289,
+          "sha256": "ef4f7990e88cec9e8629b53cf5e6fad506ae4f2c70db829b8411bc51c61e65ec",
+          "at": "2026-11-04T19:03:21.714Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/11/3.bin",
+          "bytes": 346,
+          "sha256": "4fd008ccff6dbedcc9a307bac53aebde5085decc839ba5fae1717fea9c4632b7",
+          "at": "2026-11-04T19:03:21.714Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/12/3.bin",
+          "bytes": 444,
+          "sha256": "f259833e03053231e863ecc3a416a01066aa51cd337b342964159e74d2901107",
+          "at": "2026-11-04T19:03:21.714Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/10/4.bin",
+          "bytes": 203485,
+          "sha256": "15644c2c5b87048c6bb05294be3e3dab66539ef06be28c5b818c9df7f46c1023",
+          "at": "2026-11-04T19:03:21.715Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/11/4.bin",
+          "bytes": 51811,
+          "sha256": "6d91a93c3b272dc995404a8b66ffbe8b2077d1ed9dae680fde3c8e1d4d500933",
+          "at": "2026-11-04T19:03:21.794Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/12/4.bin",
+          "bytes": 50729,
+          "sha256": "25c2e2c1ef3e453b054831ca2414e85ecfa1a312e0069bd25006e90d97ad685e",
+          "at": "2026-11-04T19:03:21.795Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/10/5.bin",
+          "bytes": 336396,
+          "sha256": "3b5d3ce4ed55f4cb2e09e4a943182a393d4b022790e8c15f22ffd0f4f4aa8d22",
+          "at": "2026-11-04T19:03:21.799Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/11/5.bin",
+          "bytes": 631754,
+          "sha256": "add093ac57518d723dfff24128343f788198d75ffb6d93ee0e4362a80e4e0ff6",
+          "at": "2026-11-04T19:03:21.802Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/12/5.bin",
+          "bytes": 152507,
+          "sha256": "033c9111d4bcdd0a2c79d146bd677179ea0a0d4381982181843bd241aaf23156",
+          "at": "2026-11-04T19:03:21.836Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/3/6.bin",
+          "bytes": 3368929,
+          "sha256": "56ff4adf7275031c27b1fd90832a7c1a300881c28be4afaff9b47762c3277833",
+          "at": "2026-11-04T19:03:21.844Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/4/6.bin",
+          "bytes": 5729633,
+          "sha256": "3d400999c8b756e7b14cad6a67b51ba67a16fad76b23d1a0e0d087f2fd5d139a",
+          "at": "2026-11-04T19:03:21.942Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/5/6.bin",
+          "bytes": 3905,
+          "sha256": "7d3bd940c4db922d5e09228bdd4a9e1946ab5a9d01541db92d1601f405b0bd0c",
+          "at": "2026-11-04T19:03:22.008Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/6/6.bin",
+          "bytes": 28767,
+          "sha256": "9fedc76c4cdab9caba0db58f08aacbdbb9af0d417c1d7942a3b3f2cfb6b3f8cf",
+          "at": "2026-11-04T19:03:22.009Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/8/6.bin",
+          "bytes": 1730457,
+          "sha256": "0701761a3b06ccb38a8f31ecd9052f98918f0a666b8686dbc8b2eac854304c11",
+          "at": "2026-11-04T19:03:22.013Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/9/6.bin",
+          "bytes": 3331357,
+          "sha256": "9398e475cbc862c95fc44ded884d10d16590204eddd73a7fdbfddc7b1f1258d0",
+          "at": "2026-11-04T19:03:22.165Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/10/6.bin",
+          "bytes": 2575075,
+          "sha256": "34bb873ba1a833efa1dbfeac18e6986cf6f98af37d2e21f924e97b65e9052882",
+          "at": "2026-11-04T19:03:22.175Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/11/6.bin",
+          "bytes": 3073790,
+          "sha256": "e5114133f9ff44cbb3c9174163460419d1195b83b74c2bdc72bb46afd89edafd",
+          "at": "2026-11-04T19:03:22.187Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/12/6.bin",
+          "bytes": 5668104,
+          "sha256": "025854d467a91430f778a44c5d6c79d1b37d20f60aa66da6219432855cd3e6b1",
+          "at": "2026-11-04T19:03:22.205Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/3/7.bin",
+          "bytes": 1308196,
+          "sha256": "7c26dabd8efd67f816bfafe753e9f304f6699e7498588f8c4f2b65c920fd8fe4",
+          "at": "2026-11-04T19:03:22.590Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/4/7.bin",
+          "bytes": 1638500,
+          "sha256": "fd3e20bf9c1d3d15706371ed84463cdaad3367b0d5d30d18ddb60eea2a6bcfca",
+          "at": "2026-11-04T19:03:22.596Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/5/7.bin",
+          "bytes": 447708,
+          "sha256": "91a5a0038f90ba93b8865416c204f732ed45ee7ef388d62bdc99a0c785c3ba68",
+          "at": "2026-11-04T19:03:22.708Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/6/7.bin",
+          "bytes": 8962,
+          "sha256": "0134a5a96f65341decfe55726828c012800868337b43c9bfe51a5f7391bf41c5",
+          "at": "2026-11-04T19:03:22.709Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/7/7.bin",
+          "bytes": 671943,
+          "sha256": "33365b6683c73f65f6c36f3ca5804c527c3630f81a47fe4f9ccd6ababdaa1579",
+          "at": "2026-11-04T19:03:22.924Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/8/7.bin",
+          "bytes": 1149143,
+          "sha256": "7b197f6bc6ab83c1508eeb2e7f1af65600493461c031054e873860d30629013e",
+          "at": "2026-11-04T19:03:22.929Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/9/7.bin",
+          "bytes": 1017594,
+          "sha256": "bc85847353b327f9a85f7814badf5a4e99ff0ce40f3603578ad97af3dfe599ba",
+          "at": "2026-11-04T19:03:22.933Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/10/7.bin",
+          "bytes": 114717,
+          "sha256": "195cfcad8357c3c68c0d5489929c030a7f60ecfe668d3e44b73ba01a114c2800",
+          "at": "2026-11-04T19:03:22.935Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/11/7.bin",
+          "bytes": 2896575,
+          "sha256": "7e7136b63db8969316b57a39dd18ff6f1e298b5f554ecb734d7b230cdbffeeb1",
+          "at": "2026-11-04T19:03:24.753Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/12/7.bin",
+          "bytes": 3585857,
+          "sha256": "c54a45c57fec11a7fffd4e8750455de04e873a0b5f923482e21a777a243507b5",
+          "at": "2026-11-04T19:03:24.769Z"
+        }
+      ]
+    }
+  },
+  "lazyAfter": {
+    "at": "2026-11-04T19:59:32.887Z",
+    "indexSHA256": "91545b8896b1b11bbff70e3e56ec0cd68ffad07a428fb70fc72e0f4740534545",
+    "ledgerSHA256": "f0ec4c2958b60dd713dd19307b992c95a0e164c67a9cf7d2ca5d55ad89a58e61",
+    "rows": [
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/494/397.bin",
+        "bytes": 341783,
+        "sha256": "4aa1f88211504babb36fa2cea262e234a6b3513f2f00930f28ded099e2e10954",
+        "at": "2026-11-04T19:02:57.716Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/495/397.bin",
+        "bytes": 214310,
+        "sha256": "ef59115b08f42a202197bba7cfee5b4b9b652abf43e6e5caaf510afe30a4313b",
+        "at": "2026-11-04T19:02:57.717Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/492/395.bin",
+        "bytes": 258,
+        "sha256": "d982b992baa3ff131d9ea09cbdb8db33bc35dacede65ec38a1529cea429e4504",
+        "at": "2026-11-04T19:02:57.718Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/493/395.bin",
+        "bytes": 173,
+        "sha256": "b29b11a4d8dd87416f64421e76fb5a93ead485e7e245734fee96e105b7bb8b75",
+        "at": "2026-11-04T19:02:57.718Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/494/395.bin",
+        "bytes": 231,
+        "sha256": "70ee10d764058398c6fd4347aa6d51aebda864b6bbb760ba562705ec35063529",
+        "at": "2026-11-04T19:02:57.752Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/492/396.bin",
+        "bytes": 208,
+        "sha256": "bda2723c4a75e0b2a5472b34646c0b8983863f6cffe3676537203e91b4aee6b5",
+        "at": "2026-11-04T19:02:57.752Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/493/396.bin",
+        "bytes": 581,
+        "sha256": "28ba5dd011d812c0e5b04607b6e43913e9e1e1749e6aa99162b1dfa238cb83c6",
+        "at": "2026-11-04T19:02:57.758Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/494/396.bin",
+        "bytes": 50781,
+        "sha256": "0edbf1571e01391b01eedd6e039344fa24e8d0ccff2f10df5cffb061e173e45f",
+        "at": "2026-11-04T19:02:57.760Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/495/396.bin",
+        "bytes": 39898,
+        "sha256": "9cc4b9c212b01f9183f54691484961ef33ce1e291f440e59de9aca1f7b2a0e77",
+        "at": "2026-11-04T19:02:57.764Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/496/396.bin",
+        "bytes": 173,
+        "sha256": "7d91b381b51bb69c46dd4bf42291f43ceb77d76f64069a1de00fde80d3958506",
+        "at": "2026-11-04T19:02:57.765Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/492/397.bin",
+        "bytes": 44655,
+        "sha256": "54fed274705cf16c2445149cb521c6ec7e97c8c321de759b897edd3dc5ad6fba",
+        "at": "2026-11-04T19:02:57.767Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/493/397.bin",
+        "bytes": 15276,
+        "sha256": "af5d6a3c66799108f350b014d5da628ced48319ad3d4c8d7cf250afbf07c0f73",
+        "at": "2026-11-04T19:02:57.801Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/496/397.bin",
+        "bytes": 167,
+        "sha256": "0e22ee2b27e1484f220c644ee49ab55a45683d0c1747cb79df49943adced4be0",
+        "at": "2026-11-04T19:02:57.802Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/492/398.bin",
+        "bytes": 2259,
+        "sha256": "399ec7c760ffcb644b74235e91690308ec7873f6421b28fd7680bee69cfa69f0",
+        "at": "2026-11-04T19:02:57.802Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/494/398.bin",
+        "bytes": 143,
+        "sha256": "801ebea2a8f1795f0ec30148897e33af8dd80f302169793f2f0287221f5998c8",
+        "at": "2026-11-04T19:02:57.805Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/495/398.bin",
+        "bytes": 279,
+        "sha256": "0e78084253a79cba42b4642c7ceea1478acc7c8fdb9845899ce5f598e430e843",
+        "at": "2026-11-04T19:02:57.813Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/496/398.bin",
+        "bytes": 155,
+        "sha256": "73b0a6e3fb53739e35d6c41c827d15b932d031757f769cf4c0da684959796e86",
+        "at": "2026-11-04T19:02:57.813Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/7/61/49.bin",
+        "bytes": 361290,
+        "sha256": "0416e0916f9cfc18c45cf3deb401f5a2d512adcd3b92dab2ad374c28822d8318",
+        "at": "2026-11-04T19:02:57.814Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/7/6.bin",
+        "bytes": 1867679,
+        "sha256": "fd07df7e6ade0fdcb89f87680ccf5c6abe69d7bc91039e14c7d243225ac61d48",
+        "at": "2026-11-04T19:02:57.816Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/1/3.bin",
+        "bytes": 1844,
+        "sha256": "ff50d753dd79f7db65d92b6b351bf020fef6ec5658ec5dedcdc8250389e0e601",
+        "at": "2026-11-04T19:03:06.827Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/2/3.bin",
+        "bytes": 4314,
+        "sha256": "e34f6f96c9bf5db843f5ddec5b8e237c86fbbabe94863744341741b435eb0b00",
+        "at": "2026-11-04T19:03:06.828Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/5/3.bin",
+        "bytes": 1000,
+        "sha256": "9a36b7fa05a550ee6379b8db6550bf75cd5bf46d4179e9a380d8de1f6396677e",
+        "at": "2026-11-04T19:03:06.828Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/8/3.bin",
+        "bytes": 59219,
+        "sha256": "8aac86bb530a041e449c95351be5bfbe72e0e71a107a29f5895babcb327b2f03",
+        "at": "2026-11-04T19:03:06.828Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/9/3.bin",
+        "bytes": 45398,
+        "sha256": "c1cf6f9114cac06e95d95d0484177c5e9c19725bbaf377ad41c0087d423da106",
+        "at": "2026-11-04T19:03:06.911Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/0/4.bin",
+        "bytes": 707,
+        "sha256": "7b718551eabfef9e8267567792779e52dab804f10fc00bff9df1c83e7e1942df",
+        "at": "2026-11-04T19:03:06.912Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/1/4.bin",
+        "bytes": 79695,
+        "sha256": "c56398a48d4299c97e21997906dfe0deb6654e5b77c06baa7ff437fd0beebf16",
+        "at": "2026-11-04T19:03:06.912Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/2/4.bin",
+        "bytes": 36974,
+        "sha256": "2e2513825b870a0e89e329c5aa202902d52a74e6e9c9a2b5c1f3ecc808683eac",
+        "at": "2026-11-04T19:03:06.912Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/3/4.bin",
+        "bytes": 11322,
+        "sha256": "8b42fa5fcf06bff5215950158d34c76f325605686cb4384d65841306b9ee318a",
+        "at": "2026-11-04T19:03:06.922Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/5/4.bin",
+        "bytes": 202,
+        "sha256": "a564374c9f540dde6fdd345c3545f96211eb7e6b82b27e5afd79329b19557af8",
+        "at": "2026-11-04T19:03:06.932Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/6/4.bin",
+        "bytes": 12598,
+        "sha256": "2df389339da2a991914c8eaa355f3b8a81161d4a4ee9bbdadd77783214cf920d",
+        "at": "2026-11-04T19:03:06.932Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/7/4.bin",
+        "bytes": 327988,
+        "sha256": "31f1c3393a3b958f6e0ec579bbd92d002be7a63e4f63fffda2e93ccb92dbdd33",
+        "at": "2026-11-04T19:03:06.934Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/8/4.bin",
+        "bytes": 994332,
+        "sha256": "2fc38e270425f9bd0521dcda98cf510d5c8e8a0d49783ad2c769ad1d22b6e38b",
+        "at": "2026-11-04T19:03:06.938Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/9/4.bin",
+        "bytes": 594507,
+        "sha256": "c4c782c70ba224562c139120a45687212a4fbcf825b6a7984199b23b1c5944af",
+        "at": "2026-11-04T19:03:06.971Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/2/5.bin",
+        "bytes": 1060295,
+        "sha256": "5c0ccfc59a5a16915fbd55e95daa2d3748f060aea3c74bd0d9951d2880844c0d",
+        "at": "2026-11-04T19:03:06.976Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/3/5.bin",
+        "bytes": 1040263,
+        "sha256": "e3191ceff1f77cdff8ab9bc89d329d71210960f5de26a239359af03e6ac958ac",
+        "at": "2026-11-04T19:03:06.982Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/4/5.bin",
+        "bytes": 2923074,
+        "sha256": "ab3a6012f3c87fd993e50068980542e9615b30e2ce59dd57bce4887ae821e3d0",
+        "at": "2026-11-04T19:03:07.075Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/5/5.bin",
+        "bytes": 289805,
+        "sha256": "ab6b5a074f84ca86879fdfb53f73ca017663b609107b247db5c89106e9823830",
+        "at": "2026-11-04T19:03:07.159Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/7/5.bin",
+        "bytes": 3460521,
+        "sha256": "341db530138de8fe3c03398a2dcff14bf81b93690665c96c8ee8d969c1ed445d",
+        "at": "2026-11-04T19:03:07.168Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/8/5.bin",
+        "bytes": 9267377,
+        "sha256": "708599d82b0409e1cc9cf1db4c31f7c058843983a2d98d3b888051f2a62ee52a",
+        "at": "2026-11-04T19:03:07.268Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/9/5.bin",
+        "bytes": 2192023,
+        "sha256": "16392285664ec9d7ede2491a9c90b1c253509dae216dca536e11dace3e8b9a52",
+        "at": "2026-11-04T19:03:07.291Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/0/6.bin",
+        "bytes": 1287,
+        "sha256": "a0061374f04483be3a3245eaa4ded0822543b1c55861748c3d478ebfb296264b",
+        "at": "2026-11-04T19:03:07.294Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/2/6.bin",
+        "bytes": 1560347,
+        "sha256": "dd33ca0c5fc1852427ef453e312bc59ad57188058ffd38a12c30696c72faaef2",
+        "at": "2026-11-04T19:03:07.628Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/292/391.bin",
+        "bytes": 1372042,
+        "sha256": "14fbae3f0605d9b0a67e67dd7e583314698466b0db252952e8e41086624069c7",
+        "at": "2026-11-04T19:03:07.722Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/10/293/391.bin",
+        "bytes": 723637,
+        "sha256": "338293d7b609dad1a1ace8fdfbb21d59ffd90b5104f032339d19c3e99eddec38",
+        "at": "2026-11-04T19:03:07.728Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/10/3.bin",
+        "bytes": 2289,
+        "sha256": "ef4f7990e88cec9e8629b53cf5e6fad506ae4f2c70db829b8411bc51c61e65ec",
+        "at": "2026-11-04T19:03:21.714Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/11/3.bin",
+        "bytes": 346,
+        "sha256": "4fd008ccff6dbedcc9a307bac53aebde5085decc839ba5fae1717fea9c4632b7",
+        "at": "2026-11-04T19:03:21.714Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/12/3.bin",
+        "bytes": 444,
+        "sha256": "f259833e03053231e863ecc3a416a01066aa51cd337b342964159e74d2901107",
+        "at": "2026-11-04T19:03:21.714Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/10/4.bin",
+        "bytes": 203485,
+        "sha256": "15644c2c5b87048c6bb05294be3e3dab66539ef06be28c5b818c9df7f46c1023",
+        "at": "2026-11-04T19:03:21.715Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/11/4.bin",
+        "bytes": 51811,
+        "sha256": "6d91a93c3b272dc995404a8b66ffbe8b2077d1ed9dae680fde3c8e1d4d500933",
+        "at": "2026-11-04T19:03:21.794Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/12/4.bin",
+        "bytes": 50729,
+        "sha256": "25c2e2c1ef3e453b054831ca2414e85ecfa1a312e0069bd25006e90d97ad685e",
+        "at": "2026-11-04T19:03:21.795Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/10/5.bin",
+        "bytes": 336396,
+        "sha256": "3b5d3ce4ed55f4cb2e09e4a943182a393d4b022790e8c15f22ffd0f4f4aa8d22",
+        "at": "2026-11-04T19:03:21.799Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/11/5.bin",
+        "bytes": 631754,
+        "sha256": "add093ac57518d723dfff24128343f788198d75ffb6d93ee0e4362a80e4e0ff6",
+        "at": "2026-11-04T19:03:21.802Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/12/5.bin",
+        "bytes": 152507,
+        "sha256": "033c9111d4bcdd0a2c79d146bd677179ea0a0d4381982181843bd241aaf23156",
+        "at": "2026-11-04T19:03:21.836Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/3/6.bin",
+        "bytes": 3368929,
+        "sha256": "56ff4adf7275031c27b1fd90832a7c1a300881c28be4afaff9b47762c3277833",
+        "at": "2026-11-04T19:03:21.844Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/4/6.bin",
+        "bytes": 5729633,
+        "sha256": "3d400999c8b756e7b14cad6a67b51ba67a16fad76b23d1a0e0d087f2fd5d139a",
+        "at": "2026-11-04T19:03:21.942Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/5/6.bin",
+        "bytes": 3905,
+        "sha256": "7d3bd940c4db922d5e09228bdd4a9e1946ab5a9d01541db92d1601f405b0bd0c",
+        "at": "2026-11-04T19:03:22.008Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/6/6.bin",
+        "bytes": 28767,
+        "sha256": "9fedc76c4cdab9caba0db58f08aacbdbb9af0d417c1d7942a3b3f2cfb6b3f8cf",
+        "at": "2026-11-04T19:03:22.009Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/8/6.bin",
+        "bytes": 1730457,
+        "sha256": "0701761a3b06ccb38a8f31ecd9052f98918f0a666b8686dbc8b2eac854304c11",
+        "at": "2026-11-04T19:03:22.013Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/9/6.bin",
+        "bytes": 3331357,
+        "sha256": "9398e475cbc862c95fc44ded884d10d16590204eddd73a7fdbfddc7b1f1258d0",
+        "at": "2026-11-04T19:03:22.165Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/10/6.bin",
+        "bytes": 2575075,
+        "sha256": "34bb873ba1a833efa1dbfeac18e6986cf6f98af37d2e21f924e97b65e9052882",
+        "at": "2026-11-04T19:03:22.175Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/11/6.bin",
+        "bytes": 3073790,
+        "sha256": "e5114133f9ff44cbb3c9174163460419d1195b83b74c2bdc72bb46afd89edafd",
+        "at": "2026-11-04T19:03:22.187Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/12/6.bin",
+        "bytes": 5668104,
+        "sha256": "025854d467a91430f778a44c5d6c79d1b37d20f60aa66da6219432855cd3e6b1",
+        "at": "2026-11-04T19:03:22.205Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/3/7.bin",
+        "bytes": 1308196,
+        "sha256": "7c26dabd8efd67f816bfafe753e9f304f6699e7498588f8c4f2b65c920fd8fe4",
+        "at": "2026-11-04T19:03:22.590Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/4/7.bin",
+        "bytes": 1638500,
+        "sha256": "fd3e20bf9c1d3d15706371ed84463cdaad3367b0d5d30d18ddb60eea2a6bcfca",
+        "at": "2026-11-04T19:03:22.596Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/5/7.bin",
+        "bytes": 447708,
+        "sha256": "91a5a0038f90ba93b8865416c204f732ed45ee7ef388d62bdc99a0c785c3ba68",
+        "at": "2026-11-04T19:03:22.708Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/6/7.bin",
+        "bytes": 8962,
+        "sha256": "0134a5a96f65341decfe55726828c012800868337b43c9bfe51a5f7391bf41c5",
+        "at": "2026-11-04T19:03:22.709Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/7/7.bin",
+        "bytes": 671943,
+        "sha256": "33365b6683c73f65f6c36f3ca5804c527c3630f81a47fe4f9ccd6ababdaa1579",
+        "at": "2026-11-04T19:03:22.924Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/8/7.bin",
+        "bytes": 1149143,
+        "sha256": "7b197f6bc6ab83c1508eeb2e7f1af65600493461c031054e873860d30629013e",
+        "at": "2026-11-04T19:03:22.929Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/9/7.bin",
+        "bytes": 1017594,
+        "sha256": "bc85847353b327f9a85f7814badf5a4e99ff0ce40f3603578ad97af3dfe599ba",
+        "at": "2026-11-04T19:03:22.933Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/10/7.bin",
+        "bytes": 114717,
+        "sha256": "195cfcad8357c3c68c0d5489929c030a7f60ecfe668d3e44b73ba01a114c2800",
+        "at": "2026-11-04T19:03:22.935Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/11/7.bin",
+        "bytes": 2896575,
+        "sha256": "7e7136b63db8969316b57a39dd18ff6f1e298b5f554ecb734d7b230cdbffeeb1",
+        "at": "2026-11-04T19:03:24.753Z"
+      },
+      {
+        "kind": "pinned",
+        "path": "data/map-roads/4/12/7.bin",
+        "bytes": 3585857,
+        "sha256": "c54a45c57fec11a7fffd4e8750455de04e873a0b5f923482e21a777a243507b5",
+        "at": "2026-11-04T19:03:24.769Z"
+      }
+    ],
+    "status": {
+      "limit": 536870912,
+      "bytes": 68780043,
+      "failure": null,
+      "declaredTiles": 73451,
+      "materialized": [
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/494/397.bin",
+          "bytes": 341783,
+          "sha256": "4aa1f88211504babb36fa2cea262e234a6b3513f2f00930f28ded099e2e10954",
+          "at": "2026-11-04T19:02:57.716Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/495/397.bin",
+          "bytes": 214310,
+          "sha256": "ef59115b08f42a202197bba7cfee5b4b9b652abf43e6e5caaf510afe30a4313b",
+          "at": "2026-11-04T19:02:57.717Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/492/395.bin",
+          "bytes": 258,
+          "sha256": "d982b992baa3ff131d9ea09cbdb8db33bc35dacede65ec38a1529cea429e4504",
+          "at": "2026-11-04T19:02:57.718Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/493/395.bin",
+          "bytes": 173,
+          "sha256": "b29b11a4d8dd87416f64421e76fb5a93ead485e7e245734fee96e105b7bb8b75",
+          "at": "2026-11-04T19:02:57.718Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/494/395.bin",
+          "bytes": 231,
+          "sha256": "70ee10d764058398c6fd4347aa6d51aebda864b6bbb760ba562705ec35063529",
+          "at": "2026-11-04T19:02:57.752Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/492/396.bin",
+          "bytes": 208,
+          "sha256": "bda2723c4a75e0b2a5472b34646c0b8983863f6cffe3676537203e91b4aee6b5",
+          "at": "2026-11-04T19:02:57.752Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/493/396.bin",
+          "bytes": 581,
+          "sha256": "28ba5dd011d812c0e5b04607b6e43913e9e1e1749e6aa99162b1dfa238cb83c6",
+          "at": "2026-11-04T19:02:57.758Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/494/396.bin",
+          "bytes": 50781,
+          "sha256": "0edbf1571e01391b01eedd6e039344fa24e8d0ccff2f10df5cffb061e173e45f",
+          "at": "2026-11-04T19:02:57.760Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/495/396.bin",
+          "bytes": 39898,
+          "sha256": "9cc4b9c212b01f9183f54691484961ef33ce1e291f440e59de9aca1f7b2a0e77",
+          "at": "2026-11-04T19:02:57.764Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/496/396.bin",
+          "bytes": 173,
+          "sha256": "7d91b381b51bb69c46dd4bf42291f43ceb77d76f64069a1de00fde80d3958506",
+          "at": "2026-11-04T19:02:57.765Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/492/397.bin",
+          "bytes": 44655,
+          "sha256": "54fed274705cf16c2445149cb521c6ec7e97c8c321de759b897edd3dc5ad6fba",
+          "at": "2026-11-04T19:02:57.767Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/493/397.bin",
+          "bytes": 15276,
+          "sha256": "af5d6a3c66799108f350b014d5da628ced48319ad3d4c8d7cf250afbf07c0f73",
+          "at": "2026-11-04T19:02:57.801Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/496/397.bin",
+          "bytes": 167,
+          "sha256": "0e22ee2b27e1484f220c644ee49ab55a45683d0c1747cb79df49943adced4be0",
+          "at": "2026-11-04T19:02:57.802Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/492/398.bin",
+          "bytes": 2259,
+          "sha256": "399ec7c760ffcb644b74235e91690308ec7873f6421b28fd7680bee69cfa69f0",
+          "at": "2026-11-04T19:02:57.802Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/494/398.bin",
+          "bytes": 143,
+          "sha256": "801ebea2a8f1795f0ec30148897e33af8dd80f302169793f2f0287221f5998c8",
+          "at": "2026-11-04T19:02:57.805Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/495/398.bin",
+          "bytes": 279,
+          "sha256": "0e78084253a79cba42b4642c7ceea1478acc7c8fdb9845899ce5f598e430e843",
+          "at": "2026-11-04T19:02:57.813Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/496/398.bin",
+          "bytes": 155,
+          "sha256": "73b0a6e3fb53739e35d6c41c827d15b932d031757f769cf4c0da684959796e86",
+          "at": "2026-11-04T19:02:57.813Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/7/61/49.bin",
+          "bytes": 361290,
+          "sha256": "0416e0916f9cfc18c45cf3deb401f5a2d512adcd3b92dab2ad374c28822d8318",
+          "at": "2026-11-04T19:02:57.814Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/7/6.bin",
+          "bytes": 1867679,
+          "sha256": "fd07df7e6ade0fdcb89f87680ccf5c6abe69d7bc91039e14c7d243225ac61d48",
+          "at": "2026-11-04T19:02:57.816Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/1/3.bin",
+          "bytes": 1844,
+          "sha256": "ff50d753dd79f7db65d92b6b351bf020fef6ec5658ec5dedcdc8250389e0e601",
+          "at": "2026-11-04T19:03:06.827Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/2/3.bin",
+          "bytes": 4314,
+          "sha256": "e34f6f96c9bf5db843f5ddec5b8e237c86fbbabe94863744341741b435eb0b00",
+          "at": "2026-11-04T19:03:06.828Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/5/3.bin",
+          "bytes": 1000,
+          "sha256": "9a36b7fa05a550ee6379b8db6550bf75cd5bf46d4179e9a380d8de1f6396677e",
+          "at": "2026-11-04T19:03:06.828Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/8/3.bin",
+          "bytes": 59219,
+          "sha256": "8aac86bb530a041e449c95351be5bfbe72e0e71a107a29f5895babcb327b2f03",
+          "at": "2026-11-04T19:03:06.828Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/9/3.bin",
+          "bytes": 45398,
+          "sha256": "c1cf6f9114cac06e95d95d0484177c5e9c19725bbaf377ad41c0087d423da106",
+          "at": "2026-11-04T19:03:06.911Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/0/4.bin",
+          "bytes": 707,
+          "sha256": "7b718551eabfef9e8267567792779e52dab804f10fc00bff9df1c83e7e1942df",
+          "at": "2026-11-04T19:03:06.912Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/1/4.bin",
+          "bytes": 79695,
+          "sha256": "c56398a48d4299c97e21997906dfe0deb6654e5b77c06baa7ff437fd0beebf16",
+          "at": "2026-11-04T19:03:06.912Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/2/4.bin",
+          "bytes": 36974,
+          "sha256": "2e2513825b870a0e89e329c5aa202902d52a74e6e9c9a2b5c1f3ecc808683eac",
+          "at": "2026-11-04T19:03:06.912Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/3/4.bin",
+          "bytes": 11322,
+          "sha256": "8b42fa5fcf06bff5215950158d34c76f325605686cb4384d65841306b9ee318a",
+          "at": "2026-11-04T19:03:06.922Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/5/4.bin",
+          "bytes": 202,
+          "sha256": "a564374c9f540dde6fdd345c3545f96211eb7e6b82b27e5afd79329b19557af8",
+          "at": "2026-11-04T19:03:06.932Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/6/4.bin",
+          "bytes": 12598,
+          "sha256": "2df389339da2a991914c8eaa355f3b8a81161d4a4ee9bbdadd77783214cf920d",
+          "at": "2026-11-04T19:03:06.932Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/7/4.bin",
+          "bytes": 327988,
+          "sha256": "31f1c3393a3b958f6e0ec579bbd92d002be7a63e4f63fffda2e93ccb92dbdd33",
+          "at": "2026-11-04T19:03:06.934Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/8/4.bin",
+          "bytes": 994332,
+          "sha256": "2fc38e270425f9bd0521dcda98cf510d5c8e8a0d49783ad2c769ad1d22b6e38b",
+          "at": "2026-11-04T19:03:06.938Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/9/4.bin",
+          "bytes": 594507,
+          "sha256": "c4c782c70ba224562c139120a45687212a4fbcf825b6a7984199b23b1c5944af",
+          "at": "2026-11-04T19:03:06.971Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/2/5.bin",
+          "bytes": 1060295,
+          "sha256": "5c0ccfc59a5a16915fbd55e95daa2d3748f060aea3c74bd0d9951d2880844c0d",
+          "at": "2026-11-04T19:03:06.976Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/3/5.bin",
+          "bytes": 1040263,
+          "sha256": "e3191ceff1f77cdff8ab9bc89d329d71210960f5de26a239359af03e6ac958ac",
+          "at": "2026-11-04T19:03:06.982Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/4/5.bin",
+          "bytes": 2923074,
+          "sha256": "ab3a6012f3c87fd993e50068980542e9615b30e2ce59dd57bce4887ae821e3d0",
+          "at": "2026-11-04T19:03:07.075Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/5/5.bin",
+          "bytes": 289805,
+          "sha256": "ab6b5a074f84ca86879fdfb53f73ca017663b609107b247db5c89106e9823830",
+          "at": "2026-11-04T19:03:07.159Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/7/5.bin",
+          "bytes": 3460521,
+          "sha256": "341db530138de8fe3c03398a2dcff14bf81b93690665c96c8ee8d969c1ed445d",
+          "at": "2026-11-04T19:03:07.168Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/8/5.bin",
+          "bytes": 9267377,
+          "sha256": "708599d82b0409e1cc9cf1db4c31f7c058843983a2d98d3b888051f2a62ee52a",
+          "at": "2026-11-04T19:03:07.268Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/9/5.bin",
+          "bytes": 2192023,
+          "sha256": "16392285664ec9d7ede2491a9c90b1c253509dae216dca536e11dace3e8b9a52",
+          "at": "2026-11-04T19:03:07.291Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/0/6.bin",
+          "bytes": 1287,
+          "sha256": "a0061374f04483be3a3245eaa4ded0822543b1c55861748c3d478ebfb296264b",
+          "at": "2026-11-04T19:03:07.294Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/2/6.bin",
+          "bytes": 1560347,
+          "sha256": "dd33ca0c5fc1852427ef453e312bc59ad57188058ffd38a12c30696c72faaef2",
+          "at": "2026-11-04T19:03:07.628Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/292/391.bin",
+          "bytes": 1372042,
+          "sha256": "14fbae3f0605d9b0a67e67dd7e583314698466b0db252952e8e41086624069c7",
+          "at": "2026-11-04T19:03:07.722Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/10/293/391.bin",
+          "bytes": 723637,
+          "sha256": "338293d7b609dad1a1ace8fdfbb21d59ffd90b5104f032339d19c3e99eddec38",
+          "at": "2026-11-04T19:03:07.728Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/10/3.bin",
+          "bytes": 2289,
+          "sha256": "ef4f7990e88cec9e8629b53cf5e6fad506ae4f2c70db829b8411bc51c61e65ec",
+          "at": "2026-11-04T19:03:21.714Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/11/3.bin",
+          "bytes": 346,
+          "sha256": "4fd008ccff6dbedcc9a307bac53aebde5085decc839ba5fae1717fea9c4632b7",
+          "at": "2026-11-04T19:03:21.714Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/12/3.bin",
+          "bytes": 444,
+          "sha256": "f259833e03053231e863ecc3a416a01066aa51cd337b342964159e74d2901107",
+          "at": "2026-11-04T19:03:21.714Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/10/4.bin",
+          "bytes": 203485,
+          "sha256": "15644c2c5b87048c6bb05294be3e3dab66539ef06be28c5b818c9df7f46c1023",
+          "at": "2026-11-04T19:03:21.715Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/11/4.bin",
+          "bytes": 51811,
+          "sha256": "6d91a93c3b272dc995404a8b66ffbe8b2077d1ed9dae680fde3c8e1d4d500933",
+          "at": "2026-11-04T19:03:21.794Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/12/4.bin",
+          "bytes": 50729,
+          "sha256": "25c2e2c1ef3e453b054831ca2414e85ecfa1a312e0069bd25006e90d97ad685e",
+          "at": "2026-11-04T19:03:21.795Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/10/5.bin",
+          "bytes": 336396,
+          "sha256": "3b5d3ce4ed55f4cb2e09e4a943182a393d4b022790e8c15f22ffd0f4f4aa8d22",
+          "at": "2026-11-04T19:03:21.799Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/11/5.bin",
+          "bytes": 631754,
+          "sha256": "add093ac57518d723dfff24128343f788198d75ffb6d93ee0e4362a80e4e0ff6",
+          "at": "2026-11-04T19:03:21.802Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/12/5.bin",
+          "bytes": 152507,
+          "sha256": "033c9111d4bcdd0a2c79d146bd677179ea0a0d4381982181843bd241aaf23156",
+          "at": "2026-11-04T19:03:21.836Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/3/6.bin",
+          "bytes": 3368929,
+          "sha256": "56ff4adf7275031c27b1fd90832a7c1a300881c28be4afaff9b47762c3277833",
+          "at": "2026-11-04T19:03:21.844Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/4/6.bin",
+          "bytes": 5729633,
+          "sha256": "3d400999c8b756e7b14cad6a67b51ba67a16fad76b23d1a0e0d087f2fd5d139a",
+          "at": "2026-11-04T19:03:21.942Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/5/6.bin",
+          "bytes": 3905,
+          "sha256": "7d3bd940c4db922d5e09228bdd4a9e1946ab5a9d01541db92d1601f405b0bd0c",
+          "at": "2026-11-04T19:03:22.008Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/6/6.bin",
+          "bytes": 28767,
+          "sha256": "9fedc76c4cdab9caba0db58f08aacbdbb9af0d417c1d7942a3b3f2cfb6b3f8cf",
+          "at": "2026-11-04T19:03:22.009Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/8/6.bin",
+          "bytes": 1730457,
+          "sha256": "0701761a3b06ccb38a8f31ecd9052f98918f0a666b8686dbc8b2eac854304c11",
+          "at": "2026-11-04T19:03:22.013Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/9/6.bin",
+          "bytes": 3331357,
+          "sha256": "9398e475cbc862c95fc44ded884d10d16590204eddd73a7fdbfddc7b1f1258d0",
+          "at": "2026-11-04T19:03:22.165Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/10/6.bin",
+          "bytes": 2575075,
+          "sha256": "34bb873ba1a833efa1dbfeac18e6986cf6f98af37d2e21f924e97b65e9052882",
+          "at": "2026-11-04T19:03:22.175Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/11/6.bin",
+          "bytes": 3073790,
+          "sha256": "e5114133f9ff44cbb3c9174163460419d1195b83b74c2bdc72bb46afd89edafd",
+          "at": "2026-11-04T19:03:22.187Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/12/6.bin",
+          "bytes": 5668104,
+          "sha256": "025854d467a91430f778a44c5d6c79d1b37d20f60aa66da6219432855cd3e6b1",
+          "at": "2026-11-04T19:03:22.205Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/3/7.bin",
+          "bytes": 1308196,
+          "sha256": "7c26dabd8efd67f816bfafe753e9f304f6699e7498588f8c4f2b65c920fd8fe4",
+          "at": "2026-11-04T19:03:22.590Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/4/7.bin",
+          "bytes": 1638500,
+          "sha256": "fd3e20bf9c1d3d15706371ed84463cdaad3367b0d5d30d18ddb60eea2a6bcfca",
+          "at": "2026-11-04T19:03:22.596Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/5/7.bin",
+          "bytes": 447708,
+          "sha256": "91a5a0038f90ba93b8865416c204f732ed45ee7ef388d62bdc99a0c785c3ba68",
+          "at": "2026-11-04T19:03:22.708Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/6/7.bin",
+          "bytes": 8962,
+          "sha256": "0134a5a96f65341decfe55726828c012800868337b43c9bfe51a5f7391bf41c5",
+          "at": "2026-11-04T19:03:22.709Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/7/7.bin",
+          "bytes": 671943,
+          "sha256": "33365b6683c73f65f6c36f3ca5804c527c3630f81a47fe4f9ccd6ababdaa1579",
+          "at": "2026-11-04T19:03:22.924Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/8/7.bin",
+          "bytes": 1149143,
+          "sha256": "7b197f6bc6ab83c1508eeb2e7f1af65600493461c031054e873860d30629013e",
+          "at": "2026-11-04T19:03:22.929Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/9/7.bin",
+          "bytes": 1017594,
+          "sha256": "bc85847353b327f9a85f7814badf5a4e99ff0ce40f3603578ad97af3dfe599ba",
+          "at": "2026-11-04T19:03:22.933Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/10/7.bin",
+          "bytes": 114717,
+          "sha256": "195cfcad8357c3c68c0d5489929c030a7f60ecfe668d3e44b73ba01a114c2800",
+          "at": "2026-11-04T19:03:22.935Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/11/7.bin",
+          "bytes": 2896575,
+          "sha256": "7e7136b63db8969316b57a39dd18ff6f1e298b5f554ecb734d7b230cdbffeeb1",
+          "at": "2026-11-04T19:03:24.753Z"
+        },
+        {
+          "kind": "pinned",
+          "path": "data/map-roads/4/12/7.bin",
+          "bytes": 3585857,
+          "sha256": "c54a45c57fec11a7fffd4e8750455de04e873a0b5f923482e21a777a243507b5",
+          "at": "2026-11-04T19:03:24.769Z"
+        }
+      ]
+    }
+  },
+  "lazyPhases": [],
+  "roadRequests": [
+    {
+      "url": "http://127.0.0.1:5412/world-data/data/map-roads/10/494/397.bin",
+      "startedUnixMs": 1793822349062,
+      "finishedUnixMs": 1793822349110,
+      "durationMs": 48
+    },
+    {
+      "url": "http://127.0.0.1:5412/world-data/data/map-roads/10/495/397.bin",
+      "startedUnixMs": 1793822349062,
+      "finishedUnixMs": 1793822349099,
+      "durationMs": 37
+    },
+    {
+      "url": "http://127.0.0.1:5412/world-data/data/map-roads/10/493/395.bin",
+      "startedUnixMs": 1793822349062,
+      "finishedUnixMs": 1793822349076,
+      "durationMs": 14
+    },
+    {
+      "url": "http://127.0.0.1:5412/world-data/data/map-roads/10/494/395.bin",
+      "startedUnixMs": 1793822349063,
+      "finishedUnixMs": 1793822349077,
+      "durationMs": 14
+    },
+    {
+      "url": "http://127.0.0.1:5412/world-data/data/map-roads/10/493/396.bin",
+      "startedUnixMs": 1793822349082,
+      "finishedUnixMs": 1793822349115,
+      "durationMs": 33
+    },
+    {
+      "url": "http://127.0.0.1:5412/world-data/data/map-roads/10/494/396.bin",
+      "startedUnixMs": 1793822349082,
+      "finishedUnixMs": 1793822349121,
+      "durationMs": 39
+    },
+    {
+      "url": "http://127.0.0.1:5412/world-data/data/map-roads/10/495/396.bin",
+      "startedUnixMs": 1793822349120,
+      "finishedUnixMs": 1793822349231,
+      "durationMs": 111
+    },
+    {
+      "url": "http://127.0.0.1:5412/world-data/data/map-roads/10/496/396.bin",
+      "startedUnixMs": 1793822349125,
+      "finishedUnixMs": 1793822349227,
+      "durationMs": 102
+    },
+    {
+      "url": "http://127.0.0.1:5412/world-data/data/map-roads/10/493/397.bin",
+      "startedUnixMs": 1793822349125,
+      "finishedUnixMs": 1793822349238,
+      "durationMs": 113
+    },
+    {
+      "url": "http://127.0.0.1:5412/world-data/data/map-roads/10/496/397.bin",
+      "startedUnixMs": 1793822349126,
+      "finishedUnixMs": 1793822349237,
+      "durationMs": 111
+    },
+    {
+      "url": "http://127.0.0.1:5412/world-data/data/map-roads/10/494/398.bin",
+      "startedUnixMs": 1793822349230,
+      "finishedUnixMs": 1793822349241,
+      "durationMs": 11
+    },
+    {
+      "url": "http://127.0.0.1:5412/world-data/data/map-roads/10/495/398.bin",
+      "startedUnixMs": 1793822349235,
+      "finishedUnixMs": 1793822349241,
+      "durationMs": 6
+    },
+    {
+      "url": "http://127.0.0.1:5412/world-data/data/map-roads/10/496/398.bin",
+      "startedUnixMs": 1793822349242,
+      "finishedUnixMs": 1793822349256,
+      "durationMs": 14
+    },
+    {
+      "url": "http://127.0.0.1:5412/world-data/data/map-roads/7/61/49.bin",
+      "startedUnixMs": 1793822349242,
+      "finishedUnixMs": 1793822349268,
+      "durationMs": 26
+    },
+    {
+      "url": "http://127.0.0.1:5412/world-data/data/map-roads/4/7/6.bin",
+      "startedUnixMs": 1793822349243,
+      "finishedUnixMs": 1793822349281,
+      "durationMs": 38
+    }
+  ]
+}

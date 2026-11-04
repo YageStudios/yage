@@ -1,0 +1,12 @@
+[
+  {
+    "path": "src/services/scene-bootstrap.ts",
+    "sha256": "dc391e8b41fa73feebb463114782394527261954061eefb87ebcae4dbef154ac",
+    "bytes": 19435
+  },
+  {
+    "path": "src/services/boot-workers.ts",
+    "sha256": "42e6135fcd07e45a93b09684206d3fa556c16ca7c75e19d93b29ff9aebbda0e1",
+    "bytes": 4498
+  }
+]

@@ -1,0 +1,10 @@
+import { afterAll, expect } from "/data/workspace/sky-harbor/worldmap-integration/yage/node_modules/vitest/dist/index.js";
+import { writeFileSync } from "node:fs";
+import { basename } from "node:path";
+
+afterAll(() => {
+  writeFileSync(
+    `/tmp/far-bake-prototype/coverage-final/${basename(expect.getState().testPath!)}.json`,
+    JSON.stringify((globalThis as typeof globalThis & { __coverage__?: unknown }).__coverage__ ?? {}),
+  );
+});

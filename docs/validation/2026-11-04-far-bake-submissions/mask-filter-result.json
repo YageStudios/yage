@@ -1,0 +1,44 @@
+{
+  "result": {
+    "pass": true,
+    "differentChannels": 0,
+    "maxDifference": 0,
+    "alphaPixels": 2245,
+    "rows": [
+      {
+        "name": "before",
+        "width": 64,
+        "height": 64,
+        "glError": 0,
+        "stateRestored": true,
+        "projectionNull": true,
+        "maskDepth": 0,
+        "filterDepth": 1
+      },
+      {
+        "name": "after",
+        "width": 64,
+        "height": 64,
+        "glError": 0,
+        "stateRestored": true,
+        "projectionNull": true,
+        "maskDepth": 0,
+        "filterDepth": 1
+      }
+    ],
+    "features": [
+      "nonidentity parents",
+      "rotated/scaled parts",
+      "initial alpha/visibility",
+      "child mask",
+      "under/over AlphaFilter",
+      "additive child",
+      "stable z tie"
+    ],
+    "note": "Isolated actual Pixi/WebGL fixture; no world/FPS claim; fixture-only1texture batch cap."
+  },
+  "errors": [],
+  "warnings": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ]
+}
