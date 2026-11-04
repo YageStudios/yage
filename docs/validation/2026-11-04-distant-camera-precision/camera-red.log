@@ -1,0 +1,47 @@
+
+ RUN  v4.0.18 /data/workspace/sky-harbor/worldmap-integration/yage
+
+ ❯ test/render/projected-camera.test.ts (3 tests | 2 failed) 9ms
+   × preserves the actual DC facade slope and wall depth in distant frame1 4ms
+   ✓ keeps ordinary pans in the projection without invalidating child transforms 3ms
+   × keeps the public view unchanged and restores projection after rendering with a transformed parent 1ms
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/render/projected-camera.test.ts [ test/render/projected-camera.test.ts ]
+TypeError: Class constructor Texture cannot be invoked without 'new'
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/render/projected-camera.test.ts > preserves the actual DC facade slope and wall depth in distant frame1
+AssertionError: expected 76.60800004005432 to be close to 21.300207701324645, received difference is 55.307792338729676, but expected 0.005
+ ❯ test/render/projected-camera.test.ts:28:43
+     26|  camera.setView(2.394,-x*2.394,-y*2.394);stage.updateTransform();camer…
+     27|  try{
+     28|   expect(probe.screen[3]-probe.screen[1]).toBeCloseTo(Math.sin(angle)*…
+       |                                           ^
+     29|   expect(probe.screen[5]-probe.screen[1]).toBeCloseTo(rise*scale*2.394…
+     30|  }finally{stage.destroy({children:true})}
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  test/render/projected-camera.test.ts > keeps the public view unchanged and restores projection after rendering with a transformed parent
+AssertionError: expected -0.7616642331704497 to be close to -0.83, received difference is 0.06833576682955023, but expected 0.0005
+ ❯ test/render/projected-camera.test.ts:46:26
+     44|  expect(camera.view).toMatchObject({a:4,d:4,tx:-640000,ty:-352296900*4…
+     45|  const expected=before.apply(stage.worldTransform.apply(new PIXI.Point…
+     46|  expect(child.screen[0]).toBeCloseTo(expected.x,3);expect(child.screen…
+       |                          ^
+     47|  camera.visible=false;camera.render(r);expect(r.projection.projectionM…
+     48|  stage.destroy({children:true});
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 1 passed (3)
+   Start at  07:47:11
+   Duration  193ms (transform 34ms, setup 28ms, import 90ms, tests 9ms, environment 0ms)
+

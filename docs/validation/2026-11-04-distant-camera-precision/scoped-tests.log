@@ -1,0 +1,12 @@
+
+ RUN  v4.0.18 /data/workspace/sky-harbor/worldmap-integration/yage
+
+ ✓ test/streaming/polygon-depth.test.ts (10 tests) 6ms
+ ✓ test/render/projected-camera.test.ts (7 tests) 23ms
+ ✓ test/streaming/shadow-pass.test.ts (5 tests) 2ms
+
+ Test Files  3 passed (3)
+      Tests  22 passed (22)
+   Start at  07:51:46
+   Duration  464ms (transform 92ms, setup 50ms, import 159ms, tests 30ms, environment 0ms)
+

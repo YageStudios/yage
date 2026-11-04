@@ -1,0 +1,48 @@
+{
+  distant: false,
+  expected: 8.897329866885816,
+  actual: 8.897330284118652,
+  screenError: 9.98855411118882e-7,
+  vertices: [
+    160287.828125,
+    0,
+    160876.484375,
+    8.897330284118652,
+    160287.828125,
+    105.02188873291016,
+    160876.484375,
+    113.91921997070312
+  ]
+}
+{
+  distant: true,
+  expected: 8.897329866885816,
+  actual: 32,
+  screenError: 55.30779229867536,
+  vertices: [
+    160287.828125,
+    352296896,
+    160876.484375,
+    352296928,
+    160287.828125,
+    352297024,
+    160876.484375,
+    352297024
+  ]
+}
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Native face screen slope must retain subpixel accuracy
+    at file:///tmp/native-face-precision.mjs:10:228
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+
+Node.js v26.2.0
