@@ -1,0 +1,481 @@
+{
+  "pass": true,
+  "source": {
+    "id": "earth/cell:1446660963/USA_new_york_40.72156_-73.99572:segment:4356:2:0/st:0/z:l1",
+    "w": 560.9792536941935,
+    "h": 240.41968015465437,
+    "rise": 105.18361006766128,
+    "angle": 2.0761313752223924,
+    "initial": {
+      "under": [
+        -148049.9238047674,
+        352113457.7876436
+      ],
+      "over": [
+        -148049.9238047674,
+        352113457.7876436
+      ],
+      "occluder": [
+        -148049.9238047674,
+        352113457.7876436
+      ],
+      "visible": [
+        true,
+        true,
+        true
+      ],
+      "alpha": [
+        1,
+        1
+      ]
+    },
+    "baseX": -149504,
+    "baseY": 352112640
+  },
+  "rows": [
+    {
+      "label": "near",
+      "name": "before",
+      "cx": 0,
+      "cy": 0,
+      "width": 971,
+      "height": 971,
+      "colorAlpha": 42240,
+      "depthAlpha": 41672,
+      "colorSHA256": "c2de8b678299aebe15915ee2495ea3e7e3a9f014bf0c571c67af10eceb536d97",
+      "depthSHA256": "ac6fe4cfe166d8ca055b6c2616f316bceb8113d6517e17fa79f2965e9e097727",
+      "colorDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "depthDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "depthPosition": {
+        "x": 0,
+        "y": 0
+      },
+      "glError": 0
+    },
+    {
+      "label": "near",
+      "name": "after",
+      "cx": 0,
+      "cy": 0,
+      "width": 971,
+      "height": 971,
+      "colorAlpha": 42240,
+      "depthAlpha": 41672,
+      "colorSHA256": "c2de8b678299aebe15915ee2495ea3e7e3a9f014bf0c571c67af10eceb536d97",
+      "depthSHA256": "ac6fe4cfe166d8ca055b6c2616f316bceb8113d6517e17fa79f2965e9e097727",
+      "colorDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "depthDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "depthPosition": {
+        "x": 0,
+        "y": 0
+      },
+      "glError": 0
+    },
+    {
+      "label": "near-shifted",
+      "name": "before",
+      "cx": 1,
+      "cy": 1,
+      "width": 971,
+      "height": 971,
+      "colorAlpha": 42240,
+      "depthAlpha": 41672,
+      "colorSHA256": "c2de8b678299aebe15915ee2495ea3e7e3a9f014bf0c571c67af10eceb536d97",
+      "depthSHA256": "ac6fe4cfe166d8ca055b6c2616f316bceb8113d6517e17fa79f2965e9e097727",
+      "colorDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "depthDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "depthPosition": {
+        "x": 0,
+        "y": 0
+      },
+      "glError": 0
+    },
+    {
+      "label": "near-shifted",
+      "name": "after",
+      "cx": 1,
+      "cy": 1,
+      "width": 971,
+      "height": 971,
+      "colorAlpha": 42240,
+      "depthAlpha": 41672,
+      "colorSHA256": "c2de8b678299aebe15915ee2495ea3e7e3a9f014bf0c571c67af10eceb536d97",
+      "depthSHA256": "ac6fe4cfe166d8ca055b6c2616f316bceb8113d6517e17fa79f2965e9e097727",
+      "colorDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "depthDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "depthPosition": {
+        "x": 2048,
+        "y": 2048
+      },
+      "glError": 0
+    },
+    {
+      "label": "nyc",
+      "name": "before",
+      "cx": -73,
+      "cy": 171930,
+      "width": 971,
+      "height": 971,
+      "colorAlpha": 42777,
+      "depthAlpha": 41892,
+      "colorSHA256": "d5f1a0f4868b4b0eb45a2478587acd13253bf45842ce46d81f51507fb752e426",
+      "depthSHA256": "390ed62304f58a915970564ae016693c6f84022fd0e077b250de919e93021d67",
+      "colorDifference": {
+        "channels": 104857,
+        "max": 255
+      },
+      "depthDifference": {
+        "channels": 48591,
+        "max": 255
+      },
+      "depthPosition": {
+        "x": 0,
+        "y": 0
+      },
+      "glError": 0
+    },
+    {
+      "label": "nyc",
+      "name": "after",
+      "cx": -73,
+      "cy": 171930,
+      "width": 971,
+      "height": 971,
+      "colorAlpha": 42240,
+      "depthAlpha": 41672,
+      "colorSHA256": "c2de8b678299aebe15915ee2495ea3e7e3a9f014bf0c571c67af10eceb536d97",
+      "depthSHA256": "ac6fe4cfe166d8ca055b6c2616f316bceb8113d6517e17fa79f2965e9e097727",
+      "colorDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "depthDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "depthPosition": {
+        "x": -149504,
+        "y": 352112640
+      },
+      "glError": 0
+    },
+    {
+      "label": "pennsylvania",
+      "name": "before",
+      "cx": -45,
+      "cy": 172010,
+      "width": 971,
+      "height": 971,
+      "colorAlpha": 42779,
+      "depthAlpha": 41892,
+      "colorSHA256": "f537083a3bcf81d8e46340f28d2f54dd9b4856e138fc119453be32557a0d6473",
+      "depthSHA256": "9a9b7a57c188edb5a1f3e998482478e33b26adb06a9b92794c8f2efa18416d01",
+      "colorDifference": {
+        "channels": 104724,
+        "max": 255
+      },
+      "depthDifference": {
+        "channels": 47736,
+        "max": 255
+      },
+      "depthPosition": {
+        "x": 0,
+        "y": 0
+      },
+      "glError": 0
+    },
+    {
+      "label": "pennsylvania",
+      "name": "after",
+      "cx": -45,
+      "cy": 172010,
+      "width": 971,
+      "height": 971,
+      "colorAlpha": 42240,
+      "depthAlpha": 41672,
+      "colorSHA256": "c2de8b678299aebe15915ee2495ea3e7e3a9f014bf0c571c67af10eceb536d97",
+      "depthSHA256": "ac6fe4cfe166d8ca055b6c2616f316bceb8113d6517e17fa79f2965e9e097727",
+      "colorDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "depthDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "depthPosition": {
+        "x": -92160,
+        "y": 352276480
+      },
+      "glError": 0
+    },
+    {
+      "label": "mexico",
+      "name": "before",
+      "cx": 16367,
+      "cy": 171995,
+      "width": 971,
+      "height": 971,
+      "colorAlpha": 42760,
+      "depthAlpha": 41993,
+      "colorSHA256": "c0ef646a1f640ac59140bfdf04eb515ccb1c776d348b45c4546405649a923fbd",
+      "depthSHA256": "72a51df4dbb717514f6c55b369aba0e64952740bffdb5707351814cdce99b4c0",
+      "colorDifference": {
+        "channels": 105830,
+        "max": 255
+      },
+      "depthDifference": {
+        "channels": 49477,
+        "max": 255
+      },
+      "depthPosition": {
+        "x": 0,
+        "y": 0
+      },
+      "glError": 0
+    },
+    {
+      "label": "mexico",
+      "name": "after",
+      "cx": 16367,
+      "cy": 171995,
+      "width": 971,
+      "height": 971,
+      "colorAlpha": 42240,
+      "depthAlpha": 41672,
+      "colorSHA256": "c2de8b678299aebe15915ee2495ea3e7e3a9f014bf0c571c67af10eceb536d97",
+      "depthSHA256": "ac6fe4cfe166d8ca055b6c2616f316bceb8113d6517e17fa79f2965e9e097727",
+      "colorDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "depthDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "depthPosition": {
+        "x": 33519616,
+        "y": 352245760
+      },
+      "glError": 0
+    }
+  ],
+  "timings": [
+    {
+      "name": "before",
+      "trial": 0,
+      "ms": 0.15500000026077032
+    },
+    {
+      "name": "before",
+      "trial": 1,
+      "ms": 0.14999999990686774
+    },
+    {
+      "name": "before",
+      "trial": 2,
+      "ms": 0.14500000001862645
+    },
+    {
+      "name": "before",
+      "trial": 3,
+      "ms": 0.1299999998882413
+    },
+    {
+      "name": "before",
+      "trial": 4,
+      "ms": 0.125
+    },
+    {
+      "name": "before",
+      "trial": 5,
+      "ms": 0.13499999977648258
+    },
+    {
+      "name": "before",
+      "trial": 6,
+      "ms": 0.15000000037252903
+    },
+    {
+      "name": "before",
+      "trial": 7,
+      "ms": 0.125
+    },
+    {
+      "name": "before",
+      "trial": 8,
+      "ms": 0.1299999998882413
+    },
+    {
+      "name": "after",
+      "trial": 0,
+      "ms": 0.1600000001490116
+    },
+    {
+      "name": "after",
+      "trial": 1,
+      "ms": 0.15499999979510903
+    },
+    {
+      "name": "after",
+      "trial": 2,
+      "ms": 0.13500000024214387
+    },
+    {
+      "name": "after",
+      "trial": 3,
+      "ms": 0.13999999966472387
+    },
+    {
+      "name": "after",
+      "trial": 4,
+      "ms": 0.13500000024214387
+    },
+    {
+      "name": "after",
+      "trial": 5,
+      "ms": 0.14999999990686774
+    },
+    {
+      "name": "after",
+      "trial": 6,
+      "ms": 0.13499999977648258
+    },
+    {
+      "name": "after",
+      "trial": 7,
+      "ms": 0.14000000013038516
+    },
+    {
+      "name": "after",
+      "trial": 8,
+      "ms": 0.14500000001862645
+    },
+    {
+      "name": "after",
+      "trial": 0,
+      "ms": 0.13500000024214387
+    },
+    {
+      "name": "after",
+      "trial": 1,
+      "ms": 0.13999999966472387
+    },
+    {
+      "name": "after",
+      "trial": 2,
+      "ms": 0.14000000013038516
+    },
+    {
+      "name": "after",
+      "trial": 3,
+      "ms": 0.14000000013038516
+    },
+    {
+      "name": "after",
+      "trial": 4,
+      "ms": 0.13499999977648258
+    },
+    {
+      "name": "after",
+      "trial": 5,
+      "ms": 0.14000000013038516
+    },
+    {
+      "name": "after",
+      "trial": 6,
+      "ms": 0.14500000001862645
+    },
+    {
+      "name": "after",
+      "trial": 7,
+      "ms": 0.13500000024214387
+    },
+    {
+      "name": "after",
+      "trial": 8,
+      "ms": 0.13999999966472387
+    },
+    {
+      "name": "before",
+      "trial": 0,
+      "ms": 0.13499999977648258
+    },
+    {
+      "name": "before",
+      "trial": 1,
+      "ms": 0.13500000024214387
+    },
+    {
+      "name": "before",
+      "trial": 2,
+      "ms": 0.13499999977648258
+    },
+    {
+      "name": "before",
+      "trial": 3,
+      "ms": 0.13500000024214387
+    },
+    {
+      "name": "before",
+      "trial": 4,
+      "ms": 0.13999999966472387
+    },
+    {
+      "name": "before",
+      "trial": 5,
+      "ms": 0.15000000037252903
+    },
+    {
+      "name": "before",
+      "trial": 6,
+      "ms": 0.14500000001862645
+    },
+    {
+      "name": "before",
+      "trial": 7,
+      "ms": 0.14500000001862645
+    },
+    {
+      "name": "before",
+      "trial": 8,
+      "ms": 0.15499999979510903
+    }
+  ],
+  "benchmarkParity": {
+    "color": {
+      "channels": 0,
+      "max": 0
+    },
+    "depth": {
+      "channels": 0,
+      "max": 0
+    }
+  },
+  "stateRestored": true,
+  "note": "Same actual built native building/roof/material/geometry, translated only. Reference is unchanged source near origin; candidate must match every color and encoded-depth channel at near/NYC/PA/Mexico. Timings compare equal-output shifted-near-origin (chunk1,1) old/new, including position mutation and transform recomputation; no FPS claim."
+}

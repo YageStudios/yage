@@ -1,0 +1,75 @@
+export async function compareDistantFar({pixiUrl,oldFarUrl,newFarUrl}) {
+ const [PIXI,oldModule,newModule]=await Promise.all([import(pixiUrl),import(oldFarUrl),import(newFarUrl)]);
+ const game=__infected,renderer=game.app.renderer,statics=game.scene.statics,sceneRoot=statics.far.root.parent;
+ const item=[...statics.items.values()].filter(i=>i.occluder?.geometry&&i.spec.rise>24&&i.under.children.length&&i.over.children.length).sort((a,b)=>b.spec.w*b.spec.h-a.spec.w*a.spec.h)[0];
+ if(!item)throw Error('No actual built native building with roof depth');
+ const initial={under:[item.under.x,item.under.y],over:[item.over.x,item.over.y],occluder:[item.occluder.x,item.occluder.y],visible:[item.under.visible,item.over.visible,item.occluder.visible],alpha:[item.under.alpha,item.over.alpha]};
+ const originalBounds={...item.bounds},baseX=Math.floor((item.bounds.minX+item.bounds.maxX)/2/2048)*2048,baseY=Math.floor((item.bounds.minY+item.bounds.maxY)/2/2048)*2048;
+ const digest=async b=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',b))].map(v=>v.toString(16).padStart(2,'0')).join('');
+ const difference=(a,b)=>{let channels=0,max=0;for(let i=0;i<a.length;i++){const d=Math.abs(a[i]-b[i]);if(d)channels++;max=Math.max(max,d)}return{channels,max}};
+ const png=(bytes,w,h)=>{const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(bytes),w,h),0,0);return c.toDataURL('image/png')};
+ const shift=(left,top)=>{const dx=left-baseX,dy=top-baseY;for(const[name,p]of[['under',initial.under],['over',initial.over],['occluder',initial.occluder]])item[name].position.set(p[0]+dx,p[1]+dy);return{minX:originalBounds.minX+dx,minY:originalBounds.minY+dy,maxX:originalBounds.maxX+dx,maxY:originalBounds.maxY+dy}};
+ const stateRestored=()=>item.under.x===initial.under[0]&&item.under.y===initial.under[1]&&item.over.x===initial.over[0]&&item.over.y===initial.over[1]&&item.occluder.x===initial.occluder[0]&&item.occluder.y===initial.occluder[1]&&item.under.visible===initial.visible[0]&&item.over.visible===initial.visible[1]&&item.occluder.visible===initial.visible[2]&&item.under.alpha===initial.alpha[0]&&item.over.alpha===initial.alpha[1];
+ const restore=()=>{for(const[name,p]of[['under',initial.under],['over',initial.over],['occluder',initial.occluder]])item[name].position.set(...p)};
+ const make=(Constructor,left,top)=>{const far=new Constructor(2048,{below:1,resolution:.474,pad:0});far.res=.474;sceneRoot.addChild(far.root);const bounds=shift(left,top),proxy={under:item.under,over:item.over,occluder:item.occluder,bounds};far.add(proxy);const key=far.keysOf({minX:left+1,maxX:left+1,minY:top+1,maxY:top+1})[0];if(!far.members.has(key))throw Error('Actual building tile missing');return{far,key}};
+ const drawDepth=(source,w,h,left,top)=>{
+  const texture=PIXI.RenderTexture.create({width:w,height:h,resolution:1}),fragment='precision highp float;void main(){float d=gl_FragCoord.z;gl_FragColor=vec4(d,d,d,1.0);}';
+  const shader=new PIXI.Shader(PIXI.Program.from(source.shader.program.vertexSrc.replace(/^\s*#define SHADER_NAME[^\n]*$/gm,''),fragment,'distant-far-depth-proof'),source.shader.uniforms),mesh=new PIXI.Mesh(source.geometry,shader,source.state);
+  // The same camera-origin subtraction as a tile-centered ProjectedCamera, before uniform upload.
+  mesh.position.set(source.x-left,source.y-top);
+  try{renderer.render(mesh,{renderTexture:texture,clear:true,transform:new PIXI.Matrix(.474,0,0,.474,0,0)});return renderer.extract.pixels(texture)}finally{mesh.destroy();texture.destroy(true)}
+ };
+ let reference=null;const rows=[],timings=[],nearShifted={};
+ try{
+  for(const[label,cx,cy]of[['near',0,0],['near-shifted',1,1],['nyc',-73,171930],['pennsylvania',-45,172010],['mexico',16367,171995]])for(const[name,Constructor]of[['before',oldModule.FarBake],['after',newModule.FarBake]]){
+   const left=cx*2048,top=cy*2048,{far,key}=make(Constructor,left,top);
+   try{
+    far.bake(renderer,key,game.view.now);const tile=far.tiles.get(key);if(!tile?.sprite||!tile.depth)throw Error('Actual color/depth tile not built');
+    const width=tile.sprite.texture.width,height=tile.sprite.texture.height,color=renderer.extract.pixels(tile.sprite.texture),depth=drawDepth(tile.depth,width,height,left,top);
+    const colorAlpha=color.reduce((n,v,i)=>n+(i%4===3&&v>0),0),depthAlpha=depth.reduce((n,v,i)=>n+(i%4===3&&v>0),0);if(!colorAlpha||!depthAlpha)throw Error('Empty actual building output');
+    reference??={color,depth};if(label==='near-shifted')nearShifted[name]={color,depth};const row={label,name,cx,cy,width,height,colorAlpha,depthAlpha,colorSHA256:await digest(color),depthSHA256:await digest(depth),colorDifference:difference(reference.color,color),depthDifference:difference(reference.depth,depth),depthPosition:{x:tile.depth.x,y:tile.depth.y},colorPNG:png(color,width,height),depthPNG:png(depth,width,height),glError:renderer.gl.getError()};rows.push(row);
+    if(label==='near'&&name==='after'&&(row.colorDifference.channels||row.depthDifference.channels))throw Error('Near-origin candidate changes actual building output');
+    if(name==='after'&&label!=='near-shifted'&&(row.colorDifference.channels||row.depthDifference.channels))throw Error('Distant candidate differs from exact near-origin actual building');
+   }finally{far.clear();sceneRoot.removeChild(far.root);far.root.destroy();restore()}
+  }
+  const benchmarkParity={color:difference(nearShifted.before.color,nearShifted.after.color),depth:difference(nearShifted.before.depth,nearShifted.after.depth)};if(benchmarkParity.color.channels||benchmarkParity.depth.channels)throw Error('Shifted near-origin benchmark is not equal-output');
+  for(const name of['before','after','after','before']){const Constructor=name==='before'?oldModule.FarBake:newModule.FarBake,{far,key}=make(Constructor,2048,2048);try{for(let i=0;i<12;i++){const start=performance.now();far.bake(renderer,key,game.view.now);const ms=performance.now()-start;if(i>=3)timings.push({name,trial:i-3,ms})}}finally{far.clear();sceneRoot.removeChild(far.root);far.root.destroy();restore()}}
+  if(!stateRestored())throw Error('Actual source part state not restored');
+  return{pass:true,source:{id:item.spec.id,w:item.spec.w,h:item.spec.h,rise:item.spec.rise,angle:item.spec.angle,initial,baseX,baseY},rows,timings,benchmarkParity,stateRestored:true,note:'Same actual built native building/roof/material/geometry, translated only. Reference is unchanged source near origin; candidate must match every color and encoded-depth channel at near/NYC/PA/Mexico. Timings compare equal-output shifted-near-origin (chunk1,1) old/new, including position mutation and transform recomputation; no FPS claim.'};
+ }catch(error){return{pass:false,error:error.stack,rows,timings,source:{id:item.spec.id,w:item.spec.w,h:item.spec.h,rise:item.spec.rise,angle:item.spec.angle,initial,baseX,baseY}}}finally{restore()}
+}
+
+export async function testFarMasks({pixiUrl,farUrl,baselineUrl}) {
+  const[PIXI,current,baseline]=await Promise.all([import(pixiUrl),import(farUrl),import(baselineUrl)]);
+  // No scene is running; this tiny fixture uses only white-texture graphics and one filter sampler.
+  const priorMaxTextures = PIXI.BatchRenderer.defaultMaxTextures; PIXI.BatchRenderer.defaultMaxTextures=1;
+  const renderer=new PIXI.Renderer({width:96,height:96,resolution:1,backgroundAlpha:0,antialias:false});
+  const parents=[new PIXI.Container(),new PIXI.Container()];parents[0].position.set(3000,7000);parents[0].alpha=.32;parents[0].scale.set(2,.7);parents[1].position.set(-500,400);parents[1].alpha=.6;
+  const parts=[];
+  const make=(id,x,y,z)=>{
+   const under=new PIXI.Container(),over=new PIXI.Container();under.position.set(x,y);over.position.set(x,y);under.rotation=.17;over.rotation=-.23;under.scale.set(.9,1.1);over.scale.set(1.2,.8);over.zIndex=z;under.alpha=.42;over.alpha=.55;under.visible=false;over.visible=false;
+   under.addChild(new PIXI.Graphics().beginFill(0x5b7fa2,.8).drawRect(0,0,30,21).endFill());
+   over.addChild(new PIXI.Graphics().beginFill(0xb37244).drawRect(-3,-8,35,15).endFill());
+   parents[0].addChild(under);parents[1].addChild(over);parts.push(under,over);
+   return{id,under,over,occluder:null,bounds:{minX:x-5,minY:y-10,maxX:x+35,maxY:y+30}};
+  };
+  const a=make('masked',7,18,2),b=make('filtered',24,32,1),c=make('same-depth-tie',35,20,1);
+  const mask=new PIXI.Graphics().beginFill(0xffffff).drawCircle(12,6,14).endFill();a.over.addChild(mask);a.over.mask=mask;
+  const filter=new PIXI.AlphaFilter(.65);b.under.filters=[filter];b.over.filters=[filter];
+  c.over.children[0].blendMode=PIXI.BLEND_MODES.ADD;
+  const far=new current.FarBake(64,{below:1,resolution:1,pad:0});for(const item of[a,b,c])far.add(item);
+  const key=[...far.members.keys()].find(key=>key===0||far.members.get(key).size===3);if(key===undefined)throw Error('Fixture tile missing');
+  const state=()=>parts.map(part=>({visible:part.visible,alpha:part.alpha,parent:part.parent,mask:part.mask,filters:part.filters,children:[...part.children],position:[part.x,part.y],scale:[part.scale.x,part.scale.y],rotation:part.rotation}));
+  const before=state(),same=()=>state().every((row,i)=>Object.keys(row).every(key=>Array.isArray(row[key])?row[key].length===before[i][key].length&&row[key].every((v,j)=>v===before[i][key][j]):row[key]===before[i][key]));
+  const rows=[];
+  try{
+   for(const[name,bake]of[['before',baseline.FarBake.prototype.bake],['after',current.FarBake.prototype.bake]]){
+    bake.call(far,renderer,key,0);const tile=far.tiles.get(key),bytes=renderer.extract.pixels(tile.sprite.texture),glError=renderer.gl.getError();
+    const canvas=document.createElement('canvas');canvas.width=tile.sprite.texture.width;canvas.height=tile.sprite.texture.height;canvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(bytes),canvas.width,canvas.height),0,0);
+    rows.push({name,bytes:[...bytes],width:canvas.width,height:canvas.height,glError,stateRestored:same(),projectionNull:renderer.projection.transform===null,maskDepth:renderer.mask.maskStack?.length??null,filterDepth:renderer.filter.defaultFilterStack?.length??null,png:canvas.toDataURL('image/png')});
+   }
+   let differentChannels=0,maxDifference=0,alpha=0;for(let i=0;i<rows[0].bytes.length;i++){const d=Math.abs(rows[0].bytes[i]-rows[1].bytes[i]);if(d)differentChannels++;maxDifference=Math.max(maxDifference,d);if(i%4===3&&rows[0].bytes[i]>0)alpha++;}
+   for(const row of rows)delete row.bytes;
+   return{pass:!differentChannels&&alpha>0&&rows.every(row=>!row.glError&&row.stateRestored&&row.projectionNull)&&rows[0].maskDepth===rows[1].maskDepth&&rows[0].filterDepth===rows[1].filterDepth,differentChannels,maxDifference,alphaPixels:alpha,rows,features:['nonidentity parents','rotated/scaled parts','initial alpha/visibility','child mask','under/over AlphaFilter','additive child','stable z tie'],note:'Isolated actual Pixi/WebGL fixture; no world/FPS claim; fixture-only1texture batch cap.'};
+  }finally{far.clear();for(const parent of parents)parent.destroy({children:true});renderer.destroy(true); PIXI.BatchRenderer.defaultMaxTextures=priorMaxTextures}
+}

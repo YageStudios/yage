@@ -1,0 +1,52 @@
+
+ RUN  v4.0.18 /data/workspace/sky-harbor/worldmap-integration/yage
+
+ ❯ test/streaming/far-distant.test.ts (3 tests | 3 failed) 9ms
+   × preserves actual baked quad and near-edge depth at distant chunk -73,171930 7ms
+   × preserves actual baked quad and near-edge depth at distant chunk -45,172010 1ms
+   × preserves actual baked quad and near-edge depth at distant chunk 16367,171995 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/streaming/far-distant.test.ts > preserves actual baked quad and near-edge depth at distant chunk -73,171930
+AssertionError: expected 641.40625 to be close to 641.4000244140625, received difference is 0.0062255859375, but expected 0.00005
+ ❯ test/streaming/far-distant.test.ts:53:119
+     51|   const near = paint(0, 0), far = paint(cx, cy);
+     52|   expect(far.indices).toEqual(near.indices);
+     53|   for (const name of ["positions", "near"] as const) for (let i = 0; i…
+       |                                                                                                                       ^
+     54|   for (let i = 0; i < near.color.length; i++) for (let axis = 0; axis …
+     55| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  test/streaming/far-distant.test.ts > preserves actual baked quad and near-edge depth at distant chunk -45,172010
+AssertionError: expected 641.3984375 to be close to 641.4000244140625, received difference is 0.0015869140625, but expected 0.00005
+ ❯ test/streaming/far-distant.test.ts:53:119
+     51|   const near = paint(0, 0), far = paint(cx, cy);
+     52|   expect(far.indices).toEqual(near.indices);
+     53|   for (const name of ["positions", "near"] as const) for (let i = 0; i…
+       |                                                                                                                       ^
+     54|   for (let i = 0; i < near.color.length; i++) for (let axis = 0; axis …
+     55| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  test/streaming/far-distant.test.ts > preserves actual baked quad and near-edge depth at distant chunk 16367,171995
+AssertionError: expected 642 to be close to 641.4000244140625, received difference is 0.5999755859375, but expected 0.00005
+ ❯ test/streaming/far-distant.test.ts:53:119
+     51|   const near = paint(0, 0), far = paint(cx, cy);
+     52|   expect(far.indices).toEqual(near.indices);
+     53|   for (const name of ["positions", "near"] as const) for (let i = 0; i…
+       |                                                                                                                       ^
+     54|   for (let i = 0; i < near.color.length; i++) for (let axis = 0; axis …
+     55| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed (3)
+   Start at  16:54:14
+   Duration  1.05s (transform 87ms, setup 38ms, import 224ms, tests 9ms, environment 694ms)
+

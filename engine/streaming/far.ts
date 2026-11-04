@@ -372,13 +372,14 @@ export class FarBake {
     }
     tile.sprite.scale.set(size / width);
     tile.sprite.position.set(left, top);
-    const transform = new PIXI.Matrix(res, 0, 0, res, -left * res, -top * res);
+    const transform = new PIXI.Matrix(res, 0, 0, res, 0, 0);
     const renderTexture = tile.sprite.texture as PIXI.RenderTexture;
     // One submission keeps adjacent pieces in the same Pixi batch. Each piece still starts from
     // its own local transform, exactly as a standalone renderer.render(part) did.
     const picture = new PIXI.Container();
     const draw = (part: PIXI.Container, item: FarInstance) => {
       if (!part.children.length) return;
+      const positionX = part.x, positionY = part.y;
       const shown = part.visible;
       const alpha = part.alpha;
       const occluded = item.occluder?.visible ?? false;
@@ -386,6 +387,9 @@ export class FarBake {
       part.alpha = 1;
       if (item.occluder) item.occluder.visible = false;
       try {
+        // Pixi packs batched world vertices into Float32 before applying the render projection.
+        // Move into the tile first so distant geographic frames retain small facade/roof details.
+        part.position.set(positionX - left, positionY - top);
         const parent = part.enableTempParent();
         try {
           part.updateTransform();
@@ -394,6 +398,7 @@ export class FarBake {
         }
         part.render(renderer);
       } finally {
+        part.position.set(positionX, positionY);
         part.visible = shown;
         part.alpha = alpha;
         if (item.occluder) item.occluder.visible = occluded;
@@ -442,6 +447,7 @@ export class FarBake {
     const near: number[] = [];
     const indices: number[] = [];
     const top = this.root.parent;
+    const originX = tile.sprite!.x, originY = tile.sprite!.y;
     for (const item of items) {
       const occluder = item.occluder as PIXI.Mesh | null;
       if (!occluder?.geometry) continue;
@@ -455,14 +461,15 @@ export class FarBake {
       const n = occluder.geometry.getBuffer("aNear").data as Float32Array;
       const base = positions.length / 2;
       for (let i = 0; i < p.length; i += 2) {
-        positions.push(m.a * p[i] + m.c * p[i + 1] + m.tx, m.b * p[i] + m.d * p[i + 1] + m.ty);
-        near.push(m.a * n[i] + m.c * n[i + 1] + m.tx, m.b * n[i] + m.d * n[i + 1] + m.ty);
+        positions.push(m.a * p[i] + m.c * p[i + 1] + m.tx - originX, m.b * p[i] + m.d * p[i + 1] + m.ty - originY);
+        near.push(m.a * n[i] + m.c * n[i + 1] + m.tx - originX, m.b * n[i] + m.d * n[i + 1] + m.ty - originY);
       }
       const index = occluder.geometry.getIndex().data as Uint16Array;
       for (let i = 0; i < index.length; i++) indices.push(base + index[i]);
     }
     if (!positions.length) return;
     const depth = depthMesh(positions, near, indices);
+    depth.position.set(originX, originY);
     tile.depth = depth;
     this.root.addChild(depth);
   }

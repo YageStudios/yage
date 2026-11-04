@@ -1,0 +1,9 @@
+
+ RUN  v4.1.12 /data/workspace/sky-harbor/worldmap-integration/infected
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  16:47:08
+   Duration  1.20s (transform 775ms, setup 1.01s, import 103ms, tests 6ms, environment 0ms)
+
