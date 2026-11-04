@@ -52,7 +52,7 @@ export class DocumentError extends Error {
   }
 }
 const nodeTypes = new Set<NodeType>(["panel", "row", "column", "grid", "text", "button", "input", "textarea", "image", "scroll", "progress", "slider", "toggle"]);
-const events = new Set<UIEventType>(["activate", "doubleClick", "input", "change", "submit", "cancel", "focus", "blur", "pointerDown", "pointerUp", "pointerMove", "pointerCancel", "keyDown", "keyUp"]);
+const events = new Set<UIEventType>(["activate", "doubleClick", "contextMenu", "input", "change", "submit", "cancel", "focus", "blur", "pointerDown", "pointerUp", "pointerMove", "pointerCancel", "keyDown", "keyUp"]);
 const props = new Set(["id", "class", "style", "attrs", "text", "value", "checked", "indeterminate", "disabled", "hidden", "readOnly", "placeholder", "title", "label", "describedBy", "role", "lang", "dir", "src", "alt", "min", "max", "step", "maxLength", "name", "inputType", "autoComplete", "focusable", "autoFocus", "players", "navigation", "focusScope", "interactive"]);
 const staticProps = new Set(["id", "role", "name", "inputType", "autoComplete", "focusable", "autoFocus", "focusScope"]);
 const booleanProps = new Set(["checked", "indeterminate", "disabled", "hidden", "readOnly", "focusable", "autoFocus", "interactive"]);
