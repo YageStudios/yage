@@ -1,0 +1,21 @@
+{
+  "recovery": "pinned5406 NYC original CDT road polylines; aggregated recovery, not the discarded native chunk",
+  "roads": 470,
+  "positions": 180018,
+  "indices": 354396,
+  "attributes": {
+    "uv": {
+      "size": 2,
+      "length": 180018
+    },
+    "edge": {
+      "size": 1,
+      "length": 90009
+    }
+  },
+  "meshSha256": "86778e3c26a5ba73c872e36d8e23f5e0a7ebf41be918f9c35f6dc06ebd497e89",
+  "failure": {
+    "name": "RangeError",
+    "message": "Maximum call stack size exceeded"
+  }
+}

@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { gunzipSync } from "node:zlib";
 import { clipMesh, meshArea, mergeMeshes, rotatedBounds, strokePolyline, toLocal, translateMesh, type VectorMesh } from "yage/streaming/vector";
 
 const attr = (m: VectorMesh, name: string) => m.attributes[name].data;
@@ -87,6 +89,39 @@ describe("mesh helpers", () => {
     expect(Math.max(...m.indices)).toBe(m.positions.length / 2 - 1);
     expect(b.positions[0]).toBe(100);
     expect(b.positions[1]).toBe(49);
+  });
+
+  it("merges recovered NY road geometry beyond the spread argument limit without changing a value", () => {
+    const traces: { paths: { path: [number, number][] }[] } = JSON.parse(gunzipSync(readFileSync(new URL("./ny-road-traces.json.gz", import.meta.url))).toString());
+    const dense = mergeMeshes(traces.paths.map(row => strokePolyline(row.path.map(([x, y]) => ({ x, y })), 0.00001)));
+    expect(dense.positions).toHaveLength(180018);
+    expect(dense.indices).toHaveLength(354396);
+    const small = strokePolyline([{ x: 1, y: 2 }, { x: 4, y: 6 }], 1);
+    const merged = mergeMeshes([small, dense, small]);
+    expect(merged.positions).toEqual([...small.positions, ...dense.positions, ...small.positions]);
+    for (const name of Object.keys(dense.attributes)) {
+      expect(merged.attributes[name].data).toEqual([...small.attributes[name].data, ...dense.attributes[name].data, ...small.attributes[name].data]);
+      expect(merged.attributes[name].size).toBe(dense.attributes[name].size);
+    }
+    const first = small.positions.length / 2, last = first + dense.positions.length / 2;
+    expect(merged.indices).toEqual([...small.indices, ...dense.indices.map(index => index + first), ...small.indices.map(index => index + last)]);
+  });
+
+  it("copies large four-component attributes when positions remain below the argument limit", () => {
+    const count = 40000;
+    const dense: VectorMesh = { positions: Array.from({ length: count * 2 }, (_, i) => i / 11),
+      attributes: { road: { size: 4, data: Array.from({ length: count * 4 }, (_, i) => i / 7) } }, indices: [0, 1, 2, count - 3, count - 2, count - 1] };
+    const merged = mergeMeshes([dense]);
+    expect(merged.positions).toEqual(dense.positions);
+    expect(merged.attributes.road).toEqual(dense.attributes.road);
+    expect(merged.indices).toEqual(dense.indices);
+  });
+
+  it("keeps empty meshes and attribute-layout errors explicit", () => {
+    expect(mergeMeshes([])).toEqual({ positions: [], attributes: {}, indices: [] });
+    const base: VectorMesh = { positions: [0, 0], attributes: { uv: { size: 2, data: [0, 1] } }, indices: [] };
+    expect(() => mergeMeshes([base, { positions: [], attributes: {}, indices: [] }])).toThrow("attribute uv differs");
+    expect(() => mergeMeshes([base, { positions: [1, 1], attributes: { uv: { size: 1, data: [1] } }, indices: [] }])).toThrow("attribute uv differs");
   });
 
   it("places and inverts a rotated rectangle", () => {

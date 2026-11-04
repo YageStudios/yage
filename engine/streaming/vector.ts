@@ -127,11 +127,12 @@ export const mergeMeshes = (meshes: readonly VectorMesh[]): VectorMesh => {
   const out = emptyMesh(first ? Object.fromEntries(Object.entries(first.attributes).map(([k, a]) => [k, a.size])) : {});
   for (const m of meshes) {
     const base = out.positions.length / 2;
-    out.positions.push(...m.positions);
+    // Dense road layers exceed the JavaScript function-argument limit; append values directly.
+    for (let i = 0; i < m.positions.length; i++) out.positions.push(m.positions[i]);
     for (const [k, a] of Object.entries(out.attributes)) {
       const src = m.attributes[k];
       if (!src || src.size !== a.size) throw new Error(`mergeMeshes: attribute ${k} differs`);
-      a.data.push(...src.data);
+      for (let i = 0; i < src.data.length; i++) a.data.push(src.data[i]);
     }
     for (const i of m.indices) out.indices.push(i + base);
   }

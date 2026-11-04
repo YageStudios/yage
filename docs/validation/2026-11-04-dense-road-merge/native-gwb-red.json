@@ -1,0 +1,23 @@
+{
+  "url": "http://127.0.0.1:5406",
+  "launch": {
+    "executablePath": "/usr/bin/chromium",
+    "headless": false,
+    "args": []
+  },
+  "sourceProof": {
+    "root": "/tmp/infected-perf-snapshot-current-c017-a008",
+    "manifestSha256": "ee07525ef8fbb8b3c291c1fa4c2435bc3a6236047113a42a2ab45f24c7573272",
+    "appHead": "a008c4b7c29222b3f1878e78b72b7d1134f62014",
+    "engineHead": "80f81413331567aa69b4fc70a9eb024ebf7fa591",
+    "sourceFiles": 2087,
+    "assets": 19,
+    "driverSha256": "d1e905a38e87f58b8107e211a5e782643366f6430e13cee86d926105c8261475"
+  },
+  "sourceDigest": "bf1aed0d60d0022034cfacc9e32304600aaa15a9bad3c46451cc143abe271c1a",
+  "errors": [
+    "RangeError: Maximum call stack size exceeded\n    at mergeMeshes (http://127.0.0.1:5406/@fs/data/workspace/sky-harbor/worldmap-integration/yage/engine/streaming/vector.ts?g=mw2bf9m50:89:14)\n    at roadMesh (http://127.0.0.1:5406/src/render/roads/mesh.ts?g=mw2bf9m50:203:10)\n    at roadBuffers (http://127.0.0.1:5406/src/render/roads/mesh.ts?g=mw2bf9m50:215:16)\n    at http://127.0.0.1:5406/src/render/ground/ahead-worker.ts?worker_file&type=module&g=mw2bf9m50:25:17",
+    "RangeError: Maximum call stack size exceeded\n    at mergeMeshes (http://127.0.0.1:5406/@fs/data/workspace/sky-harbor/worldmap-integration/yage/engine/streaming/vector.ts?g=mw2bf9m50:89:14)\n    at roadMesh (http://127.0.0.1:5406/src/render/roads/mesh.ts?g=mw2bf9m50:203:10)\n    at roadBuffers (http://127.0.0.1:5406/src/render/roads/mesh.ts?g=mw2bf9m50:215:16)\n    at http://127.0.0.1:5406/src/render/ground/ahead-worker.ts?worker_file&type=module&g=mw2bf9m50:25:17"
+  ],
+  "states": []
+}

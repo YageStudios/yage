@@ -1,0 +1,56 @@
+[
+  {
+    "archive": "regional_roads.zip",
+    "member": "regional/USA_new_york_40.72156_-73.99572.cdt",
+    "streets": 1081,
+    "largest": [
+      {
+        "id": 642,
+        "vertices": 85
+      },
+      {
+        "id": 783,
+        "vertices": 77
+      },
+      {
+        "id": 1020,
+        "vertices": 75
+      },
+      {
+        "id": 108,
+        "vertices": 75
+      },
+      {
+        "id": 1039,
+        "vertices": 74
+      }
+    ]
+  },
+  {
+    "archive": "city_detail.zip",
+    "member": "cities/USA_new_york_40.72156_-73.99572.cdt",
+    "streets": 211596,
+    "largest": [
+      {
+        "id": 15154,
+        "vertices": 388
+      },
+      {
+        "id": 11803,
+        "vertices": 294
+      },
+      {
+        "id": 28964,
+        "vertices": 204
+      },
+      {
+        "id": 79158,
+        "vertices": 195
+      },
+      {
+        "id": 196931,
+        "vertices": 193
+      }
+    ]
+  }
+]
