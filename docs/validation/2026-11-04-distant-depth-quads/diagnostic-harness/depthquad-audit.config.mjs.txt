@@ -1,0 +1,7 @@
+import JSON5 from '/data/workspace/sky-harbor/worldmap-integration/yage/node_modules/json5/lib/index.js';
+export default {
+ root:'/tmp',
+ plugins:[{name:'diagnostic-json5',transform(code,id){if(id.endsWith('.json5'))return 'export default '+JSON.stringify(JSON5.parse(code))}}],
+ resolve:{alias:{'pixi.js':'/data/workspace/sky-harbor/worldmap-integration/yage/node_modules/pixi.js/lib/index.mjs',yage:'/data/workspace/sky-harbor/worldmap-integration/yage/engine'}},
+ test:{include:['depthquad-audit.test.ts'],environment:'jsdom',maxWorkers:1,setupFiles:[]}
+};

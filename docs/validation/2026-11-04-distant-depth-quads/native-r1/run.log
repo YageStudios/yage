@@ -1,0 +1,10 @@
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+page.evaluate: Error: Actual pawn occlusion control failed: {"kind":"rifle","clearChannels":10567,"occludedChannels":13150}
+    at verifyDepthQuadPixels (eval at evaluate (:290:30), <anonymous>:42:117)
+    at async <anonymous>:316:30
+    at /tmp/depthquad-native.mjs:39:28
+
+Node.js v26.2.0

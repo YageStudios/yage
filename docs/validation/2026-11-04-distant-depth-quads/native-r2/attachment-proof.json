@@ -1,0 +1,2194 @@
+{
+  "pass": true,
+  "rows": [
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 356,
+        "width": 128,
+        "height": 128,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "rifle",
+      "front": false,
+      "label": "near",
+      "name": "before",
+      "cx": 0,
+      "cy": 0,
+      "alphaPixels": 3856,
+      "sha256": "5973da0602e73dd4e569df9c826ca852147763144c559a50d55f2fe49fea31c0",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 799,
+        "max": 255
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 356,
+        "width": 128,
+        "height": 128,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "rifle",
+      "front": false,
+      "label": "near",
+      "name": "after",
+      "cx": 0,
+      "cy": 0,
+      "alphaPixels": 3856,
+      "sha256": "5973da0602e73dd4e569df9c826ca852147763144c559a50d55f2fe49fea31c0",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 799,
+        "max": 255
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 356,
+        "width": 128,
+        "height": 128,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "rifle",
+      "front": false,
+      "label": "nyc",
+      "name": "before",
+      "cx": -73,
+      "cy": 171930,
+      "alphaPixels": 3698,
+      "sha256": "53116602a6b3ec363b5d5e11e8b8ef554e2632f4416919d42c7213384783bba9",
+      "pixelDifference": {
+        "channels": 799,
+        "max": 255
+      },
+      "visibleAttachment": {
+        "channels": 0,
+        "max": 0
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 356,
+        "width": 128,
+        "height": 128,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "rifle",
+      "front": false,
+      "label": "nyc",
+      "name": "after",
+      "cx": -73,
+      "cy": 171930,
+      "alphaPixels": 3856,
+      "sha256": "5973da0602e73dd4e569df9c826ca852147763144c559a50d55f2fe49fea31c0",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 799,
+        "max": 255
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 356,
+        "width": 128,
+        "height": 128,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "rifle",
+      "front": false,
+      "label": "mexico",
+      "name": "before",
+      "cx": 16367,
+      "cy": 171995,
+      "alphaPixels": 3698,
+      "sha256": "53116602a6b3ec363b5d5e11e8b8ef554e2632f4416919d42c7213384783bba9",
+      "pixelDifference": {
+        "channels": 799,
+        "max": 255
+      },
+      "visibleAttachment": {
+        "channels": 0,
+        "max": 0
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 356,
+        "width": 128,
+        "height": 128,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "rifle",
+      "front": false,
+      "label": "mexico",
+      "name": "after",
+      "cx": 16367,
+      "cy": 171995,
+      "alphaPixels": 3856,
+      "sha256": "5973da0602e73dd4e569df9c826ca852147763144c559a50d55f2fe49fea31c0",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 799,
+        "max": 255
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 356,
+        "width": 128,
+        "height": 128,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "rifle",
+      "front": true,
+      "label": "near",
+      "name": "before",
+      "cx": 0,
+      "cy": 0,
+      "alphaPixels": 4889,
+      "sha256": "f2564c344bede977d474f5c554565a66e77cf107d979d21793cb6701e2d14cec",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 765,
+        "max": 255
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 356,
+        "width": 128,
+        "height": 128,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "rifle",
+      "front": true,
+      "label": "near",
+      "name": "after",
+      "cx": 0,
+      "cy": 0,
+      "alphaPixels": 4889,
+      "sha256": "f2564c344bede977d474f5c554565a66e77cf107d979d21793cb6701e2d14cec",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 765,
+        "max": 255
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 356,
+        "width": 128,
+        "height": 128,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "rifle",
+      "front": true,
+      "label": "nyc",
+      "name": "before",
+      "cx": -73,
+      "cy": 171930,
+      "alphaPixels": 4780,
+      "sha256": "01d1323969c07ad7b1b303f9117b42b86c8235467e57af9e3936f99a58c7f2b2",
+      "pixelDifference": {
+        "channels": 765,
+        "max": 255
+      },
+      "visibleAttachment": {
+        "channels": 0,
+        "max": 0
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 356,
+        "width": 128,
+        "height": 128,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "rifle",
+      "front": true,
+      "label": "nyc",
+      "name": "after",
+      "cx": -73,
+      "cy": 171930,
+      "alphaPixels": 4889,
+      "sha256": "f2564c344bede977d474f5c554565a66e77cf107d979d21793cb6701e2d14cec",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 765,
+        "max": 255
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 356,
+        "width": 128,
+        "height": 128,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "rifle",
+      "front": true,
+      "label": "mexico",
+      "name": "before",
+      "cx": 16367,
+      "cy": 171995,
+      "alphaPixels": 4780,
+      "sha256": "01d1323969c07ad7b1b303f9117b42b86c8235467e57af9e3936f99a58c7f2b2",
+      "pixelDifference": {
+        "channels": 765,
+        "max": 255
+      },
+      "visibleAttachment": {
+        "channels": 0,
+        "max": 0
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 356,
+        "width": 128,
+        "height": 128,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "rifle",
+      "front": true,
+      "label": "mexico",
+      "name": "after",
+      "cx": 16367,
+      "cy": 171995,
+      "alphaPixels": 4889,
+      "sha256": "f2564c344bede977d474f5c554565a66e77cf107d979d21793cb6701e2d14cec",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 765,
+        "max": 255
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 358,
+        "width": 64,
+        "height": 64,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "pistol",
+      "front": false,
+      "label": "near",
+      "name": "before",
+      "cx": 0,
+      "cy": 0,
+      "alphaPixels": 3702,
+      "sha256": "15bede0865c1cfcc1dc6a1ebd95aff749f6ba1c30cf724f1d04b61e7af92808a",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 121,
+        "max": 212
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 358,
+        "width": 64,
+        "height": 64,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "pistol",
+      "front": false,
+      "label": "near",
+      "name": "after",
+      "cx": 0,
+      "cy": 0,
+      "alphaPixels": 3702,
+      "sha256": "15bede0865c1cfcc1dc6a1ebd95aff749f6ba1c30cf724f1d04b61e7af92808a",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 121,
+        "max": 212
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 358,
+        "width": 64,
+        "height": 64,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "pistol",
+      "front": false,
+      "label": "nyc",
+      "name": "before",
+      "cx": -73,
+      "cy": 171930,
+      "alphaPixels": 3698,
+      "sha256": "53116602a6b3ec363b5d5e11e8b8ef554e2632f4416919d42c7213384783bba9",
+      "pixelDifference": {
+        "channels": 121,
+        "max": 212
+      },
+      "visibleAttachment": {
+        "channels": 0,
+        "max": 0
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 358,
+        "width": 64,
+        "height": 64,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "pistol",
+      "front": false,
+      "label": "nyc",
+      "name": "after",
+      "cx": -73,
+      "cy": 171930,
+      "alphaPixels": 3702,
+      "sha256": "15bede0865c1cfcc1dc6a1ebd95aff749f6ba1c30cf724f1d04b61e7af92808a",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 121,
+        "max": 212
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 358,
+        "width": 64,
+        "height": 64,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "pistol",
+      "front": false,
+      "label": "mexico",
+      "name": "before",
+      "cx": 16367,
+      "cy": 171995,
+      "alphaPixels": 3698,
+      "sha256": "53116602a6b3ec363b5d5e11e8b8ef554e2632f4416919d42c7213384783bba9",
+      "pixelDifference": {
+        "channels": 121,
+        "max": 212
+      },
+      "visibleAttachment": {
+        "channels": 0,
+        "max": 0
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 358,
+        "width": 64,
+        "height": 64,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "pistol",
+      "front": false,
+      "label": "mexico",
+      "name": "after",
+      "cx": 16367,
+      "cy": 171995,
+      "alphaPixels": 3702,
+      "sha256": "15bede0865c1cfcc1dc6a1ebd95aff749f6ba1c30cf724f1d04b61e7af92808a",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 121,
+        "max": 212
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 358,
+        "width": 64,
+        "height": 64,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "pistol",
+      "front": true,
+      "label": "near",
+      "name": "before",
+      "cx": 0,
+      "cy": 0,
+      "alphaPixels": 4780,
+      "sha256": "71f18ae1c6c591cdcc22af0d2c609499fc446c3c3d93077add30403d620b10dd",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 101,
+        "max": 54
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 358,
+        "width": 64,
+        "height": 64,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "pistol",
+      "front": true,
+      "label": "near",
+      "name": "after",
+      "cx": 0,
+      "cy": 0,
+      "alphaPixels": 4780,
+      "sha256": "71f18ae1c6c591cdcc22af0d2c609499fc446c3c3d93077add30403d620b10dd",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 101,
+        "max": 54
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 358,
+        "width": 64,
+        "height": 64,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "pistol",
+      "front": true,
+      "label": "nyc",
+      "name": "before",
+      "cx": -73,
+      "cy": 171930,
+      "alphaPixels": 4780,
+      "sha256": "01d1323969c07ad7b1b303f9117b42b86c8235467e57af9e3936f99a58c7f2b2",
+      "pixelDifference": {
+        "channels": 101,
+        "max": 54
+      },
+      "visibleAttachment": {
+        "channels": 0,
+        "max": 0
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 358,
+        "width": 64,
+        "height": 64,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "pistol",
+      "front": true,
+      "label": "nyc",
+      "name": "after",
+      "cx": -73,
+      "cy": 171930,
+      "alphaPixels": 4780,
+      "sha256": "71f18ae1c6c591cdcc22af0d2c609499fc446c3c3d93077add30403d620b10dd",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 101,
+        "max": 54
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 358,
+        "width": 64,
+        "height": 64,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "pistol",
+      "front": true,
+      "label": "mexico",
+      "name": "before",
+      "cx": 16367,
+      "cy": 171995,
+      "alphaPixels": 4780,
+      "sha256": "01d1323969c07ad7b1b303f9117b42b86c8235467e57af9e3936f99a58c7f2b2",
+      "pixelDifference": {
+        "channels": 101,
+        "max": 54
+      },
+      "visibleAttachment": {
+        "channels": 0,
+        "max": 0
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 358,
+        "width": 64,
+        "height": 64,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "pistol",
+      "front": true,
+      "label": "mexico",
+      "name": "after",
+      "cx": 16367,
+      "cy": 171995,
+      "alphaPixels": 4780,
+      "sha256": "71f18ae1c6c591cdcc22af0d2c609499fc446c3c3d93077add30403d620b10dd",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 101,
+        "max": 54
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 360,
+        "width": 32,
+        "height": 32,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "hand",
+      "front": false,
+      "label": "near",
+      "name": "before",
+      "cx": 0,
+      "cy": 0,
+      "alphaPixels": 3698,
+      "sha256": "151e0d63b1acfedf519fe7a0e6e37811cb6837ccde7d618a0335ea7a98cfdd8e",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 27,
+        "max": 7
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 360,
+        "width": 32,
+        "height": 32,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "hand",
+      "front": false,
+      "label": "near",
+      "name": "after",
+      "cx": 0,
+      "cy": 0,
+      "alphaPixels": 3698,
+      "sha256": "151e0d63b1acfedf519fe7a0e6e37811cb6837ccde7d618a0335ea7a98cfdd8e",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 27,
+        "max": 7
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 360,
+        "width": 32,
+        "height": 32,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "hand",
+      "front": false,
+      "label": "nyc",
+      "name": "before",
+      "cx": -73,
+      "cy": 171930,
+      "alphaPixels": 3698,
+      "sha256": "53116602a6b3ec363b5d5e11e8b8ef554e2632f4416919d42c7213384783bba9",
+      "pixelDifference": {
+        "channels": 27,
+        "max": 7
+      },
+      "visibleAttachment": {
+        "channels": 0,
+        "max": 0
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 360,
+        "width": 32,
+        "height": 32,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "hand",
+      "front": false,
+      "label": "nyc",
+      "name": "after",
+      "cx": -73,
+      "cy": 171930,
+      "alphaPixels": 3698,
+      "sha256": "151e0d63b1acfedf519fe7a0e6e37811cb6837ccde7d618a0335ea7a98cfdd8e",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 27,
+        "max": 7
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 360,
+        "width": 32,
+        "height": 32,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "hand",
+      "front": false,
+      "label": "mexico",
+      "name": "before",
+      "cx": 16367,
+      "cy": 171995,
+      "alphaPixels": 3698,
+      "sha256": "53116602a6b3ec363b5d5e11e8b8ef554e2632f4416919d42c7213384783bba9",
+      "pixelDifference": {
+        "channels": 27,
+        "max": 7
+      },
+      "visibleAttachment": {
+        "channels": 0,
+        "max": 0
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 360,
+        "width": 32,
+        "height": 32,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "hand",
+      "front": false,
+      "label": "mexico",
+      "name": "after",
+      "cx": 16367,
+      "cy": 171995,
+      "alphaPixels": 3698,
+      "sha256": "151e0d63b1acfedf519fe7a0e6e37811cb6837ccde7d618a0335ea7a98cfdd8e",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 27,
+        "max": 7
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 360,
+        "width": 32,
+        "height": 32,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "hand",
+      "front": true,
+      "label": "near",
+      "name": "before",
+      "cx": 0,
+      "cy": 0,
+      "alphaPixels": 4780,
+      "sha256": "210bc70ed0ec2780f2962fe38b22ec6da9e471475ecfd6b75f9d5f6b20146cde",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 24,
+        "max": 6
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 360,
+        "width": 32,
+        "height": 32,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "hand",
+      "front": true,
+      "label": "near",
+      "name": "after",
+      "cx": 0,
+      "cy": 0,
+      "alphaPixels": 4780,
+      "sha256": "210bc70ed0ec2780f2962fe38b22ec6da9e471475ecfd6b75f9d5f6b20146cde",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 24,
+        "max": 6
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 360,
+        "width": 32,
+        "height": 32,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "hand",
+      "front": true,
+      "label": "nyc",
+      "name": "before",
+      "cx": -73,
+      "cy": 171930,
+      "alphaPixels": 4780,
+      "sha256": "01d1323969c07ad7b1b303f9117b42b86c8235467e57af9e3936f99a58c7f2b2",
+      "pixelDifference": {
+        "channels": 24,
+        "max": 6
+      },
+      "visibleAttachment": {
+        "channels": 0,
+        "max": 0
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 360,
+        "width": 32,
+        "height": 32,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "hand",
+      "front": true,
+      "label": "nyc",
+      "name": "after",
+      "cx": -73,
+      "cy": 171930,
+      "alphaPixels": 4780,
+      "sha256": "210bc70ed0ec2780f2962fe38b22ec6da9e471475ecfd6b75f9d5f6b20146cde",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 24,
+        "max": 6
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 360,
+        "width": 32,
+        "height": 32,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "hand",
+      "front": true,
+      "label": "mexico",
+      "name": "before",
+      "cx": 16367,
+      "cy": 171995,
+      "alphaPixels": 4780,
+      "sha256": "01d1323969c07ad7b1b303f9117b42b86c8235467e57af9e3936f99a58c7f2b2",
+      "pixelDifference": {
+        "channels": 24,
+        "max": 6
+      },
+      "visibleAttachment": {
+        "channels": 0,
+        "max": 0
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 360,
+        "width": 32,
+        "height": 32,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "hand",
+      "front": true,
+      "label": "mexico",
+      "name": "after",
+      "cx": 16367,
+      "cy": 171995,
+      "alphaPixels": 4780,
+      "sha256": "210bc70ed0ec2780f2962fe38b22ec6da9e471475ecfd6b75f9d5f6b20146cde",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 24,
+        "max": 6
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 362,
+        "width": 240,
+        "height": 680,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        0.19411765038967133,
+        0,
+        0.19411765038967133
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "mask",
+      "front": false,
+      "label": "near",
+      "name": "before",
+      "cx": 0,
+      "cy": 0,
+      "alphaPixels": 3437,
+      "sha256": "52a29496cc58791dbe0fe81b38fea7ccc4f71ea093c95e18ca10910834da9ccb",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 313,
+        "max": 255
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 362,
+        "width": 240,
+        "height": 680,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        0.19411765038967133,
+        0,
+        0.19411765038967133
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "mask",
+      "front": false,
+      "label": "near",
+      "name": "after",
+      "cx": 0,
+      "cy": 0,
+      "alphaPixels": 3437,
+      "sha256": "52a29496cc58791dbe0fe81b38fea7ccc4f71ea093c95e18ca10910834da9ccb",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 313,
+        "max": 255
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 362,
+        "width": 240,
+        "height": 680,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        0.19411765038967133,
+        0,
+        0.19411765038967133
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "mask",
+      "front": false,
+      "label": "nyc",
+      "name": "before",
+      "cx": -73,
+      "cy": 171930,
+      "alphaPixels": 4300,
+      "sha256": "0640c6b3b678396adbb72fb03cebd931dd24b2a4151a6ca2892feb3df4616e19",
+      "pixelDifference": {
+        "channels": 4197,
+        "max": 255
+      },
+      "visibleAttachment": {
+        "channels": 3884,
+        "max": 255
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 362,
+        "width": 240,
+        "height": 680,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        0.19411765038967133,
+        0,
+        0.19411765038967133
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "mask",
+      "front": false,
+      "label": "nyc",
+      "name": "after",
+      "cx": -73,
+      "cy": 171930,
+      "alphaPixels": 3437,
+      "sha256": "52a29496cc58791dbe0fe81b38fea7ccc4f71ea093c95e18ca10910834da9ccb",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 313,
+        "max": 255
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 362,
+        "width": 240,
+        "height": 680,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        0.19411765038967133,
+        0,
+        0.19411765038967133
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "mask",
+      "front": false,
+      "label": "mexico",
+      "name": "before",
+      "cx": 16367,
+      "cy": 171995,
+      "alphaPixels": 4362,
+      "sha256": "52a3393edc62a7e5976e6d4d9c033f60f04cb450a5e38089fad15a39cf3b1287",
+      "pixelDifference": {
+        "channels": 4457,
+        "max": 255
+      },
+      "visibleAttachment": {
+        "channels": 4144,
+        "max": 255
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 362,
+        "width": 240,
+        "height": 680,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        0.19411765038967133,
+        0,
+        0.19411765038967133
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "mask",
+      "front": false,
+      "label": "mexico",
+      "name": "after",
+      "cx": 16367,
+      "cy": 171995,
+      "alphaPixels": 3437,
+      "sha256": "52a29496cc58791dbe0fe81b38fea7ccc4f71ea093c95e18ca10910834da9ccb",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 313,
+        "max": 255
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 362,
+        "width": 240,
+        "height": 680,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        0.19411765038967133,
+        0,
+        0.19411765038967133
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "mask",
+      "front": true,
+      "label": "near",
+      "name": "before",
+      "cx": 0,
+      "cy": 0,
+      "alphaPixels": 4425,
+      "sha256": "be9a59560004e340b6f7b854d4cf8eec47fd0c56cebec16b80cf5d8724a63ae1",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 275,
+        "max": 231
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 362,
+        "width": 240,
+        "height": 680,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        0.19411765038967133,
+        0,
+        0.19411765038967133
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "mask",
+      "front": true,
+      "label": "near",
+      "name": "after",
+      "cx": 0,
+      "cy": 0,
+      "alphaPixels": 4425,
+      "sha256": "be9a59560004e340b6f7b854d4cf8eec47fd0c56cebec16b80cf5d8724a63ae1",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 275,
+        "max": 231
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 362,
+        "width": 240,
+        "height": 680,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        0.19411765038967133,
+        0,
+        0.19411765038967133
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "mask",
+      "front": true,
+      "label": "nyc",
+      "name": "before",
+      "cx": -73,
+      "cy": 171930,
+      "alphaPixels": 4754,
+      "sha256": "027a359fdd9aa814842c6a6ca5859242ca57f403076393c9a5da4556c01234be",
+      "pixelDifference": {
+        "channels": 3351,
+        "max": 255
+      },
+      "visibleAttachment": {
+        "channels": 3076,
+        "max": 255
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 362,
+        "width": 240,
+        "height": 680,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        0.19411765038967133,
+        0,
+        0.19411765038967133
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "mask",
+      "front": true,
+      "label": "nyc",
+      "name": "after",
+      "cx": -73,
+      "cy": 171930,
+      "alphaPixels": 4425,
+      "sha256": "be9a59560004e340b6f7b854d4cf8eec47fd0c56cebec16b80cf5d8724a63ae1",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 275,
+        "max": 231
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 362,
+        "width": 240,
+        "height": 680,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        0.19411765038967133,
+        0,
+        0.19411765038967133
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "mask",
+      "front": true,
+      "label": "mexico",
+      "name": "before",
+      "cx": 16367,
+      "cy": 171995,
+      "alphaPixels": 4783,
+      "sha256": "37a51df4a552e32ae2a1708d3a6bffd0ccee97a5ec887b8568b5459dc63a6364",
+      "pixelDifference": {
+        "channels": 3574,
+        "max": 255
+      },
+      "visibleAttachment": {
+        "channels": 3299,
+        "max": 255
+      },
+      "glError": 0
+    },
+    {
+      "samplerSameTexture": true,
+      "texture": {
+        "uid": 362,
+        "width": 240,
+        "height": 680,
+        "scaleMode": 1
+      },
+      "uv": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        0.19411765038967133,
+        0,
+        0.19411765038967133
+      ],
+      "state": {
+        "depthTest": true,
+        "depthMask": false,
+        "blend": true
+      },
+      "alphaCutoff003": true,
+      "kind": "mask",
+      "front": true,
+      "label": "mexico",
+      "name": "after",
+      "cx": 16367,
+      "cy": 171995,
+      "alphaPixels": 4425,
+      "sha256": "be9a59560004e340b6f7b854d4cf8eec47fd0c56cebec16b80cf5d8724a63ae1",
+      "pixelDifference": {
+        "channels": 0,
+        "max": 0
+      },
+      "visibleAttachment": {
+        "channels": 275,
+        "max": 231
+      },
+      "glError": 0
+    }
+  ],
+  "visibility": [
+    {
+      "kind": "rifle",
+      "clearChannels": 799,
+      "occludedChannels": 765
+    },
+    {
+      "kind": "pistol",
+      "clearChannels": 121,
+      "occludedChannels": 101
+    },
+    {
+      "kind": "hand",
+      "clearChannels": 27,
+      "occludedChannels": 24
+    },
+    {
+      "kind": "mask",
+      "clearChannels": 313,
+      "occludedChannels": 275
+    }
+  ],
+  "images": [
+    {
+      "name": "depth-clear-body-first"
+    },
+    {
+      "name": "depth-clear-attachment-introduces-readonly-depth"
+    },
+    {
+      "name": "depth-clear-body-stale-repeat"
+    },
+    {
+      "name": "depth-clear-body-recovered"
+    },
+    {
+      "name": "depth-clear-attachment-on-first"
+    },
+    {
+      "name": "depth-clear-attachment-off-after-on"
+    },
+    {
+      "name": "depth-clear-attachment-on-after-off"
+    },
+    {
+      "name": "depth-clear-attachment-off-repeat"
+    },
+    {
+      "name": "rifle-clear-before"
+    },
+    {
+      "name": "rifle-clear-after"
+    },
+    {
+      "name": "rifle-occluded-before"
+    },
+    {
+      "name": "rifle-occluded-after"
+    },
+    {
+      "name": "mask-clear-before"
+    },
+    {
+      "name": "mask-clear-after"
+    },
+    {
+      "name": "mask-occluded-before"
+    },
+    {
+      "name": "mask-occluded-after"
+    }
+  ],
+  "depthClear": [
+    {
+      "label": "body-first",
+      "writable": true,
+      "qVisible": false,
+      "writeBefore": true,
+      "writeAfter": false,
+      "depthFunc": 513,
+      "alpha": 3698,
+      "sha256": "53116602a6b3ec363b5d5e11e8b8ef554e2632f4416919d42c7213384783bba9",
+      "glError": 0
+    },
+    {
+      "label": "attachment-introduces-readonly-depth",
+      "writable": true,
+      "qVisible": true,
+      "writeBefore": true,
+      "writeAfter": false,
+      "depthFunc": 513,
+      "alpha": 3856,
+      "sha256": "5973da0602e73dd4e569df9c826ca852147763144c559a50d55f2fe49fea31c0",
+      "glError": 0
+    },
+    {
+      "label": "body-stale-repeat",
+      "writable": false,
+      "qVisible": false,
+      "writeBefore": false,
+      "writeAfter": false,
+      "depthFunc": 513,
+      "alpha": 1585,
+      "sha256": "0f9b8dc41aae4a999eb00e1021dde1e9cada44f311d59346ccdf33cc3edfb114",
+      "glError": 0
+    },
+    {
+      "label": "body-recovered",
+      "writable": true,
+      "qVisible": false,
+      "writeBefore": true,
+      "writeAfter": false,
+      "depthFunc": 513,
+      "alpha": 3698,
+      "sha256": "53116602a6b3ec363b5d5e11e8b8ef554e2632f4416919d42c7213384783bba9",
+      "glError": 0
+    },
+    {
+      "label": "attachment-on-first",
+      "writable": true,
+      "qVisible": true,
+      "writeBefore": true,
+      "writeAfter": false,
+      "depthFunc": 513,
+      "alpha": 3856,
+      "sha256": "5973da0602e73dd4e569df9c826ca852147763144c559a50d55f2fe49fea31c0",
+      "glError": 0
+    },
+    {
+      "label": "attachment-off-after-on",
+      "writable": true,
+      "qVisible": false,
+      "writeBefore": true,
+      "writeAfter": false,
+      "depthFunc": 513,
+      "alpha": 3698,
+      "sha256": "53116602a6b3ec363b5d5e11e8b8ef554e2632f4416919d42c7213384783bba9",
+      "glError": 0
+    },
+    {
+      "label": "attachment-on-after-off",
+      "writable": true,
+      "qVisible": true,
+      "writeBefore": true,
+      "writeAfter": false,
+      "depthFunc": 513,
+      "alpha": 3856,
+      "sha256": "5973da0602e73dd4e569df9c826ca852147763144c559a50d55f2fe49fea31c0",
+      "glError": 0
+    },
+    {
+      "label": "attachment-off-repeat",
+      "writable": true,
+      "qVisible": false,
+      "writeBefore": true,
+      "writeAfter": false,
+      "depthFunc": 513,
+      "alpha": 3698,
+      "sha256": "53116602a6b3ec363b5d5e11e8b8ef554e2632f4416919d42c7213384783bba9",
+      "glError": 0
+    }
+  ],
+  "backend": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 5090/PCIe/SSE2, OpenGL ES 3.2)",
+  "glVersion": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+  "contextLost": false,
+  "glError": 0,
+  "state": {
+    "projectionRestored": true,
+    "targetRestored": true,
+    "maskDepthBefore": 0,
+    "maskDepthAfter": 0
+  },
+  "note": "Actual game renderer, real installed gun/hand/mask textures and real ChunkScene pawn geometry/snapshot shader. Fixture entities only; no geographic journey or attribution of generic pedestrian bodies. Pixel references are original DepthQuads at near coordinates."
+}

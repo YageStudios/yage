@@ -1,0 +1,68 @@
+export async function verifyDepthQuadPixels(urls) {
+ const [PIXI,before,after,layers,protocol,cameras,sprites,domain,guns,masks]=await Promise.all([urls.pixi,urls.before,urls.after,urls.layers,urls.protocol,urls.camera,urls.sprites,urls.domain,urls.guns,urls.masks].map(u=>import(u)));
+ const g=__infected,renderer=g.app.renderer,schemas=new Map(g.sceneModel.componentList.filter(c=>c?.schema).map(c=>[c.schema.name,c.schema]));
+ const load=g.sceneModel.single(schemas.get('LoadResources')),mask=g.sceneModel.single(schemas.get('MaskResources')),style=Reflect.get(g.scene,'options').style;
+ if(!load.gun?.valid||!load.pistol?.valid||!load.hand?.valid||!mask.atlas?.valid)throw Error('Actual attachment atlases not ready');
+ const hash=async b=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',b))].map(v=>v.toString(16).padStart(2,'0')).join('');
+ const difference=(a,b)=>{let channels=0,max=0;for(let i=0;i<a.length;i++){const d=Math.abs(a[i]-b[i]);if(d)channels++;max=Math.max(max,d)}return{channels,max}};
+ const png=b=>{const c=document.createElement('canvas');c.width=c.height=128;c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(b),128,128),0,0);return c.toDataURL('image/png')};
+ const rows=[],references=new Map(),images=[],depthClear=[];globalThis.__depthQuadDiagnostic={rows,images,depthClear};
+ const clearState=PIXI.State.for2d();
+ const initial={target:renderer.renderTexture.current,projection:renderer.projection.projectionMatrix.clone(),maskDepth:renderer.mask.maskStack?.length??null};
+ for(const kind of ['rifle','pistol','hand','mask'])for(const front of [false,true])for(const[label,cx,cy]of[['near',0,0],['nyc',-73,171930],['mexico',16367,171995]])for(const[name,Constructor]of[['before',before.DepthQuads],['after',after.DepthQuads]]){
+  const ox=cx*2048,oy=cy*2048,x=ox+512.25,y=oy+512.5,texture=kind==='mask'?mask.atlas:kind==='hand'?load.hand:kind==='pistol'?load.pistol:load.gun;
+  const scene=new layers.ChunkScene({chunkSize:2048,style}),q=new Constructor(texture),camera=new cameras.ProjectedCamera(),rt=PIXI.RenderTexture.create({width:128,height:128,resolution:1});rt.framebuffer.enableDepth();
+  camera.setView(4,64-x*4,96-y*4);camera.addChild(scene.root);scene.root.addChild(q);
+  try{
+   const s=protocol.createSnapshot(cx,cy,1,front?2:1);
+   for(let i=0;i<s.count;i++){s.gid[i]=1+i;s.x[i]=512.25*protocol.POSITION_SCALE;s.y[i]=(512.5+i*4)*protocol.POSITION_SCALE;s.tint[i]=0;s.sprite[i]=sprites.spriteFor(kind==='mask'?domain.SpriteSet.Healthy:domain.SpriteSet.Soldier,0)}
+   scene.push(s,0);scene.update({minX:ox,minY:oy,maxX:ox+2047,maxY:oy+2047},0);
+   q.begin(ox,oy);
+   const angle=-2.3,grip=guns.gripAt({x,y},angle),flip=Math.cos(angle)<0?-1:1;
+   if(kind==='mask'){
+    const p=masks.maskPlacement(layers.POSE.Stand,0),frame={x:0,y:0,width:1,height:masks.CROP.h*masks.RES/mask.atlas.height};
+    q.quad(x+p.dx,y+p.dy,masks.CROP.w*masks.UNIT*p.sx,masks.CROP.h*masks.UNIT*p.sy,(masks.FEET.x-masks.CROP.x0)/masks.CROP.w,(masks.FEET.y-masks.CROP.y0)/masks.CROP.h,p.rotation,0xffffff,1,x,y,frame);
+   }else if(kind==='hand'){
+    const at=guns.GUN_HANDS[0],ly=at.y*flip;q.quad(grip.x+at.x*Math.cos(angle)-ly*Math.sin(angle),grip.y+at.x*Math.sin(angle)+ly*Math.cos(angle),guns.HAND_RADIUS*2,guns.HAND_RADIUS*2,.5,.5,0,0xa08860,1,x,y);
+   }else{const art=kind==='rifle'?guns.GUN:guns.PISTOL;q.quad(grip.x,grip.y,art.size,art.size*flip,art.anchor,.5,angle,0xffffff,1,x,y)}
+   q.end();
+   if(kind==='rifle'&&!front&&label==='near'&&name==='before'){
+    const control=async(label,writable)=>{
+     if(writable)renderer.state.set(clearState);
+     const writeBefore=renderer.gl.getParameter(renderer.gl.DEPTH_WRITEMASK),depthFunc=renderer.gl.getParameter(renderer.gl.DEPTH_FUNC);
+     renderer.render(camera,{renderTexture:rt,clear:true});const bytes=renderer.extract.pixels(rt);let alpha=0;for(let i=3;i<bytes.length;i+=4)if(bytes[i])alpha++;
+     const row={label,writable,qVisible:q.visible,writeBefore,writeAfter:renderer.gl.getParameter(renderer.gl.DEPTH_WRITEMASK),depthFunc,alpha,sha256:await hash(bytes),glError:renderer.gl.getError()};depthClear.push(row);images.push({name:'depth-clear-'+label,png:png(bytes)});return row;
+    };
+    q.visible=false;const first=await control('body-first',true);
+    q.visible=true;const introduced=await control('attachment-introduces-readonly-depth',true);
+    q.visible=false;const stale=await control('body-stale-repeat',false),recovered=await control('body-recovered',true);
+    q.visible=true;const onFirst=await control('attachment-on-first',true);
+    q.visible=false;const offFirst=await control('attachment-off-after-on',true);
+    q.visible=true;const onSecond=await control('attachment-on-after-off',true);
+    q.visible=false;const offSecond=await control('attachment-off-repeat',true);
+    if(first.alpha===0||introduced.writeAfter!==false||introduced.sha256!==onFirst.sha256||stale.writeBefore!==false||stale.sha256===first.sha256||stale.alpha>=first.alpha||recovered.sha256!==first.sha256||offFirst.sha256!==first.sha256||offSecond.sha256!==first.sha256||onFirst.sha256!==onSecond.sha256||onFirst.sha256===first.sha256||depthClear.some(r=>r.glError))throw Error('Depth-clear causal diagnostic failed: '+JSON.stringify(depthClear));
+    q.visible=true;
+   }
+   renderer.state.set(clearState);renderer.render(camera,{renderTexture:rt,clear:true});const pixels=renderer.extract.pixels(rt);
+   q.visible=false;renderer.state.set(clearState);renderer.render(camera,{renderTexture:rt,clear:true});const hidden=renderer.extract.pixels(rt);q.visible=true;
+   let alphaPixels=0;for(let i=3;i<pixels.length;i+=4)if(pixels[i])alphaPixels++;
+   const key=kind+'/'+front;if(label==='near'&&name==='before')references.set(key,pixels);
+   const pixelDifference=difference(references.get(key),pixels),visibleAttachment=difference(hidden,pixels);
+   const row={samplerSameTexture:q.shader.uniforms.uSampler===texture,texture:{uid:texture.baseTexture.uid,width:texture.width,height:texture.height,scaleMode:texture.baseTexture.scaleMode},uv:Array.from(q.geometry.getBuffer('aUv').data).slice(0,8),state:{depthTest:q.state.depthTest,depthMask:q.state.depthMask,blend:q.state.blend},alphaCutoff003:q.shader.program.fragmentSrc.includes('texel.a < 0.03'),kind,front,label,name,cx,cy,alphaPixels,sha256:await hash(pixels),pixelDifference,visibleAttachment,glError:renderer.gl.getError()};rows.push(row);
+   if(!row.samplerSameTexture||!row.alphaCutoff003||!row.state.depthTest||row.state.depthMask||!row.state.blend||alphaPixels===0||row.glError)throw Error('Empty fixture or GL error: '+JSON.stringify(row));
+   if(name==='after'&&pixelDifference.channels)throw Error('Corrected attachment pixels differ: '+JSON.stringify(row));
+   if((kind==='rifle'||kind==='mask')&&label==='nyc')images.push({name:kind+'-'+(front?'occluded':'clear')+'-'+name,png:png(pixels)});
+  }finally{camera.removeChild(scene.root);scene.destroy();camera.destroy();rt.destroy(true)}
+ }
+ const visibility=[];
+ for(const kind of ['rifle','pistol','hand','mask']){
+  const clear=rows.find(r=>r.kind===kind&&!r.front&&r.label==='near'&&r.name==='after'),front=rows.find(r=>r.kind===kind&&r.front&&r.label==='near'&&r.name==='after');
+  visibility.push({kind,clearChannels:clear.visibleAttachment.channels,occludedChannels:front.visibleAttachment.channels});
+  if(clear.visibleAttachment.channels===0||front.visibleAttachment.channels>=clear.visibleAttachment.channels)throw Error('Actual pawn occlusion control failed: '+JSON.stringify(visibility.at(-1)));
+ }
+ renderer.state.set(clearState);renderer.render(g.app.stage);
+ if(!rows.some(r=>r.name==='before'&&r.label!=='near'&&r.pixelDifference.channels>0))throw Error('Original distant upload did not reproduce pixel corruption');
+ const afterState={target:renderer.renderTexture.current,projection:renderer.projection.projectionMatrix.clone(),maskDepth:renderer.mask.maskStack?.length??null};
+ const debug=renderer.gl.getExtension('WEBGL_debug_renderer_info'),backend=debug?renderer.gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):renderer.gl.getParameter(renderer.gl.RENDERER);
+ return{pass:true,rows,visibility,images,depthClear,backend,glVersion:renderer.gl.getParameter(renderer.gl.VERSION),contextLost:renderer.gl.isContextLost(),glError:renderer.gl.getError(),state:{projectionRestored:['a','b','c','d','tx','ty'].every(k=>initial.projection[k]===afterState.projection[k]),targetRestored:initial.target===afterState.target,maskDepthBefore:initial.maskDepth,maskDepthAfter:afterState.maskDepth},note:'Actual game renderer, real installed gun/hand/mask textures and real ChunkScene pawn geometry/snapshot shader. Fixture entities only; no geographic journey or attribution of generic pedestrian bodies. Pixel references are original DepthQuads at near coordinates.'};
+}

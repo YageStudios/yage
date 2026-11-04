@@ -1,0 +1,1 @@
+export default {root:'/tmp',resolve:{alias:{'pixi.js':'/data/workspace/sky-harbor/worldmap-integration/yage/node_modules/pixi.js/lib/index.mjs'}},test:{include:['depthquad-packing-bench.test.ts'],environment:'jsdom',maxWorkers:1,setupFiles:[]}};

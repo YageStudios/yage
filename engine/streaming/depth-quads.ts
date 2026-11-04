@@ -57,6 +57,8 @@ export class DepthQuads extends PIXI.Mesh<PIXI.Shader> {
   /** Quads this frame. */
   count = 0;
   private capacity = 0;
+  private originX = 0;
+  private originY = 0;
   private pos = new Float32Array(0);
   private uv = new Float32Array(0);
   private color = new Float32Array(0);
@@ -85,8 +87,12 @@ export class DepthQuads extends PIXI.Mesh<PIXI.Shader> {
     this.buffers = buffers;
   }
 
-  begin() {
+  /** Keep this draw's upload coordinates close to zero; quad inputs and corner outputs stay world-space. */
+  begin(originX = 0, originY = 0) {
     this.count = 0;
+    this.originX = originX;
+    this.originY = originY;
+    this.position.set(originX, originY);
   }
 
   /**
@@ -97,6 +103,9 @@ export class DepthQuads extends PIXI.Mesh<PIXI.Shader> {
   quad(x: number, y: number, width: number, height: number, anchorX: number, anchorY: number, rotation: number, tint: number, alpha: number, footX: number, footY: number, frame = FULL) {
     if (this.count === this.capacity) this.grow();
     const q = this.count++;
+    // The camera transforms after Float32 packing, too late to recover small global details.
+    x -= this.originX; y -= this.originY;
+    footX -= this.originX; footY -= this.originY;
     const cos = Math.cos(rotation), sin = Math.sin(rotation);
     const r = ((tint >> 16) & 255) / 255, g = ((tint >> 8) & 255) / 255, b = (tint & 255) / 255;
     for (let c = 0; c < 4; c++) {
@@ -125,7 +134,7 @@ export class DepthQuads extends PIXI.Mesh<PIXI.Shader> {
 
   /** Where quad `q`'s corner `c` is (world), as last drawn. */
   corner(q: number, c: number) {
-    return { x: this.pos[(q * 4 + c) * 2], y: this.pos[(q * 4 + c) * 2 + 1] };
+    return { x: this.originX + this.pos[(q * 4 + c) * 2], y: this.originY + this.pos[(q * 4 + c) * 2 + 1] };
   }
 
   private grow() {

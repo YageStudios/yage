@@ -1,0 +1,44 @@
+import {verifyDepthQuadPixels} from '/tmp/depthquad-native-function.mjs';
+import { chromium } from '/data/workspace/sky-harbor/worldmap-integration/infected/node_modules/playwright-core/index.mjs';
+import { build } from '/data/workspace/sky-harbor/worldmap-integration/infected/node_modules/esbuild/lib/main.js';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { Worker } from 'node:worker_threads';
+const root='/tmp/infected-depthquad-candidate-20261104', out=process.argv[2]??'/tmp/nyc-critter-attribution',url='http://127.0.0.1:5414/';
+const expected='fefa78a3515f6b56d9fcd2c0833b57145203507a30d104b64c4ff93b3cd17423';
+await mkdir(out,{recursive:true});
+const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
+const hashFile=async path=>{const h=createHash('sha256');let bytes=0;for await(const c of createReadStream(path)){h.update(c);bytes+=c.length}return{bytes,sha256:h.digest('hex')}};
+const manifestBytes=await readFile(root+'/manifest.json');if(digest(manifestBytes)!==expected)throw Error('Unexpected source cohort');const manifest=JSON.parse(manifestBytes);
+async function sourceGuard(){for(const row of manifest.files){const a=await hashFile(root+'/'+row.path);if(a.bytes!==row.bytes||a.sha256!==row.sha256)throw Error('Frozen source changed: '+row.path)}return{manifestSHA256:expected,files:manifest.files.length}}
+async function assetGuard(){const r=await fetch(new URL('/__diagnostic/assets',url));if(!r.ok)throw Error('Missing asset status');const s=await r.json();if(s.failure||s.total>s.limit)throw Error('Asset guard: '+JSON.stringify(s));for(const row of s.pins)for(const path of[row.source,row.copy]){const a=await hashFile(path);if(a.bytes!==row.bytes||a.sha256!==row.sha256)throw Error('Asset changed: '+path)}return s}
+const bounded=(promise,ms,label)=>{let timer;return Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error(label+' exceeded '+ms+'ms')),ms)})]).finally(()=>clearTimeout(timer))};
+const beforeSource=await sourceGuard();await assetGuard();const optimizerBefore=await hashFile(root+'/cache/deps/_metadata.json');
+const compiled=await build({entryPoints:[root+'/infected/src/realworld/coordinates.ts'],bundle:true,platform:'node',format:'esm',write:false});const{geographicToGame}=await import('data:text/javascript;base64,'+Buffer.from(compiled.outputFiles[0].text).toString('base64'));
+const server=await chromium.launchServer({executablePath:'/usr/bin/chromium',headless:false,args:['--js-flags=--max-old-space-size=512']});
+const rootPID=server.process().pid, guard=new Worker(new URL('./render-process-guard.mjs',import.meta.url),{workerData:{rootPID,maxPSS:6*1024**3,minAvailable:8*1024**3,deadlineMs:180000}});
+let stopReason=null,memory=null;guard.on('message',m=>{if(m.kind==='stop')stopReason=m.reason;memory=m});guard.on('error',e=>{stopReason=e.stack;server.close().catch(()=>{})});
+const browser=await chromium.connect(server.wsEndpoint()),page=await browser.newPage({viewport:{width:1261,height:1303},deviceScaleFactor:1});
+const errors=[],warnings=[],failed=[],epochs=new Set(),modules=new Set();let navigations=0,report=null,failure=null;
+let fatalReject;const fatal=new Promise((_,reject)=>{fatalReject=reject});fatal.catch(()=>{});page.on('pageerror',e=>{errors.push(e.stack);fatalReject(e)});page.on('console',m=>{if(['error','warning'].includes(m.type()))warnings.push({type:m.type(),text:m.text()})});page.on('response',r=>{if(r.status()>=400)failed.push({url:r.url(),status:r.status()})});page.on('requestfailed',r=>failed.push({url:r.url(),failure:r.failure()}));page.on('request',r=>{const u=new URL(r.url());if(u.searchParams.has('g'))epochs.add(u.searchParams.get('g'));modules.add(r.url())});page.on('framenavigated',f=>{if(f===page.mainFrame())navigations++});
+const check=()=>{const minecs=[...modules].filter(u=>new URL(u).pathname.endsWith('/minecs.js'));const pageInput=[...modules].filter(u=>new URL(u).pathname.endsWith('/src/components/input/PageInput.ts'));if(minecs.length!==1||pageInput.length!==1)throw Error('Component/module identity inventory mismatch: '+JSON.stringify({minecs,pageInput}));if(stopReason||errors.length||failed.length||epochs.size!==1||navigations!==1)throw Error('Runtime guards: '+JSON.stringify({stopReason,errors,failed,epochs:[...epochs],navigations}))};
+
+try{
+ await page.goto(url);
+ await Promise.race([page.waitForFunction(()=>globalThis.__infected?.view&&__infected.hudBus.state.get('generating')===null,null,{timeout:60000}),fatal]);
+ await page.getByRole('button',{name:/Begin/}).first().click();
+ await page.waitForFunction(()=>__infected.step.last>0&&!__infected.step.geographicLoading,null,{timeout:15000});
+ const offer=page.getByRole('dialog',{name:'Mutation: choose one',exact:true});if(await offer.isVisible())await offer.getByRole('button',{name:/^1: /}).click();
+ await page.waitForTimeout(700);
+ await bounded(page.evaluate(()=>{__infected.app.ticker.stop();__infected.app.renderer.render(__infected.app.stage)}),3000,'Freeze actual renderer');
+ check();
+ const canonical=tail=>{const list=[...modules].filter(u=>new URL(u).pathname.endsWith(tail));if(list.length!==1)throw Error('Canonical module mismatch '+tail+': '+JSON.stringify(list));return list[0]};
+ const after=canonical('/engine/streaming/depth-quads.ts'),before=new URL(after);before.pathname=before.pathname.replace('/depth-quads.ts','/depth-quads-before.ts');
+ const urls={pixi:canonical('/pixi__js.js'),before:before.href,after,layers:canonical('/engine/streaming/layer.ts'),protocol:canonical('/engine/streaming/protocol.ts'),camera:canonical('/engine/systems/render/ProjectedCamera.ts'),sprites:canonical('/src/domain/look/sprites.ts'),domain:canonical('/src/domain/disease.ts'),guns:canonical('/src/render/load/gun-texture.ts'),masks:canonical('/src/render/masks/paint.ts')};
+ report=await bounded(page.evaluate(verifyDepthQuadPixels,urls),15000,'Actual attachment GPU parity and occlusion fixture');
+ for(const row of report.images){await writeFile(out+'/'+row.name+'.png',Buffer.from(row.png.split(',')[1],'base64'));delete row.png}
+ await writeFile(out+'/attachment-proof.json',JSON.stringify(report,null,2));
+ if(!report.pass||report.contextLost||report.glError||!report.state.projectionRestored||!report.state.targetRestored||report.state.maskDepthBefore!==report.state.maskDepthAfter)throw Error('Actual attachment GPU fixture state failed');
+ check();
+} catch(e){failure=e.stack;report??=await bounded(page.evaluate(()=>globalThis.__depthQuadDiagnostic??null),3000,'Partial fixture report').catch(()=>null);throw e}finally{guard.postMessage('finish');await bounded(new Promise(resolve=>guard.on('message',m=>{if(m.kind==='finished')resolve()})),3000,'Guard finish').catch(()=>{});await guard.terminate();await browser.close().catch(()=>{});await server.close().catch(()=>{});const afterSource=await sourceGuard(),assets=await assetGuard(),optimizerAfter=await hashFile(root+'/cache/deps/_metadata.json');if(optimizerAfter.sha256!==optimizerBefore.sha256)failure??='Optimizer changed during run';await writeFile(out+'/result.json',JSON.stringify({beforeSource,afterSource,optimizerBefore,optimizerAfter,launch:{rootPID,args:server.process().spawnargs,heapFlag:'--js-flags=--max-old-space-size=512',headless:false,viewport:{width:1261,height:1303},deviceScaleFactor:1},modules:[...modules],assets,report,errors,warnings,failed,navigations,epochs:[...epochs],memory,stopReason,failure,note:'Functional actual-game-renderer attachment/occlusion fixture, no geographic journey or FPS claim. Private candidate derives from accepted distant critter/FarBake cohort with only DepthQuads and its two actual callers overlaid; old classes are diagnostic-only.'},null,2));if(failure)process.exitCode=1}

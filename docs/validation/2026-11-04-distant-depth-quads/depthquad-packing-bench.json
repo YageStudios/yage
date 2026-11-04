@@ -1,0 +1,384 @@
+{
+  "quadsPerDraw": 500,
+  "drawsPerSample": 20,
+  "samples": [
+    {
+      "repeat": 0,
+      "order": "before,after,distant",
+      "name": "before",
+      "msPerDraw": 0.23681745000000093
+    },
+    {
+      "repeat": 0,
+      "order": "before,after,distant",
+      "name": "after",
+      "msPerDraw": 0.23288985000000367
+    },
+    {
+      "repeat": 0,
+      "order": "before,after,distant",
+      "name": "distant",
+      "msPerDraw": 0.2569084499999974
+    },
+    {
+      "repeat": 0,
+      "order": "distant,after,before",
+      "name": "distant",
+      "msPerDraw": 0.2764054499999986
+    },
+    {
+      "repeat": 0,
+      "order": "distant,after,before",
+      "name": "after",
+      "msPerDraw": 0.23631244999999695
+    },
+    {
+      "repeat": 0,
+      "order": "distant,after,before",
+      "name": "before",
+      "msPerDraw": 0.22875875000000293
+    },
+    {
+      "repeat": 0,
+      "order": "after,before,distant",
+      "name": "after",
+      "msPerDraw": 0.2569489500000032
+    },
+    {
+      "repeat": 0,
+      "order": "after,before,distant",
+      "name": "before",
+      "msPerDraw": 0.25094180000000393
+    },
+    {
+      "repeat": 0,
+      "order": "after,before,distant",
+      "name": "distant",
+      "msPerDraw": 0.24868225000000166
+    },
+    {
+      "repeat": 0,
+      "order": "distant,before,after",
+      "name": "distant",
+      "msPerDraw": 0.22824170000000094
+    },
+    {
+      "repeat": 0,
+      "order": "distant,before,after",
+      "name": "before",
+      "msPerDraw": 0.2339288999999951
+    },
+    {
+      "repeat": 0,
+      "order": "distant,before,after",
+      "name": "after",
+      "msPerDraw": 0.23331684999999994
+    },
+    {
+      "repeat": 1,
+      "order": "before,after,distant",
+      "name": "before",
+      "msPerDraw": 0.23335684999999556
+    },
+    {
+      "repeat": 1,
+      "order": "before,after,distant",
+      "name": "after",
+      "msPerDraw": 0.2301537499999995
+    },
+    {
+      "repeat": 1,
+      "order": "before,after,distant",
+      "name": "distant",
+      "msPerDraw": 0.23461190000000443
+    },
+    {
+      "repeat": 1,
+      "order": "distant,after,before",
+      "name": "distant",
+      "msPerDraw": 0.22172610000000076
+    },
+    {
+      "repeat": 1,
+      "order": "distant,after,before",
+      "name": "after",
+      "msPerDraw": 0.22751870000000168
+    },
+    {
+      "repeat": 1,
+      "order": "distant,after,before",
+      "name": "before",
+      "msPerDraw": 0.22461964999999964
+    },
+    {
+      "repeat": 1,
+      "order": "after,before,distant",
+      "name": "after",
+      "msPerDraw": 0.22733119999999757
+    },
+    {
+      "repeat": 1,
+      "order": "after,before,distant",
+      "name": "before",
+      "msPerDraw": 0.23258285
+    },
+    {
+      "repeat": 1,
+      "order": "after,before,distant",
+      "name": "distant",
+      "msPerDraw": 0.22631269999999973
+    },
+    {
+      "repeat": 1,
+      "order": "distant,before,after",
+      "name": "distant",
+      "msPerDraw": 0.2253116499999976
+    },
+    {
+      "repeat": 1,
+      "order": "distant,before,after",
+      "name": "before",
+      "msPerDraw": 0.22572814999999763
+    },
+    {
+      "repeat": 1,
+      "order": "distant,before,after",
+      "name": "after",
+      "msPerDraw": 0.22394214999999917
+    },
+    {
+      "repeat": 2,
+      "order": "before,after,distant",
+      "name": "before",
+      "msPerDraw": 0.2269132000000013
+    },
+    {
+      "repeat": 2,
+      "order": "before,after,distant",
+      "name": "after",
+      "msPerDraw": 0.23538340000000063
+    },
+    {
+      "repeat": 2,
+      "order": "before,after,distant",
+      "name": "distant",
+      "msPerDraw": 0.22265659999999912
+    },
+    {
+      "repeat": 2,
+      "order": "distant,after,before",
+      "name": "distant",
+      "msPerDraw": 0.2258482000000015
+    },
+    {
+      "repeat": 2,
+      "order": "distant,after,before",
+      "name": "after",
+      "msPerDraw": 0.22473759999999743
+    },
+    {
+      "repeat": 2,
+      "order": "distant,after,before",
+      "name": "before",
+      "msPerDraw": 0.22660819999999832
+    },
+    {
+      "repeat": 2,
+      "order": "after,before,distant",
+      "name": "after",
+      "msPerDraw": 0.2340184000000022
+    },
+    {
+      "repeat": 2,
+      "order": "after,before,distant",
+      "name": "before",
+      "msPerDraw": 0.22788570000000163
+    },
+    {
+      "repeat": 2,
+      "order": "after,before,distant",
+      "name": "distant",
+      "msPerDraw": 0.22556814999999802
+    },
+    {
+      "repeat": 2,
+      "order": "distant,before,after",
+      "name": "distant",
+      "msPerDraw": 0.2240386000000001
+    },
+    {
+      "repeat": 2,
+      "order": "distant,before,after",
+      "name": "before",
+      "msPerDraw": 0.2236351499999955
+    },
+    {
+      "repeat": 2,
+      "order": "distant,before,after",
+      "name": "after",
+      "msPerDraw": 0.22774519999999826
+    },
+    {
+      "repeat": 3,
+      "order": "before,after,distant",
+      "name": "before",
+      "msPerDraw": 0.23499139999999558
+    },
+    {
+      "repeat": 3,
+      "order": "before,after,distant",
+      "name": "after",
+      "msPerDraw": 0.2228131000000019
+    },
+    {
+      "repeat": 3,
+      "order": "before,after,distant",
+      "name": "distant",
+      "msPerDraw": 0.22617170000000328
+    },
+    {
+      "repeat": 3,
+      "order": "distant,after,before",
+      "name": "distant",
+      "msPerDraw": 0.22459915000000025
+    },
+    {
+      "repeat": 3,
+      "order": "distant,after,before",
+      "name": "after",
+      "msPerDraw": 0.2341908499999988
+    },
+    {
+      "repeat": 3,
+      "order": "distant,after,before",
+      "name": "before",
+      "msPerDraw": 0.23600739999999973
+    },
+    {
+      "repeat": 3,
+      "order": "after,before,distant",
+      "name": "after",
+      "msPerDraw": 0.23496390000000247
+    },
+    {
+      "repeat": 3,
+      "order": "after,before,distant",
+      "name": "before",
+      "msPerDraw": 0.2607150499999989
+    },
+    {
+      "repeat": 3,
+      "order": "after,before,distant",
+      "name": "distant",
+      "msPerDraw": 0.229821800000002
+    },
+    {
+      "repeat": 3,
+      "order": "distant,before,after",
+      "name": "distant",
+      "msPerDraw": 0.2375684499999977
+    },
+    {
+      "repeat": 3,
+      "order": "distant,before,after",
+      "name": "before",
+      "msPerDraw": 0.2298588000000052
+    },
+    {
+      "repeat": 3,
+      "order": "distant,before,after",
+      "name": "after",
+      "msPerDraw": 0.24943025000000035
+    },
+    {
+      "repeat": 4,
+      "order": "before,after,distant",
+      "name": "before",
+      "msPerDraw": 0.22504215000000158
+    },
+    {
+      "repeat": 4,
+      "order": "before,after,distant",
+      "name": "after",
+      "msPerDraw": 0.237272999999999
+    },
+    {
+      "repeat": 4,
+      "order": "before,after,distant",
+      "name": "distant",
+      "msPerDraw": 0.22723269999999615
+    },
+    {
+      "repeat": 4,
+      "order": "distant,after,before",
+      "name": "distant",
+      "msPerDraw": 0.22337160000000153
+    },
+    {
+      "repeat": 4,
+      "order": "distant,after,before",
+      "name": "after",
+      "msPerDraw": 0.2461562000000015
+    },
+    {
+      "repeat": 4,
+      "order": "distant,after,before",
+      "name": "before",
+      "msPerDraw": 0.2260971500000039
+    },
+    {
+      "repeat": 4,
+      "order": "after,before,distant",
+      "name": "after",
+      "msPerDraw": 0.2273081999999988
+    },
+    {
+      "repeat": 4,
+      "order": "after,before,distant",
+      "name": "before",
+      "msPerDraw": 0.22262359999999717
+    },
+    {
+      "repeat": 4,
+      "order": "after,before,distant",
+      "name": "distant",
+      "msPerDraw": 0.23665394999999875
+    },
+    {
+      "repeat": 4,
+      "order": "distant,before,after",
+      "name": "distant",
+      "msPerDraw": 0.2280452500000024
+    },
+    {
+      "repeat": 4,
+      "order": "distant,before,after",
+      "name": "before",
+      "msPerDraw": 0.24909524999999916
+    },
+    {
+      "repeat": 4,
+      "order": "distant,before,after",
+      "name": "after",
+      "msPerDraw": 0.22369810000000143
+    }
+  ],
+  "summary": {
+    "before": {
+      "median": 0.22930877500000407,
+      "min": 0.22262359999999717,
+      "max": 0.2607150499999989
+    },
+    "after": {
+      "median": 0.23310335000000182,
+      "min": 0.2228131000000019,
+      "max": 0.2569489500000032
+    },
+    "distant": {
+      "median": 0.22677269999999794,
+      "min": 0.22172610000000076,
+      "max": 0.2764054499999986
+    }
+  },
+  "note": "CPU packing and buffer publication only; identical uploaded positions/UV/tint/foot data, no GPU or whole-frame performance claim."
+}

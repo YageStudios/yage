@@ -1,0 +1,26 @@
+import * as PIXI from 'pixi.js';
+import {test,expect} from 'vitest';
+import {writeFileSync} from 'node:fs';
+import {DepthQuads as Before} from '/tmp/depthquad-before';
+import {DepthQuads as After} from '/data/workspace/sky-harbor/worldmap-integration/yage/engine/streaming/depth-quads';
+HTMLCanvasElement.prototype.getContext=()=>null;
+test('measure equal-output per-draw packing overhead',()=>{
+ const variants={before:new Before(PIXI.Texture.EMPTY),after:new After(PIXI.Texture.EMPTY),distant:new After(PIXI.Texture.EMPTY)};
+ const frame=(name:keyof typeof variants,n=500)=>{
+  const q=variants[name],ox=name==='distant'?-149504:0,oy=name==='distant'?352112640:0;
+  q.begin(ox,oy);
+  for(let i=0;i<n;i++)q.quad(ox+10.25+i,oy+12.5+i,8,3.2,.35,.5,-.35,0x9a7b5c,.65,ox+10.25+i,oy+12.5+i);
+  q.end();
+ };
+ for(const name of Object.keys(variants)as(keyof typeof variants)[]){frame(name);for(const attr of ['aPos','aUv','aColor','aFoot']){
+  const before=Array.from(variants.before.geometry.getBuffer(attr).data as Float32Array),after=Array.from(variants[name].geometry.getBuffer(attr).data as Float32Array);
+  expect(after).toEqual(before);
+ }}
+ const samples=[];
+ for(const name of ['before','after','distant']as const)for(let warm=0;warm<6;warm++)frame(name);
+ const orders=[['before','after','distant'],['distant','after','before'],['after','before','distant'],['distant','before','after']]as const;
+ for(let repeat=0;repeat<5;repeat++)for(const order of orders)for(const name of order){const start=performance.now();for(let run=0;run<20;run++)frame(name);samples.push({repeat,order:order.join(','),name,msPerDraw:(performance.now()-start)/20})}
+ const result={quadsPerDraw:500,drawsPerSample:20,samples,summary:Object.fromEntries(Object.keys(variants).map(name=>{const a=samples.filter(s=>s.name===name).map(s=>s.msPerDraw).sort((a,b)=>a-b);return[name,{median:(a[9]+a[10])/2,min:a[0],max:a.at(-1)}]})),note:'CPU packing and buffer publication only; identical uploaded positions/UV/tint/foot data, no GPU or whole-frame performance claim.'};
+ writeFileSync('/tmp/depthquad-packing-bench.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result.summary));
+ for(const q of Object.values(variants))q.destroy();
+});

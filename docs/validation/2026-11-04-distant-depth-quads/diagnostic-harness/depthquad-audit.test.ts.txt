@@ -1,0 +1,53 @@
+import * as PIXI from 'pixi.js';
+import { test, expect } from 'vitest';
+import { writeFileSync } from 'node:fs';
+import { DepthQuads, DEPTH_NUDGE } from '/data/workspace/sky-harbor/worldmap-integration/yage/engine/streaming/depth-quads';
+import { ChunkScene } from '/data/workspace/sky-harbor/worldmap-integration/yage/engine/streaming/layer';
+import { createSnapshot, POSITION_SCALE } from '/data/workspace/sky-harbor/worldmap-integration/yage/engine/streaming/protocol';
+import { ProjectedCamera } from '/data/workspace/sky-harbor/worldmap-integration/yage/engine/systems/render/ProjectedCamera';
+import { GUN, PISTOL, GUN_HANDS, HAND_RADIUS, gripAt } from '/data/workspace/sky-harbor/worldmap-integration/infected/src/render/load/gun-texture';
+import { CROP, FEET, UNIT, maskPlacement } from '/data/workspace/sky-harbor/worldmap-integration/infected/src/render/masks/paint';
+HTMLCanvasElement.prototype.getContext=()=>null;
+test('actual DepthQuads artwork dimensions and pawn-foot depth survive geographic translation',()=>{
+ const rows=[];
+ const shape=(kind:string,x:number,y:number)=>{
+  const q=new DepthQuads(PIXI.Texture.EMPTY); q.begin(); const angle=-.35,grip=gripAt({x,y},angle);
+  if(kind==='mask'){
+   const p=maskPlacement(0,0);q.quad(x+p.dx,y+p.dy,CROP.w*UNIT*p.sx,CROP.h*UNIT*p.sy,(FEET.x-CROP.x0)/CROP.w,(FEET.y-CROP.y0)/CROP.h,p.rotation,0xffffff,1,x,y);
+  }else if(kind==='hand'){
+   const at=GUN_HANDS[0],cos=Math.cos(angle),sin=Math.sin(angle);q.quad(grip.x+at.x*cos-at.y*sin,grip.y+at.x*sin+at.y*cos,HAND_RADIUS*2,HAND_RADIUS*2,.5,.5,0,0xffffff,1,x,y);
+  }else{const s=kind==='rifle'?GUN:PISTOL;q.quad(grip.x,grip.y,s.size,s.size,s.anchor,.5,angle,0xffffff,1,x,y);}
+  q.end();
+  const pos=Array.from(q.geometry.getBuffer('aPos').data as Float32Array).slice(0,8);
+  const foot=Array.from(q.geometry.getBuffer('aFoot').data as Float32Array).slice(0,8);
+  const uv=Array.from(q.geometry.getBuffer('aUv').data as Float32Array).slice(0,8);
+  const relative=pos.map((v,i)=>v-(i%2?y:x));
+  const h=Math.max(...relative.filter((_,i)=>i%2))-Math.min(...relative.filter((_,i)=>i%2));
+  const scene=new ChunkScene({chunkSize:2048,style:{atlas:PIXI.Texture.EMPTY,grid:[1,1],size:[18,22.5],palette:[0xffffff]}});
+  const cx=Math.floor(x/2048),cy=Math.floor(y/2048),pawn=scene.createPawnLayer(cx,cy);
+  const snapshot=createSnapshot(cx,cy,1,1);snapshot.gid[0]=1;snapshot.x[0]=Math.round((x-cx*2048)*POSITION_SCALE);snapshot.y[0]=Math.round((y-cy*2048)*POSITION_SCALE);snapshot.sprite[0]=0;snapshot.tint[0]=0;pawn.push(snapshot,0);
+  const pawnLocal={x:Number(pawn.geometry.getBuffer('aCurX').data[0])/POSITION_SCALE,y:Number(pawn.geometry.getBuffer('aCurY').data[0])/POSITION_SCALE};
+  const camera=new ProjectedCamera();camera.setView(2.791,1261/2-x*2.791,1303/2-y*2.791);camera.addChild(scene.entityRoot,q);
+  const parent=camera.enableTempParent();camera.updateTransform();camera.disableTempParent(parent);
+  let projectedFoot:PIXI.IPointData|undefined,referenceFoot:PIXI.IPointData|undefined,pawnFoot:PIXI.IPointData|undefined;
+  pawn.render=renderer=>{const m=renderer.projection.projectionMatrix.clone().append(pawn.worldTransform);pawnFoot=m.apply(pawnLocal)};
+  q.render=renderer=>{
+   const m=renderer.projection.projectionMatrix.clone().append(q.worldTransform);
+   projectedFoot=m.apply({x:foot[0],y:foot[1]});referenceFoot=m.apply({x,y:y+DEPTH_NUDGE});
+  };
+  const renderer={batch:{flush(){}},globalUniforms:{update(){}},shader:{shader:null},projection:{projectionMatrix:new PIXI.Matrix(2/1261,0,0,-2/1303,-1,1)}};
+  camera.render(renderer as unknown as PIXI.Renderer);
+  const pawnExpected={x:(pawnLocal.x+cx*2048-x)*2.791*2/1261,y:-(pawnLocal.y+cy*2048-y)*2.791*2/1303};
+  const pawnControlErrorPixels=Math.abs(pawnFoot!.y-pawnExpected.y)*1303/2;
+  const result={pawnLocal,pawnFoot,pawnExpected,pawnControlErrorPixels,quadPawnSeparationPixels:(projectedFoot!.y-pawnFoot!.y)*1303/2,kind,x,y,relative,footRelative:foot.map((v,i)=>v-(i%2?y:x)),height:h,uv,projectedFoot,referenceFoot,footErrorPixels:Math.abs(projectedFoot!.y-referenceFoot!.y)*1303/2,state:{depthTest:q.state.depthTest,depthMask:q.state.depthMask}};
+  camera.removeChild(scene.entityRoot);camera.destroy({children:true});scene.destroy();return result;
+ };
+ for(const kind of ['rifle','pistol','hand','mask'])for(const [x,y]of [[10.25,12.5],[-147889.4,352113334.2],[33520995.7,352247563.5]])rows.push(shape(kind,x,y));
+ writeFileSync('/tmp/depthquad-audit.json',JSON.stringify({depthNudge:DEPTH_NUDGE,rows},null,2));
+ console.log(JSON.stringify(rows.map(({relative,uv,footRelative,...r})=>r)));
+ for(const r of rows)expect(r.pawnControlErrorPixels).toBeLessThan(.0001);
+ for(const kind of ['rifle','pistol','hand','mask']){
+  const [near,...far]=rows.filter(r=>r.kind===kind);
+  for(const r of far){expect(r.uv).toEqual(near.uv);expect(r.height).toBeCloseTo(near.height,4);expect(r.footErrorPixels).toBeLessThan(.01)}
+ }
+});

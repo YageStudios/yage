@@ -1,0 +1,14 @@
+
+ RUN  v4.0.18 /tmp
+
+stdout | depthquad-packing-bench.test.ts > measure equal-output per-draw packing overhead
+{"before":{"median":0.22930877500000407,"min":0.22262359999999717,"max":0.2607150499999989},"after":{"median":0.23310335000000182,"min":0.2228131000000019,"max":0.2569489500000032},"distant":{"median":0.22677269999999794,"min":0.22172610000000076,"max":0.2764054499999986}}
+
+ ✓ depthquad-packing-bench.test.ts (1 test) 312ms
+   ✓ measure equal-output per-draw packing overhead  311ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  18:29:16
+   Duration  839ms (transform 34ms, setup 0ms, import 117ms, tests 312ms, environment 336ms)
+

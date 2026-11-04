@@ -1,0 +1,34 @@
+from pathlib import Path
+import json,hashlib,shutil,os
+parent=Path('/tmp/infected-render-candidate-20261104');target=Path('/tmp/infected-depthquad-candidate-20261104')
+expected='9e9213327079462085d7916f014572b516c17a5b93a290797332f4f30b854e2b'
+raw=(parent/'manifest.json').read_bytes();assert hashlib.sha256(raw).hexdigest()==expected
+m=json.loads(raw)
+for row in m['files']:
+ p=parent/row['path'];b=p.read_bytes();assert len(b)==row['bytes'] and hashlib.sha256(b).hexdigest()==row['sha256'];dst=target/row['path'];dst.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(p,dst)
+base=Path('/data/workspace/sky-harbor/worldmap-integration')
+overlays=['yage/engine/streaming/depth-quads.ts','infected/src/systems/load/LoadGuns.ts','infected/src/systems/masks/MaskDraw.ts']
+for name in overlays:shutil.copyfile(base/name,target/name)
+name='yage/engine/streaming/depth-quads-before.ts';shutil.copyfile('/tmp/depthquad-before.ts',target/name)
+for package in ['infected','yage']:
+ modules=target/package/'node_modules';modules.mkdir(exist_ok=True)
+ for source in (parent/package/'node_modules').iterdir():
+  dest=modules/source.name
+  if dest.exists() or dest.is_symlink():continue
+  dest.symlink_to(target/'yage' if package=='infected' and source.name=='yage' else source.resolve(),target_is_directory=source.is_dir())
+files=[]
+for name in sorted(set([r['path'] for r in m['files']]+[name])):
+ p=target/name;b=p.read_bytes();files.append({'path':name,'bytes':len(b),'sha256':hashlib.sha256(b).hexdigest()})
+manifest={'parentSHA256':expected,'productionOverlays':overlays,'diagnosticOnly':['yage/engine/streaming/far-before.ts','yage/engine/streaming/depth-quads-before.ts'],'files':files}
+raw=(json.dumps(manifest,indent=2)+'\n').encode();(target/'manifest.json').write_bytes(raw)
+# Reuse only verified immutable asset bytes through private hardlinks and a private ledger.
+ledger=[]
+for line in (parent/'asset-pins.jsonl').read_text().splitlines():
+ row=json.loads(line);source=Path(row['copy']);dest=target/'pinned-public'/row['path']
+ dest.parent.mkdir(parents=True,exist_ok=True)
+ if not dest.exists():os.link(source,dest)
+ row['copy']=str(dest);ledger.append(json.dumps(row))
+(target/'asset-pins.jsonl').write_text('\n'.join(ledger)+'\n')
+config=(parent/'infected/vite.render.config.ts').read_text().replace(str(parent),str(target)).replace('port: 5413','port: 5414').replace("source: '/tmp/infected-performance-current-20261104/pinned-public'",f"source: '{parent}/pinned-public'")
+(target/'infected/vite.depth.config.ts').write_text(config)
+print(str(target),'manifest',hashlib.sha256(raw).hexdigest(),'files',len(files))

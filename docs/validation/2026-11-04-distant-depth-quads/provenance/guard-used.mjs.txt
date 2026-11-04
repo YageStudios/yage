@@ -1,0 +1,36 @@
+import { parentPort, workerData } from 'node:worker_threads';
+import { readdirSync, readFileSync, existsSync } from 'node:fs';
+const { rootPID, maxPSS, minAvailable, deadlineMs } = workerData;
+const began = Date.now(), rows = [], rootStart = startOf(rootPID);
+let stopped = false;
+function startOf(pid) { try { return readFileSync(`/proc/${pid}/stat`, 'utf8').slice(readFileSync(`/proc/${pid}/stat`, 'utf8').lastIndexOf(')') + 2).split(' ')[19]; } catch { return null; } }
+function descendants(pid, found = new Set()) {
+  if (found.has(pid)) return found;
+  found.add(pid);
+  try { for (const task of readdirSync(`/proc/${pid}/task`)) { try { for (const child of readFileSync(`/proc/${pid}/task/${task}/children`, 'utf8').trim().split(/\s+/).filter(Boolean)) descendants(+child, found); } catch {} } } catch {}
+  return found;
+}
+function stop(reason) {
+  if (stopped) return;
+  stopped = true;
+  if (rootStart && startOf(rootPID) === rootStart) for (const pid of [...descendants(rootPID)].reverse()) { try { process.kill(pid, 'SIGKILL'); } catch {} }
+  parentPort.postMessage({ kind: 'stop', reason, rows });
+}
+function sample() {
+  const at = Date.now();
+  if (startOf(rootPID) !== rootStart) return stop('Owned browser missing or identity changed');
+  try {
+    const exitedDuringSample = [];
+    const processes = [...descendants(rootPID)].map(pid => {
+      try { const smaps = readFileSync(`/proc/${pid}/smaps_rollup`, 'utf8'), cmd = readFileSync(`/proc/${pid}/cmdline`, 'utf8'); return { pid, pss: +smaps.match(/^Pss:\s+(\d+)/m)[1] * 1024, role: cmd.match(/--type=([^\0 ]+)/)?.[1] ?? 'browser' }; }
+      catch (error) { if (error.code === 'ESRCH' || error.code === 'ENOENT') { exitedDuringSample.push({ pid, code: error.code }); return null; } if (existsSync(`/proc/${pid}`)) throw error; return null; }
+    }).filter(Boolean);
+    const pss = processes.reduce((n, row) => n + row.pss, 0), available = +readFileSync('/proc/meminfo', 'utf8').match(/^MemAvailable:\s+(\d+)/m)[1] * 1024;
+    rows.push({ at, pss, available, processes, exitedDuringSample, samplingMs: Date.now() - at });
+    if (pss > maxPSS) stop('Owned browser PSS ceiling');
+    if (available < minAvailable) stop('System available memory floor');
+    if (Date.now() - began > deadlineMs) stop('Independent browser deadline');
+  } catch (error) { stop('Guard failed: ' + error.message); }
+}
+const timer = setInterval(sample, 500); sample();
+parentPort.on('message', message => { if (message === 'finish') { clearInterval(timer); parentPort.postMessage({ kind: 'finished', rows }); parentPort.close(); } });

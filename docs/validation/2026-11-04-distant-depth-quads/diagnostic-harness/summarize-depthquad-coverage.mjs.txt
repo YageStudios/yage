@@ -1,0 +1,14 @@
+import {createRequire} from 'node:module';import{readFileSync,writeFileSync}from'node:fs';import{execFileSync}from'node:child_process';
+const require=createRequire(import.meta.url),root='/home/robert/.npm/_npx/b8d86e6551a4f492/node_modules/',coverage=require(root+'istanbul-lib-coverage'),maps=require(root+'istanbul-lib-source-maps');
+for(const[repo,inputs]of[['yage',['/tmp/depthquad-engine-coverage.json']],['infected',['/tmp/depthquad-app-coverage-load-systems.test.ts.json','/tmp/depthquad-app-coverage-mask-systems.test.ts.json']]]){
+ const map=coverage.createCoverageMap({});for(const p of inputs)map.merge(JSON.parse(readFileSync(p,'utf8')));const remapped=await maps.createSourceMapStore().transformCoverage(map),result={};
+ for(const path of remapped.files()){
+  const c=remapped.fileCoverageFor(path),data=c.data,work='/data/workspace/sky-harbor/worldmap-integration/'+repo,relative=path.slice(work.length+1),diff=readFileSync('/tmp/depthquad-diff-'+relative.replaceAll('/','_'),'utf8'),changed=new Set();
+  for(const match of diff.matchAll(/^@@ .* \+(\d+)(?:,(\d+))? @@/gm)){const start=Number(match[1]),count=match[2]===undefined?1:Number(match[2]);for(let n=start;n<start+count;n++)changed.add(n)}
+  const statement=Object.keys(data.statementMap).filter(k=>changed.has(data.statementMap[k].start.line)),branch=Object.keys(data.branchMap).filter(k=>changed.has(data.branchMap[k].loc.start.line)),fn=Object.keys(data.fnMap).filter(k=>changed.has(data.fnMap[k].loc.start.line));
+  const statHits=statement.map(k=>data.s[k]),branchHits=branch.flatMap(k=>data.b[k]),fnHits=fn.map(k=>data.f[k]),lines=Object.entries(c.getLineCoverage()).filter(([l])=>changed.has(Number(l))).map(([,n])=>n);
+  const metric=a=>({total:a.length,covered:a.filter(n=>n>0).length,pct:a.length?100*a.filter(n=>n>0).length/a.length:100});
+  result[relative]={whole:c.toSummary().data,changed:{lines:metric(lines),statements:metric(statHits),branches:metric(branchHits),functions:metric(fnHits)},changedLines:[...changed]};
+ }
+ writeFileSync('/tmp/depthquad-'+repo+'-coverage-remapped.json',JSON.stringify(remapped.toJSON()));writeFileSync('/tmp/depthquad-'+repo+'-coverage-summary.json',JSON.stringify(result,null,2));console.log(repo,JSON.stringify(result));
+}

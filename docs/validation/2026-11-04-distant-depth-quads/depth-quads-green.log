@@ -1,0 +1,10 @@
+
+ RUN  v4.0.18 /data/workspace/sky-harbor/worldmap-integration/yage
+
+ ✓ test/streaming/depth-quads.test.ts (7 tests) 6ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  18:11:04
+   Duration  552ms (transform 43ms, setup 32ms, import 99ms, tests 6ms, environment 340ms)
+

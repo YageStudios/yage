@@ -1,0 +1,13 @@
+{
+  "baselineSourceManifest": "c7d23bb5617ca10be18331eca09797defbea7e2ef0c13f1226e68e635afc9a57",
+  "baselineResultSHA256": "92c5bdc4f1057b12b2c8c813beefc30728baf5a8746feddecb618ce5b972e881",
+  "candidateSourceManifest": "fefa78a3515f6b56d9fcd2c0833b57145203507a30d104b64c4ff93b3cd17423",
+  "baseline": {
+    "warning using deprecated parameters for the initialization function; pass a single object instead": 3
+  },
+  "candidate": {
+    "warning using deprecated parameters for the initialization function; pass a single object instead": 3
+  },
+  "equal": true,
+  "note": "Console inventory comparison only; these different fixture journeys are not a performance comparison. Existing initialization warnings retained; no new warning is suppressed."
+}

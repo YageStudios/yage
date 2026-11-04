@@ -1,0 +1,81 @@
+import { createReadStream, readFileSync, existsSync } from 'node:fs';
+import { mkdir, stat, readFile, appendFile, rename } from 'node:fs/promises';
+import { pipeline } from 'node:stream/promises';
+import { Transform } from 'node:stream';
+import { createWriteStream } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { resolve, dirname } from 'node:path';
+import { gunzipSync } from 'node:zlib';
+export function guardedAssets({ source, target, ledger, expectedManifest, fallback }) {
+  const pending = new Map(), pins = new Map();
+  let total = 0, failure = null, roadTotal = 0, baselineTotal = 0;
+  const limit = 2 * 1024 ** 3, roadLimit = 512 * 1024 ** 2;
+  const expected = new Map();
+  const collect = value => { if (!value || typeof value !== 'object') return; if (typeof value.path === 'string' && typeof value.sha256 === 'string') expected.set('world-data/' + value.path, value); for (const child of Object.values(value)) collect(child); };
+  const manifest = JSON.parse(readFileSync(expectedManifest, 'utf8'));
+  collect(manifest);
+  // Only immutable, hash-verified parent indexes can authorize a newly requested tile.
+  for (const name of ['map_roads', 'map_landscape', 'map_shells', 'map_shell_instances']) {
+    const asset = manifest[name];
+    if (!asset) continue;
+    const indexPath = resolve(source, 'world-data/' + asset.path);
+    if (!existsSync(indexPath)) continue;
+    const bytes = readFileSync(indexPath);
+    if (bytes.length !== asset.bytes || createHash('sha256').update(bytes).digest('hex') !== asset.sha256) throw Error('Frozen tile index changed: ' + asset.path);
+    collect(JSON.parse((asset.encoding === 'raw' ? bytes : gunzipSync(bytes)).toString('utf8')));
+  }
+  if (existsSync(ledger)) for (const line of readFileSync(ledger, 'utf8').split('\n').filter(Boolean)) {
+    const pin = JSON.parse(line);
+    if (pins.has(pin.path)) throw Error('Duplicate asset ledger pin: ' + pin.path);
+    pins.set(pin.path, pin); total += pin.bytes;
+    if (pin.path.includes('/map-roads/')) roadTotal += pin.bytes; else baselineTotal += pin.bytes;
+    const declared = expected.get(pin.path);
+    if (declared && (declared.bytes !== pin.bytes || declared.sha256 !== pin.sha256)) throw Error('Existing asset pin differs from frozen manifest: ' + pin.path);
+  }
+  async function materialize(path) {
+    if (pins.has(path)) return pins.get(path);
+    if (pending.has(path)) return pending.get(path);
+    const task = (async () => {
+      let original = resolve(source, path);
+      const copy = resolve(target, path);
+      if (!existsSync(original) && fallback) {
+        if (!expected.has(path)) throw Error('Unindexed fallback asset: ' + path);
+        original = resolve(fallback, path);
+        if (!original.startsWith(fallback + '/')) throw Error('Unsafe fallback asset path');
+      }
+      if ((!original.startsWith(source + '/') && !(fallback && original.startsWith(fallback + '/'))) || !copy.startsWith(target + '/')) throw Error('Unsafe asset path');
+      const before = await stat(original);
+      const road = path.includes('/map-roads/');
+      if (!road && baselineTotal + before.size > limit) throw Error('Diagnostic mandatory-asset copy exceeds2GiB');
+      if (road && roadTotal + before.size > roadLimit) throw Error('Diagnostic lazy-road copy exceeds512MiB');
+      total += before.size;
+      if (road) roadTotal += before.size; else baselineTotal += before.size;
+      await mkdir(dirname(copy), { recursive: true });
+      const digest = createHash('sha256'); let bytes = 0;
+      await pipeline(createReadStream(original), new Transform({ transform(chunk, _, callback) { digest.update(chunk); bytes += chunk.length; callback(null, chunk); } }), createWriteStream(copy + '.pending'));
+      const after = await stat(original);
+      if (before.size !== after.size || before.mtimeMs !== after.mtimeMs || bytes !== before.size) throw Error('Asset changed during pin: ' + path);
+      const sha256 = digest.digest('hex'), declared = expected.get(path);
+      if (declared && (declared.bytes !== bytes || declared.sha256 !== sha256)) throw Error('Asset differs from frozen manifest: ' + path);
+      await rename(copy + '.pending', copy);
+      const pin = { path, source: original, copy, bytes, sha256, mtimeMs: before.mtimeMs };
+      pins.set(path, pin); await appendFile(ledger, JSON.stringify(pin) + '\n'); return pin;
+    })();
+    pending.set(path, task);
+    try { return await task; } finally { pending.delete(path); }
+  }
+  return { name: 'diagnostic-guarded-assets', configureServer(server) {
+    server.middlewares.use(async (req, res, next) => {
+      const path = decodeURIComponent(new URL(req.url ?? '/', 'http://local').pathname);
+      if (path === '/__diagnostic/assets') { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({ total, baselineTotal, limit, roadTotal, roadLimit, failure, pins: [...pins.values()] })); return; }
+      if (!path.startsWith('/world-data/')) return next();
+      try {
+        const pin = await materialize(path.slice(1));
+        let start = 0, end = pin.bytes - 1;
+        if (req.headers.range) { const match = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range); if (!match) throw Error('Unsupported Range'); start = +match[1]; if (match[2]) end = +match[2]; res.statusCode = 206; res.setHeader('Content-Range', `bytes ${start}-${end}/${pin.bytes}`); }
+        res.setHeader('Content-Length', end - start + 1); res.setHeader('Content-Type', path.endsWith('.json') ? 'application/json' : 'application/octet-stream');
+        res.setHeader('Accept-Ranges', 'bytes'); await pipeline(createReadStream(pin.copy, { start, end }), res);
+      } catch (error) { failure = error.stack; res.statusCode = 500; res.end(String(error)); }
+    });
+  } };
+}

@@ -1,0 +1,87 @@
+
+ RUN  v4.0.18 /data/workspace/sky-harbor/worldmap-integration/yage
+
+ ❯ test/streaming/depth-quads.test.ts (7 tests | 5 failed) 10ms
+   × packs quad vertices, depth feet and artwork locally at distant chunk -73,171930 4ms
+   × packs quad vertices, depth feet and artwork locally at distant chunk 16367,171995 1ms
+   ✓ preserves negative-height artwork, UVs, tint, alpha and submission order 2ms
+   × keeps default near calls, grows in order, empties and returns from an explicit origin 2ms
+   ✓ projects precise depth feet in front of a local pawn at chunk 0,0 1ms
+   × projects precise depth feet in front of a local pawn at chunk -73,171930 0ms
+   × projects precise depth feet in front of a local pawn at chunk 16367,171995 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/streaming/depth-quads.test.ts > packs quad vertices, depth feet and artwork locally at distant chunk -73,171930
+AssertionError: expected -149496.921875 to be close to 7.071119785308838, received difference is 149503.9929947853, but expected 0.000005
+ ❯ test/streaming/depth-quads.test.ts:21:98
+     19|   const x = cx * 2048, y = cy * 2048, near = paint(10.25, 12.5, 0, 0),…
+     20|   const a = buffers(near), b = buffers(far);
+     21|   for (const name of Object.keys(a)) for (let i = 0; i < a[name].lengt…
+       |                                                                                                  ^
+     22|   expect(far.position.x).toBe(x); expect(far.position.y).toBe(y);
+     23|   for (let c = 0; c < 4; c++) {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  test/streaming/depth-quads.test.ts > packs quad vertices, depth feet and artwork locally at distant chunk 16367,171995
+AssertionError: expected 33519624 to be close to 7.071119785308838, received difference is 33519616.928880215, but expected 0.000005
+ ❯ test/streaming/depth-quads.test.ts:21:98
+     19|   const x = cx * 2048, y = cy * 2048, near = paint(10.25, 12.5, 0, 0),…
+     20|   const a = buffers(near), b = buffers(far);
+     21|   for (const name of Object.keys(a)) for (let i = 0; i < a[name].lengt…
+       |                                                                                                  ^
+     22|   expect(far.position.x).toBe(x); expect(far.position.y).toBe(y);
+     23|   for (let c = 0; c < 4; c++) {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  test/streaming/depth-quads.test.ts > keeps default near calls, grows in order, empties and returns from an explicit origin
+AssertionError: expected +0 to be -149504 // Object.is equality
+
+- Expected
++ Received
+
+- -149504
++ 0
+
+ ❯ test/streaming/depth-quads.test.ts:48:30
+     46|     quads.end();
+     47|     expect(quads.count).toBe(65); expect(quads.size).toBe(390); expect…
+     48|     expect(quads.position.x).toBe(originX); expect(quads.position.y).t…
+       |                              ^
+     49|     expect(quads.corner(64, 0).x - originX).toBeCloseTo(62.65, 4);
+     50|     expect(quads.corner(64, 0).y - originY).toBeCloseTo(66.1, 4);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  test/streaming/depth-quads.test.ts > projects precise depth feet in front of a local pawn at chunk -73,171930
+AssertionError: expected 34.88750005752212 to be close to -4.1865, received difference is 39.07400005752212, but expected 0.000005
+ ❯ test/streaming/depth-quads.test.ts:70:44
+     68|   camera.render(renderer as unknown as PIXI.Renderer);
+     69|   expect(pawnFoot).toBeCloseTo(0, 7);
+     70|   expect((quadFoot - pawnFoot) * 1303 / 2).toBeCloseTo(-DEPTH_NUDGE * …
+       |                                            ^
+     71|   camera.destroy({ children: true });
+     72| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  test/streaming/depth-quads.test.ts > projects precise depth feet in front of a local pawn at chunk 16367,171995
+AssertionError: expected 34.887499938312914 to be close to -4.1865, received difference is 39.073999938312916, but expected 0.000005
+ ❯ test/streaming/depth-quads.test.ts:70:44
+     68|   camera.render(renderer as unknown as PIXI.Renderer);
+     69|   expect(pawnFoot).toBeCloseTo(0, 7);
+     70|   expect((quadFoot - pawnFoot) * 1303 / 2).toBeCloseTo(-DEPTH_NUDGE * …
+       |                                            ^
+     71|   camera.destroy({ children: true });
+     72| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  5 failed | 2 passed (7)
+   Start at  18:10:31
+   Duration  567ms (transform 48ms, setup 32ms, import 104ms, tests 10ms, environment 345ms)
+

@@ -1,0 +1,10 @@
+import { mergeConfig } from 'vite';
+import base from './vite.config';
+import { guardedAssets } from '/tmp/render-asset-plugin.mjs';
+export default mergeConfig(base, {
+  publicDir: false,
+  cacheDir: '/tmp/infected-depthquad-candidate-20261104/cache',
+  plugins: [guardedAssets({ source: '/tmp/infected-render-candidate-20261104/pinned-public', fallback: '/data/workspace/sky-harbor/worldmap-integration/infected/public', target: '/tmp/infected-depthquad-candidate-20261104/pinned-public', ledger: '/tmp/infected-depthquad-candidate-20261104/asset-pins.jsonl', expectedManifest: '/tmp/infected-depthquad-candidate-20261104/infected/src/realworld/asset-manifest.json' })],
+  optimizeDeps: { entries: [], include: ["minecs", "pixi.js", "yage > @dimforge/rapier2d-deterministic-compat", "yage > @json-editor/json-editor", "yage > @pixi/sound", "yage > ajv", "yage > deep-object-diff", "yage > js-base64", "yage > l1-path-finder", "yage > lodash", "yage > nanoid", "yage > ndarray", "yage > peerjs", "yage > pixi-spine", "yage > pixi-viewport", "yage > poly-decomp", "yage > seedrandom", "yage > socket.io-client", "yage > toastify-js", "yage > toposort", "yage > url", "polygon-clipping", "@pixi/utils"] },
+  server: { host: '127.0.0.1', port: 5414, strictPort: true, hmr: false, watch: { ignored: ['**/*'] }, fs: { allow: ['/tmp/infected-depthquad-candidate-20261104', '/data/workspace/sky-harbor/worldmap-integration/infected/node_modules', '/data/workspace/sky-harbor/yage/node_modules'] } },
+});
