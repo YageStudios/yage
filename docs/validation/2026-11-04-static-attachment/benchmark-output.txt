@@ -1,0 +1,14 @@
+
+ RUN  v4.0.18 /data/workspace/sky-harbor/worldmap-integration/yage
+
+stdout | ../../../../../tmp/bulk-static-review/benchmark.test.ts > benchmarks exact2104-listed/202-built lifecycle in alternatingABBA order with full disposal
+{"before":{"listMs":{"median":3.0552450000000135,"p95":7.908691999999974,"max":12.627987000000076},"buildMs":{"median":0.5886300000000801,"p95":0.7543829999999616,"max":0.9492470000000139},"dropMs":{"median":8.42438100000004,"p95":10.134200999999962,"max":11.709039999999959},"totalMs":{"median":13.205847000000063,"p95":15.330015000000003,"max":23.71143500000005}},"after":{"listMs":{"median":4.331897000000026,"p95":9.090724000000023,"max":9.524071000000049},"buildMs":{"median":1.073989000000097,"p95":1.8395530000000235,"max":2.7404089999999997},"dropMs":{"median":1.8862440000000333,"p95":3.632484999999974,"max":6.278383000000076},"totalMs":{"median":7.423383000000058,"p95":12.401382000000012,"max":12.796829000000002}}}
+
+ ✓ ../../../../../tmp/bulk-static-review/benchmark.test.ts (1 test) 440ms
+   ✓ benchmarks exact2104-listed/202-built lifecycle in alternatingABBA order with full disposal  439ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  07:29:29
+   Duration  1.05s (transform 99ms, setup 30ms, import 162ms, tests 440ms, environment 333ms)
+

@@ -1,0 +1,12 @@
+
+ RUN  v4.0.18 /data/workspace/sky-harbor/worldmap-integration/yage
+
+ ✓ test/streaming/statics.test.ts (22 tests) 28ms
+ ✓ test/streaming/static-attachment.test.ts (4 tests) 21ms
+ ✓ test/streaming/far-picture.test.ts (2 tests) 5ms
+
+ Test Files  3 passed (3)
+      Tests  28 passed (28)
+   Start at  07:30:51
+   Duration  1.87s (transform 323ms, setup 49ms, import 584ms, tests 54ms, environment 985ms)
+
