@@ -1,0 +1,13 @@
+BOOT http://127.0.0.1:5407
+BOOT READY
+VISIT george-washington-bridge
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+page.waitForFunction: Timeout 60000ms exceeded.
+    at /data/workspace/sky-harbor/worldmap-integration/infected/tools/check-highway-rendering.mjs:88:47 {
+  name: 'TimeoutError'
+}
+
+Node.js v26.2.0

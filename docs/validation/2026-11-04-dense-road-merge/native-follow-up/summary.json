@@ -1,0 +1,38 @@
+{
+  "rawResultSha256": "80fc84fd2efd34a1a0f843ae6091e4dafff573c7f4d65a32c39940e95faf53f5",
+  "sourceProof": {
+    "root": "/tmp/infected-highway-vector-candidate",
+    "manifestSha256": "f899305e80f2b8b8fbf30af0dbc801641ac18c29d810fbe55ee8b920c5ecbf60",
+    "appHead": "a008c4b7c29222b3f1878e78b72b7d1134f62014",
+    "engineHead": "9e7bac4bf2c76b73bfda03e15b7cd724358235a9",
+    "sourceFiles": 2087,
+    "assets": 19,
+    "driverSha256": "3a56b3d5eac5177cfd33158d76f4a0496062a4c5358ef7a599f486f5dea869c2",
+    "captureMode": {
+      "native": true,
+      "requestedZoom": 0.474,
+      "worldZoom": 0.3
+    }
+  },
+  "sourceDigest": "6ac0779e046fcd25d35612cc2ec55f039517ab7ec68dd53e0213e61f4c0fe4e0",
+  "errors": [],
+  "actualView": {
+    "x": -104526.91893692539,
+    "y": 352362982.2234271,
+    "zoom": 0.474
+  },
+  "target": {
+    "name": "george-washington-bridge",
+    "longitude": -73.9527,
+    "latitude": 40.8517,
+    "zoom": 0.08
+  },
+  "graphics": {
+    "contextLost": false,
+    "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 5090/PCIe/SSE2, OpenGL ES 3.2)"
+  },
+  "planCount": 43,
+  "paintedChunks": 16,
+  "roadListings": 40,
+  "caveat": "Vector-only cohort. Existing water-derived deck rendering is visible; surveyed upper/lower sparse grades remain uninstalled. Timings are not FPS acceptance."
+}

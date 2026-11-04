@@ -31,4 +31,4 @@ The codec SHA and exact decoded fixture hash must match. The retained coverage c
 
 ## Remaining native acceptance
 
-GWB native green remains pending on a separately pinned candidate containing only this engine fix over the unchanged verified 5406 cohort. No public grade assets were installed for this fix, and this increment does not establish bridge restoration completeness or 60 FPS.
+GWB native green now passes on a separately pinned candidate containing only this engine fix over the unchanged verified 5406 cohort; the complete result, naturally rendered PNG, source pins, and initial incompatible-zoom harness failure are retained in `native-follow-up/`. No public grade assets were installed for this fix, and this increment does not establish bridge restoration completeness or 60 FPS.

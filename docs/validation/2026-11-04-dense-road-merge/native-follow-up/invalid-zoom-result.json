@@ -1,0 +1,20 @@
+{
+  "url": "http://127.0.0.1:5407",
+  "launch": {
+    "executablePath": "/usr/bin/chromium",
+    "headless": false,
+    "args": []
+  },
+  "sourceProof": {
+    "root": "/tmp/infected-highway-vector-candidate",
+    "manifestSha256": "f899305e80f2b8b8fbf30af0dbc801641ac18c29d810fbe55ee8b920c5ecbf60",
+    "appHead": "a008c4b7c29222b3f1878e78b72b7d1134f62014",
+    "engineHead": "9e7bac4bf2c76b73bfda03e15b7cd724358235a9",
+    "sourceFiles": 2087,
+    "assets": 19,
+    "driverSha256": "d1e905a38e87f58b8107e211a5e782643366f6430e13cee86d926105c8261475"
+  },
+  "sourceDigest": "6ac0779e046fcd25d35612cc2ec55f039517ab7ec68dd53e0213e61f4c0fe4e0",
+  "errors": [],
+  "states": []
+}

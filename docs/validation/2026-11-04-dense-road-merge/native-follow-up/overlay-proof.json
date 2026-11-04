@@ -1,0 +1,20 @@
+{
+  "baseManifestSha256": "ee07525ef8fbb8b3c291c1fa4c2435bc3a6236047113a42a2ab45f24c7573272",
+  "candidateManifestSha256": "f899305e80f2b8b8fbf30af0dbc801641ac18c29d810fbe55ee8b920c5ecbf60",
+  "moduleMapSha256": "3d21f957d533004e12c3b949616d6ce181d8b5b58d91434a908b64e2365619d6",
+  "configSha256": "a3d000534fd9d2ccf4feb9d8fe90a0ac385833ab2d2cb280a6395a2e13760615",
+  "changedPaths": [
+    "/data/workspace/sky-harbor/worldmap-integration/yage/engine/streaming/vector.ts"
+  ],
+  "overlay": {
+    "baseRoot": "/tmp/infected-perf-snapshot-current-c017-a008",
+    "baseManifestSha256": "ee07525ef8fbb8b3c291c1fa4c2435bc3a6236047113a42a2ab45f24c7573272",
+    "baseEngineHead": "80f81413331567aa69b4fc70a9eb024ebf7fa591",
+    "changedPaths": [
+      "/data/workspace/sky-harbor/worldmap-integration/yage/engine/streaming/vector.ts"
+    ],
+    "reason": "Only dense vector merge argument-limit correction; public grade assets unchanged"
+  },
+  "sourceFiles": 2087,
+  "assets": 19
+}

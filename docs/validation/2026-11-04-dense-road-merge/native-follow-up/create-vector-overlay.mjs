@@ -1,0 +1,37 @@
+import {readFileSync,writeFileSync,mkdirSync,symlinkSync,existsSync} from 'node:fs';
+import {basename,join} from 'node:path';
+import {createHash} from 'node:crypto';
+import assert from 'node:assert/strict';
+const base='/tmp/infected-perf-snapshot-current-c017-a008';
+const out='/tmp/infected-highway-vector-candidate';
+const vector='/data/workspace/sky-harbor/worldmap-integration/yage/engine/streaming/vector.ts';
+const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
+const originalBytes=readFileSync(join(base,'manifest.json'));
+assert.equal(sha(originalBytes),'ee07525ef8fbb8b3c291c1fa4c2435bc3a6236047113a42a2ab45f24c7573272');
+assert(!existsSync(out),'Candidate directory already exists');
+const manifest=JSON.parse(originalBytes), modules=JSON.parse(readFileSync(join(base,'module-map.json')));
+const originalVector=manifest.files.find(file=>file.path===vector);
+assert.equal(originalVector.sha256,'48e29df36c0ac970fcf8ecfa62f85afdb748f6cc143f4a7c27ba04c48c0adb7d');
+const changed=readFileSync(vector);
+assert.equal(sha(changed),'818693910d3da11b00555944908ac49d80d9acb7903d78a406d59a10818f8186');
+mkdirSync(join(out,'modules'),{recursive:true});
+for(const [id,row]of Object.entries(modules)){
+ const frozen=row.file;
+ row.file=join(out,'modules',basename(frozen));
+ if(id===vector)writeFileSync(row.file,changed);else symlinkSync(frozen,row.file);
+}
+symlinkSync(join(base,'public'),join(out,'public'),'dir');
+const candidate=structuredClone(manifest);
+candidate.engineHead='9e7bac4bf2c76b73bfda03e15b7cd724358235a9';
+candidate.overlay={baseRoot:base,baseManifestSha256:sha(originalBytes),baseEngineHead:manifest.engineHead,changedPaths:[vector],reason:'Only dense vector merge argument-limit correction; public grade assets unchanged'};
+Object.assign(candidate.files.find(file=>file.path===vector),{sha256:sha(changed),bytes:changed.length});
+const differences=candidate.files.filter((file,i)=>JSON.stringify(file)!==JSON.stringify(manifest.files[i])).map(file=>file.path);
+assert.deepEqual(differences,[vector]);
+assert.deepEqual(candidate.assets,manifest.assets);
+writeFileSync(join(out,'module-map.json'),JSON.stringify(modules));
+writeFileSync(join(out,'manifest.json'),JSON.stringify(candidate,null,2));
+writeFileSync(join(out,'vite.config.ts'),readFileSync(join(base,'vite.config.ts'),'utf8').replaceAll(base,out));
+const proof={baseManifestSha256:sha(originalBytes),candidateManifestSha256:sha(readFileSync(join(out,'manifest.json'))),moduleMapSha256:sha(readFileSync(join(out,'module-map.json'))),configSha256:sha(readFileSync(join(out,'vite.config.ts'))),changedPaths:differences,overlay:candidate.overlay,sourceFiles:candidate.files.length,assets:candidate.assets.length};
+assert.equal(sha(readFileSync(join(base,'manifest.json'))),sha(originalBytes));
+writeFileSync(join(out,'overlay-proof.json'),JSON.stringify(proof,null,2)+'\n');
+console.log(JSON.stringify(proof,null,2));
