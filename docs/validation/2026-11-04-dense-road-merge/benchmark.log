@@ -1,0 +1,92 @@
+{
+  "node": "v26.2.0",
+  "sourceSha256": "818693910d3da11b00555944908ac49d80d9acb7903d78a406d59a10818f8186",
+  "beforeSourceSha256": "48e29df36c0ac970fcf8ecfa62f85afdb748f6cc143f4a7c27ba04c48c0adb7d",
+  "recovery": "pinned5406 NYC original CDT road polylines; aggregated recovery, not the discarded native chunk",
+  "sourceRoads": 470,
+  "positions": 180018,
+  "indices": 354396,
+  "attributes": {
+    "uv": {
+      "size": 2,
+      "length": 180018
+    },
+    "edge": {
+      "size": 1,
+      "length": 90009
+    }
+  },
+  "exactMeshSha256": "86778e3c26a5ba73c872e36d8e23f5e0a7ebf41be918f9c35f6dc06ebd497e89",
+  "originalDenseFailure": {
+    "name": "RangeError",
+    "message": "Maximum call stack size exceeded"
+  },
+  "results": [
+    {
+      "name": "normal",
+      "parts": 30,
+      "iterations": 100,
+      "samplesMs": {
+        "before": [
+          1.38739787,
+          1.34321373,
+          1.3411790900000005,
+          1.5780879000000005
+        ],
+        "after": [
+          1.0046453000000002,
+          0.9936128099999997,
+          1.102091150000001,
+          1.0001064199999996
+        ]
+      },
+      "medianMs": {
+        "before": 1.3653058,
+        "after": 1.00237586
+      }
+    },
+    {
+      "name": "dense-parts",
+      "parts": 470,
+      "iterations": 10,
+      "samplesMs": {
+        "before": [
+          10.423572399999989,
+          9.424631399999999,
+          10.801425800000015,
+          10.251220500000022
+        ],
+        "after": [
+          8.5480006,
+          9.573147999999993,
+          8.356114400000001,
+          9.455238899999994
+        ]
+      },
+      "medianMs": {
+        "before": 10.337396450000005,
+        "after": 9.001619749999996
+      }
+    },
+    {
+      "name": "dense-monolithic",
+      "parts": 1,
+      "iterations": 10,
+      "samplesMs": {
+        "before": [],
+        "after": [
+          7.449767100000008,
+          7.363570500000014,
+          8.648593399999982,
+          7.363450499999999
+        ]
+      },
+      "medianMs": {
+        "before": null,
+        "after": 7.406668800000011
+      }
+    }
+  ],
+  "sink": 91758420,
+  "note": "Recovered real NY source geometry aggregation, not the discarded native chunk. CPU merge duration is not game frame duration."
+}

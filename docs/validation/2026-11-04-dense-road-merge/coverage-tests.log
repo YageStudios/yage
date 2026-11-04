@@ -1,0 +1,9 @@
+
+ RUN  v4.0.18 /data/workspace/sky-harbor/worldmap-integration/yage
+
+ ✓ test/streaming/vector.test.ts (12 tests) 308ms
+
+ Test Files  1 passed (1)
+      Tests  12 passed (12)
+   Start at  12:05:17
+   Duration  585ms (transform 139ms, setup 55ms, import 118ms, tests 308ms, environment 0ms)
