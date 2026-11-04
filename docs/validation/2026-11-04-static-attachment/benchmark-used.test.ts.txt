@@ -1,0 +1,25 @@
+// @vitest-environment jsdom
+import {vi,it,expect} from 'vitest';
+vi.unmock('pixi.js');
+import * as PIXI from 'pixi.js';
+import {writeFileSync} from 'node:fs';
+import {StaticSet as Before} from '/data/workspace/sky-harbor/worldmap-integration/yage/engine/streaming/statics.ts?before';
+import {StaticSet as After} from '/data/workspace/sky-harbor/worldmap-integration/yage/engine/streaming/statics.ts';
+import {ShadowPass} from '/data/workspace/sky-harbor/worldmap-integration/yage/engine/streaming/shadow-pass';
+HTMLCanvasElement.prototype.getContext=(()=>null) as never;
+const specs=Array.from({length:2104},(_,id)=>({id,x:id*10,y:0,w:1,h:1,angle:0,build:()=>({under:new PIXI.Container(),over:new PIXI.Container(),heights:new PIXI.Container(),tops:new PIXI.Container()})}));
+const run=(kind:'before'|'after')=>{
+ const under=new PIXI.Container(),over=new PIXI.Container(),shadow=new ShadowPass();
+ const statics=new(kind==='before'?Before:After)(under,over,false,true,Infinity,0,shadow);
+ const t0=performance.now();statics.list(0,specs);const t1=performance.now();statics.cull({minX:0,minY:0,maxX:2011,maxY:1});const t2=performance.now();
+ const attached=[under,over,shadow.heights,shadow.tops].map(root=>root.children.length);statics.drop(0);const t3=performance.now();
+ expect(statics.items.size).toBe(0);expect([under,over,shadow.heights,shadow.tops].every(root=>root.children.length===0)).toBe(true);under.destroy();over.destroy();shadow.destroy();
+ return {kind,listMs:t1-t0,buildMs:t2-t1,dropMs:t3-t2,totalMs:t3-t0,attached};
+};
+it('benchmarks exact2104-listed/202-built lifecycle in alternatingABBA order with full disposal',()=>{
+ for(let i=0;i<3;i++){run('before');run('after')}
+ const trials=[];for(let i=0;i<8;i++)for(const kind of ['before','after','after','before'] as const)trials.push(run(kind));
+ for(const trial of trials)expect(trial.attached).toEqual(Array(4).fill(trial.kind==='before'?2104:202));
+ const summary=Object.fromEntries((['before','after'] as const).map(kind=>[kind,Object.fromEntries(['listMs','buildMs','dropMs','totalMs'].map(metric=>{const x=trials.filter(t=>t.kind===kind).map(t=>t[metric]).sort((a,b)=>a-b);return[metric,{median:x[x.length>>1],p95:x[Math.floor((x.length-1)*.95)],max:x.at(-1)}]}))]));
+ writeFileSync('/tmp/bulk-static-review/benchmark-result.json',JSON.stringify({scenario:{listed:2104,built:202,roots:4,order:'ABBA repeated8 after3 warm-up pairs',geometry:'same empty part containers; isolates listing/attachment/disposal; not real roof construction'},summary,trials},null,2));console.log(JSON.stringify(summary));
+});

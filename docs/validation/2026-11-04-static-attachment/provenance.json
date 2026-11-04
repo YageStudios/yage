@@ -1,0 +1,10 @@
+{
+  "baselineEngineCommit": "65da0f7",
+  "files": {
+    "/data/workspace/sky-harbor/worldmap-integration/yage/engine/streaming/statics.ts": "d3d10bfc3a5331dd4fec7c3039f6224c7eb38b146c9f52dcf657d6f285385962",
+    "/tmp/bulk-static-review/statics-before.ts": "650807aad8db54db12386567dedcdbfea6bd71d7faf35fc0a2d4ee7f2eb50b8e",
+    "/tmp/bulk-static-review/benchmark.test.ts": "aea0a66bd976b1db990a39834cf303044c64d47336da5afb45980a8a51105d26",
+    "/tmp/bulk-static-review/benchmark.config.mjs": "cf77c956e8ff77d01b345a17db1435648a1d622c770daf00ed3a8b38b311e677"
+  },
+  "scope": "same actual StaticSet class before/after with shared PIXI, identical2104lazy-listed/202-built/four-root inputs and complete disposal"
+}

@@ -600,8 +600,33 @@ export class StaticSet {
 
   /** Listed instances whose parts are not built yet (lazy only). */
   private readonly unbuilt = new Set<StaticInstance>();
+  private readonly listingOrder = new WeakMap<PIXI.DisplayObject, number>();
+  private nextOrder = 0;
+
+  private attach(root: PIXI.Container, item: StaticInstance, part: "under" | "over" | "heights" | "tops") {
+    if (!this.lazy) {
+      root.addChild(item[part]);
+      return;
+    }
+    // Near-first builds can arrive out of listing order. Keep their original paint order without
+    // attaching empty offscreen placeholders to the display trees.
+    const order = this.listingOrder.get(item[part])!;
+    for (let i = 0; i < root.children.length; i++) {
+      if ((this.listingOrder.get(root.children[i]) ?? -Infinity) > order) {
+        root.addChildAt(item[part], i);
+        return;
+      }
+    }
+    root.addChild(item[part]);
+  }
 
   private build(item: StaticInstance) {
+    this.attach(this.underRoot, item, "under");
+    this.attach(this.overRoot, item, "over");
+    if (this.shadow) {
+      this.attach(this.shadow.heights, item, "heights");
+      this.attach(this.shadow.tops, item, "tops");
+    }
     const parts = item.spec.build();
     if (parts.under) item.under.addChild(parts.under);
     if (parts.over) item.over.addChild(parts.over);
@@ -642,16 +667,14 @@ export class StaticSet {
           this.overRoot.sortableChildren = true;
           if (this.shadow) this.shadow.tops.sortableChildren = true;
         }
-        this.underRoot.addChild(under);
-        this.overRoot.addChild(over);
-        this.shadow?.heights.addChild(heights);
-        this.shadow?.tops.addChild(tops);
         item = { spec, under, over, heights, tops, occluder: null, bounds: boundsOf(spec), holders: new Set() };
         this.items.set(spec.id, item);
         this.index(item, true);
         this.fresh.add(item);
         this.far?.add(item);
         if (this.lazy) {
+          const order = this.nextOrder++;
+          for (const part of [under, over, heights, tops]) this.listingOrder.set(part, order);
           // Hidden until a cull sees it and builds it.
           under.visible = over.visible = heights.visible = tops.visible = false;
           this.unbuilt.add(item);

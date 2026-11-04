@@ -1,0 +1,751 @@
+{
+  "before": {
+    "errors": [],
+    "moduleEpochs": [
+      "mw212fd40"
+    ],
+    "navigations": 1,
+    "steps": [
+      {
+        "label": "initial",
+        "expected": 98,
+        "firstCompleteMs": 210.36500000953674,
+        "allCompleteMs": 795.2400000095367,
+        "releasedInstances": 0,
+        "geometryHash": "f2ad31fdff734e871bd7f76181cfb8cfaca9cdcc78a89fac272c8fb794093a56",
+        "frame": {
+          "n": 330,
+          "p50": 16.670000000000073,
+          "p95": 16.700000000000728,
+          "p99": 49.98500000000058,
+          "max": 166.70000000000073,
+          "over16_67": 173,
+          "estimatedMissed60HzSlots": 27,
+          "over20": 14,
+          "over33": 14
+        },
+        "modelCPU": {
+          "n": 331,
+          "p50": 9.530000001192093,
+          "p95": 20.944999992847443,
+          "p99": 40.74500000476837,
+          "max": 157.29999999701977
+        },
+        "renderCPU": {
+          "n": 331,
+          "p50": 6.314999997615814,
+          "p95": 9.88000001013279,
+          "p99": 13.17000000178814,
+          "max": 34.320000007748604
+        },
+        "contextLost": false,
+        "screenPassesPerModel": {
+          "n": 331,
+          "p50": 1,
+          "p95": 1,
+          "p99": 1,
+          "max": 1
+        },
+        "phases": {
+          "occluders.addChild": {
+            "calls": 185,
+            "totalMs": 0.20499995350837708,
+            "maxMs": 0.015000000596046448,
+            "arguments": 185
+          },
+          "statics.build": {
+            "calls": 185,
+            "totalMs": 46.25500003993511,
+            "maxMs": 13.67000000178814,
+            "arguments": 185
+          },
+          "under.addChild": {
+            "calls": 1229,
+            "totalMs": 0.6599999517202377,
+            "maxMs": 0.05500000715255737,
+            "arguments": 1229
+          },
+          "over.addChild": {
+            "calls": 1223,
+            "totalMs": 0.4899999052286148,
+            "maxMs": 0.005000010132789612,
+            "arguments": 1223
+          },
+          "heights.addChild": {
+            "calls": 1223,
+            "totalMs": 0.46000000834465027,
+            "maxMs": 0.005000010132789612,
+            "arguments": 1223
+          },
+          "tops.addChild": {
+            "calls": 1223,
+            "totalMs": 0.4949999451637268,
+            "maxMs": 0.01000000536441803,
+            "arguments": 1223
+          },
+          "statics.index": {
+            "calls": 1223,
+            "totalMs": 0.5250000506639481,
+            "maxMs": 0.0599999874830246,
+            "arguments": 1223
+          },
+          "statics.list": {
+            "calls": 11,
+            "totalMs": 14.265000015497208,
+            "maxMs": 5.230000004172325,
+            "arguments": 1271
+          },
+          "statics.restack": {
+            "calls": 6,
+            "totalMs": 25.554999977350235,
+            "maxMs": 8.129999995231628,
+            "arguments": 6
+          },
+          "under.removeChild": {
+            "calls": 6,
+            "totalMs": 0.04500000178813934,
+            "maxMs": 0.02000001072883606,
+            "arguments": 6
+          }
+        },
+        "finalCounts": {
+          "listed": 2104,
+          "unbuilt": 1902,
+          "attached": {
+            "under": 2108,
+            "over": 2104,
+            "heights": 2164,
+            "tops": 2104,
+            "occluders": 202
+          },
+          "unbuiltAttached": 7608
+        }
+      },
+      {
+        "label": "evict",
+        "expected": 0,
+        "firstCompleteMs": null,
+        "allCompleteMs": 80.5249999910593,
+        "releasedInstances": 2104,
+        "geometryHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "frame": {
+          "n": 26,
+          "p50": 16.670000000000073,
+          "p95": 33.335000000000946,
+          "p99": 66.69499999999971,
+          "max": 66.69499999999971,
+          "over16_67": 14,
+          "estimatedMissed60HzSlots": 4,
+          "over20": 2,
+          "over33": 2
+        },
+        "modelCPU": {
+          "n": 27,
+          "p50": 2.6749999970197678,
+          "p95": 23.25499999523163,
+          "p99": 80.1950000077486,
+          "max": 80.1950000077486
+        },
+        "renderCPU": {
+          "n": 27,
+          "p50": 0.16999998688697815,
+          "p95": 2.0349999964237213,
+          "p99": 3.8799999952316284,
+          "max": 3.8799999952316284
+        },
+        "contextLost": false,
+        "screenPassesPerModel": {
+          "n": 27,
+          "p50": 1,
+          "p95": 1,
+          "p99": 1,
+          "max": 1
+        },
+        "phases": {
+          "heights.removeChild": {
+            "calls": 2164,
+            "totalMs": 3.4600001126527786,
+            "maxMs": 0.019999995827674866,
+            "arguments": 2164
+          },
+          "statics.release": {
+            "calls": 2202,
+            "totalMs": 29.249999836087227,
+            "maxMs": 0.29999999701976776,
+            "arguments": 2202
+          },
+          "under.removeChild": {
+            "calls": 2104,
+            "totalMs": 3.220000222325325,
+            "maxMs": 0.019999995827674866,
+            "arguments": 2104
+          },
+          "over.removeChild": {
+            "calls": 2104,
+            "totalMs": 2.789999783039093,
+            "maxMs": 0.025000005960464478,
+            "arguments": 2104
+          },
+          "occluders.removeChild": {
+            "calls": 202,
+            "totalMs": 0.20499996840953827,
+            "maxMs": 0.01000000536441803,
+            "arguments": 202
+          },
+          "tops.removeChild": {
+            "calls": 2104,
+            "totalMs": 2.794999733567238,
+            "maxMs": 0.019999995827674866,
+            "arguments": 2104
+          },
+          "statics.index": {
+            "calls": 2104,
+            "totalMs": 1.1500001549720764,
+            "maxMs": 0.030000001192092896,
+            "arguments": 2104
+          },
+          "statics.drop": {
+            "calls": 20,
+            "totalMs": 31.404999941587448,
+            "maxMs": 6.469999998807907,
+            "arguments": 20
+          },
+          "scene.remove": {
+            "calls": 20,
+            "totalMs": 34.2649999409914,
+            "maxMs": 7.405000001192093,
+            "arguments": 20
+          }
+        },
+        "finalCounts": {
+          "listed": 0,
+          "unbuilt": 0,
+          "attached": {
+            "under": 4,
+            "over": 0,
+            "heights": 0,
+            "tops": 0,
+            "occluders": 0
+          },
+          "unbuiltAttached": 0
+        }
+      },
+      {
+        "label": "cold rebuild",
+        "expected": 98,
+        "firstCompleteMs": 159.47499999403954,
+        "allCompleteMs": 496.5300000011921,
+        "releasedInstances": 0,
+        "geometryHash": "f2ad31fdff734e871bd7f76181cfb8cfaca9cdcc78a89fac272c8fb794093a56",
+        "frame": {
+          "n": 173,
+          "p50": 16.669999999998254,
+          "p95": 16.69000000000233,
+          "p99": 33.345000000001164,
+          "max": 49.98999999999796,
+          "over16_67": 61,
+          "estimatedMissed60HzSlots": 7,
+          "over20": 6,
+          "over33": 6
+        },
+        "modelCPU": {
+          "n": 174,
+          "p50": 9.359999999403954,
+          "p95": 19.930000007152557,
+          "p99": 35.355000004172325,
+          "max": 41.81999999284744
+        },
+        "renderCPU": {
+          "n": 174,
+          "p50": 6.00500001013279,
+          "p95": 10.049999997019768,
+          "p99": 14.569999992847443,
+          "max": 15.394999995827675
+        },
+        "contextLost": false,
+        "screenPassesPerModel": {
+          "n": 174,
+          "p50": 1,
+          "p95": 1,
+          "p99": 1,
+          "max": 1
+        },
+        "phases": {
+          "under.addChild": {
+            "calls": 2109,
+            "totalMs": 0.9249998480081558,
+            "maxMs": 0.04500000178813934,
+            "arguments": 2109
+          },
+          "over.addChild": {
+            "calls": 2104,
+            "totalMs": 0.7649998962879181,
+            "maxMs": 0.005000010132789612,
+            "arguments": 2104
+          },
+          "heights.addChild": {
+            "calls": 2104,
+            "totalMs": 0.8849999457597733,
+            "maxMs": 0.03500001132488251,
+            "arguments": 2104
+          },
+          "tops.addChild": {
+            "calls": 2104,
+            "totalMs": 0.8449999541044235,
+            "maxMs": 0.005000010132789612,
+            "arguments": 2104
+          },
+          "statics.index": {
+            "calls": 2104,
+            "totalMs": 0.905000165104866,
+            "maxMs": 0.05499999225139618,
+            "arguments": 2104
+          },
+          "statics.list": {
+            "calls": 24,
+            "totalMs": 19.20499999821186,
+            "maxMs": 2.0250000059604645,
+            "arguments": 2388
+          },
+          "statics.restack": {
+            "calls": 5,
+            "totalMs": 14.150000005960464,
+            "maxMs": 5.6400000005960464,
+            "arguments": 5
+          },
+          "under.removeChild": {
+            "calls": 5,
+            "totalMs": 0.014999985694885254,
+            "maxMs": 0.004999995231628418,
+            "arguments": 5
+          },
+          "occluders.addChild": {
+            "calls": 202,
+            "totalMs": 0.1600000262260437,
+            "maxMs": 0.03500001132488251,
+            "arguments": 202
+          },
+          "statics.build": {
+            "calls": 202,
+            "totalMs": 12.6749999076128,
+            "maxMs": 1.114999994635582,
+            "arguments": 202
+          }
+        },
+        "finalCounts": {
+          "listed": 2104,
+          "unbuilt": 1902,
+          "attached": {
+            "under": 2108,
+            "over": 2104,
+            "heights": 2164,
+            "tops": 2104,
+            "occluders": 202
+          },
+          "unbuiltAttached": 7608
+        }
+      }
+    ]
+  },
+  "after": {
+    "errors": [],
+    "moduleEpochs": [
+      "mw23kgho0"
+    ],
+    "navigations": 1,
+    "steps": [
+      {
+        "label": "initial",
+        "expected": 98,
+        "firstCompleteMs": 140.04500000178814,
+        "allCompleteMs": 692.6299999952316,
+        "releasedInstances": 0,
+        "geometryHash": "f2ad31fdff734e871bd7f76181cfb8cfaca9cdcc78a89fac272c8fb794093a56",
+        "frame": {
+          "n": 334,
+          "p50": 16.68000000000029,
+          "p95": 17.024999999999636,
+          "p99": 33.409999999999854,
+          "max": 150.53499999999985,
+          "over16_67": 298,
+          "estimatedMissed60HzSlots": 25,
+          "over20": 15,
+          "over33": 14
+        },
+        "modelCPU": {
+          "n": 335,
+          "p50": 11.644999995827675,
+          "p95": 22.859999999403954,
+          "p99": 35.394999995827675,
+          "max": 134.96499998867512
+        },
+        "renderCPU": {
+          "n": 335,
+          "p50": 7.9000000059604645,
+          "p95": 13.200000002980232,
+          "p99": 19.525000005960464,
+          "max": 37.980000004172325
+        },
+        "contextLost": false,
+        "screenPassesPerModel": {
+          "n": 335,
+          "p50": 1,
+          "p95": 1,
+          "p99": 1,
+          "max": 1
+        },
+        "phases": {
+          "under.addChild": {
+            "calls": 14,
+            "totalMs": 0.060000061988830566,
+            "maxMs": 0.025000005960464478,
+            "arguments": 14
+          },
+          "over.addChild": {
+            "calls": 10,
+            "totalMs": 0.009999990463256836,
+            "maxMs": 0.004999995231628418,
+            "arguments": 10
+          },
+          "heights.addChild": {
+            "calls": 10,
+            "totalMs": 0,
+            "maxMs": 0,
+            "arguments": 10
+          },
+          "tops.addChild": {
+            "calls": 10,
+            "totalMs": 0.015000000596046448,
+            "maxMs": 0.005000010132789612,
+            "arguments": 10
+          },
+          "occluders.addChild": {
+            "calls": 185,
+            "totalMs": 0.13999994099140167,
+            "maxMs": 0.009999990463256836,
+            "arguments": 185
+          },
+          "statics.build": {
+            "calls": 185,
+            "totalMs": 40.4700001180172,
+            "maxMs": 8.825000002980232,
+            "arguments": 185
+          },
+          "under.removeChild": {
+            "calls": 4,
+            "totalMs": 0.02000001072883606,
+            "maxMs": 0.01000000536441803,
+            "arguments": 4
+          },
+          "statics.index": {
+            "calls": 1223,
+            "totalMs": 0.6249999701976776,
+            "maxMs": 0.040000006556510925,
+            "arguments": 1223
+          },
+          "statics.list": {
+            "calls": 11,
+            "totalMs": 13.739999994635582,
+            "maxMs": 4.8900000005960464,
+            "arguments": 1271
+          },
+          "statics.restack": {
+            "calls": 7,
+            "totalMs": 29.61999998986721,
+            "maxMs": 8.364999994635582,
+            "arguments": 7
+          }
+        },
+        "finalCounts": {
+          "listed": 2104,
+          "unbuilt": 1902,
+          "attached": {
+            "under": 206,
+            "over": 202,
+            "heights": 262,
+            "tops": 202,
+            "occluders": 202
+          },
+          "unbuiltAttached": 0
+        }
+      },
+      {
+        "label": "evict",
+        "expected": 0,
+        "firstCompleteMs": null,
+        "allCompleteMs": 76.32500000298023,
+        "releasedInstances": 2104,
+        "geometryHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "frame": {
+          "n": 27,
+          "p50": 16.68000000000029,
+          "p95": 33.35499999999956,
+          "p99": 66.72999999999956,
+          "max": 66.72999999999956,
+          "over16_67": 25,
+          "estimatedMissed60HzSlots": 4,
+          "over20": 2,
+          "over33": 2
+        },
+        "modelCPU": {
+          "n": 28,
+          "p50": 2.7000000029802322,
+          "p95": 3.2450000047683716,
+          "p99": 76.06000000238419,
+          "max": 76.06000000238419
+        },
+        "renderCPU": {
+          "n": 28,
+          "p50": 0.21000000834465027,
+          "p95": 0.39499999582767487,
+          "p99": 3.7049999982118607,
+          "max": 3.7049999982118607
+        },
+        "contextLost": false,
+        "screenPassesPerModel": {
+          "n": 28,
+          "p50": 1,
+          "p95": 1,
+          "p99": 1,
+          "max": 1
+        },
+        "phases": {
+          "heights.removeChild": {
+            "calls": 262,
+            "totalMs": 0.1900000125169754,
+            "maxMs": 0.01000000536441803,
+            "arguments": 262
+          },
+          "statics.release": {
+            "calls": 2202,
+            "totalMs": 16.359999984502792,
+            "maxMs": 0.4300000071525574,
+            "arguments": 2202
+          },
+          "under.removeChild": {
+            "calls": 202,
+            "totalMs": 0.2799999415874481,
+            "maxMs": 0.025000005960464478,
+            "arguments": 202
+          },
+          "over.removeChild": {
+            "calls": 202,
+            "totalMs": 0.19499999284744263,
+            "maxMs": 0.019999995827674866,
+            "arguments": 202
+          },
+          "occluders.removeChild": {
+            "calls": 202,
+            "totalMs": 0.21000005304813385,
+            "maxMs": 0.005000010132789612,
+            "arguments": 202
+          },
+          "tops.removeChild": {
+            "calls": 202,
+            "totalMs": 0.21000002324581146,
+            "maxMs": 0.030000001192092896,
+            "arguments": 202
+          },
+          "statics.index": {
+            "calls": 2104,
+            "totalMs": 1.180000126361847,
+            "maxMs": 0.02000001072883606,
+            "arguments": 2104
+          },
+          "statics.drop": {
+            "calls": 20,
+            "totalMs": 18.820000022649765,
+            "maxMs": 4.299999997019768,
+            "arguments": 20
+          },
+          "scene.remove": {
+            "calls": 20,
+            "totalMs": 21.650000020861626,
+            "maxMs": 5.284999996423721,
+            "arguments": 20
+          }
+        },
+        "finalCounts": {
+          "listed": 0,
+          "unbuilt": 0,
+          "attached": {
+            "under": 4,
+            "over": 0,
+            "heights": 0,
+            "tops": 0,
+            "occluders": 0
+          },
+          "unbuiltAttached": 0
+        }
+      },
+      {
+        "label": "cold rebuild",
+        "expected": 98,
+        "firstCompleteMs": 159.6550000011921,
+        "allCompleteMs": 495.125,
+        "releasedInstances": 0,
+        "geometryHash": "f2ad31fdff734e871bd7f76181cfb8cfaca9cdcc78a89fac272c8fb794093a56",
+        "frame": {
+          "n": 173,
+          "p50": 16.68000000000029,
+          "p95": 16.709999999999127,
+          "p99": 50.0199999999968,
+          "max": 50.04999999999927,
+          "over16_67": 149,
+          "estimatedMissed60HzSlots": 7,
+          "over20": 5,
+          "over33": 5
+        },
+        "modelCPU": {
+          "n": 174,
+          "p50": 11.515000000596046,
+          "p95": 20.099999994039536,
+          "p99": 36.20999999344349,
+          "max": 36.25499999523163
+        },
+        "renderCPU": {
+          "n": 174,
+          "p50": 8.480000004172325,
+          "p95": 12.159999996423721,
+          "p99": 15.015000000596046,
+          "max": 33.480000004172325
+        },
+        "contextLost": false,
+        "screenPassesPerModel": {
+          "n": 174,
+          "p50": 1,
+          "p95": 1,
+          "p99": 1,
+          "max": 1
+        },
+        "phases": {
+          "statics.index": {
+            "calls": 2104,
+            "totalMs": 0.8650000095367432,
+            "maxMs": 0.06999999284744263,
+            "arguments": 2104
+          },
+          "statics.list": {
+            "calls": 21,
+            "totalMs": 21.634999990463257,
+            "maxMs": 5.7650000005960464,
+            "arguments": 2249
+          },
+          "statics.restack": {
+            "calls": 4,
+            "totalMs": 15.854999989271164,
+            "maxMs": 8.700000002980232,
+            "arguments": 4
+          },
+          "under.addChild": {
+            "calls": 18,
+            "totalMs": 0.05499999225139618,
+            "maxMs": 0.03999999165534973,
+            "arguments": 18
+          },
+          "over.addChild": {
+            "calls": 16,
+            "totalMs": 0.009999990463256836,
+            "maxMs": 0.004999995231628418,
+            "arguments": 16
+          },
+          "heights.addChild": {
+            "calls": 16,
+            "totalMs": 0.005000010132789612,
+            "maxMs": 0.005000010132789612,
+            "arguments": 16
+          },
+          "tops.addChild": {
+            "calls": 16,
+            "totalMs": 0.004999995231628418,
+            "maxMs": 0.004999995231628418,
+            "arguments": 16
+          },
+          "occluders.addChild": {
+            "calls": 202,
+            "totalMs": 0.16499996185302734,
+            "maxMs": 0.019999995827674866,
+            "arguments": 202
+          },
+          "statics.build": {
+            "calls": 202,
+            "totalMs": 13.640000060200691,
+            "maxMs": 0.9900000095367432,
+            "arguments": 202
+          },
+          "under.removeChild": {
+            "calls": 2,
+            "totalMs": 0.004999995231628418,
+            "maxMs": 0.004999995231628418,
+            "arguments": 2
+          }
+        },
+        "finalCounts": {
+          "listed": 2104,
+          "unbuilt": 1902,
+          "attached": {
+            "under": 206,
+            "over": 202,
+            "heights": 262,
+            "tops": 202,
+            "occluders": 202
+          },
+          "unbuiltAttached": 0
+        }
+      }
+    ]
+  },
+  "pixelGate": {
+    "pixels": {
+      "width": 1687,
+      "height": 1067,
+      "paintedPixels": 1800029,
+      "contextLost": false,
+      "listed": 2104,
+      "built": 202,
+      "orders": [
+        {
+          "part": "under",
+          "listed": 2104,
+          "unrelated": 4,
+          "candidateAttached": 202
+        },
+        {
+          "part": "over",
+          "listed": 2104,
+          "unrelated": 0,
+          "candidateAttached": 202
+        },
+        {
+          "part": "heights",
+          "listed": 2104,
+          "unrelated": 60,
+          "candidateAttached": 202
+        },
+        {
+          "part": "tops",
+          "listed": 2104,
+          "unrelated": 0,
+          "candidateAttached": 202
+        }
+      ],
+      "naturalVsManualControl": {
+        "pixels": 0,
+        "maxChannelDelta": 0,
+        "totalChannelDelta": 0
+      },
+      "candidateVsOriginalListingTree": {
+        "pixels": 0,
+        "maxChannelDelta": 0,
+        "totalChannelDelta": 0
+      },
+      "note": "Same actual paused scene/parts/geometry. Baseline reinstates original all-listed four-root trees; no art is rebuilt or retained. Manual-render control is compared with the natural screen frame."
+    },
+    "errors": [],
+    "navigations": 1,
+    "moduleGenerations": [
+      "mw23kgho0"
+    ]
+  },
+  "scope": "Identical frozen actual Seville source/assets except engine StaticSet. Older coastline/source-generation cohort intentionally pinned; latest global source acceptance remains separate. Same headed1687x1067/DPR1 CPU meter and lifecycle counters; no GPU queries or screenshots during timing."
+}

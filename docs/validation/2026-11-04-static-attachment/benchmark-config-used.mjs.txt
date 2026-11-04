@@ -1,0 +1,3 @@
+import base from '/data/workspace/sky-harbor/worldmap-integration/yage/vite.config.js';
+import {readFileSync} from 'node:fs';
+export default {...base,plugins:[...(base.plugins??[]),{name:'baseline-static-class-only',enforce:'pre',load(id){if(id.endsWith('/engine/streaming/statics.ts?before'))return readFileSync('/tmp/bulk-static-review/statics-before.ts','utf8')}}],test:{...base.test,setupFiles:['/data/workspace/sky-harbor/worldmap-integration/yage/test/setup.ts'],include:['/tmp/bulk-static-review/benchmark.test.ts']}};
