@@ -1,0 +1,92 @@
+{
+  "file": "/tmp/asset-preload-window/checkpoint/yage/engine/data/AssetCache.ts",
+  "wholeLegacy": {
+    "lines": {
+      "total": 100,
+      "covered": 64,
+      "skipped": 0,
+      "pct": 64
+    },
+    "functions": {
+      "total": 32,
+      "covered": 12,
+      "skipped": 0,
+      "pct": 37.5
+    },
+    "statements": {
+      "total": 124,
+      "covered": 80,
+      "skipped": 0,
+      "pct": 64.51
+    },
+    "branches": {
+      "total": 70,
+      "covered": 61,
+      "skipped": 0,
+      "pct": 87.14
+    }
+  },
+  "changed": {
+    "statements": {
+      "total": 39,
+      "covered": 39,
+      "pct": 100
+    },
+    "branches": {
+      "total": 23,
+      "covered": 23,
+      "pct": 100
+    },
+    "functions": {
+      "total": 3,
+      "covered": 3,
+      "pct": 100
+    },
+    "lines": {
+      "total": 29,
+      "covered": 29,
+      "pct": 100
+    }
+  },
+  "uncoveredChangedBranches": [],
+  "changedLines": [
+    135,
+    136,
+    137,
+    144,
+    145,
+    146,
+    147,
+    148,
+    151,
+    152,
+    153,
+    154,
+    155,
+    156,
+    157,
+    158,
+    159,
+    160,
+    161,
+    162,
+    163,
+    164,
+    165,
+    166,
+    167,
+    168,
+    169,
+    170,
+    171,
+    172,
+    173,
+    174,
+    175,
+    176,
+    177,
+    178,
+    179
+  ],
+  "qualification": "Portable actual-module six new plus eight existing scoped tests, original five-second test bounds. Legacy class metrics separate from changed preload scope."
+}

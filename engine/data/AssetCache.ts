@@ -132,21 +132,51 @@ export class AssetCache {
   }
 
   /**
-   * Sequential downloads bound peak memory and resume after interruption by content hash. An asset
-   * already verified this session is stored and whole, so it is not read again.
+   * A small download window overlaps transaction/network waits, reserving at most the largest asset's
+   * declared bytes. Results are reported in input order, after each persistent commit. Already-started
+   * loads settle on failure; their successful suffix may be cached for the next attempt.
    */
   async preload(
     base: string,
     assets: readonly AssetRecord[],
     progress: (complete: number, total: number) => void = () => {}
   ): Promise<void> {
-    const total = assets.reduce((sum, asset) => sum + asset.bytes, 0);
+    let total = 0, largest = 0;
+    for (const asset of assets) {
+      total += asset.bytes;
+      if (Number.isSafeInteger(asset.bytes) && asset.bytes >= 0) largest = Math.max(largest, asset.bytes);
+    }
     let complete = 0;
     progress(complete, total);
-    for (const asset of assets) {
-      if (!this.verified.has(asset.sha256)) await this.load(base, asset);
-      complete += asset.bytes;
-      progress(complete, total);
+    for (let first = 0; first < assets.length;) {
+      if (this.verified.has(assets[first].sha256)) {
+        complete += assets[first++].bytes;
+        progress(complete, total);
+        continue;
+      }
+      const jobs: Promise<{ ok: true } | { ok: false; error: unknown }>[] = [];
+      let end = first, reserved = 0;
+      try {
+        while (end < assets.length && jobs.length < 4) {
+          const asset = assets[end], known = this.verified.has(asset.sha256);
+          const validBytes = Number.isSafeInteger(asset.bytes) && asset.bytes >= 0;
+          const bytes = known ? 0 : asset.bytes;
+          if (jobs.length && (!validBytes || reserved + bytes > largest)) break;
+          jobs.push(known ? Promise.resolve({ ok: true }) : this.load(base, asset).then(
+            () => ({ ok: true as const }), error => ({ ok: false as const, error })
+          ));
+          reserved += bytes;
+          end++;
+          if (!validBytes) break;
+        }
+        for (let at = first; at < end; at++) {
+          const result = await jobs[at - first];
+          if (!result.ok) throw result.error;
+          complete += assets[at].bytes;
+          progress(complete, total);
+        }
+      } finally { await Promise.all(jobs); }
+      first = end;
     }
   }
 }

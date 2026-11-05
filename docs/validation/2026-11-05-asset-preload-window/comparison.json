@@ -1,0 +1,474 @@
+{
+  "qualification": [
+    "One original\u2192candidate pair with fresh browser profiles and shared OS page cache.",
+    "Coordinator reported overlapping external coastline IAB5323 camera replay; team-exclusive was not globally host-isolated.",
+    "No FPS, late-game memory, travel or eviction/return acceptance."
+  ],
+  "variants": {
+    "original": {
+      "coldMs": 27832.89999999851,
+      "warmMs": 53.5,
+      "coldIO": {
+        "networkRequests": 13057,
+        "closedRangeRequests": 13050,
+        "closedRangeRequestedBytes": 859005902,
+        "otherRangeRequests": 0,
+        "http200Responses": 7,
+        "http206Responses": 13050,
+        "otherHTTPResponses": 0,
+        "declaredResponseBytes": 870867266,
+        "arrayBufferCalls": 13057,
+        "bodyCompletions": 13057,
+        "bodyCompletedBytes": 870867266,
+        "bodyFailures": 0,
+        "storeReadBegins": 13057,
+        "storeReadCompletions": 13057,
+        "storeReadReturnedBytes": 0,
+        "storeReadFailures": 0,
+        "storeWriteBegins": 13057,
+        "storeWriteCommits": 13057,
+        "storeWriteCommittedBytes": 870867266,
+        "storeWriteFailures": 0,
+        "cityNetworkRequests": 13050,
+        "cityClosedRangeRequestedBytes": 859005902,
+        "cityHTTP206Responses": 13050,
+        "cityBodyCompletedBytes": 859005902,
+        "unknownContentLengthResponses": 0,
+        "networkFailures": 0
+      },
+      "warmIO": {
+        "networkRequests": 0,
+        "closedRangeRequests": 0,
+        "closedRangeRequestedBytes": 0,
+        "otherRangeRequests": 0,
+        "http200Responses": 0,
+        "http206Responses": 0,
+        "otherHTTPResponses": 0,
+        "declaredResponseBytes": 0,
+        "arrayBufferCalls": 0,
+        "bodyCompletions": 0,
+        "bodyCompletedBytes": 0,
+        "bodyFailures": 0,
+        "storeReadBegins": 1,
+        "storeReadCompletions": 1,
+        "storeReadReturnedBytes": 2235906,
+        "storeReadFailures": 0,
+        "storeWriteBegins": 0,
+        "storeWriteCommits": 0,
+        "storeWriteCommittedBytes": 0,
+        "storeWriteFailures": 0,
+        "cityNetworkRequests": 0,
+        "cityClosedRangeRequestedBytes": 0,
+        "cityHTTP206Responses": 0,
+        "cityBodyCompletedBytes": 0,
+        "unknownContentLengthResponses": 0,
+        "networkFailures": 0
+      },
+      "peakPending": {
+        "bodies": 0,
+        "bodyKnownDeclaredBytes": 0,
+        "peakBodyKnownDeclaredBytes": 9461248,
+        "storeWrites": 0,
+        "storeWriteBytes": 0,
+        "peakStoreWriteBytes": 9461248,
+        "headers": 0,
+        "peakHeaders": 1
+      },
+      "verification": {
+        "began": 28257.69999999553,
+        "completed": 28299.29999999702,
+        "keyCount": 13057,
+        "keysSHA256": "a29a32096c4f63576d656c69186cd5867c35d9d8493d1c61b9d385d34b84227a",
+        "samples": [
+          {
+            "sha256": "984d8114032e0cd9ad525cc233d326038a30c07787d13e41808a091b3ed09202",
+            "bytes": 2235906
+          },
+          {
+            "sha256": "e005a36dca1ce81ece87cc31bea225381e05bb222240600c2a5d7e0248eeaa4c",
+            "bytes": 756
+          },
+          {
+            "sha256": "319a0376646235d9be164c5709bca90416a6a912b07aa3136b0d7be953a908d3",
+            "bytes": 1092989
+          }
+        ],
+        "mode": "actual IndexedDB readonly after commit"
+      },
+      "PSS": {
+        "samples": 59,
+        "peakBytes": 1718764544,
+        "peakAt": 1793876276290,
+        "peakRoles": {
+          "browser": 1161638912,
+          "zygote": 15433728,
+          "gpu-process": 58420224,
+          "utility": 54891520,
+          "renderer": 428380160
+        },
+        "minimumAvailableBytes": 69395599360,
+        "samplingMs": {
+          "total": 2120,
+          "median": 37,
+          "max": 55
+        },
+        "perProcessReadMsTotal": 2054
+      },
+      "isolateInventories": [
+        {
+          "file": "isolate-115.json",
+          "elapsedMs": 4,
+          "complete": true,
+          "samples": [
+            {
+              "type": "page",
+              "fields": {
+                "usedSize": 6394196,
+                "totalSize": 21602304,
+                "embedderHeapUsedSize": 6167680,
+                "backingStorageSize": 6912737
+              },
+              "isolateId": "4ecde1a07a7a9698",
+              "missingFields": []
+            }
+          ],
+          "missing": [],
+          "unsupported": [],
+          "notSampled": []
+        },
+        {
+          "file": "isolate-121.json",
+          "elapsedMs": 2,
+          "complete": true,
+          "samples": [
+            {
+              "type": "page",
+              "fields": {
+                "usedSize": 12001832,
+                "totalSize": 25665536,
+                "embedderHeapUsedSize": 5158800,
+                "backingStorageSize": 30376713
+              },
+              "isolateId": "4ecde1a07a7a9698",
+              "missingFields": []
+            }
+          ],
+          "missing": [],
+          "unsupported": [],
+          "notSampled": []
+        },
+        {
+          "file": "isolate-2.json",
+          "elapsedMs": 5,
+          "complete": true,
+          "samples": [
+            {
+              "type": "page",
+              "fields": {
+                "usedSize": 1714208,
+                "totalSize": 3670016,
+                "embedderHeapUsedSize": 1497760,
+                "backingStorageSize": 485417
+              },
+              "isolateId": "4ecde1a07a7a9698",
+              "missingFields": []
+            }
+          ],
+          "missing": [],
+          "unsupported": [],
+          "notSampled": []
+        }
+      ],
+      "sourceGuardsEqual": true,
+      "assetsBeforeAfterPins": [
+        85,
+        85
+      ],
+      "hardware": {
+        "requested": 1793876247250,
+        "status": "available",
+        "activeRenderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 5090/PCIe/SSE2, OpenGL ES 3.2 NVIDIA 610.57.04)",
+        "matchesPriorNVIDIARenderer": true,
+        "devices": [
+          {
+            "vendorId": 4318,
+            "deviceId": 11141,
+            "vendorString": "",
+            "deviceString": "",
+            "driverVendor": "NVIDIA",
+            "driverVersion": "610.57.04"
+          },
+          {
+            "vendorId": 4098,
+            "deviceId": 5710,
+            "vendorString": "",
+            "deviceString": "",
+            "driverVendor": "NVIDIA",
+            "driverVersion": "610.57.04"
+          },
+          {
+            "vendorId": 4318,
+            "deviceId": 11141,
+            "vendorString": "",
+            "deviceString": "",
+            "driverVendor": "",
+            "driverVersion": ""
+          }
+        ],
+        "deviceOverflow": false,
+        "received": 1793876247453
+      },
+      "errors": {
+        "failure": null,
+        "stop": null,
+        "page": [],
+        "request": [],
+        "cleanup": []
+      },
+      "cleanupRootPID": {
+        "pid": 1052041,
+        "absentAtAnalysis": true
+      },
+      "receiptCount": 122
+    },
+    "candidate": {
+      "coldMs": 20634.29999999702,
+      "warmMs": 63,
+      "coldIO": {
+        "networkRequests": 13057,
+        "closedRangeRequests": 13050,
+        "closedRangeRequestedBytes": 859005902,
+        "otherRangeRequests": 0,
+        "http200Responses": 7,
+        "http206Responses": 13050,
+        "otherHTTPResponses": 0,
+        "declaredResponseBytes": 870867266,
+        "arrayBufferCalls": 13057,
+        "bodyCompletions": 13057,
+        "bodyCompletedBytes": 870867266,
+        "bodyFailures": 0,
+        "storeReadBegins": 13057,
+        "storeReadCompletions": 13057,
+        "storeReadReturnedBytes": 0,
+        "storeReadFailures": 0,
+        "storeWriteBegins": 13057,
+        "storeWriteCommits": 13057,
+        "storeWriteCommittedBytes": 870867266,
+        "storeWriteFailures": 0,
+        "cityNetworkRequests": 13050,
+        "cityClosedRangeRequestedBytes": 859005902,
+        "cityHTTP206Responses": 13050,
+        "cityBodyCompletedBytes": 859005902,
+        "unknownContentLengthResponses": 0,
+        "networkFailures": 0
+      },
+      "warmIO": {
+        "networkRequests": 0,
+        "closedRangeRequests": 0,
+        "closedRangeRequestedBytes": 0,
+        "otherRangeRequests": 0,
+        "http200Responses": 0,
+        "http206Responses": 0,
+        "otherHTTPResponses": 0,
+        "declaredResponseBytes": 0,
+        "arrayBufferCalls": 0,
+        "bodyCompletions": 0,
+        "bodyCompletedBytes": 0,
+        "bodyFailures": 0,
+        "storeReadBegins": 1,
+        "storeReadCompletions": 1,
+        "storeReadReturnedBytes": 2235906,
+        "storeReadFailures": 0,
+        "storeWriteBegins": 0,
+        "storeWriteCommits": 0,
+        "storeWriteCommittedBytes": 0,
+        "storeWriteFailures": 0,
+        "cityNetworkRequests": 0,
+        "cityClosedRangeRequestedBytes": 0,
+        "cityHTTP206Responses": 0,
+        "cityBodyCompletedBytes": 0,
+        "unknownContentLengthResponses": 0,
+        "networkFailures": 0
+      },
+      "peakPending": {
+        "bodies": 0,
+        "bodyKnownDeclaredBytes": 0,
+        "peakBodyKnownDeclaredBytes": 9461248,
+        "storeWrites": 0,
+        "storeWriteBytes": 0,
+        "peakStoreWriteBytes": 9461248,
+        "headers": 0,
+        "peakHeaders": 4
+      },
+      "verification": {
+        "began": 21106.80000000447,
+        "completed": 21171,
+        "keyCount": 13057,
+        "keysSHA256": "a29a32096c4f63576d656c69186cd5867c35d9d8493d1c61b9d385d34b84227a",
+        "samples": [
+          {
+            "sha256": "984d8114032e0cd9ad525cc233d326038a30c07787d13e41808a091b3ed09202",
+            "bytes": 2235906
+          },
+          {
+            "sha256": "e005a36dca1ce81ece87cc31bea225381e05bb222240600c2a5d7e0248eeaa4c",
+            "bytes": 756
+          },
+          {
+            "sha256": "319a0376646235d9be164c5709bca90416a6a912b07aa3136b0d7be953a908d3",
+            "bytes": 1092989
+          }
+        ],
+        "mode": "actual IndexedDB readonly after commit"
+      },
+      "PSS": {
+        "samples": 44,
+        "peakBytes": 1727223808,
+        "peakAt": 1793876333985,
+        "peakRoles": {
+          "browser": 1169840128,
+          "zygote": 15078400,
+          "gpu-process": 59250688,
+          "utility": 57305088,
+          "renderer": 425749504
+        },
+        "minimumAvailableBytes": 69399609344,
+        "samplingMs": {
+          "total": 2127,
+          "median": 44.0,
+          "max": 124
+        },
+        "perProcessReadMsTotal": 2067
+      },
+      "isolateInventories": [
+        {
+          "file": "isolate-2.json",
+          "elapsedMs": 4,
+          "complete": true,
+          "samples": [
+            {
+              "type": "page",
+              "fields": {
+                "usedSize": 1717288,
+                "totalSize": 3932160,
+                "embedderHeapUsedSize": 1500488,
+                "backingStorageSize": 489658
+              },
+              "isolateId": "4b731e79f5a251d9",
+              "missingFields": []
+            }
+          ],
+          "missing": [],
+          "unsupported": [],
+          "notSampled": []
+        },
+        {
+          "file": "isolate-86.json",
+          "elapsedMs": 3,
+          "complete": true,
+          "samples": [
+            {
+              "type": "page",
+              "fields": {
+                "usedSize": 9848676,
+                "totalSize": 29204480,
+                "embedderHeapUsedSize": 10249712,
+                "backingStorageSize": 9222528
+              },
+              "isolateId": "4b731e79f5a251d9",
+              "missingFields": []
+            }
+          ],
+          "missing": [],
+          "unsupported": [],
+          "notSampled": []
+        },
+        {
+          "file": "isolate-92.json",
+          "elapsedMs": 5,
+          "complete": true,
+          "samples": [
+            {
+              "type": "page",
+              "fields": {
+                "usedSize": 2025008,
+                "totalSize": 25333760,
+                "embedderHeapUsedSize": 4997976,
+                "backingStorageSize": 16818299
+              },
+              "isolateId": "4b731e79f5a251d9",
+              "missingFields": []
+            }
+          ],
+          "missing": [],
+          "unsupported": [],
+          "notSampled": []
+        }
+      ],
+      "sourceGuardsEqual": true,
+      "assetsBeforeAfterPins": [
+        85,
+        85
+      ],
+      "hardware": {
+        "requested": 1793876312460,
+        "status": "available",
+        "activeRenderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 5090/PCIe/SSE2, OpenGL ES 3.2 NVIDIA 610.57.04)",
+        "matchesPriorNVIDIARenderer": true,
+        "devices": [
+          {
+            "vendorId": 4318,
+            "deviceId": 11141,
+            "vendorString": "",
+            "deviceString": "",
+            "driverVendor": "NVIDIA",
+            "driverVersion": "610.57.04"
+          },
+          {
+            "vendorId": 4098,
+            "deviceId": 5710,
+            "vendorString": "",
+            "deviceString": "",
+            "driverVendor": "NVIDIA",
+            "driverVersion": "610.57.04"
+          },
+          {
+            "vendorId": 4318,
+            "deviceId": 11141,
+            "vendorString": "",
+            "deviceString": "",
+            "driverVendor": "",
+            "driverVersion": ""
+          }
+        ],
+        "deviceOverflow": false,
+        "received": 1793876312707
+      },
+      "errors": {
+        "failure": null,
+        "stop": null,
+        "page": [],
+        "request": [],
+        "cleanup": []
+      },
+      "cleanupRootPID": {
+        "pid": 1053577,
+        "absentAtAnalysis": true
+      },
+      "receiptCount": 93
+    }
+  },
+  "comparison": {
+    "coldSavedMs": 7198.60000000149,
+    "coldReductionPercent": 25.863636200330816,
+    "warmAddedMs": 9.5,
+    "PSSPeakAddedBytes": 8459264,
+    "fullColdIOEqual": true,
+    "fullWarmIOEqual": true,
+    "verificationEqual": {
+      "keyCount": true,
+      "keysSHA256": true,
+      "samples": true
+    }
+  }
+}
