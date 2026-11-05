@@ -1,0 +1,28 @@
+{
+  "engineHEAD": "685ce27c6a1a17ca0775a567b51c298fe54d2a0b",
+  "sourcePath": "engine/streaming/shadow-pass.ts",
+  "originalSHA256": "8b8d4b191dcb509b4a71b85c06995e7f5ea8d76ea74b38059c996fa9aea1a45a",
+  "candidateSHA256": "a7a10ee3bb87efe504bf5791c738f80deadcc76b7d4ca7e530bbd43e99cd11e8",
+  "changes": [
+    [
+      "const found = new Int32Array(width * height).fill(-1);",
+      "const found = new Uint8Array(width * height);"
+    ],
+    [
+      "found[k] = k;",
+      "found[k] = 1;"
+    ],
+    [
+      "if (found[n] >= 0 ||",
+      "if (found[n] ||"
+    ],
+    [
+      "found[n] = found[k];",
+      "found[n] = 1;"
+    ],
+    [
+      "if (found[k] < 0 &&",
+      "if (!found[k] &&"
+    ]
+  ]
+}

@@ -1,0 +1,595 @@
+{
+  "node": "v26.2.0",
+  "started": 1793873582722,
+  "noForcedGC": true,
+  "scope": "Synthetic fixed occupied silhouettes at exact actual atlas dimensions/parameters; same bytes/arguments per old/new pair; no canvas/native/GPU or full startup timing.",
+  "cases": [
+    {
+      "name": "nature",
+      "width": 1024,
+      "height": 640,
+      "cw": 128,
+      "ch": 160,
+      "per": 3.2,
+      "lift": 20,
+      "rise": 1.3333333333333333,
+      "inputHash": {
+        "art": "ffd16243fbe29764a964f0c12b79a5f6aec2050851b872be77f595ea74326f63",
+        "heights": "25537bd9f0bbc4e961ea1d822049f2f97a6caa350433818ac8308f70af02688d"
+      },
+      "outputHashes": {
+        "original": "9ba3ef092e3891ebdc9385eae52a6e50b49aa5242274fecdd8024c9b0b2a1440",
+        "candidate": "9ba3ef092e3891ebdc9385eae52a6e50b49aa5242274fecdd8024c9b0b2a1440"
+      },
+      "samples": {
+        "original": [
+          {
+            "pair": 0,
+            "ms": 97.93976700000002,
+            "outputHash": "9ba3ef092e3891ebdc9385eae52a6e50b49aa5242274fecdd8024c9b0b2a1440",
+            "warmup": true
+          },
+          {
+            "pair": 1,
+            "ms": 62.592434000000026,
+            "outputHash": "9ba3ef092e3891ebdc9385eae52a6e50b49aa5242274fecdd8024c9b0b2a1440",
+            "warmup": true
+          },
+          {
+            "pair": 2,
+            "ms": 70.96025199999997,
+            "outputHash": "9ba3ef092e3891ebdc9385eae52a6e50b49aa5242274fecdd8024c9b0b2a1440",
+            "warmup": false
+          },
+          {
+            "pair": 3,
+            "ms": 66.52719400000001,
+            "outputHash": "9ba3ef092e3891ebdc9385eae52a6e50b49aa5242274fecdd8024c9b0b2a1440",
+            "warmup": false
+          },
+          {
+            "pair": 4,
+            "ms": 64.83239800000001,
+            "outputHash": "9ba3ef092e3891ebdc9385eae52a6e50b49aa5242274fecdd8024c9b0b2a1440",
+            "warmup": false
+          },
+          {
+            "pair": 5,
+            "ms": 56.159063999999944,
+            "outputHash": "9ba3ef092e3891ebdc9385eae52a6e50b49aa5242274fecdd8024c9b0b2a1440",
+            "warmup": false
+          },
+          {
+            "pair": 6,
+            "ms": 54.521958999999924,
+            "outputHash": "9ba3ef092e3891ebdc9385eae52a6e50b49aa5242274fecdd8024c9b0b2a1440",
+            "warmup": false
+          }
+        ],
+        "candidate": [
+          {
+            "pair": 0,
+            "ms": 86.682454,
+            "outputHash": "9ba3ef092e3891ebdc9385eae52a6e50b49aa5242274fecdd8024c9b0b2a1440",
+            "warmup": true
+          },
+          {
+            "pair": 1,
+            "ms": 65.13364200000001,
+            "outputHash": "9ba3ef092e3891ebdc9385eae52a6e50b49aa5242274fecdd8024c9b0b2a1440",
+            "warmup": true
+          },
+          {
+            "pair": 2,
+            "ms": 59.436545000000024,
+            "outputHash": "9ba3ef092e3891ebdc9385eae52a6e50b49aa5242274fecdd8024c9b0b2a1440",
+            "warmup": false
+          },
+          {
+            "pair": 3,
+            "ms": 68.10532799999999,
+            "outputHash": "9ba3ef092e3891ebdc9385eae52a6e50b49aa5242274fecdd8024c9b0b2a1440",
+            "warmup": false
+          },
+          {
+            "pair": 4,
+            "ms": 65.209923,
+            "outputHash": "9ba3ef092e3891ebdc9385eae52a6e50b49aa5242274fecdd8024c9b0b2a1440",
+            "warmup": false
+          },
+          {
+            "pair": 5,
+            "ms": 69.93069600000001,
+            "outputHash": "9ba3ef092e3891ebdc9385eae52a6e50b49aa5242274fecdd8024c9b0b2a1440",
+            "warmup": false
+          },
+          {
+            "pair": 6,
+            "ms": 54.63385100000005,
+            "outputHash": "9ba3ef092e3891ebdc9385eae52a6e50b49aa5242274fecdd8024c9b0b2a1440",
+            "warmup": false
+          }
+        ]
+      },
+      "summary": {
+        "original": {
+          "median": 64.83239800000001,
+          "min": 54.521958999999924,
+          "max": 70.96025199999997,
+          "samples": 5
+        },
+        "candidate": {
+          "median": 65.209923,
+          "min": 54.63385100000005,
+          "max": 69.93069600000001,
+          "samples": 5
+        }
+      },
+      "bytes": {
+        "original": {
+          "allocatedArrays": [
+            {
+              "type": "Uint8ClampedArray",
+              "length": 2621440,
+              "bytes": 2621440
+            },
+            {
+              "type": "Int32Array",
+              "length": 655360,
+              "bytes": 2621440
+            },
+            {
+              "type": "Int32Array",
+              "length": 163840,
+              "bytes": 655360
+            },
+            {
+              "type": "Int32Array",
+              "length": 1024,
+              "bytes": 4096
+            },
+            {
+              "type": "Int32Array",
+              "length": 2048,
+              "bytes": 8192
+            },
+            {
+              "type": "Int32Array",
+              "length": 4096,
+              "bytes": 16384
+            },
+            {
+              "type": "Int32Array",
+              "length": 8192,
+              "bytes": 32768
+            },
+            {
+              "type": "Int32Array",
+              "length": 16384,
+              "bytes": 65536
+            },
+            {
+              "type": "Int32Array",
+              "length": 32768,
+              "bytes": 131072
+            },
+            {
+              "type": "Int32Array",
+              "length": 65536,
+              "bytes": 262144
+            },
+            {
+              "type": "Int32Array",
+              "length": 131072,
+              "bytes": 524288
+            },
+            {
+              "type": "Int32Array",
+              "length": 109280,
+              "bytes": 437120
+            }
+          ],
+          "totalTypedArrayAllocatedBytes": 7379840
+        },
+        "candidate": {
+          "allocatedArrays": [
+            {
+              "type": "Uint8ClampedArray",
+              "length": 2621440,
+              "bytes": 2621440
+            },
+            {
+              "type": "Uint8Array",
+              "length": 655360,
+              "bytes": 655360
+            },
+            {
+              "type": "Int32Array",
+              "length": 163840,
+              "bytes": 655360
+            },
+            {
+              "type": "Int32Array",
+              "length": 1024,
+              "bytes": 4096
+            },
+            {
+              "type": "Int32Array",
+              "length": 2048,
+              "bytes": 8192
+            },
+            {
+              "type": "Int32Array",
+              "length": 4096,
+              "bytes": 16384
+            },
+            {
+              "type": "Int32Array",
+              "length": 8192,
+              "bytes": 32768
+            },
+            {
+              "type": "Int32Array",
+              "length": 16384,
+              "bytes": 65536
+            },
+            {
+              "type": "Int32Array",
+              "length": 32768,
+              "bytes": 131072
+            },
+            {
+              "type": "Int32Array",
+              "length": 65536,
+              "bytes": 262144
+            },
+            {
+              "type": "Int32Array",
+              "length": 131072,
+              "bytes": 524288
+            },
+            {
+              "type": "Int32Array",
+              "length": 109280,
+              "bytes": 437120
+            }
+          ],
+          "totalTypedArrayAllocatedBytes": 5413760
+        }
+      },
+      "typedBytesSaved": 1966080
+    },
+    {
+      "name": "small-items",
+      "width": 3456,
+      "height": 4032,
+      "cw": 144,
+      "ch": 192,
+      "per": 3,
+      "lift": 16,
+      "rise": 1.3333333333333333,
+      "inputHash": {
+        "art": "22337cb9d98c724e9d90ebec1c11a985b10458261a7482c18a5d13c890237ec8",
+        "heights": "45e3c532af728ae4b34a1daed7995e62e1254ecdabb23bfe3406e27dd088a108"
+      },
+      "outputHashes": {
+        "original": "c2f2aee9b992a11461045fd3548abe34fc95d69a946800b4053eef19f30a531e",
+        "candidate": "c2f2aee9b992a11461045fd3548abe34fc95d69a946800b4053eef19f30a531e"
+      },
+      "samples": {
+        "original": [
+          {
+            "pair": 0,
+            "ms": 1396.248291,
+            "outputHash": "c2f2aee9b992a11461045fd3548abe34fc95d69a946800b4053eef19f30a531e",
+            "warmup": true
+          },
+          {
+            "pair": 1,
+            "ms": 1367.7176879999997,
+            "outputHash": "c2f2aee9b992a11461045fd3548abe34fc95d69a946800b4053eef19f30a531e",
+            "warmup": true
+          },
+          {
+            "pair": 2,
+            "ms": 1267.5415969999995,
+            "outputHash": "c2f2aee9b992a11461045fd3548abe34fc95d69a946800b4053eef19f30a531e",
+            "warmup": false
+          },
+          {
+            "pair": 3,
+            "ms": 1495.574944,
+            "outputHash": "c2f2aee9b992a11461045fd3548abe34fc95d69a946800b4053eef19f30a531e",
+            "warmup": false
+          },
+          {
+            "pair": 4,
+            "ms": 1516.050951000001,
+            "outputHash": "c2f2aee9b992a11461045fd3548abe34fc95d69a946800b4053eef19f30a531e",
+            "warmup": false
+          },
+          {
+            "pair": 5,
+            "ms": 1139.2645709999997,
+            "outputHash": "c2f2aee9b992a11461045fd3548abe34fc95d69a946800b4053eef19f30a531e",
+            "warmup": false
+          },
+          {
+            "pair": 6,
+            "ms": 1145.4104480000024,
+            "outputHash": "c2f2aee9b992a11461045fd3548abe34fc95d69a946800b4053eef19f30a531e",
+            "warmup": false
+          }
+        ],
+        "candidate": [
+          {
+            "pair": 0,
+            "ms": 1712.0569440000004,
+            "outputHash": "c2f2aee9b992a11461045fd3548abe34fc95d69a946800b4053eef19f30a531e",
+            "warmup": true
+          },
+          {
+            "pair": 1,
+            "ms": 1300.42951,
+            "outputHash": "c2f2aee9b992a11461045fd3548abe34fc95d69a946800b4053eef19f30a531e",
+            "warmup": true
+          },
+          {
+            "pair": 2,
+            "ms": 1279.5027819999996,
+            "outputHash": "c2f2aee9b992a11461045fd3548abe34fc95d69a946800b4053eef19f30a531e",
+            "warmup": false
+          },
+          {
+            "pair": 3,
+            "ms": 1453.4523929999996,
+            "outputHash": "c2f2aee9b992a11461045fd3548abe34fc95d69a946800b4053eef19f30a531e",
+            "warmup": false
+          },
+          {
+            "pair": 4,
+            "ms": 1136.855552000001,
+            "outputHash": "c2f2aee9b992a11461045fd3548abe34fc95d69a946800b4053eef19f30a531e",
+            "warmup": false
+          },
+          {
+            "pair": 5,
+            "ms": 1184.7138810000015,
+            "outputHash": "c2f2aee9b992a11461045fd3548abe34fc95d69a946800b4053eef19f30a531e",
+            "warmup": false
+          },
+          {
+            "pair": 6,
+            "ms": 1129.3132010000008,
+            "outputHash": "c2f2aee9b992a11461045fd3548abe34fc95d69a946800b4053eef19f30a531e",
+            "warmup": false
+          }
+        ]
+      },
+      "summary": {
+        "original": {
+          "median": 1267.5415969999995,
+          "min": 1139.2645709999997,
+          "max": 1516.050951000001,
+          "samples": 5
+        },
+        "candidate": {
+          "median": 1184.7138810000015,
+          "min": 1129.3132010000008,
+          "max": 1453.4523929999996,
+          "samples": 5
+        }
+      },
+      "bytes": {
+        "original": {
+          "allocatedArrays": [
+            {
+              "type": "Uint8ClampedArray",
+              "length": 55738368,
+              "bytes": 55738368
+            },
+            {
+              "type": "Int32Array",
+              "length": 13934592,
+              "bytes": 55738368
+            },
+            {
+              "type": "Int32Array",
+              "length": 663552,
+              "bytes": 2654208
+            },
+            {
+              "type": "Int32Array",
+              "length": 1024,
+              "bytes": 4096
+            },
+            {
+              "type": "Int32Array",
+              "length": 2048,
+              "bytes": 8192
+            },
+            {
+              "type": "Int32Array",
+              "length": 4096,
+              "bytes": 16384
+            },
+            {
+              "type": "Int32Array",
+              "length": 8192,
+              "bytes": 32768
+            },
+            {
+              "type": "Int32Array",
+              "length": 16384,
+              "bytes": 65536
+            },
+            {
+              "type": "Int32Array",
+              "length": 32768,
+              "bytes": 131072
+            },
+            {
+              "type": "Int32Array",
+              "length": 65536,
+              "bytes": 262144
+            },
+            {
+              "type": "Int32Array",
+              "length": 131072,
+              "bytes": 524288
+            },
+            {
+              "type": "Int32Array",
+              "length": 262144,
+              "bytes": 1048576
+            },
+            {
+              "type": "Int32Array",
+              "length": 524288,
+              "bytes": 2097152
+            },
+            {
+              "type": "Int32Array",
+              "length": 1048576,
+              "bytes": 4194304
+            },
+            {
+              "type": "Int32Array",
+              "length": 2097152,
+              "bytes": 8388608
+            },
+            {
+              "type": "Int32Array",
+              "length": 4194304,
+              "bytes": 16777216
+            },
+            {
+              "type": "Int32Array",
+              "length": 2853144,
+              "bytes": 11412576
+            }
+          ],
+          "totalTypedArrayAllocatedBytes": 159093856
+        },
+        "candidate": {
+          "allocatedArrays": [
+            {
+              "type": "Uint8ClampedArray",
+              "length": 55738368,
+              "bytes": 55738368
+            },
+            {
+              "type": "Uint8Array",
+              "length": 13934592,
+              "bytes": 13934592
+            },
+            {
+              "type": "Int32Array",
+              "length": 663552,
+              "bytes": 2654208
+            },
+            {
+              "type": "Int32Array",
+              "length": 1024,
+              "bytes": 4096
+            },
+            {
+              "type": "Int32Array",
+              "length": 2048,
+              "bytes": 8192
+            },
+            {
+              "type": "Int32Array",
+              "length": 4096,
+              "bytes": 16384
+            },
+            {
+              "type": "Int32Array",
+              "length": 8192,
+              "bytes": 32768
+            },
+            {
+              "type": "Int32Array",
+              "length": 16384,
+              "bytes": 65536
+            },
+            {
+              "type": "Int32Array",
+              "length": 32768,
+              "bytes": 131072
+            },
+            {
+              "type": "Int32Array",
+              "length": 65536,
+              "bytes": 262144
+            },
+            {
+              "type": "Int32Array",
+              "length": 131072,
+              "bytes": 524288
+            },
+            {
+              "type": "Int32Array",
+              "length": 262144,
+              "bytes": 1048576
+            },
+            {
+              "type": "Int32Array",
+              "length": 524288,
+              "bytes": 2097152
+            },
+            {
+              "type": "Int32Array",
+              "length": 1048576,
+              "bytes": 4194304
+            },
+            {
+              "type": "Int32Array",
+              "length": 2097152,
+              "bytes": 8388608
+            },
+            {
+              "type": "Int32Array",
+              "length": 4194304,
+              "bytes": 16777216
+            },
+            {
+              "type": "Int32Array",
+              "length": 2853144,
+              "bytes": 11412576
+            }
+          ],
+          "totalTypedArrayAllocatedBytes": 117290080
+        }
+      },
+      "typedBytesSaved": 41803776
+    }
+  ],
+  "passed": true,
+  "ended": 1793873605581,
+  "resourceUsage": {
+    "userCPUTime": 23644150,
+    "systemCPUTime": 381440,
+    "maxRSS": 487960,
+    "sharedMemorySize": 0,
+    "unsharedDataSize": 0,
+    "unsharedStackSize": 0,
+    "minorPageFault": 162051,
+    "majorPageFault": 0,
+    "swappedOut": 0,
+    "fsRead": 0,
+    "fsWrite": 0,
+    "ipcSent": 0,
+    "ipcReceived": 0,
+    "signalsCount": 0,
+    "voluntaryContextSwitches": 2195,
+    "involuntaryContextSwitches": 3337
+  },
+  "memoryUsage": {
+    "rss": 469368832,
+    "heapTotal": 35966976,
+    "heapUsed": 25032936,
+    "external": 325635872,
+    "arrayBuffers": 320845151
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "scope": "Private original/candidate Uint8 visited-marker correction; no canonical source edit, no new browser",
+  "engineHEAD": "685ce27c6a1a17ca0775a567b51c298fe54d2a0b",
+  "files": [
+    {
+      "path": "manifest.json",
+      "sha256": "0895f9677416b162d3d969767c96af2ec37d3f2fabade1a286f04c7be7c5e25a",
+      "bytes": 698
+    },
+    {
+      "path": "original/shadow-pass.ts",
+      "sha256": "8b8d4b191dcb509b4a71b85c06995e7f5ea8d76ea74b38059c996fa9aea1a45a",
+      "bytes": 21076
+    },
+    {
+      "path": "candidate/shadow-pass.ts",
+      "sha256": "a7a10ee3bb87efe504bf5791c738f80deadcc76b7d4ca7e530bbd43e99cd11e8",
+      "bytes": 21052
+    },
+    {
+      "path": "original/historical-surface-fixture.ts",
+      "sha256": "19b81640d3f0c358b8edce0c4cbc9478abaa36cb5152d221496638267afda79a",
+      "bytes": 2240
+    },
+    {
+      "path": "load.mjs",
+      "sha256": "329162a9f37afbca39abaa3c1c696ed866fb41cbcf2e32046ca0527894d82df4",
+      "bytes": 3403
+    },
+    {
+      "path": "controls.mjs",
+      "sha256": "b20710e075ea996309c573bb11ddc908f722c51868301ede4f752d613b42c928",
+      "bytes": 4137
+    },
+    {
+      "path": "allocation-budget.mjs",
+      "sha256": "625dd73a1e928e4df6bb2c63ab49222718b55d0783d3e16d552545cf7943767f",
+      "bytes": 570
+    },
+    {
+      "path": "allocation-red.log",
+      "sha256": "9a1b16fbd685588c32d6f3476eba052370096ae866aa9ad63dc5e76c73105f2a",
+      "bytes": 653
+    },
+    {
+      "path": "allocation-green.log",
+      "sha256": "350c65898bc3cadc202ebd81452c088be1d15dec2a83d99377a735c26e27a448",
+      "bytes": 84
+    },
+    {
+      "path": "types.json",
+      "sha256": "2878584ab4b1b15ffe3cd1208622ee04c2ceb192bc1c5d5351ae00397a63e472",
+      "bytes": 212527
+    },
+    {
+      "path": "types.log",
+      "sha256": "b2067030499ea569a5e6e487ec83a8995513285d4edbb47e4d36b015612710a7",
+      "bytes": 94
+    },
+    {
+      "path": "coverage-summary.json",
+      "sha256": "db304e91e022a1af8f29646e7382dfeb25e3ac42aae2f0d09aafc9e252a51ff5",
+      "bytes": 675
+    },
+    {
+      "path": "controls.log",
+      "sha256": "fd247c977fd8f92ea13d73063464b3ef5232f0fa306b83a868f195cc55eb708b",
+      "bytes": 774
+    },
+    {
+      "path": "benchmark.mjs",
+      "sha256": "b40b336c41b34384d519da4004b2f7ae2ad5908d89227298b8e967fcf8633693",
+      "bytes": 2936
+    }
+  ],
+  "requestedCommand": "timeout --signal=TERM --kill-after=2s 30s node /tmp/paint-surface-markers/benchmark.mjs",
+  "outerMs": 30000,
+  "schedule": "For each exact dimension case, original first, seven balanced old/new pairs; first two pairs warmup, five measured; then separate instrumented allocation passes and output hashes. No forced GC/new dependencies/native rendering.",
+  "inputs": "Fixed synthetic occupied silhouettes; exact actual nature1024x640/cell128x160/per3.2/lift20/rise4/3 and smallitems3456x4032/cell144x192/per3/lift16/rise4/3. Not actual captured bitmap pixels.",
+  "gates": "Seven scoped parity/allocation/frontier/golden controls pass, original allocation budget red6068B\u2192candidategreen1517B at1517pixels; strict original/candidate515-fileclosure0errors; changedsourcecoverage100%.",
+  "outerAuthority": "Independent GNU timeout supervisor; event-loop helper timer is secondary/non-authoritative."
+}

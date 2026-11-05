@@ -1,0 +1,35 @@
+{
+  "sourceSHA256": "a7a10ee3bb87efe504bf5791c738f80deadcc76b7d4ca7e530bbd43e99cd11e8",
+  "exactEmbeddedSource": true,
+  "changedLines": [
+    209,
+    255,
+    268,
+    269,
+    287
+  ],
+  "metrics": {
+    "lines": {
+      "covered": 5,
+      "total": 5,
+      "pct": 100
+    },
+    "statements": {
+      "covered": 12,
+      "total": 12,
+      "pct": 100
+    },
+    "functions": {
+      "covered": 0,
+      "total": 0,
+      "pct": 100
+    },
+    "branches": {
+      "covered": 8,
+      "total": 8,
+      "pct": 100
+    }
+  },
+  "passed": true,
+  "qualification": "Exact engine algorithm extraction and source maps; no Pixi rendering/GPU or whole-engine coverage claim."
+}

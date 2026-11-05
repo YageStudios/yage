@@ -206,7 +206,7 @@ export const paintSurface = (art: ImageData, heights: ImageData, cell: [number, 
   const a = art.data, hd = heights.data;
   const out = { width, height, data: new Uint8ClampedArray(width * height * 4) };
   const od = out.data;
-  const found = new Int32Array(width * height).fill(-1);
+  const found = new Uint8Array(width * height);
   const shift = Math.round(lift * per);
   // A row of cells at a time, each texel's nearest solid heights texel at or above it in its column within the cell
   // (-1: none): a view ray skips the open heights between solids instead of stepping through them a px at a time.
@@ -252,7 +252,7 @@ export const paintSurface = (art: ImageData, heights: ImageData, cell: [number, 
           od[4 * k + 1] = (color >> 8) & 255;
           od[4 * k + 2] = onTop ? color & 255 : 128;
           od[4 * k + 3] = Math.min(254, Math.max(1, hd[j + 2]));
-          found[k] = k;
+          found[k] = 1;
           if (queued === queue.length) { const grown = new Int32Array(queued * 2); grown.set(queue); queue = grown; }
           queue[queued++] = k;
           break;
@@ -265,8 +265,8 @@ export const paintSurface = (art: ImageData, heights: ImageData, cell: [number, 
   // Fringes: the nearest surface, a px a round.
   let next = new Int32Array(Math.max(1024, queued)), nexted = 0;
   const spread = (k: number, n: number) => {
-    if (found[n] >= 0 || a[4 * n + 3] < 8) return;
-    found[n] = found[k];
+    if (found[n] || a[4 * n + 3] < 8) return;
+    found[n] = 1;
     od.copyWithin(4 * n, 4 * k, 4 * k + 4);
     if (nexted === next.length) { const grown = new Int32Array(nexted * 2); grown.set(next); next = grown; }
     next[nexted++] = n;
@@ -284,7 +284,7 @@ export const paintSurface = (art: ImageData, heights: ImageData, cell: [number, 
     [queue, next] = [next, queue];
     queued = nexted;
   }
-  for (let k = 0; k < width * height; k++) if (found[k] < 0 && a[4 * k + 3] >= 8) { od[4 * k] = 0; od[4 * k + 1] = 0; od[4 * k + 2] = 0; od[4 * k + 3] = 255; }
+  for (let k = 0; k < width * height; k++) if (!found[k] && a[4 * k + 3] >= 8) { od[4 * k] = 0; od[4 * k + 1] = 0; od[4 * k + 2] = 0; od[4 * k + 3] = 255; }
   return out;
 };
 
