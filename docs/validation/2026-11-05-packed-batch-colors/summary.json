@@ -1,0 +1,382 @@
+{
+  "cpu": {
+    "A": {
+      "n": 8,
+      "median": 10.998437500093132,
+      "p95": 12.037499999627471,
+      "worst": 12.037499999627471
+    },
+    "B": {
+      "n": 8,
+      "median": 8.917812500149012,
+      "p95": 9.252500000409782,
+      "worst": 9.252500000409782
+    }
+  },
+  "phases": {
+    "setup": {
+      "stage": {
+        "n": 66,
+        "median": 10.277499999850988,
+        "p95": 16.560000002384186,
+        "worst": 21.269999995827675
+      },
+      "endIntervals": {
+        "n": 65,
+        "median": 16.975000001490116,
+        "p95": 43.53999999910593,
+        "worst": 1340.625
+      },
+      "packs": {
+        "n": 66,
+        "median": 6672.5,
+        "p95": 7188,
+        "worst": 8844
+      },
+      "first": {
+        "at": 988332.2050000057,
+        "view": {
+          "x": 960,
+          "y": -960,
+          "zoom": 0.4,
+          "now": 988298.9350000024
+        },
+        "clock": {
+          "paused": false,
+          "speed": 1
+        },
+        "authority": {
+          "last": 58257,
+          "tick": 58257
+        },
+        "contextLost": false,
+        "visible": "visible",
+        "began": 988311.3700000048,
+        "ended": 988332.2050000057,
+        "phase": "setup",
+        "success": true,
+        "packCalls": 8844
+      },
+      "last": {
+        "at": 991455.9450000003,
+        "view": {
+          "x": 960,
+          "y": -960,
+          "zoom": 0.4,
+          "now": 991441.3700000048
+        },
+        "clock": {
+          "paused": false,
+          "speed": 1
+        },
+        "authority": {
+          "last": 58317,
+          "tick": -1
+        },
+        "contextLost": false,
+        "visible": "visible",
+        "began": 991446.1200000048,
+        "ended": 991455.9450000003,
+        "phase": "setup",
+        "success": true,
+        "packCalls": 6734
+      }
+    },
+    "0-A": {
+      "stage": {
+        "n": 91,
+        "median": 3.530000001192093,
+        "p95": 10.820000000298023,
+        "worst": 26.61999999731779
+      },
+      "endIntervals": {
+        "n": 91,
+        "median": 16.509999997913837,
+        "p95": 21.91999999433756,
+        "worst": 48.71000000089407
+      },
+      "packs": {
+        "n": 91,
+        "median": 629,
+        "p95": 6735,
+        "worst": 6737
+      },
+      "first": {
+        "at": 991504.6550000012,
+        "view": {
+          "x": 960,
+          "y": -960,
+          "zoom": 0.4,
+          "now": 991460.200000003
+        },
+        "clock": {
+          "paused": false,
+          "speed": 1
+        },
+        "authority": {
+          "last": 58320,
+          "tick": 58320
+        },
+        "contextLost": false,
+        "visible": "visible",
+        "began": 991494.7749999985,
+        "ended": 991504.6550000012,
+        "phase": "0-A",
+        "success": true,
+        "packCalls": 6735
+      },
+      "last": {
+        "at": 993025.0850000009,
+        "view": {
+          "x": 960,
+          "y": -960,
+          "zoom": 0.4,
+          "now": 993018.6950000003
+        },
+        "clock": {
+          "paused": false,
+          "speed": 1
+        },
+        "authority": {
+          "last": 58413,
+          "tick": 58413
+        },
+        "contextLost": false,
+        "visible": "visible",
+        "began": 993021.9100000039,
+        "ended": 993025.0850000009,
+        "phase": "0-A",
+        "success": true,
+        "packCalls": 625
+      }
+    },
+    "1-B": {
+      "stage": {
+        "n": 91,
+        "median": 3.25,
+        "p95": 4.83500000089407,
+        "worst": 21.58500000089407
+      },
+      "endIntervals": {
+        "n": 91,
+        "median": 16.50500000268221,
+        "p95": 18.390000000596046,
+        "worst": 35.16499999910593
+      },
+      "packs": {
+        "n": 91,
+        "median": 625,
+        "p95": 625,
+        "worst": 625
+      },
+      "first": {
+        "at": 993040.9050000012,
+        "view": {
+          "x": 960,
+          "y": -960,
+          "zoom": 0.4,
+          "now": 993032.7650000006
+        },
+        "clock": {
+          "paused": false,
+          "speed": 1
+        },
+        "authority": {
+          "last": 58413,
+          "tick": -1
+        },
+        "contextLost": false,
+        "visible": "visible",
+        "began": 993037.2550000027,
+        "ended": 993040.9050000012,
+        "phase": "1-B",
+        "success": true,
+        "packCalls": 625
+      },
+      "last": {
+        "at": 994543.5800000057,
+        "view": {
+          "x": 960,
+          "y": -960,
+          "zoom": 0.4,
+          "now": 994537.8599999994
+        },
+        "clock": {
+          "paused": false,
+          "speed": 1
+        },
+        "authority": {
+          "last": 58503,
+          "tick": -1
+        },
+        "contextLost": false,
+        "visible": "visible",
+        "began": 994540.2749999985,
+        "ended": 994543.5800000057,
+        "phase": "1-B",
+        "success": true,
+        "packCalls": 625
+      }
+    },
+    "2-B": {
+      "stage": {
+        "n": 90,
+        "median": 3.4249999970197678,
+        "p95": 4.535000003874302,
+        "worst": 28.46000000089407
+      },
+      "endIntervals": {
+        "n": 90,
+        "median": 16.529999997466803,
+        "p95": 18.600000001490116,
+        "worst": 52.850000001490116
+      },
+      "packs": {
+        "n": 90,
+        "median": 627.0,
+        "p95": 627,
+        "worst": 627
+      },
+      "first": {
+        "at": 994557.9299999997,
+        "view": {
+          "x": 960,
+          "y": -960,
+          "zoom": 0.4,
+          "now": 994549.4800000042
+        },
+        "clock": {
+          "paused": false,
+          "speed": 1
+        },
+        "authority": {
+          "last": 58503,
+          "tick": -1
+        },
+        "contextLost": false,
+        "visible": "visible",
+        "began": 994553.5,
+        "ended": 994557.9299999997,
+        "phase": "2-B",
+        "success": true,
+        "packCalls": 625
+      },
+      "last": {
+        "at": 996075.5399999991,
+        "view": {
+          "x": 960,
+          "y": -960,
+          "zoom": 0.4,
+          "now": 996066.4650000036
+        },
+        "clock": {
+          "paused": false,
+          "speed": 1
+        },
+        "authority": {
+          "last": 58593,
+          "tick": -1
+        },
+        "contextLost": false,
+        "visible": "visible",
+        "began": 996071.7050000057,
+        "ended": 996075.5399999991,
+        "phase": "2-B",
+        "success": true,
+        "packCalls": 627
+      }
+    },
+    "3-A": {
+      "stage": {
+        "n": 90,
+        "median": 4.339999999850988,
+        "p95": 6.185000002384186,
+        "worst": 34.96999999880791
+      },
+      "endIntervals": {
+        "n": 90,
+        "median": 16.58999999985099,
+        "p95": 19.589999996125698,
+        "worst": 46.57999999821186
+      },
+      "packs": {
+        "n": 90,
+        "median": 627.0,
+        "p95": 627,
+        "worst": 627
+      },
+      "first": {
+        "at": 996091.4250000045,
+        "view": {
+          "x": 960,
+          "y": -960,
+          "zoom": 0.4,
+          "now": 996083.1300000027
+        },
+        "clock": {
+          "paused": false,
+          "speed": 1
+        },
+        "authority": {
+          "last": 58596,
+          "tick": 58596
+        },
+        "contextLost": false,
+        "visible": "visible",
+        "began": 996087.9900000021,
+        "ended": 996091.4250000045,
+        "phase": "3-A",
+        "success": true,
+        "packCalls": 627
+      },
+      "last": {
+        "at": 997596.0050000027,
+        "view": {
+          "x": 960,
+          "y": -960,
+          "zoom": 0.4,
+          "now": 997588.4299999997
+        },
+        "clock": {
+          "paused": false,
+          "speed": 1
+        },
+        "authority": {
+          "last": 58683,
+          "tick": -1
+        },
+        "contextLost": false,
+        "visible": "visible",
+        "began": 997591.3700000048,
+        "ended": 997596.0050000027,
+        "phase": "3-A",
+        "success": true,
+        "packCalls": 627
+      }
+    }
+  },
+  "allRetainedFrames": 428,
+  "allStage": {
+    "n": 428,
+    "median": 3.735000003129244,
+    "p95": 12.67000000178814,
+    "worst": 34.96999999880791
+  },
+  "allEndIntervals": {
+    "n": 427,
+    "median": 16.560000002384186,
+    "p95": 23.364999994635582,
+    "worst": 1340.625
+  },
+  "peakPSS": 2707425280,
+  "samplerRows": 19,
+  "qualification": "Frame-end intervals are ordinary stage-completion intervals, not complete callback duration. All setup/tails retained separately. Synthetic repeated CPU workload blocked main thread before frame phases; no forcedGC. Normal active inputs/cohort can evolve.",
+  "actualInput": {
+    "batches": 7223,
+    "eligibleNumericRGB": 7223,
+    "tints": 781,
+    "typedBackingBytes": 614252,
+    "fixtureSHA256": "929ca87cf0b26f290269cfbaf339ffc4f6e497b24514b107e6afd01b8af1de13",
+    "fullBufferParity": true
+  }
+}

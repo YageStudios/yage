@@ -6,6 +6,7 @@ import { PixiViewport, PixiViewportCleanup } from "yage/schemas/render/PixiViewp
 import * as PIXI from "pixi.js";
 import { DEPTHS } from "yage/constants/enums";
 import { setGlobalSingleton } from "yage/global";
+import { installPackedBatchColors } from "./packed-batch-colors";
 
 export interface PixiViewportOptions {
   /** Hold scene drawing behind a loading screen while the model continues preparing. Default: render every frame. */
@@ -39,6 +40,7 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
   private static activeRoomId = "";
   private static drawLogCount = 0;
   private static options: PixiViewportOptions = {};
+  private static releasePackedBatchColors?: () => void;
 
   /** Configure the shared Pixi app. Call before the first PixiViewport entity is created. */
   static configure(options: PixiViewportOptions): void {
@@ -150,6 +152,7 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
   init = (gameModel: ReadOnlyGameModel, entity: number) => {
     if (!PixiViewportSystem.pixiApp && typeof window !== "undefined") {
       this.initializeSharedPixi();
+      PixiViewportSystem.releasePackedBatchColors = installPackedBatchColors(this.pixiApp.renderer);
     }
 
     const schema = gameModel.getTypedUnsafe(PixiViewport, entity);
@@ -293,6 +296,8 @@ export class PixiViewportSystem extends DrawSystemImpl<ReadOnlyGameModel> {
 
     // Clean up shared resources if this is the last instance
     if (PixiViewportSystem.instanceCount === 0) {
+      PixiViewportSystem.releasePackedBatchColors?.();
+      PixiViewportSystem.releasePackedBatchColors = undefined;
       if (!PixiViewportSystem.options.app) PixiViewportSystem.pixiApp?.destroy(true);
       // @ts-ignore
       PixiViewportSystem.pixiApp = null;

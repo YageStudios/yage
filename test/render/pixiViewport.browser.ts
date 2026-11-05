@@ -39,6 +39,21 @@ const box = (width: number, height: number) => {
 
 const cases: [string, () => void][] = [
   [
+    "app: a custom batch packer is preserved through viewport lifetime",
+    () => {
+      const own = new PIXI.Application({ width: 640, height: 360, autoStart: false });
+      const pack = own.renderer.plugins.batch.packInterleavedGeometry;
+      const custom = function (this: PIXI.BatchRenderer, ...args: Parameters<PIXI.BatchRenderer["packInterleavedGeometry"]>) { return pack.apply(this, args); };
+      own.renderer.plugins.batch.packInterleavedGeometry = custom;
+      const { model } = mount({ app: own });
+      check(own.renderer.plugins.batch.packInterleavedGeometry === custom, "custom batch packer replaced");
+      model.destroy();
+      check(own.renderer.plugins.batch.packInterleavedGeometry === custom, "custom batch packer changed on cleanup");
+      own.destroy(true);
+    },
+  ],
+
+  [
     "cleanup: a viewport stays visible for its player and hides when the player leaves",
     () => {
       const { model, viewport } = mount({});
@@ -113,6 +128,7 @@ const cases: [string, () => void][] = [
       document.body.appendChild(own.view as HTMLCanvasElement);
       const { model, viewport, app } = mount({ app: own });
       check(app === own, "not the caller's app");
+      check(own.renderer.plugins.batch.packInterleavedGeometry !== PIXI.BatchRenderer.prototype.packInterleavedGeometry, "default batch colors were not installed");
       check(document.querySelectorAll("canvas").length === 1, "created a second canvas", document.querySelectorAll("canvas").length);
       check(viewport.screenWidth === 640 && viewport.screenHeight === 360, "viewport size", [viewport.screenWidth, viewport.screenHeight]);
       check(near(viewport.scale.x, 640 / 1920), "base zoom", viewport.scale.x);
@@ -121,6 +137,7 @@ const cases: [string, () => void][] = [
       check(viewport.screenWidth === 1280 && near(viewport.scale.x, 1280 / 1920), "viewport did not follow the app", [viewport.screenWidth, viewport.scale.x]);
       model.destroy();
       check(!!own.renderer && !!own.stage && (own.view as HTMLCanvasElement).isConnected, "the caller's app was destroyed");
+      check(own.renderer.plugins.batch.packInterleavedGeometry === PIXI.BatchRenderer.prototype.packInterleavedGeometry, "caller batch packer was not restored");
       own.destroy(true);
     },
   ],
