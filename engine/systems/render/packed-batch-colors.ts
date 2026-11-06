@@ -32,7 +32,9 @@ export function packedTint(
 
 /** Change only the default packer on this renderer; a custom batch plugin keeps its own packing. */
 export function installPackedBatchColors(renderer: PIXI.IRenderer): () => void {
-  const batch = renderer.plugins.batch;
+  const batch = renderer.plugins?.batch;
+  // A renderer without the batch plugin (a test's stand-in) has no default packer to change.
+  if (!batch) return () => {};
   if (
     !(batch instanceof PIXI.BatchRenderer) ||
     Reflect.get(batch, "vertexSize") !== 6 ||

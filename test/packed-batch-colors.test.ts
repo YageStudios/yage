@@ -11,7 +11,7 @@ vi.unmock("pixi.js");
 const before = PIXI.BatchRenderer.prototype.packInterleavedGeometry;
 const batch = Object.create(PIXI.BatchRenderer.prototype);
 batch.vertexSize = 6;
-const renderer = { plugins: { batch } } as PIXI.Renderer;
+const renderer = { plugins: { batch } } as unknown as PIXI.Renderer;
 let restore: () => void;
 beforeAll(() => {
   class Canvas {
@@ -101,7 +101,7 @@ test("negative and nonfinite world alpha preserve original packed bits", () => {
 test("missing/custom batch implementation remains untouched; release respects a later owner", () => {
   const unusual = Object.create(PIXI.BatchRenderer.prototype);
   unusual.vertexSize = 7;
-  installPackedBatchColors({ plugins: { batch: unusual } } as PIXI.Renderer)();
+  installPackedBatchColors({ plugins: { batch: unusual } } as unknown as PIXI.Renderer)();
   expect(unusual.packInterleavedGeometry).toBe(before);
   const own = () => {};
   const custom = {
@@ -112,7 +112,7 @@ test("missing/custom batch implementation remains untouched; release respects a 
   const other = Object.create(PIXI.BatchRenderer.prototype);
   other.vertexSize = 6;
   other.packInterleavedGeometry = own;
-  const r = { plugins: { batch: other } } as PIXI.Renderer;
+  const r = { plugins: { batch: other } } as unknown as PIXI.Renderer;
   installPackedBatchColors(r)();
   expect(other.packInterleavedGeometry).toBe(own);
   restore();
