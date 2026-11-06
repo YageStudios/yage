@@ -1,9 +1,12 @@
+import { preloadPackedAssets } from "./PackedAssetPreload";
 /**
  * Immutable, content-addressed assets. A successful write means its transaction committed. With `offset`,
  * the asset is the `bytes` at that offset in the file at `path` (fetched by HTTP range), hashed on their own.
  */
 export type AssetRecord = { path: string; bytes: number; sha256: string; offset?: number };
 export type AssetStore = {
+  readMany?(keys: readonly string[]): Promise<(ArrayBuffer | undefined)[]>;
+  writeMany?(entries: readonly (readonly [string, ArrayBuffer])[]): Promise<void>;
   read(key: string): Promise<ArrayBuffer | undefined>;
   write(key: string, bytes: ArrayBuffer): Promise<void>;
 };
@@ -49,6 +52,30 @@ export class IndexedDBAssetStore implements AssetStore {
       transaction.oncomplete = () => resolve(request.result);
       transaction.onabort = () =>
         reject(transaction.error ?? new Error("Asset read aborted"));
+      transaction.onerror = () => reject(transaction.error);
+    });
+  }
+
+  async readMany(keys: readonly string[]): Promise<(ArrayBuffer | undefined)[]> {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction("assets", "readonly");
+      const store = transaction.objectStore("assets");
+      const requests = keys.map(key => store.get(key));
+      transaction.oncomplete = () => resolve(requests.map(request => request.result));
+      transaction.onabort = () => reject(transaction.error ?? new Error("Asset batch read aborted"));
+      transaction.onerror = () => reject(transaction.error);
+    });
+  }
+
+  async writeMany(entries: readonly (readonly [string, ArrayBuffer])[]): Promise<void> {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction("assets", "readwrite");
+      const store = transaction.objectStore("assets");
+      for (const [key, bytes] of entries) store.put(bytes, key);
+      transaction.oncomplete = () => resolve();
+      transaction.onabort = () => reject(transaction.error ?? new Error("Asset batch write aborted"));
       transaction.onerror = () => reject(transaction.error);
     });
   }
@@ -147,6 +174,18 @@ export class AssetCache {
       error => ({ error })
     );
     return { bytes, persisted };
+  }
+
+  /** Import packed ranges in contiguous reads and committed batches, preserving each member's hash key. */
+  async preloadPacked(base: string, assets: readonly AssetRecord[], progress: (complete: number, total: number) => void = () => {}): Promise<void> {
+    const whole = assets.filter(asset => asset.offset === undefined || asset.bytes === 0);
+    const ranges = assets.filter(asset => asset.offset !== undefined && asset.bytes > 0);
+    const total = assets.reduce((sum, asset) => sum + asset.bytes, 0);
+    let complete = 0;
+    await this.preload(base, whole, done => { complete = done; progress(complete, total); });
+    await preloadPackedAssets(base, ranges, this.store, this.fetcher, bytes => {
+      complete += bytes; progress(complete, total);
+    }, key => this.verified.add(key));
   }
 
   /**
