@@ -1575,7 +1575,10 @@ export class ChunkScene {
   private placedGid = -1;
   private placedKey = -1;
   private readonly entities: LayerKind;
-  private readonly propKinds: LayerKind[];
+  private readonly propKinds: (LayerKind | null)[];
+  private propLight: [number, number, number] = [1, 1, 1];
+  private propShadow = 1;
+  private readonly fixedPropCount: number;
   private readonly options: ChunkSceneOptions;
 
   constructor(options: ChunkSceneOptions) {
@@ -1587,6 +1590,7 @@ export class ChunkScene {
     this.entities = new LayerKind(options.style);
     const props = options.props ? (Array.isArray(options.props) ? options.props : [options.props]) : [];
     this.propKinds = props.map((style: ChunkLayerStyle) => new LayerKind(style));
+    this.fixedPropCount = this.propKinds.length;
     this.far = options.farBake ? new FarBake(options.chunkSize, options.farBake) : null;
     this.statics.far = this.far;
     const far = this.far ? [this.far.root] : [];
@@ -1608,9 +1612,11 @@ export class ChunkScene {
    * there is no sun to cast them, though a sprite still darkens the ground under it).
    */
   setLight(light: [number, number, number], shadow = 1, sun = shadow) {
+    this.propLight = [...light];
+    this.propShadow = shadow;
     this.entities.setLight(light, shadow);
     this.castRoot.darkness = (this.options.castShadow ?? 0.2) * sun;
-    for (const kind of this.propKinds) kind.setLight(light, shadow);
+    for (const kind of this.propKinds) kind?.setLight(light, shadow);
     const rgb = light.reduce((v, c) => (v << 8) | Math.round(Math.max(0, Math.min(1, c)) * 255), 0);
     if (rgb !== this.lightTint) {
       this.lightTint = rgb;
@@ -1721,7 +1727,8 @@ export class ChunkScene {
   setProps(cx: number, cy: number, props: Snapshot | null, set = 0) {
     const kind = this.propKinds[set];
     if (!kind) throw new Error(`ChunkScene was created without props style ${set}`);
-    const view = this.view(cx, cy);
+    const view = props ? this.view(cx, cy) : this.views.get(chunkKey(cx, cy));
+    if (!view) return;
     let layer = view.propSets[set] ?? null;
     if (!props) {
       layer?.destroy();
@@ -1733,6 +1740,27 @@ export class ChunkScene {
     }
     view.propSets[set] = layer;
     if (set === 0) view.props = layer;
+  }
+
+  /** Registers a streamed prop atlas. The caller owns its textures until retirement. */
+  addPropStyle(style: ChunkLayerStyle): number {
+    const vacant = this.propKinds.findIndex((kind, i) => i >= this.fixedPropCount && kind === null);
+    const index = vacant < 0 ? this.propKinds.length : vacant;
+    const kind = new LayerKind(style);
+    kind.setLight(this.propLight, this.propShadow);
+    this.propKinds[index] = kind;
+    return index;
+  }
+
+  /** Remove every referencing layer before the caller disposes its page textures. */
+  removePropStyle(set: number): void {
+    if (set < this.fixedPropCount) throw new Error("Cannot retire a fixed prop style");
+    if (!this.propKinds[set]) return;
+    for (const view of this.views.values()) {
+      view.propSets[set]?.destroy();
+      view.propSets[set] = null;
+    }
+    this.propKinds[set] = null;
   }
 
   /** Poses a chunk's entities (see `ChunkLayer.setPoses`); nothing until its layer exists. */
