@@ -28,7 +28,7 @@
  * load gives them back before the first tick.
  */
 
-import type { ChunkAddress } from "./coord";
+import { spaceChunkKey, type ChunkAddress } from "./coord";
 
 /** Wire format version. Bump on any layout change. */
 export const PROTOCOL_VERSION = 12;
@@ -537,6 +537,28 @@ const snapshotViews = (bytes: Uint8Array, space: number, cx: number, cy: number,
   const tint = new Uint8Array(buffer, offset, count);
   return { space, cx, cy, tick, count, gid, x, y, sprite, tint, bytes };
 };
+
+/**
+ * What a newer message replaces before it is sent: a snapshot is the whole of its chunk's state at
+ * its tick, so an unsent one is superseded by the next of the same chunk (its `spaceChunkKey`).
+ * Every other message (commands, stats, hand-offs, overlays with their events, …) is reliable: null.
+ */
+export const replaceableKey = (bytes: Uint8Array): number | null => {
+  if (bytes.byteLength < SNAPSHOT_HEADER || bytes[0] !== Op.Snapshot) return null;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, SNAPSHOT_HEADER);
+  return spaceChunkKey(view.getUint16(2, true), view.getInt32(4, true), view.getInt32(8, true));
+};
+
+/** Snapshots a second a remote client is sent by default (`remoteSnapshotEvery`): presentation only, the simulation steps at its own rate. */
+export const REMOTE_SNAPSHOT_HZ = 15;
+
+/**
+ * The `snapshotEvery` (ticks) that sends a chunk's snapshots at most `hz` times a wall second while
+ * its host runs `ticksPerSecond` ticks a second at `speed`: game speed doesn't multiply the network
+ * rate. Paused (speed 0) keeps real time's. At least 1, at most a Tier message's u8.
+ */
+export const remoteSnapshotEvery = (ticksPerSecond: number, speed = 1, hz = REMOTE_SNAPSHOT_HZ) =>
+  Math.min(255, Math.max(1, Math.ceil((ticksPerSecond * (speed > 0 ? speed : 1)) / Math.max(1e-3, hz) - 1e-9)));
 
 export const decodeSnapshot = (input: Uint8Array): Snapshot => {
   // Typed views need aligned offsets; socket frames may arrive at any offset.
