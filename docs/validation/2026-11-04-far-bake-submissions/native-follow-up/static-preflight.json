@@ -1,0 +1,9 @@
+{
+  "syntax": "node --check passed",
+  "manifestSHA256": "a333d6a81434bceab3a2945e982a4d8bb9cf19ddde4e187fcbf458fcfcf9964c",
+  "candidateSHA256": "bea775fc35f5f591647f2260abca631630702902a4bfd5b3a2e09372b30b8b96",
+  "originalSHA256": "206f535cdabef949b8c16bc744c576ec20e573d48cbf462070ceb68fda52b815",
+  "driverSHA256": "5f39305c3ca34f09a8b07b7a34ea5fd9b17c7c879023ae8580f659a5eec47d20",
+  "optimizerSHA256": "036db29fb468136ca4524a2827599813c331d163a41f487c9ae11cac43a38f5a",
+  "note": "File-only source-presence guards; no browser or runtime import/registry proof."
+}

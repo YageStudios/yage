@@ -1,0 +1,19 @@
+{
+  "variantRecord": {
+    "variant": "after",
+    "candidateUrl": "http://127.0.0.1:5412/@fs/data/workspace/sky-harbor/worldmap-integration/yage/engine/streaming/far.ts?g=mw2iar8n0",
+    "baselineUrl": "http://127.0.0.1:5412/@fs/data/workspace/sky-harbor/worldmap-integration/yage/engine/streaming/far.ts?g=mw2iar8n0&farBaseline=1",
+    "tilesBefore": 0,
+    "members": 34,
+    "active": false,
+    "functionSHA256": "294e0e211f217e7c6b73cfb0e4161ef58bad80648932aa3bba3dfeed7fb809f5"
+  },
+  "beforeSource": {
+    "bytes": 21376,
+    "sha256": "206f535cdabef949b8c16bc744c576ec20e573d48cbf462070ceb68fda52b815"
+  },
+  "optimizerBefore": {
+    "bytes": 5970,
+    "sha256": "036db29fb468136ca4524a2827599813c331d163a41f487c9ae11cac43a38f5a"
+  }
+}

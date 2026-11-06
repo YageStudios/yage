@@ -142,3 +142,9 @@ test's union-method restoration assignment. Both logs are retained. Coverage
 uses the already installed Istanbul instrumenter/remapper in the existing
 scoped-check pattern; no dependency is installed. Test restoration now uses
 method-specific branches.
+
+The subsequent [same-graph native comparison](native-follow-up/README.md)
+confirms normal output and actual eviction but has mixed frame/loading results.
+Midzoom completion worsens while the observed return improves; both still fail
+the requested performance target. Its full distributions and limitations are
+retained separately from this fixed-input microbenchmark.
