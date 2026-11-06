@@ -3,7 +3,7 @@ import { vi } from "vitest";
 vi.unmock("pixi.js");
 import * as PIXI from "pixi.js";
 import { describe, expect, it } from "vitest";
-import { ChunkScene, type ChunkLayerStyle } from "yage/streaming/layer";
+import { ChunkScene, POSE, type ChunkLayerStyle } from "yage/streaming/layer";
 import { createSnapshot, EMPTY_SLOT, POSITION_SCALE } from "yage/streaming/protocol";
 
 HTMLCanvasElement.prototype.getContext = (() => null) as never;
@@ -115,6 +115,63 @@ describe("ChunkLayer place", () => {
     layer.flushPatches(renderer);
     expect(sent).toEqual([]);
     expect(drawn("aCurX")).toEqual([6 * POSITION_SCALE, 31]);
+    scene.destroy();
+  });
+
+  it("finds each entity's slot and its owners by gid, both while handed off, kept until the snapshot changes", () => {
+    const scene = new ChunkScene({ chunkSize: 2048, style });
+    scene.push(snapshot(1, [7, 8, 7, 9], [10, 20, 30, 40], 0), 0);
+    scene.push(snapshot(1, [5, 8], [1, 2], 1), 0);
+    const a = scene.view(0, 0).layer!, b = scene.view(1, 0).layer!;
+    expect([a.slotOf(7), a.slotOf(8), a.slotOf(9), a.slotOf(4)]).toEqual([0, 1, 3, -1]);
+    expect(a.slotOf(7, 1)).toBe(2);
+    expect(a.slotOf(7, 3)).toBe(-1);
+    // Past a handful of gids the snapshot is indexed whole: the same answers, the first slot winning.
+    for (let gid = 100; gid < 110; gid++) expect(a.slotOf(gid)).toBe(-1);
+    expect([a.slotOf(7), a.slotOf(8), a.slotOf(9)]).toEqual([0, 1, 3]);
+    expect(scene.owners(8).map((o) => [o.cx, o.slot])).toEqual([[0, 1], [1, 1]]);
+    expect(scene.owners(7).map((o) => [o.cx, o.slot])).toEqual([[0, 0]]);
+    expect(scene.owners(-1)).toEqual([]);
+    // A new snapshot: looked up again.
+    scene.push(snapshot(2, [9, 8], [41, 21], 0), 50);
+    a.interpolate(Infinity);
+    expect([a.slotOf(7), a.slotOf(8), a.slotOf(9)]).toEqual([-1, 1, 0]);
+    expect(b.slotOf(8)).toBe(1);
+    expect(scene.owners(8).map((o) => [o.cx, o.slot])).toEqual([[0, 1], [1, 1]]);
+    // Handed on to a chunk far from where it was last found: found by the whole-scene look once neither has it.
+    scene.push(snapshot(1, [3], [1], 5), 0);
+    scene.push(snapshot(3, [9], [42], 0), 100);
+    scene.push(snapshot(3, [5], [1], 1), 100);
+    a.interpolate(Infinity);
+    b.interpolate(Infinity);
+    expect(scene.owners(8)).toEqual([]);
+    scene.push(snapshot(2, [3, 8], [1, 2], 5), 50);
+    scene.view(5, 0).layer!.interpolate(Infinity);
+    expect(scene.owners(8).map((o) => [o.cx, o.slot])).toEqual([[5, 1]]);
+    scene.destroy();
+  });
+
+  it("a pose held on an entity rewrites the poses only of the layers drawing it, and only when it changes", () => {
+    const scene = new ChunkScene({ chunkSize: 2048, style });
+    scene.push(snapshot(1, [7, 8], [10, 20], 0), 0);
+    scene.push(snapshot(1, [9], [30], 1), 0);
+    const a = scene.view(0, 0).layer!, b = scene.view(1, 0).layer!;
+    const pose = (layer: typeof a) => layer.geometry.getBuffer("aPose");
+    void a.poseArray, void b.poseArray;
+    const ids = () => [pose(a)._updateID, pose(b)._updateID];
+    const [ua, ub] = ids();
+    scene.holdPose(8, POSE.Hunch, 0.5);
+    void a.poseArray, void b.poseArray;
+    expect(ids()).toEqual([ua + 1, ub]);
+    expect([...a.poseArray]).toEqual([0, 0, POSE.Hunch, 0.5]);
+    // The same pose again: nothing rewritten.
+    scene.holdPose(8, POSE.Hunch, 0.5);
+    void a.poseArray, void b.poseArray;
+    expect(ids()).toEqual([ua + 1, ub]);
+    scene.releasePose(8);
+    void a.poseArray, void b.poseArray;
+    expect(ids()).toEqual([ua + 2, ub]);
+    expect([...a.poseArray]).toEqual([0, 0, 0, 0]);
     scene.destroy();
   });
 });

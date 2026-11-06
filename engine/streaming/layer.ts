@@ -15,7 +15,7 @@
  */
 import * as PIXI from "pixi.js";
 import { glowUniforms, MAX_GLOW_RAMP, MAX_GLOWS, MAX_PALETTE, paletteArray, type GlowRange } from "./tint";
-import { chunkKey } from "./coord";
+import { CHUNK_COORD_MAX, CHUNK_COORD_MIN, chunkKey } from "./coord";
 import { SnapshotPair } from "./interp";
 import { Facings } from "./facing";
 import { EMPTY_SLOT, POSITION_SCALE, type Snapshot } from "./protocol";
@@ -94,6 +94,13 @@ const TUCKED = 0.5;
  */
 /** Snapshot ticks a placed entity is drawn on in a layer after leaving its snapshots (a hand-off, before the next chunk's layer has it). */
 const CARRY_TICKS = 12;
+/** Distinct gids looked up in one snapshot (`slotOf`) past which it indexes the whole snapshot at once. */
+const INDEX_AFTER = 8;
+/** Every this many `ChunkScene.owners` asks, gids not asked after in as many are forgotten. */
+const FORGET_ASKS = 1024;
+
+/** A chunk layer drawing an entity, and the entity's first slot in its snapshot (`ChunkScene.owners`). */
+export type ChunkOwner = { key: number; cx: number; cy: number; layer: ChunkLayer; slot: number };
 
 export const POSE = { Stand: 0, Lie: 1, Sit: 2, SitLeft: 3, Fallen: 4, Hunch: 5, Roll: 6, Hidden: 7, Kneel: 8 } as const;
 export type PoseKind = (typeof POSE)[keyof typeof POSE];
@@ -1052,8 +1059,11 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   private held = new Map<number, { pose: PoseKind; turn: number; look: LookKind }>();
   /** A pose call changed what writePoses would write (written at the next interpolate/render/read, once per frame however many calls). */
   private posesDirty = false;
-  /** The current snapshot's first slot per gid, for held poses. */
-  private slotsOf: { snapshot: object; version: number; slots: Map<number, number> } | null = null;
+  /**
+   * The drawn snapshot's first slot per gid looked up (`slotOf`), -1 for none: kept until the pair's
+   * snapshot changes. Past INDEX_AFTER gids it holds every gid of the snapshot (`all`).
+   */
+  private readonly slots: { snapshot: Snapshot | null; version: number; found: Map<number, number>; all: boolean } = { snapshot: null, version: -1, found: new Map(), all: false };
   private placedX = 0;
   private placedY = 0;
   /** False: the placed entity is drawn by another layer (its copy here is hidden). */
@@ -1296,13 +1306,15 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
    * again by gid in each snapshot (and as the placed entity carried past them); a gid of -1 lets it go.
    * For what the page animates itself on one entity, frame by frame (a roll's turn): presentation only.
    */
-  poseEntity(gid: number, pose: PoseKind = POSE.Stand, turn = 0, look: LookKind = LOOK.Front) {
+  poseEntity(gid: number, pose: PoseKind = POSE.Stand, turn = 0, look: LookKind = LOOK.Front, drawn?: boolean) {
     if (gid < 0 && this.posedGid < 0) return;
+    const was = this.posedGid;
+    if (gid === was && pose === this.posedPose && turn === this.posedTurn && look === this.posedLook) return;
     this.posedGid = gid;
     this.posedPose = pose;
     this.posedTurn = turn;
     this.posedLook = look;
-    if (this.pair.current) this.posesDirty = true;
+    if ((drawn ?? this.draws(gid)) || (was !== gid && this.draws(was))) this.posesDirty = true;
   }
 
   /**
@@ -1310,19 +1322,65 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
    * in each snapshot like `poseEntity`, for any number of entities at once (a crowd each swinging on
    * its own beat). Presentation only. `poseEntity`'s one entity wins where both name the same gid.
    */
-  holdPose(gid: number, pose: PoseKind, turn = 0, look: LookKind = LOOK.Front) {
+  holdPose(gid: number, pose: PoseKind, turn = 0, look: LookKind = LOOK.Front, drawn?: boolean) {
+    const was = this.held.get(gid);
+    if (was && was.pose === pose && was.turn === turn && was.look === look) return;
     this.held.set(gid, { pose, turn, look });
-    if (this.pair.current) this.posesDirty = true;
+    if (drawn ?? this.draws(gid)) this.posesDirty = true;
   }
 
-  /** Entity `gid`'s look was set from outside (`Facings.face`): its slot's look is written again before the next draw. */
-  faced(_gid: number) {
-    if (this.pair.current) this.posesDirty = true;
+  /**
+   * Entity `gid`'s look was set from outside (`Facings.face`): its slot's look is written again before
+   * the next draw. `drawn`, on these pose calls, is the scene saying whether this layer draws it (`ChunkScene.owners`).
+   */
+  faced(gid: number, drawn?: boolean) {
+    if (drawn ?? this.draws(gid)) this.posesDirty = true;
   }
 
   /** Lets an entity `holdPose` held go. */
-  releasePose(gid: number) {
-    if (this.held.delete(gid) && this.pair.current) this.posesDirty = true;
+  releasePose(gid: number, drawn?: boolean) {
+    if (this.held.delete(gid) && (drawn ?? this.draws(gid))) this.posesDirty = true;
+  }
+
+  /**
+   * The drawn snapshot's first slot at or after `from` holding entity `gid` (whatever its tint), or -1.
+   * From the start it is remembered until the snapshot changes, so asking every frame costs a lookup.
+   */
+  slotOf(gid: number, from = 0): number {
+    const snapshot = this.pair.current;
+    if (!snapshot || gid < 0) return -1;
+    if (from > 0) return snapshot.gid.subarray(0, snapshot.count).indexOf(gid, from);
+    const slots = this.slots;
+    if (slots.snapshot !== snapshot || slots.version !== this.pair.version) {
+      slots.snapshot = snapshot;
+      slots.version = this.pair.version;
+      slots.found.clear();
+      slots.all = false;
+    }
+    const known = slots.found.get(gid);
+    if (known !== undefined) return known;
+    if (slots.all) return -1;
+    if (slots.found.size < INDEX_AFTER) {
+      const slot = snapshot.gid.subarray(0, snapshot.count).indexOf(gid);
+      slots.found.set(gid, slot);
+      return slot;
+    }
+    // Many asked of this snapshot: index it whole, the first slot of each gid winning.
+    for (let i = snapshot.count - 1; i >= 0; i--) slots.found.set(snapshot.gid[i], i);
+    slots.all = true;
+    return slots.found.get(gid) ?? -1;
+  }
+
+  /** Whether this layer draws entity `gid`: in its snapshot, or the placed entity carried past it. */
+  private draws(gid: number) {
+    const snapshot = this.pair.current;
+    if (!snapshot || gid < 0) return false;
+    return this.slotOf(gid) >= 0 || this.carries(gid);
+  }
+
+  /** Whether entity `gid` is the placed one, drawn here past the snapshot that no longer has it (a hand-off's gap). */
+  carries(gid: number) {
+    return gid >= 0 && gid === this.placedGid && !!this.pair.current && this.geometry.instanceCount > this.pair.current.count;
   }
 
   /** Which way each instance faces (LOOK): as its head looks when posed, else the way it last walked. */
@@ -1368,13 +1426,8 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     }
     const snapshot = this.pair.current;
     if (this.held.size && snapshot) {
-      if (this.slotsOf?.snapshot !== snapshot || this.slotsOf.version !== this.pair.version) {
-        const slots = new Map<number, number>();
-        for (let i = snapshot.count - 1; i >= 0; i--) slots.set(snapshot.gid[i], i);
-        this.slotsOf = { snapshot, version: this.pair.version, slots };
-      }
       for (const [gid, held] of this.held) {
-        const slot = this.slotsOf.slots.get(gid) ?? -1;
+        const slot = this.slotOf(gid);
         if (slot < 0 || slot >= count) continue;
         this.poseData[slot * 2] = held.pose;
         this.poseData[slot * 2 + 1] = held.turn;
@@ -1382,7 +1435,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
       }
     }
     if (this.posedGid >= 0 && snapshot) {
-      let slot = snapshot.gid.subarray(0, snapshot.count).indexOf(this.posedGid);
+      let slot = this.slotOf(this.posedGid);
       if (slot < 0 && this.posedGid === this.placedGid && this.geometry.instanceCount > snapshot.count) slot = snapshot.count;
       if (slot >= 0 && slot < count) {
         this.poseData[slot * 2] = this.posedPose;
@@ -1477,7 +1530,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   private writePlaced() {
     const snapshot = this.pair.current!;
     const count = snapshot.count;
-    const slot = this.placedGid < 0 ? -1 : snapshot.gid.subarray(0, count).indexOf(this.placedGid);
+    const slot = this.slotOf(this.placedGid);
     if (slot >= 0 && snapshot.tint[slot] !== EMPTY_SLOT) {
       this.carrySprite = snapshot.sprite[slot];
       this.carryTint = snapshot.tint[slot];
@@ -1653,6 +1706,16 @@ export class ChunkScene {
   /** What `place` draws, and the chunk whose layer draws it (-1 none). */
   private placedGid = -1;
   private placedKey = -1;
+  /** Each view's place in `views`' order (made later, later), so owners come back in view order. */
+  private readonly viewSeq = new Map<number, number>();
+  private viewsMade = 0;
+  /**
+   * The chunks last found drawing each gid asked after (`owners`): looked for again there and in their
+   * neighbours (a hand-off goes next door), the whole scene only when none has it. Gids not asked
+   * after for a while are forgotten.
+   */
+  private readonly tracked = new Map<number, { views: ChunkView[]; asked: number }>();
+  private asks = 0;
   private readonly entities: LayerKind;
   private readonly propKinds: (LayerKind | null)[];
   private propLight: [number, number, number] = [1, 1, 1];
@@ -1769,6 +1832,7 @@ export class ChunkScene {
       this.groundRoot.addChild(ground);
       view = { cx, cy, ground, decals: null, farUnder: null, farOver: null, layer: null, props: null, propSets: [] };
       this.views.set(key, view);
+      this.viewSeq.set(key, this.viewsMade++);
     }
     return view;
   }
@@ -1849,23 +1913,76 @@ export class ChunkScene {
 
   /** Holds entity `gid` in a pose in whichever chunk's layer draws it (see `ChunkLayer.holdPose`). */
   holdPose(gid: number, pose: PoseKind, turn = 0, look: LookKind = LOOK.Front) {
-    for (const view of this.views.values()) view.layer?.holdPose(gid, pose, turn, look);
+    const owners = this.owners(gid);
+    // Every layer keeps the hold (it finds the gid again in its next snapshot); only those drawing it rewrite now.
+    for (const [key, view] of this.views) view.layer?.holdPose(gid, pose, turn, look, this.drawing(owners, key, view.layer, gid));
+  }
+
+  private drawing(owners: readonly ChunkOwner[], key: number, layer: ChunkLayer, gid: number) {
+    return owners.some((o) => o.key === key) || layer.carries(gid);
   }
 
   /** Holds entity `gid` turned to `look` whichever way it walks (see `Facings.face`), -1 lets it go; nothing without a rig's follow. */
   face(gid: number, look: LookKind | -1) {
     this.entities.facings?.face(gid, look);
-    for (const view of this.views.values()) view.layer?.faced(gid);
+    const owners = this.owners(gid);
+    for (const [key, view] of this.views) view.layer?.faced(gid, this.drawing(owners, key, view.layer, gid));
+  }
+
+  /**
+   * Every chunk layer whose drawn snapshot holds entity `gid`, in view order, with its first slot there:
+   * one owner, or both while it is handed from chunk to chunk. Looked for where it was last found and
+   * next door (each layer remembers its answer per snapshot: `ChunkLayer.slotOf`), so the cost does not
+   * grow with the chunks loaded; the whole scene only when none of those has it. A copy left far away
+   * (the run moved it, not handed off) while one of those still has it shows up once that one lets it go.
+   */
+  owners(gid: number): ChunkOwner[] {
+    const found: ChunkOwner[] = [];
+    if (gid < 0) return found;
+    const asked = ++this.asks;
+    if (asked % FORGET_ASKS === 0) for (const [g, t] of this.tracked) if (asked - t.asked > FORGET_ASKS) this.tracked.delete(g);
+    const entry = this.tracked.get(gid);
+    if (entry?.views.length) {
+      const seen = new Set<number>();
+      for (const known of entry.views) {
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const cx = known.cx + dx, cy = known.cy + dy;
+            if (cx < CHUNK_COORD_MIN || cx > CHUNK_COORD_MAX || cy < CHUNK_COORD_MIN || cy > CHUNK_COORD_MAX) continue;
+            const key = chunkKey(cx, cy);
+            if (seen.has(key)) continue;
+            seen.add(key);
+            this.owner(gid, key, found);
+          }
+        }
+      }
+    }
+    if (!found.length) for (const key of this.views.keys()) this.owner(gid, key, found);
+    else if (found.length > 1) found.sort((a, b) => this.viewSeq.get(a.key)! - this.viewSeq.get(b.key)!);
+    const views = found.map((o) => this.views.get(o.key)!);
+    if (entry) {
+      entry.views = views;
+      entry.asked = asked;
+    } else this.tracked.set(gid, { views, asked });
+    return found;
+  }
+
+  private owner(gid: number, key: number, found: ChunkOwner[]) {
+    const view = this.views.get(key);
+    const slot = view?.layer?.slotOf(gid) ?? -1;
+    if (slot >= 0) found.push({ key, cx: view!.cx, cy: view!.cy, layer: view!.layer!, slot });
   }
 
   /** Lets go an entity `holdPose` held. */
   releasePose(gid: number) {
-    for (const view of this.views.values()) view.layer?.releasePose(gid);
+    const owners = this.owners(gid);
+    for (const [key, view] of this.views) view.layer?.releasePose(gid, this.drawing(owners, key, view.layer, gid));
   }
 
   /** Poses entity `gid` in whichever chunk's layer draws it (see `ChunkLayer.poseEntity`); -1 lets it go. */
   poseEntity(gid: number, pose: PoseKind = POSE.Stand, turn = 0, look: LookKind = LOOK.Front) {
-    for (const view of this.views.values()) view.layer?.poseEntity(gid, pose, turn, look);
+    const owners = this.owners(gid);
+    for (const [key, view] of this.views) view.layer?.poseEntity(gid, pose, turn, look, this.drawing(owners, key, view.layer, gid));
   }
 
   /**
@@ -1875,12 +1992,13 @@ export class ChunkScene {
    * handed between chunks whose layers play out a little apart.
    */
   place(gid: number, x = 0, y = 0) {
-    const holds = (layer: ChunkLayer | null) => !!layer?.pair.current && layer.pair.current.gid.subarray(0, layer.pair.current.count).includes(gid);
+    const owners = this.owners(gid);
+    const holds = (k: number) => owners.some((o) => o.key === k);
     let key = this.placedKey;
     if (gid < 0) key = -1;
-    else if (gid !== this.placedGid || !holds(this.views.get(key)?.layer ?? null)) {
-      for (const [k, view] of this.views) if (holds(view.layer)) { key = k; break; }
-      if (gid !== this.placedGid && !holds(this.views.get(key)?.layer ?? null)) key = -1;
+    else if (gid !== this.placedGid || !holds(key)) {
+      if (owners.length) key = owners[0].key;
+      if (gid !== this.placedGid && !holds(key)) key = -1;
     }
     this.placedGid = gid;
     this.placedKey = key;
@@ -1889,7 +2007,7 @@ export class ChunkScene {
       if (!view.layer) continue;
       if (gid < 0) view.layer.place(-1);
       else if (k === key) view.layer.place(gid, x - view.cx * size, y - view.cy * size);
-      else if (holds(view.layer)) view.layer.place(gid, 0, 0, false);
+      else if (holds(k)) view.layer.place(gid, 0, 0, false);
       else view.layer.place(-1);
     }
   }
@@ -1914,6 +2032,7 @@ export class ChunkScene {
     view.farOver?.destroy({ children: true });
     this.statics.drop(key);
     this.views.delete(key);
+    this.viewSeq.delete(key);
   }
 
   /**
