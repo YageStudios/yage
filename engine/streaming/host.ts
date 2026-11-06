@@ -262,6 +262,8 @@ type Chunk = {
   phase: number;
   /** Tick of the chunk's last step, -1 before its first. */
   lastStep: number;
+  /** The host's mutation epoch when its world was last handed to anything that can change who is in it (`touch`). */
+  touched: number;
 };
 
 type Subscription = { tier: Tier; snapshotEvery: number };
@@ -301,6 +303,14 @@ export class ChunkHost {
   private readonly route = new Map<number, number>();
   private readonly inputs = new Map<number, Uint8Array>();
   private readonly located = new Map<number, { key: number; eid: number }>();
+  /** Tracked gids not found on this host, and the mutation epoch they were looked for at: only chunks touched since can have them. */
+  private readonly missing = new Map<number, number>();
+  /** Counts what can change chunk membership (`touch`); `touchedAll` the last that could change every chunk. */
+  private epoch = 0;
+  private touchedAll = 0;
+  private readonly chunkOf = new WeakMap<World, Chunk>();
+  /** Entities visited looking tracked gids up (`resolve`), for measuring. */
+  locateVisits = 0;
   private trackDirty = true;
   private selfIndex = 0;
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -537,7 +547,10 @@ export class ChunkHost {
           this.log(2, `Lockstep: Restore after the host has run (now ${this.tickCount}); ignored`);
           break;
         }
-        if (message.shared.byteLength) this.module.loadShared?.(message.shared.slice());
+        if (message.shared.byteLength) {
+          this.module.loadShared?.(message.shared.slice());
+          this.touchAll();
+        }
         for (const { tick, ...post } of message.posts) this.queuePost(tick, { ...post, bytes: post.bytes.slice() });
         break;
       case Op.Tier:
@@ -583,6 +596,7 @@ export class ChunkHost {
         break;
       case Op.Config:
         this.module.configure?.(message.bytes.slice());
+        this.touchAll();
         break;
       case Op.Input:
         // Empty input releases the entity.
@@ -622,8 +636,10 @@ export class ChunkHost {
       }
       case Op.Command: {
         const chunk = this.chunks.get(spaceChunkKey(message.space, message.cx, message.cy));
-        if (chunk) this.module.command?.(chunk.world, message.bytes.slice(), this.running >= 0 ? this.running : this.tickCount);
-        else this.log(2, `Command for chunk ${message.cx},${message.cy} that isn't here; dropped`);
+        if (chunk) {
+          this.module.command?.(chunk.world, message.bytes.slice(), this.running >= 0 ? this.running : this.tickCount);
+          this.touch(chunk.world);
+        } else this.log(2, `Command for chunk ${message.cx},${message.cy} that isn't here; dropped`);
         break;
       }
       default:
@@ -700,6 +716,7 @@ export class ChunkHost {
     for (const post of list) {
       if (post.kind === PostKind.Module) {
         this.module.receive?.(post.bytes, tick);
+        this.touchAll();
         continue;
       }
       const message = decodeMessage(post.bytes) as Extract<Message, { op: Op.Transfer }>;
@@ -733,6 +750,7 @@ export class ChunkHost {
       xs[eid] += dx;
       ys[eid] += dy;
     });
+    this.touch(chunk.world);
     if (this.module.arrived) for (const eid of added) this.module.arrived(chunk.world, eid, dx, dy);
     if (returned) for (const eid of added) this.bounce(chunk.world, eid);
     this.noteArrivals(chunk, added);
@@ -756,6 +774,7 @@ export class ChunkHost {
       xs[eid] += dx;
       ys[eid] += dy;
     });
+    this.touch(chunk.world);
     if (this.module.arrived) for (const eid of added) this.module.arrived(chunk.world, eid, dx, dy);
     this.noteArrivals(chunk, added);
     this.dropped += rejectedCount;
@@ -814,6 +833,7 @@ export class ChunkHost {
       const world = this.module.generate(seed, cx, cy, space, init?.byteLength ? init.slice() : undefined);
       this.addChunk(space, cx, cy, world);
       this.module.restored?.(world, { tick: this.tickCount, space, cx, cy, generated: true, lead: this.lead, shadow: this.shadow || undefined });
+      this.touch(world);
     }
     this.ready(key);
     // Watched hot while it was queued: its static data could not go out then.
@@ -830,6 +850,7 @@ export class ChunkHost {
     const world = this.deserializeChunk(bytes, cx, cy, space);
     this.addChunk(space, cx, cy, world);
     this.module.restored?.(world, { tick: this.tickCount, space, cx, cy, generated: false, lead: this.lead, shadow: this.shadow || undefined });
+    this.touch(world);
     this.ready(key);
   }
 
@@ -863,7 +884,9 @@ export class ChunkHost {
 
   private addChunk(space: number, cx: number, cy: number, world: World) {
     const key = spaceChunkKey(space, cx, cy);
-    this.chunks.set(key, { key, space, cx, cy, world, phase: chunkHash(cx, cy, space) % this.module.warmEvery, lastStep: -1 });
+    const chunk: Chunk = { key, space, cx, cy, world, phase: chunkHash(cx, cy, space) % this.module.warmEvery, lastStep: -1, touched: ++this.epoch };
+    this.chunks.set(key, chunk);
+    this.chunkOf.set(world, chunk);
     this.ordered = null;
     this.route.set(key, this.selfIndex);
     this.trackDirty = true;
@@ -934,10 +957,12 @@ export class ChunkHost {
       if (this.shadow) ctx.shadow = true;
       this.applyInputs(chunk, ctx);
       this.module.step(chunk.world, ctx);
+      this.touch(chunk.world);
       this.depart(chunk, ctx);
       if (lockstep) {
         // Drained either way: what a sealed chunk queued must not ride out on the next one's post.
         const bytes = this.module.post?.(chunk.world, ctx);
+        this.touch(chunk.world);
         if (bytes && !this.sealed(chunk)) this.post(PostKind.Module, chunk.key, null, bytes);
       }
       stepped.push(chunk);
@@ -964,9 +989,13 @@ export class ChunkHost {
 
   private applyInputs(chunk: Chunk, ctx: StepContext) {
     if (!this.module.input || this.inputs.size === 0) return;
+    this.resolve(this.inputs.keys());
     for (const [gid, bytes] of this.inputs) {
-      const location = this.locate(gid);
-      if (location && location.key === chunk.key) this.module.input(chunk.world, location.eid, bytes, ctx);
+      const location = this.located.get(gid);
+      if (location && location.key === chunk.key) {
+        this.module.input(chunk.world, location.eid, bytes, ctx);
+        this.touch(chunk.world);
+      }
     }
   }
 
@@ -979,29 +1008,56 @@ export class ChunkHost {
     return [store[this.module.position.x], store[this.module.position.y]];
   }
 
-  /** Finds a tracked entity on this host, rescanning only when something may have moved it here. */
-  private locate(gid: number): { key: number; eid: number } | null {
-    const cached = this.located.get(gid);
-    if (cached) {
-      const chunk = this.chunks.get(cached.key);
-      if (chunk && chunk.world.entitySparseSet.has(cached.eid) && this.gidColumn(chunk.world)[cached.eid] === gid) {
-        return cached;
+  /**
+   * Finds tracked entities on this host, rescanning only when something may have moved them here: all
+   * of them in one pass, through only the chunks touched since each was last missed, in chunk order
+   * (so the first chunk holding a gid wins, as a full scan would have it). Found ones are in `located`.
+   */
+  private resolve(gids: Iterable<number>) {
+    let want: Map<number, number> | null = null;
+    let oldest = Infinity;
+    for (const gid of gids) {
+      const cached = this.located.get(gid);
+      if (cached) {
+        const chunk = this.chunks.get(cached.key);
+        if (chunk && chunk.world.entitySparseSet.has(cached.eid) && this.gidColumn(chunk.world)[cached.eid] === gid) continue;
+        this.located.delete(gid);
       }
-      this.located.delete(gid);
+      if (!this.trackDirty) continue;
+      const since = this.missing.get(gid) ?? -1;
+      (want ??= new Map()).set(gid, since);
+      oldest = Math.min(oldest, since);
     }
-    if (!this.trackDirty) return null;
+    if (!want) return;
+    const looked = this.epoch;
     for (const chunk of this.chunks.values()) {
+      const touched = Math.max(chunk.touched, this.touchedAll);
+      if (touched <= oldest) continue;
       const column = this.gidColumn(chunk.world);
       const dense = chunk.world.entitySparseSet.dense;
+      this.locateVisits += dense.length;
       for (let i = 0; i < dense.length; i++) {
-        if (column[dense[i]] === gid) {
-          const found = { key: chunk.key, eid: dense[i] };
-          this.located.set(gid, found);
-          return found;
-        }
+        const gid = column[dense[i]];
+        const since = want.get(gid);
+        if (since === undefined || touched <= since) continue;
+        this.located.set(gid, { key: chunk.key, eid: dense[i] });
+        this.missing.delete(gid);
+        want.delete(gid);
+        if (!want.size) return;
       }
     }
-    return null;
+    for (const gid of want.keys()) this.missing.set(gid, looked);
+  }
+
+  /** Something may have changed who is in this world's chunk: gids missed before are looked for there again. */
+  private touch(world: World) {
+    const chunk = this.chunkOf.get(world);
+    if (chunk) chunk.touched = ++this.epoch;
+  }
+
+  /** As `touch`, for every chunk (the module was handed something that reaches all of them). */
+  private touchAll() {
+    this.touchedAll = ++this.epoch;
   }
 
   private trackedGids(): Set<number> {
@@ -1013,9 +1069,11 @@ export class ChunkHost {
   private sendLocations(tick: number) {
     const tracked = this.trackedGids();
     if (tracked.size === 0) return;
+    this.resolve(tracked);
+    for (const gid of this.missing.keys()) if (!tracked.has(gid)) this.missing.delete(gid);
     const entries: LocateEntry[] = [];
     for (const gid of tracked) {
-      const location = this.locate(gid);
+      const location = this.located.get(gid);
       if (!location) continue;
       const chunk = this.chunks.get(location.key);
       if (!chunk) throw new Error("ChunkHost: located entity's chunk is missing");
@@ -1108,6 +1166,7 @@ export class ChunkHost {
       list.push(eid);
     }
     if (!leaving) return;
+    this.touch(world);
 
     for (const [target, eids] of leaving) {
       const tx = chunkX(target);
@@ -1154,6 +1213,7 @@ export class ChunkHost {
     xs[eid] = Math.min(Math.max(xs[eid], 0), size - 0.01);
     ys[eid] = Math.min(Math.max(ys[eid], 0), size - 0.01);
     this.module.bounced?.(world, eid);
+    this.touch(world);
   }
 
   private acceptTransfer(
@@ -1191,6 +1251,7 @@ export class ChunkHost {
       xs[eid] += dx;
       ys[eid] += dy;
     });
+    this.touch(chunk.world);
     if (arrived) for (const eid of added) arrived(chunk.world, eid, dx, dy);
     if (returned) {
       for (const eid of added) this.bounce(chunk.world, eid);
@@ -1223,6 +1284,7 @@ export class ChunkHost {
   /** Sends the module's departing travellers to the client, which owns them until they arrive. */
   private depart(chunk: Chunk, ctx: StepContext) {
     const groups = this.module.departing?.(chunk.world, ctx);
+    if (this.module.departing) this.touch(chunk.world);
     if (!groups?.length) return;
     const upstream = this.connections[0]?.transport;
     for (const group of groups) {
@@ -1265,6 +1327,7 @@ export class ChunkHost {
     }
     const [xs, ys] = this.positionColumns(world);
     const { added } = putRows(world, this.module.components, message.rows, message.count);
+    this.touch(world);
     for (const eid of added) {
       const dx = message.x - xs[eid];
       const dy = message.y - ys[eid];

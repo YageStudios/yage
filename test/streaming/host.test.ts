@@ -10,6 +10,7 @@ import {
   encodeLimit,
   encodeRestore,
   PostKind,
+  encodeCommand,
   encodeInput,
   encodeLoad,
   encodeRoute,
@@ -332,6 +333,50 @@ describe("ChunkHost", () => {
     expect(client.last(Op.Locate)!.entries).toEqual([{ gid: 9, space: 0, cx: 1, cy: 0, x: 10, y: 50, tint: 7 }]);
     host.tick();
     expect(client.last(Op.Locate)!.entries[0]).toMatchObject({ cx: 1, x: 30 });
+  });
+
+  test("a gid missing from this host is looked for again only in chunks touched since, and found once a command adds it", () => {
+    const layout: Record<string, Walker[]> = {};
+    for (let cx = 0; cx < 4; cx++) layout[`${cx},0`] = Array.from({ length: 10 }, (_, i) => ({ x: 10 + i, y: 50, gid: 100 + cx * 10 + i }));
+    const base = testModule(layout);
+    const module: ChunkModule = {
+      ...base,
+      // A command spawns gid bytes[0] + 500 at (50, 50).
+      command(world, bytes) {
+        const eid = addEntity(world);
+        addComponent(world, TestPos, eid);
+        addComponent(world, TestVel, eid);
+        addComponent(world, TestGid, eid);
+        world(TestPos).store.x[eid] = 50;
+        world(TestPos).store.y[eid] = 50;
+        world(TestGid).store.id[eid] = 500 + bytes[0];
+      },
+    };
+    const host = new ChunkHost(module);
+    const client = connect(host);
+    for (let cx = 0; cx < 4; cx++) {
+      client.send(encodeGenerate(cx, 0, 1));
+      client.send(encodeTier(cx, 0, Tier.Hot, 1));
+    }
+    // Controlled and tracked here but owned by another host: every tick a Track keeps the lookup live.
+    client.send(encodeInput(501, new Uint8Array([128 + 3])));
+    const visits: number[] = [];
+    for (let t = 0; t < 4; t++) {
+      client.send(encodeTrack([500]));
+      const before = host.locateVisits;
+      host.tick();
+      visits.push(host.locateVisits - before);
+    }
+    // A full scan per stepped chunk per miss would visit 4 chunks x 40 + 2 x 40 = 240 a tick.
+    expect(visits.slice(1)).toEqual([70, 70, 70]);
+    expect(client.all(Op.Locate)).toHaveLength(0);
+    // Added by a command in chunk 2: found there, its input applied from the next step.
+    client.send(encodeCommand(0, 2, 0, new Uint8Array([1])));
+    client.send(encodeTrack([500, 501]));
+    host.tick();
+    expect(client.last(Op.Locate)!.entries).toEqual([{ gid: 501, space: 0, cx: 2, cy: 0, x: 53, y: 50, tint: 7 }]);
+    host.tick();
+    expect(client.last(Op.Locate)!.entries[0]).toMatchObject({ gid: 501, cx: 2, x: 56 });
   });
 
   test("empty input releases a controlled entity", () => {
