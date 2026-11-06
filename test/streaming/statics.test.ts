@@ -5,7 +5,7 @@ import * as PIXI from "pixi.js";
 import { describe, expect, it } from "vitest";
 import { ChunkScene, type ChunkLayerStyle } from "yage/streaming/layer";
 import { beginFrame, frameSpent, resetFrameBudget } from "yage/game/FrameBudget";
-import { behind, fillPolygon, meshGeometry, occluderSlabs, seeThroughSlabs, type StaticSpec } from "yage/streaming/statics";
+import { behind, fillPolygon, meshGeometry, occluderMesh, occluderSlabs, seeThroughSlabs, type StaticSpec } from "yage/streaming/statics";
 import { meshArea, strokePolyline } from "yage/streaming/vector";
 
 HTMLCanvasElement.prototype.getContext = (() => null) as never;
@@ -444,6 +444,23 @@ describe("ChunkScene static instances", () => {
       for (let k = 0; k < 4; k++) area += (pts[k].x * pts[(k + 1) % 4].y - pts[(k + 1) % 4].x * pts[k].y) / 2;
     }
     expect(Math.abs(area)).toBeCloseTo(w * h, 3);
+  });
+
+  it("covers the overhang of a footprint that is just its rectangle, but not of a real outline", () => {
+    const [w, h, angle, overhang] = [64, 48, 0.3, 3];
+    const covered = (footprint: { x: number; y: number }[][]) => {
+      const mesh = occluderMesh(w, h, angle, 0, 0, overhang, [], footprint);
+      const p = mesh.geometry.getBuffer("aVertexPosition").data as Float32Array;
+      let area = 0;
+      for (let q = 0; q < p.length; q += 8)
+        for (let k = 0; k < 4; k++) {
+          const [a, b] = [q + 2 * k, q + 2 * ((k + 1) % 4)];
+          area += (p[a] * p[b + 1] - p[b] * p[a + 1]) / 2;
+        }
+      return Math.abs(area);
+    };
+    expect(covered([[{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }]])).toBeCloseTo((w + 2 * overhang) * (h + 2 * overhang), 1);
+    expect(covered([[{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h / 2 }, { x: w / 2, y: h }, { x: 0, y: h }]])).toBeCloseTo(w * h - (w / 2) * (h / 2) / 2, 1);
   });
 
   it("covers an overhang past the rectangle, at the rectangle's own near-edge depth", () => {

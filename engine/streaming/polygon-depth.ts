@@ -6,6 +6,13 @@ export type StaticFootprint = readonly (readonly Point[])[];
 export type DepthSlab = { corners: Point[]; near: Point[] };
 const EPS = 1e-7;
 
+/** Whether the footprint is just the w × h rectangle from the origin (one ring, its four corners), so the rectangle's own paths, overhang and all, stand for it. */
+export const footprintIsRectangle = (rings: StaticFootprint, w: number, h: number) => {
+  if (rings.length !== 1 || rings[0].length !== 4) return false;
+  const corners = [[0, 0], [w, 0], [w, h], [0, h]];
+  return corners.every(([x, y]) => rings[0].some((p) => Math.abs(p.x - x) <= 1e-4 && Math.abs(p.y - y) <= 1e-4));
+};
+
 /** Even-odd containment includes the perimeter, so a point on a wall belongs to its building. */
 export const footprintContains = (rings: StaticFootprint, point: Point) => {
   let inside = false;

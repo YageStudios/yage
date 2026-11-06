@@ -30,7 +30,7 @@ import { withinFrame } from "../game/FrameBudget";
 import type { FarBake } from "./far";
 import type { ShadowPass } from "./shadow-pass";
 import { rotatedBounds, toLocal, type Point, type Rect, type VectorMesh } from "./vector";
-import { footprintContains, footprintCovers, footprintSlabs, type StaticFootprint } from "./polygon-depth";
+import { footprintContains, footprintCovers, footprintIsRectangle, footprintSlabs, type StaticFootprint } from "./polygon-depth";
 
 /** A Pixi geometry with `aVertexPosition` plus one attribute per mesh attribute (`uv` → `aUv`). */
 export const meshGeometry = (mesh: VectorMesh) => {
@@ -85,7 +85,8 @@ export type StaticSpec = {
   rise?: number;
   /** How far (world units) the over part's drawn edge reaches past the rectangle all round: its
    *  occluder covers that too, at the rectangle's own near-edge depth, so what stands behind hides
-   *  right to the drawn edge while whoever stands in front of the rectangle stays over the overhang. */
+   *  right to the drawn edge while whoever stands in front of the rectangle stays over the overhang.
+   *  Read once `build` has run. A `footprint` other than the plain rectangle takes none. */
   overhang?: number;
   /** Where sprites pass through the rectangle (doorways): each a threshold point (local units) and half
    *  its width across the screen (world units). Over it the occluder holds the threshold's depth. */
@@ -281,7 +282,9 @@ export const occluderMesh = (w: number, h: number, angle: number, rise = 0, reac
   const positions: number[] = [];
   const near: number[] = [];
   const indices: number[] = [];
-  for (const slab of footprint ? footprintSlabs(footprint, angle, rise, reach, openings) : occluderSlabs(w, h, angle, rise, reach, overhang, openings)) {
+  // A footprint that is just the rectangle takes the rectangle's slabs, so its overhang still covers.
+  const polygon = footprint && !footprintIsRectangle(footprint, w, h) ? footprint : undefined;
+  for (const slab of polygon ? footprintSlabs(polygon, angle, rise, reach, openings) : occluderSlabs(w, h, angle, rise, reach, overhang, openings)) {
     const base = positions.length / 2;
     for (let k = 0; k < 4; k++) {
       positions.push(slab.corners[k].x, slab.corners[k].y);
