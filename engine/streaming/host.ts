@@ -42,6 +42,7 @@ import { saveWorld } from "../world/save";
 import { chunkHash, chunkX, chunkY, spaceChunkKey } from "./coord";
 import {
   createSnapshot,
+  packSnapshot,
   decodeMessage,
   encodeArrived,
   encodeDepart,
@@ -1107,9 +1108,9 @@ export class ChunkHost {
   }
 
   private sendSnapshots(tick: number) {
-    const built = new Map<number, Snapshot>();
+    const built = new Map<number, Uint8Array>();
     const overlays = new Map<number, Uint8Array | null>();
-    const sends: [Connection, Snapshot][] = [];
+    const sends: [Connection, Uint8Array][] = [];
     const overlaySends: [Connection, Uint8Array][] = [];
     for (const connection of this.connections) {
       for (const [key, subscription] of connection.subscriptions) {
@@ -1117,29 +1118,31 @@ export class ChunkHost {
         if (tick % subscription.snapshotEvery !== 0) continue;
         const chunk = this.chunks.get(key);
         if (!chunk) continue;
-        let snapshot = built.get(key);
-        if (!snapshot) {
-          snapshot = createSnapshot(chunk.cx, chunk.cy, tick, snapshotSlots(chunk.world), chunk.space);
+        let wire = built.get(key);
+        if (!wire) {
+          const snapshot = createSnapshot(chunk.cx, chunk.cy, tick, snapshotSlots(chunk.world), chunk.space);
           snapshot.tint.fill(EMPTY_SLOT);
           this.module.render(chunk.world, snapshot);
-          built.set(key, snapshot);
           const extra = this.module.overlay?.(chunk.world, snapshot);
           overlays.set(key, extra ? encodeOverlay(chunk.cx, chunk.cy, tick, extra, chunk.space) : null);
+          // Holes (removed, hidden or upstairs entities) aren't sent; the client's decode puts them back.
+          wire = packSnapshot(snapshot);
+          built.set(key, wire);
         }
-        sends.push([connection, snapshot]);
+        sends.push([connection, wire]);
         const overlay = overlays.get(key);
         if (overlay) overlaySends.push([connection, overlay]);
       }
     }
     // The last send of each snapshot moves its buffer instead of copying it.
-    const remaining = new Map<Snapshot, number>();
-    for (const [, snapshot] of sends) remaining.set(snapshot, (remaining.get(snapshot) ?? 0) + 1);
-    for (const [connection, snapshot] of sends) {
-      const pending = remaining.get(snapshot);
+    const remaining = new Map<Uint8Array, number>();
+    for (const [, wire] of sends) remaining.set(wire, (remaining.get(wire) ?? 0) + 1);
+    for (const [connection, wire] of sends) {
+      const pending = remaining.get(wire);
       if (pending === undefined) throw new Error("ChunkHost: snapshot send count is missing");
       const left = pending - 1;
-      remaining.set(snapshot, left);
-      connection.transport.send(snapshot.bytes, left === 0);
+      remaining.set(wire, left);
+      connection.transport.send(wire, left === 0);
     }
     // Overlays are encoded per send round too, so their last send moves the buffer as well.
     const overlaysLeft = new Map<Uint8Array, number>();

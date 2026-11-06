@@ -31,7 +31,7 @@
 import { spaceChunkKey, type ChunkAddress } from "./coord";
 
 /** Wire format version. Bump on any layout change. */
-export const PROTOCOL_VERSION = 12;
+export const PROTOCOL_VERSION = 13;
 
 export enum Op {
   // client -> host
@@ -484,9 +484,13 @@ export type DepartMessage = { txn: number; space: number; cx: number; cy: number
 export type ArriveMessage = DepartMessage & { x: number; y: number };
 
 // ---------------------------------------------------------------------------------------------
-// Snapshot: header (20 bytes: op u8, pad u8, space u16, cx i32, cy i32, tick u32, count u32),
-// then gid u32[n], x i16[n], y i16[n], sprite u16[n], tint u8[n]. Arrays are indexed by entity
-// slot, so an entity keeps its index from one snapshot to the next.
+// Snapshot: header (20 bytes: op u8, format u8, space u16, cx i32, cy i32, tick u32, count u32).
+// Dense (format 0): gid u32[count], x i16[count], y i16[count], sprite u16[count], tint u8[count].
+// Arrays are indexed by entity slot, so an entity keeps its index from one snapshot to the next.
+// Sparse (format 1, packSnapshot): filled u32, a bitmap of the filled slots (ceil(count / 8) bytes,
+// padded to 4), then the same five arrays holding only the filled slots, in slot order. A slot is
+// empty when it holds exactly what createSnapshot + `tint.fill(EMPTY_SLOT)` left there; decoding
+// puts the empties back, so a decoded sparse snapshot is the dense one, byte for byte.
 
 export const SNAPSHOT_HEADER = 20;
 export const snapshotBytes = (count: number) => SNAPSHOT_HEADER + count * 11;
@@ -505,8 +509,10 @@ export type Snapshot = {
   /** Sprite id: an index into the drawing style's atlas (u16). */
   sprite: Uint16Array;
   tint: Uint8Array;
-  /** The whole message, e.g. to forward or transfer it. */
+  /** The whole message, e.g. to forward or transfer it (always dense, decodable by decodeSnapshot). */
   bytes: Uint8Array;
+  /** Bytes the message took on the wire when it was decoded (sparse ones are smaller than `bytes`). */
+  wire?: number;
 };
 
 /** Allocates a snapshot message and returns writable views into it. */
@@ -560,17 +566,117 @@ export const REMOTE_SNAPSHOT_HZ = 15;
 export const remoteSnapshotEvery = (ticksPerSecond: number, speed = 1, hz = REMOTE_SNAPSHOT_HZ) =>
   Math.min(255, Math.max(1, Math.ceil((ticksPerSecond * (speed > 0 ? speed : 1)) / Math.max(1e-3, hz) - 1e-9)));
 
+/** Snapshot header format byte: every slot in place, or only the filled ones (packSnapshot). */
+export enum SnapshotFormat {
+  Dense = 0,
+  Sparse = 1,
+}
+
+const SPARSE_HEAD = SNAPSHOT_HEADER + 4;
+const bitmapBytes = (count: number) => ((count + 31) >>> 5) << 2;
+/** Size of a sparse snapshot of `count` slots, `filled` of them filled. */
+export const sparseSnapshotBytes = (count: number, filled: number) => SPARSE_HEAD + bitmapBytes(count) + filled * 11;
+
+const isEmpty = (s: Snapshot, i: number) => s.tint[i] === EMPTY_SLOT && s.gid[i] === 0 && s.x[i] === 0 && s.y[i] === 0 && s.sprite[i] === 0;
+
+/**
+ * The bytes to send for a built snapshot: its dense message, or a sparse one carrying only the
+ * filled slots when that is smaller (holes from removed, hidden or upstairs entities). Slots keep
+ * their entity ids either way; decodeSnapshot turns a sparse message back into the dense snapshot.
+ */
+export const packSnapshot = (s: Snapshot): Uint8Array => {
+  const count = s.count;
+  let filled = 0;
+  for (let i = 0; i < count; i++) if (!isEmpty(s, i)) filled++;
+  const size = sparseSnapshotBytes(count, filled);
+  if (size >= s.bytes.byteLength) return s.bytes;
+  const out = new Uint8Array(size);
+  out.set(s.bytes.subarray(0, SNAPSHOT_HEADER));
+  out[1] = SnapshotFormat.Sparse;
+  const buffer = out.buffer;
+  new DataView(buffer).setUint32(SNAPSHOT_HEADER, filled, true);
+  const bits = new Uint8Array(buffer, SPARSE_HEAD, bitmapBytes(count));
+  let offset = SPARSE_HEAD + bits.byteLength;
+  const gid = new Uint32Array(buffer, offset, filled);
+  offset += filled * 4;
+  const x = new Int16Array(buffer, offset, filled);
+  offset += filled * 2;
+  const y = new Int16Array(buffer, offset, filled);
+  offset += filled * 2;
+  const sprite = new Uint16Array(buffer, offset, filled);
+  offset += filled * 2;
+  const tint = new Uint8Array(buffer, offset, filled);
+  let j = 0;
+  for (let i = 0; i < count; i++) {
+    if (isEmpty(s, i)) continue;
+    bits[i >>> 3] |= 1 << (i & 7);
+    gid[j] = s.gid[i];
+    x[j] = s.x[i];
+    y[j] = s.y[i];
+    sprite[j] = s.sprite[i];
+    tint[j] = s.tint[i];
+    j++;
+  }
+  return out;
+};
+
+const unpackSparse = (bytes: Uint8Array, space: number, cx: number, cy: number, tick: number, count: number): Snapshot => {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const filled = bytes.byteLength >= SPARSE_HEAD ? view.getUint32(SNAPSHOT_HEADER, true) : 0;
+  if (bytes.byteLength < sparseSnapshotBytes(count, filled)) throw new Error("Truncated chunk snapshot");
+  const out = createSnapshot(cx, cy, tick, count, space);
+  out.tint.fill(EMPTY_SLOT);
+  const buffer = bytes.buffer as ArrayBuffer;
+  const base = bytes.byteOffset;
+  const bits = new Uint8Array(buffer, base + SPARSE_HEAD, bitmapBytes(count));
+  let offset = base + SPARSE_HEAD + bits.byteLength;
+  const gid = new Uint32Array(buffer, offset, filled);
+  offset += filled * 4;
+  const x = new Int16Array(buffer, offset, filled);
+  offset += filled * 2;
+  const y = new Int16Array(buffer, offset, filled);
+  offset += filled * 2;
+  const sprite = new Uint16Array(buffer, offset, filled);
+  offset += filled * 2;
+  const tint = new Uint8Array(buffer, offset, filled);
+  let j = 0;
+  for (let byte = 0; byte < bits.length; byte++) {
+    let word = bits[byte];
+    while (word) {
+      const bit = 31 - Math.clz32(word & -word);
+      word &= word - 1;
+      const i = (byte << 3) | bit;
+      if (i >= count || j >= filled) throw new Error("Corrupt sparse chunk snapshot");
+      out.gid[i] = gid[j];
+      out.x[i] = x[j];
+      out.y[i] = y[j];
+      out.sprite[i] = sprite[j];
+      out.tint[i] = tint[j];
+      j++;
+    }
+  }
+  if (j !== filled) throw new Error("Corrupt sparse chunk snapshot");
+  return out;
+};
+
 export const decodeSnapshot = (input: Uint8Array): Snapshot => {
   // Typed views need aligned offsets; socket frames may arrive at any offset.
   const bytes = input.byteOffset % 4 === 0 ? input : input.slice();
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const format = bytes[1];
   const space = view.getUint16(2, true);
   const cx = view.getInt32(4, true);
   const cy = view.getInt32(8, true);
   const tick = view.getUint32(12, true);
   const count = view.getUint32(16, true);
-  if (bytes.byteLength < snapshotBytes(count)) throw new Error("Truncated chunk snapshot");
-  return snapshotViews(bytes, space, cx, cy, tick, count);
+  let snapshot: Snapshot;
+  if (format === SnapshotFormat.Sparse) snapshot = unpackSparse(bytes, space, cx, cy, tick, count);
+  else {
+    if (bytes.byteLength < snapshotBytes(count)) throw new Error("Truncated chunk snapshot");
+    snapshot = snapshotViews(bytes, space, cx, cy, tick, count);
+  }
+  snapshot.wire = input.byteLength;
+  return snapshot;
 };
 
 // ---------------------------------------------------------------------------------------------
