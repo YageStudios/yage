@@ -171,8 +171,9 @@ export interface ChunkModule {
   deserialize?(bytes: Uint8Array, cx: number, cy: number, space: number): World;
   step(world: World, ctx: StepContext): void;
   /**
-   * Fills a snapshot. Slots arrive with `tint` set to EMPTY_SLOT; write every live entity that
-   * should be drawn: `x`/`y` in chunk-local units × POSITION_SCALE, `sprite`, `tint` and `gid`.
+   * Fills a snapshot. Slots are entity ids, one past the highest living one (snapshotSlots), and
+   * arrive with `tint` set to EMPTY_SLOT; write every live entity that should be drawn at its id:
+   * `x`/`y` in chunk-local units × POSITION_SCALE, `sprite`, `tint` and `gid`.
    */
   render(world: World, snapshot: Snapshot): void;
   /**
@@ -294,6 +295,18 @@ export type ChunkHostOptions = {
    * its draws apart. Its client is the island's driver, never the run's pool.
    */
   shadow?: boolean;
+};
+
+/**
+ * A chunk snapshot's slot count: one past its highest live entity id. Slots stay entity ids (an
+ * overlay's pose or an event names its slot by them), so only the dead tail past every living
+ * entity is left out, never a hole between them; the cursor's high water left by removals costs nothing.
+ */
+export const snapshotSlots = (world: World) => {
+  const dense = world.entitySparseSet.dense as readonly number[];
+  let top = -1;
+  for (let i = 0; i < dense.length; i++) if (dense[i] > top) top = dense[i];
+  return top + 1;
 };
 
 export class ChunkHost {
@@ -1106,7 +1119,7 @@ export class ChunkHost {
         if (!chunk) continue;
         let snapshot = built.get(key);
         if (!snapshot) {
-          snapshot = createSnapshot(chunk.cx, chunk.cy, tick, chunk.world.entityCursor, chunk.space);
+          snapshot = createSnapshot(chunk.cx, chunk.cy, tick, snapshotSlots(chunk.world), chunk.space);
           snapshot.tint.fill(EMPTY_SLOT);
           this.module.render(chunk.world, snapshot);
           built.set(key, snapshot);

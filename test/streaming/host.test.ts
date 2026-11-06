@@ -121,6 +121,35 @@ describe("ChunkHost", () => {
     expect([...snapshot.tint]).not.toContain(EMPTY_SLOT);
   });
 
+  test("a snapshot ends at the highest living entity: the dead tail is left out, holes keep their slots", () => {
+    const host = new ChunkHost(
+      testModule({
+        "0,0": [
+          { x: 50, y: 50, gid: 1 },
+          { x: 98, y: 50, vx: 10, gid: 2 },
+          { x: 50, y: 60, gid: 3 },
+          { x: 98, y: 60, vx: 10, gid: 4 },
+        ],
+        "1,0": [],
+      })
+    );
+    const client = connect(host);
+    client.send(encodeGenerate(0, 0, 1));
+    client.send(encodeGenerate(1, 0, 1));
+    client.send(encodeTier(0, 0, Tier.Hot, 1));
+    host.tick();
+    const chunk = [...host.chunks.values()].find((c) => c.cx === 0 && c.cy === 0)!;
+    // Gids 2 and 4 walked into chunk 1,0; the cursor still covers all four slots.
+    expect(gidsIn(host, 0, 0)).toEqual([1, 3]);
+    expect(chunk.world.entityCursor).toBe(4);
+    const snapshot = client.last(Op.Snapshot)!.snapshot;
+    const top = Math.max(...chunk.world.entitySparseSet.dense);
+    expect(snapshot.count).toBe(top + 1);
+    for (const eid of chunk.world.entitySparseSet.dense) expect(snapshot.gid[eid]).toBe(chunk.world(TestGid).store.id[eid]);
+    for (let slot = 0; slot < snapshot.count; slot++) if (!chunk.world.entitySparseSet.dense.includes(slot)) expect(snapshot.tint[slot]).toBe(EMPTY_SLOT);
+    expect(snapshot.count).toBeLessThan(4);
+  });
+
   test("hands an entity to a neighbouring chunk on the same host, shifting its position", () => {
     const host = new ChunkHost(
       testModule({
