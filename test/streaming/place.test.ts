@@ -75,4 +75,46 @@ describe("ChunkLayer place", () => {
     expect(b.drawnCount).toBe(1);
     scene.destroy();
   });
+
+  it("moving it within the same snapshot uploads its one slot, nothing else; a new snapshot lays it all out again", () => {
+    const scene = new ChunkScene({ chunkSize: 2048, style });
+    scene.push(snapshot(1, [7, 8, 9], [10, 20, 30]), 0);
+    const layer = scene.view(0, 0).layer!;
+    layer.place(8, 5, 6);
+    const buffers = layer.geometry.buffers;
+    // As if drawn: every buffer uploaded as it is now.
+    for (const b of buffers) b._glBuffers[0] = { buffer: {}, updateID: b._updateID } as never;
+    const ids = () => buffers.map((b) => b._updateID);
+    const uploaded = ids();
+    const sent: { at: number; values: number[] }[] = [];
+    const gl = { ARRAY_BUFFER: 34962, bindBuffer: () => {}, bufferSubData: (_t: number, at: number, data: Int16Array) => sent.push({ at, values: [...data] }) };
+    const renderer = { gl, CONTEXT_UID: 0 } as never;
+    layer.place(8, 5.5, 6.5);
+    expect(ids()).toEqual(uploaded);
+    const drawn = (name: string) => [...(layer.geometry.getBuffer(name).data as Int16Array).subarray(0, layer.count)];
+    expect(drawn("aPrevX")).toEqual([10, 5.5 * POSITION_SCALE, 30]);
+    expect(drawn("aCurX")).toEqual([10, 5.5 * POSITION_SCALE, 30]);
+    expect(drawn("aCurY")).toEqual([0, 6.5 * POSITION_SCALE, 0]);
+    layer.flushPatches(renderer);
+    expect(sent).toEqual([
+      { at: 2, values: [5.5 * POSITION_SCALE] },
+      { at: 2, values: [5.5 * POSITION_SCALE] },
+      { at: 2, values: [6.5 * POSITION_SCALE] },
+      { at: 2, values: [6.5 * POSITION_SCALE] },
+    ]);
+    // Not moved: nothing at all.
+    sent.length = 0;
+    layer.place(8, 5.5, 6.5);
+    layer.flushPatches(renderer);
+    expect(sent).toEqual([]);
+    expect(ids()).toEqual(uploaded);
+    // A new snapshot: laid out whole again, and a patch queued before it sends nothing of its own.
+    layer.place(8, 6, 6.5);
+    scene.push(snapshot(2, [8, 9], [21, 31]), 50);
+    layer.interpolate(Infinity);
+    layer.flushPatches(renderer);
+    expect(sent).toEqual([]);
+    expect(drawn("aCurX")).toEqual([6 * POSITION_SCALE, 31]);
+    scene.destroy();
+  });
 });

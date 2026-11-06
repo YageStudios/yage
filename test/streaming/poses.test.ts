@@ -77,4 +77,26 @@ describe("ChunkScene poses", () => {
     expect([...layer.poseArray]).toEqual([0, 0, 1, 0]);
     scene.destroy();
   });
+
+  it("the placed entity turns as the page walks it, and a look set from outside shows before the next snapshot", () => {
+    const rigged: ChunkLayerStyle = { ...style, rig: { atlas: PIXI.Texture.EMPTY, grid: [1, 1], neck: 0, follow: 3, ranges: [] } };
+    const scene = new ChunkScene({ chunkSize: 2048, style: rigged });
+    const first = createSnapshot(0, 0, 1, 3);
+    first.gid.set([10, 11, 12]);
+    first.tint.set([0, 0, 0]);
+    scene.push(first, 0);
+    const layer = scene.view(0, 0).layer!;
+    scene.place(11, 0, 0);
+    expect([...layer.lookArray]).toEqual([LOOK.Front, LOOK.Front, LOOK.Front]);
+    // A small shuffle turns nothing; a step to the right turns it, all within the one snapshot.
+    scene.place(11, 1, 0);
+    expect([...layer.lookArray]).toEqual([LOOK.Front, LOOK.Front, LOOK.Front]);
+    scene.place(11, 4, 0);
+    expect([...layer.lookArray]).toEqual([LOOK.Front, LOOK.Right, LOOK.Front]);
+    // Someone else turned to aim (Facings.face): their slot shows it without a new snapshot.
+    scene.face(12, LOOK.Back);
+    scene.place(11, 4, 0);
+    expect([...layer.lookArray]).toEqual([LOOK.Front, LOOK.Right, LOOK.Back]);
+    scene.destroy();
+  });
 });

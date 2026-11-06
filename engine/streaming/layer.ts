@@ -1066,6 +1066,14 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   private placeY = new Int16Array(0);
   private placeSprite = new Uint16Array(0);
   private placeTint = new Uint8Array(0);
+  /**
+   * What the last `writePlaced` laid out: for that snapshot (and pair version), the placed gid, shown or
+   * not, at slot `at` of `n` instances (-1: not drawn here). A `place` that changes none of it moves the
+   * one slot (`patch`) instead of laying the whole snapshot out again.
+   */
+  private laid: { snapshot: Snapshot; version: number; gid: number; shown: boolean; at: number; n: number } | null = null;
+  /** Single instances changed in place since their buffer's last upload: uploaded alone before the next draw (`flushPatches`). */
+  private patches: { buffer: PIXI.Buffer; at: number }[] = [];
   /** The style's sprite height (world units), for `setDetail`'s screen size. */
   readonly spriteHeight: number;
   /** Shown, and drawn with the edge and shadow passes (false: a few pixels tall, without them). */
@@ -1178,6 +1186,14 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
       if (mesh === this) continue;
       (mesh as unknown as { extent: number }).extent = extent;
       (mesh as unknown as { _calculateBounds: () => void })._calculateBounds = this._calculateBounds.bind(mesh);
+    }
+    // Whichever pass draws first (a shadow pass draws ahead of the layer) uploads the moved slots first.
+    for (const mesh of this.companions()) {
+      const render = (mesh as unknown as { _render: (renderer: PIXI.Renderer) => void })._render.bind(mesh);
+      (mesh as unknown as { _render: (renderer: PIXI.Renderer) => void })._render = (renderer) => {
+        this.flushPatches(renderer);
+        render(renderer);
+      };
     }
   }
 
@@ -1299,6 +1315,11 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     if (this.pair.current) this.posesDirty = true;
   }
 
+  /** Entity `gid`'s look was set from outside (`Facings.face`): its slot's look is written again before the next draw. */
+  faced(_gid: number) {
+    if (this.pair.current) this.posesDirty = true;
+  }
+
   /** Lets an entity `holdPose` held go. */
   releasePose(gid: number) {
     if (this.held.delete(gid) && this.pair.current) this.posesDirty = true;
@@ -1384,16 +1405,72 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
   place(gid: number, x = 0, y = 0, shown = true) {
     if (gid < 0 && this.placedGid < 0) return;
     if (gid !== this.placedGid) this.carryTick = -Infinity;
+    const px = Math.round(x * POSITION_SCALE), py = Math.round(y * POSITION_SCALE);
+    const moved = px !== this.placedX || py !== this.placedY;
     this.placedGid = gid;
     this.placedShown = shown;
-    this.placedX = Math.round(x * POSITION_SCALE);
-    this.placedY = Math.round(y * POSITION_SCALE);
+    this.placedX = px;
+    this.placedY = py;
     // Steered between snapshots: it turns the way the page walks it.
-    if (gid >= 0 && shown) this.facings?.move(gid, this.position.x + x, this.position.y + y);
-    if (this.pair.current) {
-      this.writePlaced();
-      this.writePoses();
+    let turned = false;
+    if (gid >= 0 && shown && this.facings) {
+      const was = this.facings.look(gid);
+      turned = this.facings.move(gid, this.position.x + x, this.position.y + y) !== was;
     }
+    const snapshot = this.pair.current;
+    if (!snapshot) return;
+    const laid = this.laid;
+    if (laid && laid.snapshot === snapshot && laid.version === this.pair.version && laid.gid === gid && laid.shown === shown) {
+      // The same layout: only its slot moves (drawn here and shown), and only its look can have turned.
+      if (moved && laid.at >= 0 && shown) this.movePlaced(laid.at, laid.n);
+      if (turned) this.posesDirty = true;
+      return;
+    }
+    this.writePlaced();
+    this.writePoses();
+  }
+
+  /** The placed entity's slot `at` (of `n` laid out) to its placed spot, in the laid-out arrays, the rest untouched. */
+  private movePlaced(at: number, n: number) {
+    const x = Math.max(-32768, Math.min(32767, this.placedX));
+    const y = Math.max(-32768, Math.min(32767, this.placedY));
+    this.placeX[at] = this.placeX[n + at] = x;
+    this.placeY[at] = this.placeY[n + at] = y;
+    this.patch(this.prevX, at);
+    this.patch(this.curX, at);
+    this.patch(this.prevY, at);
+    this.patch(this.curY, at);
+  }
+
+  /**
+   * Instance `at` of `buffer` changed in its data in place. Not uploaded yet, or a whole upload already
+   * pending, that upload carries it; uploaded, it goes up alone before the next draw (`flushPatches`).
+   */
+  private patch(buffer: PIXI.Buffer, at: number) {
+    const uploads = Object.values(buffer._glBuffers);
+    if (!uploads.length || uploads.some((gl) => gl.updateID !== buffer._updateID)) return;
+    if (uploads.length > 1) {
+      buffer.update();
+      return;
+    }
+    const last = this.patches[this.patches.length - 1];
+    if (last?.buffer === buffer && last.at === at) return;
+    this.patches.push({ buffer, at });
+  }
+
+  /** Uploads the single instances `patch` queued (one sub-upload each), before a draw of this layer's geometry. */
+  flushPatches(renderer: Pick<PIXI.Renderer, "gl" | "CONTEXT_UID">) {
+    if (!this.patches.length) return;
+    const gl = renderer.gl;
+    for (const { buffer, at } of this.patches) {
+      const uploaded = buffer._glBuffers[renderer.CONTEXT_UID];
+      const data = buffer.data as Int16Array;
+      // Re-uploaded whole since (or about to be), or laid out again shorter: nothing of its own to send.
+      if (!uploaded || uploaded.updateID !== buffer._updateID || at >= data.length) continue;
+      gl.bindBuffer(gl.ARRAY_BUFFER, uploaded.buffer);
+      gl.bufferSubData(gl.ARRAY_BUFFER, at * data.BYTES_PER_ELEMENT, data.subarray(at, at + 1));
+    }
+    this.patches.length = 0;
   }
 
   /** The current snapshot's instances, the placed entity's slot (or its carried one past them) at its placed spot. */
@@ -1415,6 +1492,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
       this.sprite.update(snapshot.sprite);
       this.tintBuffer.update(snapshot.tint);
       this.geometry.instanceCount = count;
+      this.laid = { snapshot, version: this.pair.version, gid: this.placedGid, shown: this.placedShown, at: -1, n: count };
       return;
     }
     const n = count + (carried ? 1 : 0);
@@ -1451,6 +1529,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
     this.sprite.update(sprite);
     this.tintBuffer.update(tint);
     this.geometry.instanceCount = n;
+    this.laid = { snapshot, version: this.pair.version, gid: this.placedGid, shown: this.placedShown, at, n };
   }
 
   /** Plays the snapshots out to `now` and sets the interpolation point between the drawn two. */
@@ -1776,6 +1855,7 @@ export class ChunkScene {
   /** Holds entity `gid` turned to `look` whichever way it walks (see `Facings.face`), -1 lets it go; nothing without a rig's follow. */
   face(gid: number, look: LookKind | -1) {
     this.entities.facings?.face(gid, look);
+    for (const view of this.views.values()) view.layer?.faced(gid);
   }
 
   /** Lets go an entity `holdPose` held. */
