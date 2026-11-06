@@ -440,7 +440,32 @@ const setKind = (physics: RAPIER.World, shape: any, eid: number, entry: BodyEntr
   entry.kind = kind;
 };
 
+/**
+ * Per world, kept between steps: the membership last stepped (as the query handed it over), the same
+ * entities in ascending order, and the bodies' start/way scratch. A step whose membership is unchanged
+ * reuses the order instead of copying and sorting it again; the arrays grow, never shrink.
+ */
+type StepScratch = { members: number[]; sorted: number[]; count: number; from: Float64Array };
 const byNumber = (a: number, b: number) => a - b;
+const scratchOf = new WeakMap<World, StepScratch>();
+
+/** The step's entities in ascending (numeric) order, from the scratch when the membership is the one last stepped. */
+const sortedMembers = (world: World, entities: readonly number[]): StepScratch => {
+  const n = entities.length;
+  let scratch = scratchOf.get(world);
+  if (!scratch) scratchOf.set(world, (scratch = { members: [], sorted: [], count: -1, from: new Float64Array(0) }));
+  let same = scratch.count === n;
+  for (let i = 0; same && i < n; i++) same = scratch.members[i] === entities[i];
+  if (same) return scratch;
+  if (scratch.from.length < n * 4) scratch.from = new Float64Array(Math.max(n, (scratch.from.length / 4) * 2, 16) * 4);
+  const { members, sorted } = scratch;
+  members.length = sorted.length = n;
+  for (let i = 0; i < n; i++) members[i] = sorted[i] = entities[i];
+  scratch.count = n;
+  // Numeric ascending: the order the bodies are made and stepped in.
+  sorted.sort(byNumber);
+  return scratch;
+};
 
 /**
  * Sets a body's velocity through one reused raw vector: RigidBody.setLinvel makes and frees a
@@ -474,11 +499,12 @@ export const stepLeanPhysics = (world: World, position: LeanPosition, entities: 
   const ys: Float32Array | Float64Array = store[position.y];
 
   const substeps = Math.max(1, Math.ceil(dt / state.maxStep - 1e-9));
-  const sorted = entities.slice().sort(byNumber);
+  const scratch = sortedMembers(world, entities);
+  const sorted = scratch.sorted;
   syncQueries(state, physics);
-  const n = sorted.length;
-  // Where each body started this step, and its way to the entity's position.
-  const from = new Float64Array(n * 4);
+  const n = entities.length;
+  // Where each body started this step, and its way to the entity's position (written, and read, for dynamic bodies only).
+  const from = scratch.from;
   for (let i = 0; i < n; i++) {
     const eid = sorted[i];
     const x = xs[eid];

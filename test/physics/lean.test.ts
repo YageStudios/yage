@@ -241,6 +241,40 @@ describe("lean physics", () => {
     expect(run()).toEqual(run());
   });
 
+  test("membership churn between steps, and worlds stepped in turn, step as each world stepped alone", () => {
+    const churn = (world: World, i: number) => {
+      // Same count, different members: one arrives on a new id, then one leaves; or one leaves and
+      // its id comes back in another spot of the dense array.
+      if (i % 3 === 0) {
+        spawn(world, (i % 7) * 1.5, 4, 14 - (i % 6), i % 4);
+        removeEntity(world, (world.entitySparseSet.dense as number[])[i % 5]);
+      } else if (i % 3 === 1) {
+        removeEntity(world, (world.entitySparseSet.dense as number[])[(i * 3) % 7]);
+        spawn(world, 2, (i % 5) * 1.5, 12, (i * 3) % 6);
+      }
+      if (i === 10) for (let k = 0; k < 20; k++) spawn(world, k % 5, 6 + Math.floor(k / 5), 3, 8 - k / 4);
+      if (i === 20) for (let k = 0; k < 15; k++) removeEntity(world, (world.entitySparseSet.dense as number[])[k]);
+    };
+    const make = () => {
+      const world = Kind.create();
+      for (let i = 0; i < 12; i++) spawn(world, (i % 4) * 2.5, Math.floor(i / 4) * 2.5, 15 - i, (i * 7) % 5);
+      return world;
+    };
+    const bytes = (world: World) => new Uint8Array(serializeWorld(SerialMode.BINARY, world) as ArrayBuffer);
+    const alone = make();
+    for (let i = 0; i < 30; i++) (churn(alone, i), step(alone, true, wall));
+    const a = make(), b = make();
+    for (let i = 0; i < 30; i++) {
+      churn(a, i);
+      step(a, true, wall);
+      if (i % 2) step(b, true, wall);
+    }
+    for (let i = 0; i < 30; i++) if (!(i % 2)) step(b, true, wall);
+    expect(bytes(a)).toEqual(bytes(alone));
+    expect(leanPhysicsOf(a).bodies!.size).toBe(a.entitySparseSet.dense.length);
+    for (const world of [alone, a, b]) Kind.dispose(world);
+  });
+
   test("bodies go with their entities, and Rapier worlds are freed with their lean worlds", () => {
     const before = liveLeanPhysicsWorlds();
     const worlds = [Kind.create(), Kind.create(), Kind.create()];
