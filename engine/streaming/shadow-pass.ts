@@ -37,6 +37,7 @@
  * sitting in the projection (ProjectedCamera) for what draws after.
  */
 import * as PIXI from "pixi.js";
+import { FramePrint } from "./frame-print";
 import { renderInto } from "./window-light";
 
 const GL_FLOAT = 5126;
@@ -383,54 +384,7 @@ export const paintSurface = (art: ImageData, heights: ImageData, cell: [number, 
   return out;
 };
 
-/**
- * What a buffer was drawn from (ShadowPass's): the camera and every contributor's state that
- * drawing reads, a frame's worth in order, against the last frame's. Unchanged, the buffer holds
- * what drawing it again would: it's kept.
- */
-export class ShadowPrint {
-  private nums: number[] = [];
-  private refs: unknown[] = [];
-  private n = 0;
-  private r = 0;
-  private same = false;
-  private valid = false;
-  /** Arrays and textures printed this frame: shared by many (a layer's uniform group), each is printed once. */
-  readonly seen = new Set<unknown>();
-  begin() {
-    this.n = 0;
-    this.r = 0;
-    this.seen.clear();
-    this.same = this.valid;
-    this.valid = true;
-  }
-  num(value: number) {
-    if (this.same && !Object.is(this.nums[this.n], value)) this.same = false;
-    this.nums[this.n++] = value;
-  }
-  ref(value: unknown) {
-    if (this.same && this.refs[this.r] !== value) this.same = false;
-    this.refs[this.r++] = value;
-  }
-  /** Something this can't see into: drawn afresh this frame and the next. */
-  poison() {
-    this.same = false;
-    this.valid = false;
-  }
-  /** Whether this frame's print is the last one's. */
-  end() {
-    const same = this.same && this.n === this.nums.length && this.r === this.refs.length;
-    this.nums.length = this.n;
-    this.refs.length = this.r;
-    return same;
-  }
-  /** Draw afresh next frame. */
-  reset() {
-    this.valid = false;
-  }
-}
-
-const printMatrix = (print: ShadowPrint, m: PIXI.Matrix) => {
+const printMatrix = (print: FramePrint, m: PIXI.Matrix) => {
   print.num(m.a);
   print.num(m.b);
   print.num(m.c);
@@ -439,7 +393,7 @@ const printMatrix = (print: ShadowPrint, m: PIXI.Matrix) => {
   print.num(m.ty);
 };
 
-const printBase = (print: ShadowPrint, base: PIXI.BaseTexture) => {
+const printBase = (print: FramePrint, base: PIXI.BaseTexture) => {
   print.ref(base);
   // Drawn into, a render texture changes with no count of it.
   if (base instanceof PIXI.BaseRenderTexture) print.poison();
@@ -449,7 +403,7 @@ const printBase = (print: ShadowPrint, base: PIXI.BaseTexture) => {
   print.num(base.height);
 };
 
-const printValue = (print: ShadowPrint, value: unknown) => {
+const printValue = (print: FramePrint, value: unknown) => {
   if (typeof value === "number") print.num(value);
   else if (typeof value === "boolean") print.num(value ? 1 : 0);
   else if (value === null || value === undefined) print.ref(value);
@@ -510,7 +464,7 @@ const holdersOf = (shader: PIXI.Shader): Holders | null => {
   return made;
 };
 
-const printShader = (print: ShadowPrint, shader: PIXI.Shader) => {
+const printShader = (print: FramePrint, shader: PIXI.Shader) => {
   print.ref(shader);
   print.ref(shader.program);
   const held = holdersOf(shader);
@@ -518,7 +472,7 @@ const printShader = (print: ShadowPrint, shader: PIXI.Shader) => {
   for (const { group, name } of held.at) printValue(print, group ? group.uniforms[name] : held.uniforms[name]);
 };
 
-const printGeometry = (print: ShadowPrint, geometry: PIXI.Geometry) => {
+const printGeometry = (print: FramePrint, geometry: PIXI.Geometry) => {
   print.ref(geometry);
   print.num(geometry.instanceCount);
   for (const buffer of geometry.buffers) {
@@ -529,7 +483,7 @@ const printGeometry = (print: ShadowPrint, geometry: PIXI.Geometry) => {
 };
 
 /** `object` and what's under it, as rendering it reads them (Container's `render`). */
-const printObject = (print: ShadowPrint, object: PIXI.DisplayObject) => {
+const printObject = (print: FramePrint, object: PIXI.DisplayObject) => {
   print.ref(object);
   const o = object as PIXI.Container;
   print.num(o.visible && o.renderable ? o.worldAlpha : -1);
@@ -625,10 +579,10 @@ export class ShadowPass extends PIXI.Container {
   private readonly quad: PIXI.Mesh<PIXI.Shader>;
   private readonly blur: PIXI.Mesh<PIXI.Shader>;
   private readonly coarse: PIXI.Mesh<PIXI.Shader>;
-  /** What each buffer was last drawn from (`ShadowPrint`): unchanged, it's kept as drawn. */
-  private readonly prints = { heights: new ShadowPrint(), tops: new ShadowPrint(), casts: new ShadowPrint(), shade: new ShadowPrint() };
+  /** What each buffer was last drawn from (`FramePrint`): unchanged, it's kept as drawn. */
+  private readonly prints = { heights: new FramePrint(), tops: new FramePrint(), casts: new FramePrint(), shade: new FramePrint() };
   /** The camera and targets each was last drawn through: moved, nothing is kept, and nothing's printed. */
-  private readonly cameras = { heights: new ShadowPrint(), tops: new ShadowPrint(), casts: new ShadowPrint(), shade: new ShadowPrint() };
+  private readonly cameras = { heights: new FramePrint(), tops: new FramePrint(), casts: new FramePrint(), shade: new FramePrint() };
   /** Frames each buffer was drawn and kept (heights, tops, casts, shade), for a profile to read. */
   readonly drawn = { heights: 0, tops: 0, casts: 0, shade: 0, kept: { heights: 0, tops: 0, casts: 0, shade: 0 } };
   private readonly coarser: PIXI.Mesh<PIXI.Shader>;
@@ -729,7 +683,7 @@ export class ShadowPass extends PIXI.Container {
    * as last frame. A camera on the move skips the walk: next frame, still, prints it afresh to compare
    * the one after with.
    */
-  private printed(camera: ShadowPrint, print: ShadowPrint, renderer: PIXI.Renderer, frame: PIXI.Rectangle, what: () => void) {
+  private printed(camera: FramePrint, print: FramePrint, renderer: PIXI.Renderer, frame: PIXI.Rectangle, what: () => void) {
     if (!this.printCamera(camera, renderer, frame)) {
       print.reset();
       return false;
@@ -739,7 +693,7 @@ export class ShadowPass extends PIXI.Container {
     return print.end();
   }
 
-  private printCamera(print: ShadowPrint, renderer: PIXI.Renderer, frame: PIXI.Rectangle) {
+  private printCamera(print: FramePrint, renderer: PIXI.Renderer, frame: PIXI.Rectangle) {
     print.begin();
     const target = renderer.renderTexture;
     print.ref(target.current);

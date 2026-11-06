@@ -17,6 +17,7 @@
  * colour × (ambient + light), each light's colour multiplying the ground's. Its alpha scales it.
  */
 import * as PIXI from "pixi.js";
+import { FramePrint } from "./frame-print";
 
 const GL_FLOAT = 5126;
 
@@ -294,11 +295,179 @@ let bufferClear = false;
 const COARSE = 2;
 
 /**
+ * A batch's shaders: a light's own, its place given in the pass's parent's space (from the batch's
+ * origin, `aRoot`) and its alpha a vertex's (`aAlpha`), so a frame's lights of a kind add in one draw.
+ */
+const batchedVertex = (source: string) =>
+  source
+    .replace("attribute vec2 aVertexPosition;", "attribute vec2 aVertexPosition;\nattribute vec2 aRoot;\nattribute float aAlpha;\nvarying float vAlpha;")
+    .replace("void main() {", "void main() {\n  vAlpha = aAlpha;")
+    .replace("translationMatrix * vec3(aVertexPosition, 1.0)", "translationMatrix * vec3(aRoot, 1.0)");
+const batchedFragment = (source: string) => source.replace("uniform float uAlpha;", "varying float vAlpha;\n#define uAlpha vAlpha");
+
+type Light = WindowLightMesh | LampLightMesh;
+/** A light's attributes as the batch copies them: a float buffer each, packed. */
+const WINDOW_ATTRIBUTES: [string, number][] = [["aVertexPosition", 2], ["aOpening", 4], ["aLamp", 2], ["aLight", 4], ["aMix", 2]];
+const LAMP_ATTRIBUTES: [string, number][] = [["aVertexPosition", 2], ["aLamp", 4], ["aLight", 4]];
+
+/** Its float attribute's packed data, or null (laid out otherwise: drawn by itself). */
+const packed = (geometry: PIXI.Geometry, name: string, size: number) => {
+  const attribute = geometry.getAttribute(name);
+  if (!attribute || attribute.size !== size || attribute.stride || attribute.start || attribute.instance) return null;
+  const data = geometry.buffers[attribute.buffer].data;
+  return data instanceof Float32Array ? data : null;
+};
+
+/**
+ * Every lit light of a kind under the pass's parent, merged into one mesh: rebuilt when which are
+ * lit, their geometry or their place under the parent changes, its alphas rewritten when theirs
+ * change. A camera moving moves the parent only: the batch stands, drawn through the parent's transform.
+ */
+class LightBatch {
+  readonly mesh: PIXI.Mesh<PIXI.Shader>;
+  private readonly members: Light[] = [];
+  private readonly alphas: number[] = [];
+  /** Each member's first vertex and count, in the batch. */
+  private readonly spans: number[] = [];
+  private alphaData = new Float32Array(0);
+  private readonly print = new FramePrint();
+  /** The batch's origin under the parent (its first light's place), so its positions stay small. */
+  private readonly origin = new PIXI.Matrix();
+  /** The batch drew something different from last frame (rebuilt or alpha changed). */
+  changed = false;
+
+  constructor(
+    program: PIXI.Program,
+    private readonly attributes: [string, number][],
+  ) {
+    const geometry = new PIXI.Geometry().addAttribute("aRoot", new Float32Array(0), 2, false, GL_FLOAT as PIXI.TYPES).addAttribute("aAlpha", new Float32Array(0), 1, false, GL_FLOAT as PIXI.TYPES);
+    for (const [name, size] of attributes) geometry.addAttribute(name, new Float32Array(0), size, false, GL_FLOAT as PIXI.TYPES);
+    geometry.addIndex(new Uint32Array(0));
+    this.mesh = new PIXI.Mesh(geometry, new PIXI.Shader(program));
+    this.mesh.blendMode = PIXI.BLEND_MODES.ADD;
+  }
+
+  /** Whether this light can go in the batch (its attributes packed floats, its index plain). */
+  takes(light: Light) {
+    const geometry = light.geometry;
+    if (light.blendMode !== PIXI.BLEND_MODES.ADD || light.drawMode !== PIXI.DRAW_MODES.TRIANGLES || light.start || light.size || geometry.instanceCount > 1) return false;
+    if (!geometry.indexBuffer) return false;
+    for (const [name, size] of this.attributes) if (!packed(geometry, name, size)) return false;
+    return true;
+  }
+
+  begin() {
+    this.members.length = 0;
+    this.alphas.length = 0;
+    this.print.begin();
+  }
+
+  /** A lit light, `alpha` its light's scale this frame; its place under `root` printed (what each step is and its local id). */
+  add(light: Light, alpha: number, root: PIXI.Container) {
+    const print = this.print;
+    print.ref(light);
+    const geometry = light.geometry;
+    print.ref(geometry);
+    for (const buffer of geometry.buffers) {
+      print.ref(buffer);
+      print.num((buffer as unknown as { _updateID: number })._updateID);
+    }
+    for (let o: PIXI.DisplayObject | null = light; o && o !== root; o = o.parent) {
+      print.ref(o);
+      print.num((o.transform as unknown as { _localID: number })._localID);
+    }
+    this.members.push(light);
+    this.alphas.push(alpha);
+  }
+
+  /** Brings the mesh up to this frame's lights; false with none. */
+  end(root: PIXI.Container) {
+    this.changed = false;
+    if (!this.print.end()) {
+      this.build(root);
+      this.changed = true;
+    } else
+      for (let i = 0; i < this.members.length; i++) {
+        const alpha = this.alphas[i];
+        if (this.alphaData[this.spans[2 * i]] === Math.fround(alpha)) continue;
+        this.alphaData.fill(alpha, this.spans[2 * i], this.spans[2 * i] + this.spans[2 * i + 1]);
+        this.changed = true;
+      }
+    if (this.changed) this.mesh.geometry.getBuffer("aAlpha").update(this.alphaData);
+    return this.members.length > 0;
+  }
+
+  private build(root: PIXI.Container) {
+    const members = this.members;
+    let vertices = 0, indices = 0;
+    for (const light of members) {
+      vertices += packed(light.geometry, "aVertexPosition", 2)!.length / 2;
+      indices += light.geometry.indexBuffer.data.length;
+    }
+    const geometry = this.mesh.geometry;
+    const rootData = new Float32Array(vertices * 2);
+    const alphaData = new Float32Array(vertices);
+    const data = this.attributes.map(([, size]) => new Float32Array(vertices * size));
+    const index = new Uint32Array(indices);
+    this.spans.length = 0;
+    const local = new PIXI.Matrix();
+    let v = 0, k = 0;
+    members.forEach((light, m) => {
+      // Its place under the root, from the local transforms between (the camera's above the root: not in it).
+      local.copyFrom(light.localTransform);
+      for (let o = light.parent; o && o !== root; o = o.parent) local.prepend(o.localTransform);
+      if (m === 0) this.origin.set(1, 0, 0, 1, local.tx, local.ty);
+      const ox = this.origin.tx, oy = this.origin.ty;
+      const g = light.geometry;
+      const pos = packed(g, "aVertexPosition", 2)!;
+      const count = pos.length / 2;
+      for (let i = 0; i < count; i++) {
+        const x = pos[2 * i], y = pos[2 * i + 1];
+        rootData[2 * (v + i)] = local.a * x + local.c * y + local.tx - ox;
+        rootData[2 * (v + i) + 1] = local.b * x + local.d * y + local.ty - oy;
+      }
+      alphaData.fill(this.alphas[m], v, v + count);
+      this.attributes.forEach(([name, size], a) => data[a].set(packed(g, name, size)!.subarray(0, count * size), v * size));
+      const source = g.indexBuffer.data as ArrayLike<number>;
+      for (let i = 0; i < source.length; i++) index[k + i] = source[i] + v;
+      this.spans.push(v, count);
+      v += count;
+      k += source.length;
+    });
+    geometry.getBuffer("aRoot").update(rootData);
+    this.attributes.forEach(([name], a) => geometry.getBuffer(name).update(data[a]));
+    geometry.getIndex().update(index);
+    this.alphaData = alphaData;
+  }
+
+  draw(renderer: PIXI.Renderer, root: PIXI.Container) {
+    // Drawn where the root is now, from the batch's origin.
+    this.mesh.transform.worldTransform.copyFrom(root.worldTransform).append(this.origin);
+    (this.mesh as unknown as { _render(renderer: PIXI.Renderer): void })._render(renderer);
+  }
+}
+
+let windowBatchProgram: PIXI.Program | null = null;
+let lampBatchProgram: PIXI.Program | null = null;
+/** The LightPass that drew the shared buffer last, and whether it is to be drawn afresh. */
+let drewLast: LightPass | null = null;
+
+/**
  * Draws every window and lamp light in view into the light buffer. Add it to the camera's tree before the
  * surfaces that sample it (ChunkScene does, under its ground); the tree's transforms are already
  * this frame's when it draws, so the lights are where the camera puts them now.
+ *
+ * The lights under its parent are drawn a batch a kind; any other on its own. A frame drawing the
+ * same as the last, through the same camera, keeps the buffer as it is.
  */
 export class LightPass extends PIXI.Container {
+  private windows: LightBatch | null = null;
+  private lamps: LightBatch | null = null;
+  private readonly alone: { drawLit(renderer: PIXI.Renderer): void }[] = [];
+  private readonly camera = new FramePrint();
+  /** Frames the buffer was drawn and kept. */
+  readonly drawn = { drawn: 0, kept: 0 };
+
   render(renderer: PIXI.Renderer) {
     const { width, height } = renderer.screen;
     const group = lightUniforms();
@@ -314,16 +483,83 @@ export class LightPass extends PIXI.Container {
       buffer.setResolution(fine);
       buffer.resize(width, height);
       bufferClear = false;
+      drewLast = null;
     }
-    const lit = [...lights].filter((light) => light.lit());
+    const root = this.parent;
+    windowBatchProgram ??= PIXI.Program.from(batchedVertex(vertex), batchedFragment(fragment), "window-light-batch");
+    lampBatchProgram ??= PIXI.Program.from(batchedVertex(lampVertex), batchedFragment(lampFragment), "lamp-light-batch");
+    const windows = (this.windows ??= new LightBatch(windowBatchProgram, WINDOW_ATTRIBUTES));
+    const lamps = (this.lamps ??= new LightBatch(lampBatchProgram, LAMP_ATTRIBUTES));
+    const alone = this.alone;
+    alone.length = 0;
+    windows.begin();
+    lamps.begin();
+    let any = false;
+    for (const light of lights) {
+      if (!light.lit()) continue;
+      any = true;
+      const batch = light instanceof WindowLightMesh ? windows : light instanceof LampLightMesh ? lamps : null;
+      const mesh = light as Light;
+      if (!batch || !root || !under(mesh, root) || !batch.takes(mesh)) {
+        alone.push(light);
+        continue;
+      }
+      batch.add(mesh, mesh instanceof LampLightMesh ? mesh.worldAlpha * mesh.level.value : mesh.worldAlpha, root);
+    }
+    const drawWindows = windows.end(root);
+    const drawLamps = lamps.end(root);
     // Daylight, or no light in view: one clear, then nothing until a light shows.
-    if (!lit.length && bufferClear) return;
+    if (!any && bufferClear) return;
+    const still = this.still(renderer, root) && drewLast === this && !alone.length && !windows.changed && !lamps.changed;
+    drewLast = this;
+    if (still && any) {
+      this.drawn.kept++;
+      return;
+    }
+    this.drawn.drawn++;
     renderInto(renderer, buffer, [0, 0, 0, 0], () => {
-      for (const light of lit) light.drawLit(renderer);
+      if (drawWindows) windows.draw(renderer, root);
+      if (drawLamps) lamps.draw(renderer, root);
+      for (const light of alone) light.drawLit(renderer);
     });
-    bufferClear = !lit.length;
+    bufferClear = !any;
+  }
+
+  /** Whether the camera, the target and the root's place on screen are as last frame. */
+  private still(renderer: PIXI.Renderer, root: PIXI.Container) {
+    const print = this.camera;
+    print.begin();
+    const target = renderer.renderTexture;
+    print.ref(target.current);
+    for (const rect of [target.sourceFrame, target.destinationFrame, renderer.screen]) {
+      print.num(rect.x);
+      print.num(rect.y);
+      print.num(rect.width);
+      print.num(rect.height);
+    }
+    print.num(renderer.view.width);
+    print.num(renderer.view.height);
+    print.num(renderer.resolution);
+    for (const m of [renderer.projection.projectionMatrix, renderer.projection.transform, root.worldTransform]) {
+      if (!m) {
+        print.ref(null);
+        continue;
+      }
+      print.num(m.a);
+      print.num(m.b);
+      print.num(m.c);
+      print.num(m.d);
+      print.num(m.tx);
+      print.num(m.ty);
+    }
+    return print.end();
   }
 }
+
+const under = (light: PIXI.DisplayObject, root: PIXI.Container) => {
+  for (let o = light.parent; o; o = o.parent) if (o === root) return true;
+  return false;
+};
 
 /**
  * Draws into a screen-sized `buffer` what `draw` draws, where the camera puts it now, and goes back

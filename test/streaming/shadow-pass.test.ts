@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { heightColor, ShadowPrint, solidColor, WALL_COLOR } from "yage/streaming/shadow-pass";
+import { FramePrint } from "yage/streaming/frame-print";
+import { heightColor, solidColor, WALL_COLOR } from "yage/streaming/shadow-pass";
 
 // Its light is drawn with a Mesh, which the pixi.js mock has none of.
 vi.mock("yage/streaming/window-light", () => ({ renderInto: () => {} }));
@@ -33,8 +34,8 @@ describe("solidColor", () => {
   });
 });
 
-describe("ShadowPrint", () => {
-  const frame = (print: ShadowPrint, nums: number[], refs: unknown[] = []) => {
+describe("FramePrint", () => {
+  const frame = (print: FramePrint, nums: number[], refs: unknown[] = []) => {
     print.begin();
     for (const n of nums) print.num(n);
     for (const r of refs) print.ref(r);
@@ -42,7 +43,7 @@ describe("ShadowPrint", () => {
   };
 
   it("is the same only from the second frame of an unchanged print", () => {
-    const print = new ShadowPrint();
+    const print = new FramePrint();
     const a = {};
     expect(frame(print, [1, 2], [a])).toBe(false);
     expect(frame(print, [1, 2], [a])).toBe(true);
@@ -50,7 +51,7 @@ describe("ShadowPrint", () => {
   });
 
   it("changes with any value, ref, length or NaN-to-number", () => {
-    const print = new ShadowPrint();
+    const print = new FramePrint();
     const a = {};
     frame(print, [1, NaN], [a]);
     expect(frame(print, [1, NaN], [a])).toBe(true);
@@ -64,7 +65,7 @@ describe("ShadowPrint", () => {
   });
 
   it("draws afresh the frame it is poisoned and the next, and after a reset", () => {
-    const print = new ShadowPrint();
+    const print = new FramePrint();
     frame(print, [1]);
     print.begin();
     print.num(1);
