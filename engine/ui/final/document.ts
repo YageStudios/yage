@@ -185,7 +185,7 @@ export function parseDocument(input: string | unknown): UIDocument {
         validateValue(value, location);
         if (binding(value)) { if (staticProps.has(key)) fail("UIF_DOCUMENT_STATIC", location, "must be literal"); }
         else if (booleanProps.has(key) && typeof value !== "boolean" || numberProps.has(key) && typeof value !== "number" || stringProps.has(key) && typeof value !== "string") fail("UIF_DOCUMENT_VALUE", location, "incorrect property value type");
-        if (key === "inputType" && !["text", "password", "email", "search", "tel", "url", "number"].includes(value as string)) fail("UIF_DOCUMENT_VALUE", location, "unsupported inputType");
+        if (key === "inputType" && !["text", "password", "email", "search", "tel", "url", "number", "color"].includes(value as string)) fail("UIF_DOCUMENT_VALUE", location, "unsupported inputType");
         if (key === "dir" && !binding(value) && !["ltr", "rtl", "auto"].includes(value as string)) fail("UIF_DOCUMENT_VALUE", location, "unsupported direction");
         if (key === "players" && !binding(value) && (!Array.isArray(value) || value.some(player => !Number.isInteger(player) || player < 0))) fail("UIF_DOCUMENT_PLAYERS", location, "expected non-negative integer player indices");
       }

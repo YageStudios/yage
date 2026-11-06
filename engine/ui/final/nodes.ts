@@ -57,7 +57,7 @@ export interface Props {
   step?: Value<number>;
   maxLength?: Value<number>;
   name?: string;
-  inputType?: "text" | "password" | "email" | "search" | "tel" | "url" | "number";
+  inputType?: "text" | "password" | "email" | "search" | "tel" | "url" | "number" | "color";
   autoComplete?: string;
   focusable?: boolean;
   autoFocus?: boolean;
