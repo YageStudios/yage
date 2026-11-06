@@ -7,6 +7,7 @@ export type AssetStore = {
   read(key: string): Promise<ArrayBuffer | undefined>;
   write(key: string, bytes: ArrayBuffer): Promise<void>;
 };
+export type AssetReady = { bytes: ArrayBuffer; persisted: Promise<{ ok: true } | { error: unknown }> };
 
 export class IndexedDBAssetStore implements AssetStore {
   private connection: Promise<IDBDatabase> | undefined;
@@ -66,7 +67,7 @@ export class IndexedDBAssetStore implements AssetStore {
 }
 
 export class AssetCache {
-  private readonly pending = new Map<string, Promise<ArrayBuffer>>();
+  private readonly pending = new Map<string, Promise<AssetReady>>();
   /** Content hashes this cache has already verified this session: their stored bytes are read without hashing again. */
   private readonly verified = new Set<string>();
   constructor(
@@ -74,7 +75,20 @@ export class AssetCache {
     private readonly fetcher: typeof fetch = (input, init) => fetch(input, init)
   ) {}
 
-  load(base: string, asset: AssetRecord): Promise<ArrayBuffer> {
+  /** Durable callers, including preload, resolve only after the write transaction commits. */
+  async load(base: string, asset: AssetRecord): Promise<ArrayBuffer> {
+    const ready = await this.acquire(base, asset), stored = await ready.persisted;
+    if ('error' in stored) throw stored.error;
+    return ready.bytes;
+  }
+
+  /** Renderers own this copy; transferring it cannot detach the pending persistent write's bytes. */
+  async readVerified(base: string, asset: AssetRecord): Promise<AssetReady> {
+    const ready = await this.acquire(base, asset);
+    return { bytes: ready.bytes.slice(0), persisted: ready.persisted };
+  }
+
+  private acquire(base: string, asset: AssetRecord): Promise<AssetReady> {
     if (
       !/^[a-f0-9]{64}$/.test(asset.sha256) ||
       !Number.isSafeInteger(asset.bytes) ||
@@ -91,7 +105,9 @@ export class AssetCache {
     if (pending) return pending;
     const task = this.read(base, asset);
     this.pending.set(key, task);
-    void task.finally(() => this.pending.delete(key)).catch(() => {});
+    const release = () => { if (this.pending.get(key) === task) this.pending.delete(key); };
+    // Keep verified bytes available to concurrent readers until persistence settles.
+    void task.then(ready => { void ready.persisted.then(release); }, release);
     return task;
   }
 
@@ -108,12 +124,12 @@ export class AssetCache {
     );
   }
 
-  private async read(base: string, asset: AssetRecord): Promise<ArrayBuffer> {
+  private async read(base: string, asset: AssetRecord): Promise<AssetReady> {
     const cached = await this.store.read(asset.sha256);
-    if (cached && this.verified.has(asset.sha256) && cached.byteLength === asset.bytes) return cached;
+    if (cached && this.verified.has(asset.sha256) && cached.byteLength === asset.bytes) return { bytes: cached, persisted: Promise.resolve({ ok: true }) };
     if (cached && (await this.valid(cached, asset))) {
       this.verified.add(asset.sha256);
-      return cached;
+      return { bytes: cached, persisted: Promise.resolve({ ok: true }) };
     }
     const ranged = asset.offset !== undefined;
     const response = await this.fetcher(
@@ -126,9 +142,11 @@ export class AssetCache {
     if (ranged && response.status !== 206) bytes = bytes.slice(asset.offset!, asset.offset! + asset.bytes);
     if (!(await this.valid(bytes, asset)))
       throw new Error(`Asset integrity mismatch: ${asset.path}`);
-    await this.store.write(asset.sha256, bytes);
-    this.verified.add(asset.sha256);
-    return bytes;
+    const persisted = Promise.resolve().then(() => this.store.write(asset.sha256, bytes)).then(
+      () => { this.verified.add(asset.sha256); return { ok: true as const }; },
+      error => ({ error })
+    );
+    return { bytes, persisted };
   }
 
   /**

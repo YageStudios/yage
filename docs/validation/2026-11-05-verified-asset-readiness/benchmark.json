@@ -1,0 +1,81 @@
+{
+  "scope": "Controlled cache mechanism benchmark using actual AssetCache class and 1MiB verified payload, 75ms delayed persistent store. Not real IndexedDB or browser frame timing.",
+  "sourceSHA256": "cdfbf2ba02614fac2a3ba21aaf0ba7c046c6da804d19ed35d7e987255dece92f",
+  "payloadBytes": 1048576,
+  "storeDelayMs": 75,
+  "trials": 10,
+  "beforeDurableMedianMs": 77.87930999999998,
+  "afterVerifiedMedianMs": 3.2248689999999556,
+  "samples": [
+    {
+      "durableMs": 91.36089900000002,
+      "readyMs": 15.599591000000004,
+      "persisted": {
+        "ok": true
+      }
+    },
+    {
+      "durableMs": 77.87930999999998,
+      "readyMs": 3.2248689999999556,
+      "persisted": {
+        "ok": true
+      }
+    },
+    {
+      "durableMs": 80.17190599999998,
+      "readyMs": 4.749465999999984,
+      "persisted": {
+        "ok": true
+      }
+    },
+    {
+      "durableMs": 80.302889,
+      "readyMs": 5.6813490000000115,
+      "persisted": {
+        "ok": true
+      }
+    },
+    {
+      "durableMs": 79.308175,
+      "readyMs": 4.350435999999945,
+      "persisted": {
+        "ok": true
+      }
+    },
+    {
+      "durableMs": 76.573218,
+      "readyMs": 2.0127689999999347,
+      "persisted": {
+        "ok": true
+      }
+    },
+    {
+      "durableMs": 77.63444400000003,
+      "readyMs": 2.2353749999999764,
+      "persisted": {
+        "ok": true
+      }
+    },
+    {
+      "durableMs": 76.7597330000001,
+      "readyMs": 1.396944000000076,
+      "persisted": {
+        "ok": true
+      }
+    },
+    {
+      "durableMs": 77.29514600000005,
+      "readyMs": 1.8188740000000507,
+      "persisted": {
+        "ok": true
+      }
+    },
+    {
+      "durableMs": 77.66949499999998,
+      "readyMs": 2.752917000000025,
+      "persisted": {
+        "ok": true
+      }
+    }
+  ]
+}
