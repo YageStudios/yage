@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { heightColor, solidColor, WALL_COLOR } from "yage/streaming/shadow-pass";
+import { heightColor, ShadowPrint, solidColor, WALL_COLOR } from "yage/streaming/shadow-pass";
 
 // Its light is drawn with a Mesh, which the pixi.js mock has none of.
 vi.mock("yage/streaming/window-light", () => ({ renderInto: () => {} }));
@@ -30,5 +30,50 @@ describe("solidColor", () => {
     expect(solidColor(30, 26)).toBe((30 << 16) | (26 << 8));
     expect(solidColor(30)).toBe(heightColor(30));
     expect(solidColor(300, -2)).toBe(255 << 16);
+  });
+});
+
+describe("ShadowPrint", () => {
+  const frame = (print: ShadowPrint, nums: number[], refs: unknown[] = []) => {
+    print.begin();
+    for (const n of nums) print.num(n);
+    for (const r of refs) print.ref(r);
+    return print.end();
+  };
+
+  it("is the same only from the second frame of an unchanged print", () => {
+    const print = new ShadowPrint();
+    const a = {};
+    expect(frame(print, [1, 2], [a])).toBe(false);
+    expect(frame(print, [1, 2], [a])).toBe(true);
+    expect(frame(print, [1, 2], [a])).toBe(true);
+  });
+
+  it("changes with any value, ref, length or NaN-to-number", () => {
+    const print = new ShadowPrint();
+    const a = {};
+    frame(print, [1, NaN], [a]);
+    expect(frame(print, [1, NaN], [a])).toBe(true);
+    expect(frame(print, [1, 0], [a])).toBe(false);
+    expect(frame(print, [1, 0], [{}])).toBe(false);
+    expect(frame(print, [1, 0, 0], [])).toBe(false);
+    expect(frame(print, [1, 0], [])).toBe(false);
+    expect(frame(print, [1, 0], [])).toBe(true);
+    // -0 and 0 place differently (a flip), so they print differently.
+    expect(frame(print, [1, -0], [])).toBe(false);
+  });
+
+  it("draws afresh the frame it is poisoned and the next, and after a reset", () => {
+    const print = new ShadowPrint();
+    frame(print, [1]);
+    print.begin();
+    print.num(1);
+    print.poison();
+    expect(print.end()).toBe(false);
+    expect(frame(print, [1])).toBe(false);
+    expect(frame(print, [1])).toBe(true);
+    print.reset();
+    expect(frame(print, [1])).toBe(false);
+    expect(frame(print, [1])).toBe(true);
   });
 });

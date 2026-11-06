@@ -383,6 +383,202 @@ export const paintSurface = (art: ImageData, heights: ImageData, cell: [number, 
   return out;
 };
 
+/**
+ * What a buffer was drawn from (ShadowPass's): the camera and every contributor's state that
+ * drawing reads, a frame's worth in order, against the last frame's. Unchanged, the buffer holds
+ * what drawing it again would: it's kept.
+ */
+export class ShadowPrint {
+  private nums: number[] = [];
+  private refs: unknown[] = [];
+  private n = 0;
+  private r = 0;
+  private same = false;
+  private valid = false;
+  /** Arrays and textures printed this frame: shared by many (a layer's uniform group), each is printed once. */
+  readonly seen = new Set<unknown>();
+  begin() {
+    this.n = 0;
+    this.r = 0;
+    this.seen.clear();
+    this.same = this.valid;
+    this.valid = true;
+  }
+  num(value: number) {
+    if (this.same && !Object.is(this.nums[this.n], value)) this.same = false;
+    this.nums[this.n++] = value;
+  }
+  ref(value: unknown) {
+    if (this.same && this.refs[this.r] !== value) this.same = false;
+    this.refs[this.r++] = value;
+  }
+  /** Something this can't see into: drawn afresh this frame and the next. */
+  poison() {
+    this.same = false;
+    this.valid = false;
+  }
+  /** Whether this frame's print is the last one's. */
+  end() {
+    const same = this.same && this.n === this.nums.length && this.r === this.refs.length;
+    this.nums.length = this.n;
+    this.refs.length = this.r;
+    return same;
+  }
+  /** Draw afresh next frame. */
+  reset() {
+    this.valid = false;
+  }
+}
+
+const printMatrix = (print: ShadowPrint, m: PIXI.Matrix) => {
+  print.num(m.a);
+  print.num(m.b);
+  print.num(m.c);
+  print.num(m.d);
+  print.num(m.tx);
+  print.num(m.ty);
+};
+
+const printBase = (print: ShadowPrint, base: PIXI.BaseTexture) => {
+  print.ref(base);
+  // Drawn into, a render texture changes with no count of it.
+  if (base instanceof PIXI.BaseRenderTexture) print.poison();
+  print.num(base.dirtyId);
+  print.num(base.dirtyStyleId);
+  print.num(base.width);
+  print.num(base.height);
+};
+
+const printValue = (print: ShadowPrint, value: unknown) => {
+  if (typeof value === "number") print.num(value);
+  else if (typeof value === "boolean") print.num(value ? 1 : 0);
+  else if (value === null || value === undefined) print.ref(value);
+  else if (print.seen.has(value)) print.ref(value);
+  else if ((print.seen.add(value), value instanceof PIXI.Texture)) {
+    print.ref(value);
+    print.num(value._updateID);
+    printBase(print, value.baseTexture);
+  } else if (value instanceof PIXI.BaseTexture) printBase(print, value);
+  else if (ArrayBuffer.isView(value) && !(value instanceof DataView)) {
+    const array = value as unknown as ArrayLike<number>;
+    print.ref(value);
+    print.num(array.length);
+    for (let i = 0; i < array.length; i++) print.num(array[i]);
+  } else if (Array.isArray(value) && value.every((v) => typeof v === "number")) {
+    print.ref(value);
+    print.num(value.length);
+    for (const v of value) print.num(v);
+  } else if (value instanceof PIXI.Matrix) printMatrix(print, value);
+  else if (value instanceof PIXI.Point || value instanceof PIXI.ObservablePoint) {
+    print.num(value.x);
+    print.num(value.y);
+  } else print.poison();
+};
+
+/**
+ * Where each of a shader's active uniforms is held: its own uniforms, or a group's in them (the key
+ * it's under, and the group, so a group put in its place is seen). Set from the object's transform and
+ * the camera, both printed, the matrices aren't.
+ */
+type Holders = { uniforms: Record<string, unknown>; at: { key: string | null; group: PIXI.UniformGroup | null; name: string }[] };
+const holders = new WeakMap<PIXI.Shader, Holders>();
+const holdersOf = (shader: PIXI.Shader): Holders | null => {
+  const uniforms = shader.uniforms as Record<string, unknown>;
+  const known = holders.get(shader);
+  if (known && known.uniforms === uniforms && known.at.every((h) => h.key === null || uniforms[h.key] === h.group)) return known;
+  const data = shader.program.uniformData as Record<string, unknown> | undefined;
+  if (!data) return null;
+  const at: Holders["at"] = [];
+  for (const name in data) {
+    if (name === "projectionMatrix" || name === "translationMatrix") continue;
+    if (name in uniforms) {
+      at.push({ key: null, group: null, name });
+      continue;
+    }
+    let found: Holders["at"][number] = { key: null, group: null, name };
+    for (const key in uniforms) {
+      const group = uniforms[key];
+      if (group instanceof PIXI.UniformGroup && name in group.uniforms) {
+        found = { key, group, name };
+        break;
+      }
+    }
+    at.push(found);
+  }
+  const made = { uniforms, at };
+  holders.set(shader, made);
+  return made;
+};
+
+const printShader = (print: ShadowPrint, shader: PIXI.Shader) => {
+  print.ref(shader);
+  print.ref(shader.program);
+  const held = holdersOf(shader);
+  if (!held) return print.poison();
+  for (const { group, name } of held.at) printValue(print, group ? group.uniforms[name] : held.uniforms[name]);
+};
+
+const printGeometry = (print: ShadowPrint, geometry: PIXI.Geometry) => {
+  print.ref(geometry);
+  print.num(geometry.instanceCount);
+  for (const buffer of geometry.buffers) {
+    print.ref(buffer);
+    print.num(buffer._updateID);
+    print.num(buffer.data?.length ?? 0);
+  }
+};
+
+/** `object` and what's under it, as rendering it reads them (Container's `render`). */
+const printObject = (print: ShadowPrint, object: PIXI.DisplayObject) => {
+  print.ref(object);
+  const o = object as PIXI.Container;
+  print.num(o.visible && o.renderable ? o.worldAlpha : -1);
+  if (!o.visible || !o.renderable || o.worldAlpha <= 0) return;
+  if (o.mask || o.filters?.length) return print.poison();
+  printMatrix(print, o.worldTransform);
+  print.num(o.cullable ? 1 : 0);
+  if (o.cullArea) {
+    print.num(o.cullArea.x);
+    print.num(o.cullArea.y);
+    print.num(o.cullArea.width);
+    print.num(o.cullArea.height);
+  }
+  if (o instanceof PIXI.Mesh) {
+    if (o.render !== PIXI.Mesh.prototype.render || (o as any)._render !== (PIXI.Mesh.prototype as any)._render) return print.poison();
+    printGeometry(print, o.geometry);
+    print.num(o.size);
+    print.num(o.start);
+    print.num(o.drawMode);
+    print.num(o.tintValue);
+    print.ref(o.state);
+    print.num(o.state.data);
+    print.num(o.state.polygonOffset);
+    printShader(print, o.shader);
+  } else if (o instanceof PIXI.Graphics) {
+    if (o.render !== PIXI.Graphics.prototype.render || (o as any)._render !== (PIXI.Graphics.prototype as any)._render) return print.poison();
+    const geometry = o.geometry as unknown as { dirty: number; clearDirty: number };
+    print.ref(geometry);
+    print.num(geometry.dirty);
+    print.num(geometry.clearDirty);
+    print.num((o as any)._tintRGB);
+    print.num(o.blendMode);
+    print.ref(o.shader);
+    print.ref(o.pluginName);
+  } else if (o instanceof PIXI.Sprite) {
+    if (o.render !== PIXI.Sprite.prototype.render || (o as any)._render !== (PIXI.Sprite.prototype as any)._render) return print.poison();
+    printValue(print, o.texture);
+    print.num(o.anchor.x);
+    print.num(o.anchor.y);
+    print.num(o.tintValue);
+    print.num(o.blendMode);
+    print.ref(o.pluginName);
+    print.num(o.roundPixels ? 1 : 0);
+  } else if (o.render !== PIXI.Container.prototype.render || (o as any)._render !== (PIXI.Container.prototype as any)._render) return print.poison();
+  const children = o.children;
+  print.num(children.length);
+  for (let i = 0; i < children.length; i++) printObject(print, children[i]);
+};
+
 let program: PIXI.Program | null = null;
 let depthWrite: PIXI.State | null = null;
 let blurProgram: PIXI.Program | null = null;
@@ -429,6 +625,12 @@ export class ShadowPass extends PIXI.Container {
   private readonly quad: PIXI.Mesh<PIXI.Shader>;
   private readonly blur: PIXI.Mesh<PIXI.Shader>;
   private readonly coarse: PIXI.Mesh<PIXI.Shader>;
+  /** What each buffer was last drawn from (`ShadowPrint`): unchanged, it's kept as drawn. */
+  private readonly prints = { heights: new ShadowPrint(), tops: new ShadowPrint(), casts: new ShadowPrint(), shade: new ShadowPrint() };
+  /** The camera and targets each was last drawn through: moved, nothing is kept, and nothing's printed. */
+  private readonly cameras = { heights: new ShadowPrint(), tops: new ShadowPrint(), casts: new ShadowPrint(), shade: new ShadowPrint() };
+  /** Frames each buffer was drawn and kept (heights, tops, casts, shade), for a profile to read. */
+  readonly drawn = { heights: 0, tops: 0, casts: 0, shade: 0, kept: { heights: 0, tops: 0, casts: 0, shade: 0 } };
   private readonly coarser: PIXI.Mesh<PIXI.Shader>;
 
   /** `roofsUnder`: the roofs draw under the sprites, depth-sorted (ChunkScene's `roofDepth`); else over them. */
@@ -469,6 +671,95 @@ export class ShadowPass extends PIXI.Container {
     size(this.topBuffer, width, height);
     size(this.castBuffer, width, height);
     size(this.shadeBuffer, width, height);
+    // A buffer drawn from what it was last frame, through the same camera, is kept as it is.
+    const prints = this.prints;
+    const cameras = this.cameras;
+    const heightsSame = this.printed(cameras.heights, prints.heights, renderer, frame, () => printObject(prints.heights, this.heights));
+    const topsSame = this.printed(cameras.tops, prints.tops, renderer, frame, () => {
+      const print = prints.tops;
+      print.num(this.roofsUnder ? 1 : 0);
+      printObject(print, this.tops);
+      for (const occluder of this.roofsUnder ? this.occluders : []) {
+        if (occluder.destroyed) {
+          this.occluders.delete(occluder);
+          continue;
+        }
+        print.num(occluder.worldVisible ? 1 : 0);
+        if (occluder.worldVisible) printObject(print, occluder);
+      }
+      printObject(print, this.surfaces);
+    });
+    const castsSame = this.printed(cameras.casts, prints.casts, renderer, frame, () => printObject(prints.casts, this.casts));
+    const shadeSame = this.printed(cameras.shade, prints.shade, renderer, frame, () => {
+      prints.shade.num(scale);
+      prints.shade.num(Math.min(255, this.reach));
+    }) && heightsSame && topsSame && castsSame;
+    if (heightsSame) this.drawn.kept.heights++;
+    else this.drawHeights(renderer, frame);
+    if (topsSame) this.drawn.kept.tops++;
+    else this.drawTops(renderer, width, height);
+    if (castsSame) this.drawn.kept.casts++;
+    else {
+      this.drawn.casts++;
+      renderInto(renderer, this.castBuffer, [0, 0, 0, 0], () => this.casts.render(renderer));
+    }
+    this.view[0] = width;
+    this.view[1] = height;
+    this.frame[0] = frame.x;
+    this.frame[1] = frame.y;
+    this.frame[2] = frame.width;
+    this.frame[3] = frame.height;
+    if (shadeSame) this.drawn.kept.shade++;
+    else {
+      this.drawn.shade++;
+      const uniforms = this.quad.shader.uniforms;
+      // The shade a screen px (CSS) a buffer px, then blurred onto the screen.
+      uniforms.uRes = 1;
+      uniforms.uSunScale = scale;
+      uniforms.uSunReach = Math.min(255, this.reach);
+      renderInto(renderer, this.shadeBuffer, [0, 0, 0, 0], () => this.quad.render(renderer));
+    }
+    Object.assign(this.blur.shader.uniforms, { uRes: renderer.view.width / width, uBlur: scale >= 2 ? 2 : 1, uDarkness: this.darkness * faded });
+    this.blur.render(renderer);
+    renderer.batch.flush();
+  }
+
+  /**
+   * Whether a buffer's camera and target (`camera`) and what's drawn in it (`what`, into `print`) are
+   * as last frame. A camera on the move skips the walk: next frame, still, prints it afresh to compare
+   * the one after with.
+   */
+  private printed(camera: ShadowPrint, print: ShadowPrint, renderer: PIXI.Renderer, frame: PIXI.Rectangle, what: () => void) {
+    if (!this.printCamera(camera, renderer, frame)) {
+      print.reset();
+      return false;
+    }
+    print.begin();
+    what();
+    return print.end();
+  }
+
+  private printCamera(print: ShadowPrint, renderer: PIXI.Renderer, frame: PIXI.Rectangle) {
+    print.begin();
+    const target = renderer.renderTexture;
+    print.ref(target.current);
+    for (const rect of [target.sourceFrame, target.destinationFrame, frame, renderer.screen]) {
+      print.num(rect.x);
+      print.num(rect.y);
+      print.num(rect.width);
+      print.num(rect.height);
+    }
+    print.num(renderer.view.width);
+    print.num(renderer.view.height);
+    printMatrix(print, renderer.projection.projectionMatrix);
+    if (renderer.projection.transform) printMatrix(print, renderer.projection.transform);
+    else print.ref(null);
+    printMatrix(print, this.worldTransform);
+    return print.end();
+  }
+
+  private drawHeights(renderer: PIXI.Renderer, frame: PIXI.Rectangle) {
+    this.drawn.heights++;
     renderInto(renderer, this.heightBuffer, [0, 0, 0, 0], () => this.heights.render(renderer), frame);
     // Their tallest tops a block at a time, for the march to skip open stretches by.
     this.heightSize[0] = this.heightBuffer.width;
@@ -481,6 +772,10 @@ export class ShadowPass extends PIXI.Container {
     this.coarserSize[0] = this.coarserBuffer.width;
     this.coarserSize[1] = this.coarserBuffer.height;
     renderInto(renderer, this.coarserBuffer, [0, 0, 0, 0], () => this.coarser.render(renderer));
+  }
+
+  private drawTops(renderer: PIXI.Renderer, width: number, height: number) {
+    this.drawn.tops++;
     // In the scene's order: roofs under the sprites (their occluders hiding those behind them) or over them.
     // Depth writes on, or its clear leaves the depth as it was.
     renderer.batch.flush();
@@ -492,10 +787,7 @@ export class ShadowPass extends PIXI.Container {
       () => {
         if (this.roofsUnder) {
           this.tops.render(renderer);
-          for (const occluder of this.occluders) {
-            if (occluder.destroyed) this.occluders.delete(occluder);
-            else if (occluder.worldVisible) occluder.render(renderer);
-          }
+          for (const occluder of this.occluders) if (occluder.worldVisible) occluder.render(renderer);
           this.surfaces.render(renderer);
         } else {
           this.surfaces.render(renderer);
@@ -505,22 +797,6 @@ export class ShadowPass extends PIXI.Container {
       undefined,
       true,
     );
-    renderInto(renderer, this.castBuffer, [0, 0, 0, 0], () => this.casts.render(renderer));
-    this.view[0] = width;
-    this.view[1] = height;
-    this.frame[0] = frame.x;
-    this.frame[1] = frame.y;
-    this.frame[2] = frame.width;
-    this.frame[3] = frame.height;
-    const uniforms = this.quad.shader.uniforms;
-    // The shade a screen px (CSS) a buffer px, then blurred onto the screen.
-    uniforms.uRes = 1;
-    uniforms.uSunScale = scale;
-    uniforms.uSunReach = Math.min(255, this.reach);
-    renderInto(renderer, this.shadeBuffer, [0, 0, 0, 0], () => this.quad.render(renderer));
-    Object.assign(this.blur.shader.uniforms, { uRes: renderer.view.width / width, uBlur: scale >= 2 ? 2 : 1, uDarkness: this.darkness * faded });
-    this.blur.render(renderer);
-    renderer.batch.flush();
   }
 
   destroy(options?: PIXI.IDestroyOptions | boolean) {
