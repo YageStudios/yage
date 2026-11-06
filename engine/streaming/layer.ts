@@ -1856,15 +1856,14 @@ export class ChunkScene {
       if (chunk.farOver) chunk.farOver.visible = inView;
       for (const props of chunk.propSets) props?.setVisible(inView && props.count > 0);
       if (chunk.layer) {
-        // Off screen too, so what reads the pair (effects, sounds) keeps time and the queue drains.
-        chunk.layer.pair.advance(now);
+        // Upload before deciding visibility: an empty drawn chunk can now have a populated snapshot.
+        if (inView) chunk.layer.interpolate(now);
+        // Off screen too, so effects and sounds keep time and the queue drains without uploads.
+        else chunk.layer.pair.advance(now);
         const visible = inView && chunk.layer.drawnCount > 0;
         if (far) chunk.layer.setDetail(chunk.layer.spriteHeight * far.zoom >= DETAIL_PIXELS);
         chunk.layer.setVisible(visible);
-        if (visible) {
-          chunk.layer.interpolate(now);
-          drawn += chunk.layer.count;
-        }
+        if (visible) drawn += chunk.layer.count;
       }
     }
     this.statics.cull(view);
