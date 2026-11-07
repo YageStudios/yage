@@ -1,5 +1,5 @@
 import * as PIXI from "pixi.js";
-import { LeanGeometry, LeanGraphics } from "./lean-graphics";
+import { isRgb, LeanGeometry, LeanGraphics, premultiplied } from "./lean-graphics";
 
 /**
  * A Graphics drawn again every frame from the same shapes moved about: a herd's legs, a flock's
@@ -70,6 +70,12 @@ const octave = (width: number) => Math.round(Math.log2(width));
 /** How far apart the two widths a form's stroke is tessellated at are (relative to its octave's middle). */
 const STEP = 1 / 256;
 
+const { FILL_COMMANDS, buildLine } = PIXI.graphicsUtils;
+/** What Pixi's builders write into (the points and indices of a GraphicsGeometry, nothing else). */
+type Sink = PIXI.GraphicsGeometry & { points: number[]; indices: number[] };
+const sink = () => ({ points: [], indices: [], closePointEps: 1e-4 }) as unknown as Sink;
+
+/** Through Pixi's own geometry (any shape Pixi's builders do not take straight: native lines, colours that are not plain rgb). */
 const tessellate = (shape: PIXI.IShape, fill: PIXI.FillStyle, line: PIXI.LineStyle, width: number) => {
   scratch.clear();
   const l = line.clone();
@@ -89,13 +95,49 @@ const pushStyles = (fill: PIXI.FillStyle, line: PIXI.LineStyle) => {
   else key.push(0);
 };
 
+/** Pixi's GraphicsGeometry.updateBatches for one shape, without its batching, colour round trips and packed vertex buffer:
+ * the shape's points, its fill (triangulated once), then its stroke at `width`, and the stroke again beside it. */
+const buildDirect = (make: () => PIXI.IShape, fill: PIXI.FillStyle, line: PIXI.LineStyle, width: number): Form => {
+  const shape = make(), l = line.clone();
+  if (l.visible) l.width = width;
+  const data = new PIXI.GraphicsData(shape, fill, l), command = FILL_COMMANDS[shape.type];
+  command.build(data);
+  const at = sink();
+  if (fill.visible) command.triangulate(data, at);
+  const fillVerts = at.points.length / 2, fillIdx = at.indices.length;
+  if (l.visible) buildLine(data, at);
+  const n = at.points.length / 2, colors = new Uint32Array(n);
+  if (fill.visible) colors.fill(premultiplied(fill.color, fill.alpha), 0, fillVerts);
+  if (l.visible) colors.fill(premultiplied(l.color, l.alpha), fillVerts, n);
+  const points = new Float32Array(at.points);
+  let perWidth: Float32Array | null = null;
+  if (l.visible) {
+    // The stroke at a second width just beside the first (on whichever side cuts the same pieces) gives each vertex's motion per unit width.
+    const lineIdx = at.indices.length - fillIdx;
+    for (const dw of [width * STEP, -width * STEP]) {
+      l.width = width + dw;
+      const by = sink();
+      buildLine(data, by);
+      if (by.points.length !== at.points.length - fillVerts * 2 || by.indices.length !== lineIdx) continue;
+      let same = true;
+      for (let i = 0; i < lineIdx && same; i++) same = by.indices[i] + fillVerts === at.indices[fillIdx + i];
+      if (!same) continue;
+      perWidth = new Float32Array(points.length);
+      for (let i = 0, o = fillVerts * 2; i < by.points.length; i++, o++) perWidth[o] = (by.points[i] - at.points[o]) / dw;
+      break;
+    }
+    perWidth ??= new Float32Array(points.length);
+  }
+  return { key: Float64Array.from(key), points, perWidth, width, colors, indices: new Uint32Array(at.indices) };
+};
+
 const build = (make: () => PIXI.IShape, fill: PIXI.FillStyle, line: PIXI.LineStyle): Form => {
   retainedStats.built++;
   const width = line.visible ? 2 ** octave(line.width) : 0;
+  if (isRgb(fill.color) && isRgb(line.color) && !(line.visible && line.native)) return buildDirect(make, fill, line, width);
   const at = tessellate(make(), fill, line, width);
   let perWidth: Float32Array | null = null;
   if (line.visible) {
-    // A second width just beside the first (on whichever side cuts the same pieces) gives each vertex's motion per unit width.
     for (const dw of [width * STEP, -width * STEP]) {
       const by = tessellate(make(), fill, line, width + dw);
       if (!sameList(by.indices, at.indices) || by.points.length !== at.points.length) continue;

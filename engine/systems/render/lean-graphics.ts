@@ -6,7 +6,7 @@ import * as PIXI from "pixi.js";
  * number colour, and untextured shapes skip per-vertex UVs. Same values: a byte through /255 and
  * *255 comes back exactly, so Pixi's round trip changes nothing. Anything else goes to Pixi.
  */
-const premultiplied = (rgb: number, alpha: number) => {
+export const premultiplied = (rgb: number, alpha: number) => {
   const bgr = ((rgb & 0xff) << 16) + (rgb & 0xff00) + ((rgb >> 16) & 0xff);
   if (alpha === 1) return (255 << 24) + bgr;
   if (alpha === 0) return 0;
@@ -14,7 +14,7 @@ const premultiplied = (rgb: number, alpha: number) => {
   return ((alpha * 255) << 24) + (r << 16) + (g << 8) + b;
 };
 
-const isRgb = (c: unknown): c is number => typeof c === "number" && c >= 0 && c <= 0xffffff;
+export const isRgb = (c: unknown): c is number => typeof c === "number" && c >= 0 && c <= 0xffffff;
 
 export class LeanGeometry extends PIXI.GraphicsGeometry {
   protected override addColors(colors: number[], color: number, alpha: number, size: number, offset = 0) {
