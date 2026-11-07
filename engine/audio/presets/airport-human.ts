@@ -10,7 +10,7 @@
  * Design references and the limits of verification: docs/airport-revision-2.md.
  */
 import type { Voice } from '../voice';
-import { clamp } from '../dsp';
+import { clamp, randomSource } from '../dsp';
 
 export type Mouth = readonly [number, number, number];
 export interface VocalFrame {
@@ -119,21 +119,72 @@ export function synthesizeHuman(frames: readonly VocalFrame[], random: () => num
   return pcm;
 }
 
+type SynthOptions = { sampleRate: number; pitch: number; brightness: number; rough: number };
+type Waiting = { frames: readonly VocalFrame[]; seed: number; options: SynthOptions; done: (pcm: Float32Array) => void };
+let synth: Worker | null | undefined;
+let nextRequest = 0;
+const waiting = new Map<number, Waiting>();
+const local = (w: Waiting) => w.done(synthesizeHuman(w.frames, randomSource(w.seed), w.options));
+/** The voice worker, made on first use; null where there are no workers (tests, node) or it failed. */
+const synthWorker = (): Worker | null => {
+  if (synth !== undefined) return synth;
+  synth = null;
+  if (typeof Worker === 'undefined') return synth;
+  try {
+    const worker = new Worker(new URL('./airport-human-worker.ts', import.meta.url), { type: 'module', name: 'yage-human-voice' });
+    worker.onmessage = (e: MessageEvent<{ id: number; pcm?: Float32Array; error?: string }>) => {
+      const w = waiting.get(e.data.id);
+      if (!w) return;
+      waiting.delete(e.data.id);
+      if (e.data.pcm) w.done(e.data.pcm); else local(w);
+    };
+    // A worker that cannot run: everything asked of it, and after it, is made here.
+    worker.onerror = () => {
+      worker.terminate();
+      synth = null;
+      const left = [...waiting.values()];
+      waiting.clear();
+      left.forEach(local);
+    };
+    synth = worker;
+  } catch { synth = null; }
+  return synth;
+};
+const isLive = (ctx: BaseAudioContext) => typeof OfflineAudioContext === 'undefined' || !(ctx instanceof OfflineAudioContext);
+
+/** Plays a vocal performance. The PCM is synthesized from a seed drawn from the voice (the same PCM wherever it
+ * is made): on a live context in the voice worker, off the frame, and started on arrival (late by however long that
+ * took, from its matching offset); on an offline render, here. */
 export function performHuman(v: Voice, t: number, frames: readonly VocalFrame[], o: HumanOptions = {}): number {
   if (v._stopped) return t;
   const duration = frames[frames.length - 1].at, sr = 24000;
-  const samples = synthesizeHuman(frames, () => v.random(), {
-    sampleRate: sr, pitch: v.pitch, brightness: v.brightness, rough: o.rough ?? 0.1,
-  });
-  const buffer = v.ctx.createBuffer(1, samples.length, sr); buffer.getChannelData(0).set(samples);
+  const seed = Math.floor(v.random() * 4294967296);
+  const options: SynthOptions = { sampleRate: sr, pitch: v.pitch, brightness: v.brightness, rough: o.rough ?? 0.1 };
   const src = v.ctx.createBufferSource(), level = v.ctx.createGain(), pan = v.ctx.createStereoPanner();
   const hp = v.ctx.createBiquadFilter(), lp = v.ctx.createBiquadFilter();
   const channel = o.channel ?? 'close';
-  src.buffer = buffer; level.gain.value = o.peak ?? 0.3; pan.pan.value = clamp(o.pan ?? 0, -1, 1);
+  level.gain.value = o.peak ?? 0.3; pan.pan.value = clamp(o.pan ?? 0, -1, 1);
   hp.type = 'highpass'; hp.frequency.value = channel === 'radio' ? 330 : channel === 'pa' ? 230 : 75; hp.Q.value = 0.65;
   lp.type = 'lowpass'; lp.frequency.value = Math.min(o.cutoff ?? (channel === 'radio' ? 2750 : channel === 'crowd' ? 2100 : 5800), v.ctx.sampleRate * 0.43); lp.Q.value = 0.55;
   src.connect(hp); hp.connect(lp); lp.connect(level); level.connect(pan); pan.connect(v.dest);
-  v.own(src, hp, lp, level, pan); src.start(t); src.stop(t + duration + 0.005); v._track(t + duration + 0.025);
+  v.own(src, hp, lp, level, pan); v._track(t + duration + 0.025);
+  const play = (samples: Float32Array, late: number) => {
+    const buffer = v.ctx.createBuffer(1, samples.length, sr); buffer.getChannelData(0).set(samples);
+    src.buffer = buffer; src.start(t + late, late); src.stop(t + duration + 0.005);
+  };
+  const worker = isLive(v.ctx) ? synthWorker() : null;
+  if (!worker) play(synthesizeHuman(frames, randomSource(seed), options), 0);
+  else {
+    // Arriving after its start, it starts where it would be by now.
+    const request: Waiting = { frames, seed, options, done: (samples) => {
+      if (v._stopped) return;
+      const late = Math.max(0, v.ctx.currentTime - t);
+      if (late < duration) play(samples, late);
+    } };
+    const id = ++nextRequest;
+    waiting.set(id, request);
+    worker.postMessage({ id, frames, seed, options });
+  }
   return duration;
 }
 
