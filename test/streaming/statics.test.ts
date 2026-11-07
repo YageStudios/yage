@@ -284,19 +284,19 @@ describe("ChunkScene static instances", () => {
     scene.destroy();
   });
 
-  it("built when seen within a budget, builds the nearest first and at least one per update", () => {
-    // A zero budget leaves room for exactly the one guaranteed build each update.
+  it("built when seen within a budget, builds the nearest in view first and at least one per update, then ahead hidden", () => {
+    // A zero budget leaves room for exactly the one guaranteed build in view, and one ahead, each update.
     const scene = new ChunkScene({ chunkSize: 100, style, buildStatics: "seen", staticBudget: 0 });
     const built: string[] = [];
     scene.setStatics(0, 0, [spec("far", 300, 300, 0, built), spec("mid", 120, 120, 0, built), spec("near", -20, -10, 0, built)]);
     const view = { minX: -100, minY: -100, maxX: 400, maxY: 400 };
     scene.update({ minX: -100, minY: -100, maxX: 100, maxY: 100 });
-    expect(built).toEqual(["near"]);
-    scene.update(view);
+    // In view first; then the margin's nearest (mid, 20 past the edge), built but hidden.
     expect(built).toEqual(["near", "mid"]);
-    expect(scene.statics.items.get("far")!.under.visible).toBe(false);
+    expect(scene.statics.items.get("mid")!.under.visible).toBe(false);
     scene.update(view);
     expect(built).toEqual(["near", "mid", "far"]);
+    expect(scene.statics.items.get("mid")!.under.visible).toBe(true);
     expect(scene.statics.items.get("far")!.under.visible).toBe(true);
     scene.destroy();
   });
@@ -313,38 +313,55 @@ describe("ChunkScene static instances", () => {
     vi.restoreAllMocks();
   });
 
-  it("built when seen, a backlog in view gets its whole budget as the frame's floor even when the frame has nothing left", () => {
+  it("built when seen, what is in view gets the whole budget even when the frame and its floor have nothing left", () => {
     let t = 0;
     vi.spyOn(performance, "now").mockImplementation(() => (t += 0.01));
-    const builds = (count: number) => {
-      beginFrame();
-      frameSpent(1000);
-      const scene = new ChunkScene({ chunkSize: 100, style, buildStatics: "seen", staticBudget: 3 });
+    const builds = (count: number, opts: { farBake?: { below: number; budget: number } } = {}, zoom?: number) => {
+      const scene = new ChunkScene({ chunkSize: 100, style, buildStatics: "seen", staticBudget: 3, ...opts });
       const built: string[] = [];
       scene.setStatics(0, 0, Array.from({ length: count }, (_, i) => spec(`s${i}`, (i % 5) * 20, Math.floor(i / 5) * 20, 0, built)));
-      scene.update({ minX: -100, minY: -100, maxX: 200, maxY: 200 });
+      scene.update({ minX: -100, minY: -100, maxX: 200, maxY: 200 }, 0, zoom === undefined ? undefined : { zoom, renderer: { resolution: 1, render: vi.fn() } as unknown as PIXI.Renderer });
       scene.destroy();
       return built.length;
     };
-    // A few: the one the frame's floor gives a waiting cull. A backlog: all of them, inside the 3ms.
-    expect(builds(3)).toBe(1);
+    beginFrame();
+    frameSpent(1000);
+    // A few or a backlog, all in one update inside the 3 ms: on screen, unbuilt is an empty lot.
+    expect(builds(3)).toBe(3);
     expect(builds(20)).toBe(20);
-    // The frame's one floor taken, another backlog in the same frame waits for the next.
-    const other = new ChunkScene({ chunkSize: 100, style, buildStatics: "seen", staticBudget: 3 });
-    const built: string[] = [];
-    other.setStatics(0, 0, Array.from({ length: 20 }, (_, i) => spec(`o${i}`, (i % 5) * 20, Math.floor(i / 5) * 20, 0, built)));
-    other.update({ minX: -100, minY: -100, maxX: 200, maxY: 200 });
-    expect(built.length).toBe(0);
-    other.destroy();
+    // The frame's floor already given away, a second scene's view still fills.
+    expect(builds(20)).toBe(20);
     // Under the far pictures' zoom a backlog waits at the floor: the scene's far pictures stand in for buildings that small.
     beginFrame();
     frameSpent(1000);
-    const far = new ChunkScene({ chunkSize: 100, style, buildStatics: "seen", staticBudget: 3, farBake: { below: 0.5, budget: 0 } });
-    const farBuilt: string[] = [];
-    far.setStatics(0, 0, Array.from({ length: 20 }, (_, i) => spec(`f${i}`, (i % 5) * 20, Math.floor(i / 5) * 20, 0, farBuilt)));
-    far.update({ minX: -100, minY: -100, maxX: 200, maxY: 200 }, 0, { zoom: 0.1, renderer: { resolution: 1, render: vi.fn() } as unknown as PIXI.Renderer });
-    expect(farBuilt.length).toBeLessThan(20);
-    far.destroy();
+    expect(builds(20, { farBake: { below: 0.5, budget: 0 } }, 0.1)).toBeLessThan(20);
+    resetFrameBudget();
+    vi.restoreAllMocks();
+  });
+
+  it("built when seen, builds the margin round the view ahead, where the view is heading first, so a pan finds them built", () => {
+    let t = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => (t += 0.01));
+    const scene = new ChunkScene({ chunkSize: 1000, style, buildStatics: "seen", staticBudget: 0, staticFloor: 0 });
+    const built: string[] = [];
+    const at = (x: number) => ({ minX: x, minY: 0, maxX: x + 100, maxY: 100 });
+    // Moving east (nothing listed yet), then two just past the view's edges, east the farther off, and one beyond the margin.
+    beginFrame();
+    scene.update(at(-5));
+    scene.setStatics(0, 0, [spec("west", -55, 40, 0, built), spec("east", 120, 40, 0, built), spec("beyond", 900, 50, 0, built)]);
+    beginFrame();
+    scene.update(at(0));
+    // One a frame at the least, east (where the view heads) before west, hidden until in view.
+    expect(built).toEqual(["east"]);
+    beginFrame();
+    scene.update(at(5));
+    expect(built).toEqual(["east", "west"]);
+    expect(scene.statics.items.get("east")!.under.visible).toBe(false);
+    // The pan reaches it: shown that frame, nothing left to build.
+    scene.update(at(90));
+    expect(scene.statics.items.get("east")!.under.visible).toBe(true);
+    expect(built).not.toContain("beyond");
+    scene.destroy();
     resetFrameBudget();
     vi.restoreAllMocks();
   });

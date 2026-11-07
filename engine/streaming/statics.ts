@@ -550,6 +550,13 @@ const MIN_STEP_MS = 1e-3;
 const BUILD_BACKLOG = 16;
 /** How far (world units) past its instance's bounds a ground shadow may reach: drawn while that near the view. */
 const CAST_REACH = 320;
+/**
+ * How far past each edge of the view (a share of its width and height) lazy instances are built ahead,
+ * hidden, so a pan finds them ready instead of empty lots that fill in one by one.
+ */
+const AHEAD_SHARE = 0.5;
+/** Frames of the view's last move that the build-ahead order looks ahead by: what the pan reaches next builds first. */
+const AHEAD_LEAD_FRAMES = 30;
 
 export class StaticSet {
   readonly items = new Map<string | number, StaticInstance>();
@@ -597,6 +604,12 @@ export class StaticSet {
   }
 
   private readonly seen: StaticInstance[] = [];
+  /** Unbuilt instances in the build-ahead margin (lazy, budgeted only), found again when the margin's cells change or more are listed. */
+  private ahead: StaticInstance[] = [];
+  private aheadCells = "";
+  private aheadStale = true;
+  /** The view's centre at the last cull, for the direction it travels. */
+  private lastCentre: [number, number] | null = null;
 
   /** Far-off chunks' pictures (ChunkScene's `farBake`): told of every instance and change, and hiding the instances it draws. */
   far: FarBake | null = null;
@@ -681,6 +694,7 @@ export class StaticSet {
           // Hidden until a cull sees it and builds it.
           under.visible = over.visible = heights.visible = tops.visible = false;
           this.unbuilt.add(item);
+          this.aheadStale = true;
         } else this.build(item);
       }
       item.holders.add(key);
@@ -936,40 +950,82 @@ export class StaticSet {
         this.seeThrough.set(item, faded);
       }
     }
-    if (!seen.length) return;
     const cx = (view.minX + view.maxX) / 2;
     const cy = (view.minY + view.maxY) / 2;
+    const last = this.lastCentre;
+    this.lastCentre = [cx, cy];
     const budgeted = this.buildBudget < Infinity;
-    if (budgeted) seen.sort((a, b) => distance(a.bounds, cx, cy) - distance(b.bounds, cx, cy));
-    const build = (budget: number) => {
-      // Nothing left this frame and the frame's floor went elsewhere: they wait their turn (FrameBudget).
-      if (budget <= 0) return;
-      const started = performance.now();
-      for (const item of seen) {
-        if (item !== seen[0] && performance.now() - started >= budget) break;
-        this.unbuilt.delete(item);
-        this.build(item);
-        item.under.visible = true;
-        item.over.visible = item.over.children.length > 0;
-        if (item.occluder) {
-          item.occluder.visible = item.over.visible;
-          this.seeThrough.set(item, false);
-        }
-        item.heights.visible = item.heights.children.length > 0;
-        item.tops.visible = item.tops.children.length > 0;
+    if (!budgeted) {
+      if (seen.length) this.buildEach(seen, Infinity);
+      seen.length = 0;
+      return;
+    }
+    if (seen.length) {
+      seen.sort((a, b) => distance(a.bounds, cx, cy) - distance(b.bounds, cx, cy));
+      // Zoomed out under the far pictures' zoom a backlog waits at the floor: the scene's own far
+      // pictures (the ground's, from the plan) stand in for buildings that small, and a picture takes
+      // each building in once built, so standing hundreds at once buys nothing a frame can show.
+      if (this.far?.active) {
+        const floor = seen.length > BUILD_BACKLOG ? Math.max(this.buildFloor, this.buildBudget) : this.buildFloor;
+        withinFrame(this.buildBudget, (budget) => this.buildEach(seen, budget), "statics", Math.max(floor, MIN_STEP_MS));
+      } else {
+        // In view and unbuilt is an empty lot on screen: it gets the whole budget whatever the frame
+        // has left (a building costs a fraction of a millisecond, so a jump's worth stands in a few
+        // frames). The margin built ahead below keeps a pan from ever getting here.
+        withinFrame(this.buildBudget, (budget) => this.buildEach(seen, Math.max(budget, this.buildBudget, MIN_STEP_MS)), "statics");
       }
-    };
-    // A budget is shared with the frame's other deferrable work (yage/game/FrameBudget).
-    // A backlog in view (a jump, a zoom-out) asks for the whole budget as its floor: at the floor
-    // alone a few hundred buildings stand as empty lots for a second. The frame's one floor goes to
-    // whichever builder has waited longest, so this never stacks on the ground's or the roofs'.
-    // Zoomed out under the far pictures' zoom the backlog waits at the floor: the scene's own far
-    // pictures (the ground's, from the plan) stand in for buildings that small, and a picture takes
-    // each building in once built, so standing hundreds at once buys nothing a frame can show.
-    const floor = seen.length > BUILD_BACKLOG && !this.far?.active ? Math.max(this.buildFloor, this.buildBudget) : this.buildFloor;
-    if (budgeted) withinFrame(this.buildBudget, build, "statics", Math.max(floor, MIN_STEP_MS));
-    else build(Infinity);
-    seen.length = 0;
+      seen.length = 0;
+    }
+    if (this.far?.active) return;
+    // Build ahead: the unbuilt instances within the margin round the view, hidden until a cull sees
+    // them, nearest where the view is heading first, within the frame's shared budget and floor.
+    const mx = (view.maxX - view.minX) * AHEAD_SHARE, my = (view.maxY - view.minY) * AHEAD_SHARE;
+    const ax0 = Math.floor((view.minX - mx) / CELL), ax1 = Math.floor((view.maxX + mx) / CELL);
+    const ay0 = Math.floor((view.minY - my) / CELL), ay1 = Math.floor((view.maxY + my) / CELL);
+    const cells = `${ax0},${ax1},${ay0},${ay1}`;
+    if (cells !== this.aheadCells || this.aheadStale) {
+      this.aheadCells = cells;
+      this.aheadStale = false;
+      const found = new Set<StaticInstance>();
+      if ((ax1 - ax0 + 1) * (ay1 - ay0 + 1) <= this.cells.size) {
+        for (let j = ay0; j <= ay1; j++) for (let i = ax0; i <= ax1; i++) for (const item of this.cells.get(cellKey(i, j)) ?? []) if (this.unbuilt.has(item)) found.add(item);
+      } else for (const item of this.unbuilt) found.add(item);
+      this.ahead = [...found];
+    }
+    const ahead = this.ahead.filter((item) => {
+      if (!this.unbuilt.has(item)) return false;
+      const b = item.bounds;
+      return b.maxX >= view.minX - mx && b.minX <= view.maxX + mx && b.maxY >= view.minY - my && b.minY <= view.maxY + my;
+    });
+    if (!ahead.length) return;
+    const lead = last ? AHEAD_LEAD_FRAMES : 0;
+    const hx = cx + (last ? cx - last[0] : 0) * lead, hy = cy + (last ? cy - last[1] : 0) * lead;
+    ahead.sort((a, b) => distance(a.bounds, hx, hy) - distance(b.bounds, hx, hy));
+    withinFrame(this.buildBudget, (budget) => this.buildEach(ahead, budget, false), "statics-ahead", Math.max(this.buildFloor, MIN_STEP_MS));
+  }
+
+  /**
+   * Builds `items` in order until `budget` (ms) runs out, at least the first; shown at once when
+   * `shown` (they are in view), else left hidden for a later cull to show.
+   */
+  private buildEach(items: readonly StaticInstance[], budget: number, shown = true) {
+    // Nothing left this frame and the frame's floor went elsewhere: they wait their turn (FrameBudget).
+    if (budget <= 0) return;
+    const started = performance.now();
+    for (const item of items) {
+      if (item !== items[0] && performance.now() - started >= budget) break;
+      this.unbuilt.delete(item);
+      this.build(item);
+      if (!shown) continue;
+      item.under.visible = true;
+      item.over.visible = item.over.children.length > 0;
+      if (item.occluder) {
+        item.occluder.visible = item.over.visible;
+        this.seeThrough.set(item, false);
+      }
+      item.heights.visible = item.heights.children.length > 0;
+      item.tops.visible = item.tops.children.length > 0;
+    }
   }
 
   setTint(rgb: number) {
