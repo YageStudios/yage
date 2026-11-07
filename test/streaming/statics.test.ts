@@ -335,6 +335,9 @@ describe("ChunkScene static instances", () => {
     beginFrame();
     frameSpent(1000);
     expect(builds(20, { farBake: { below: 0.5, budget: 0 } }, 0.1)).toBeLessThan(20);
+    // A few unbuilt under the far zoom are gaps in the far picture: they build now, the floor given away.
+    expect(builds(3, { farBake: { below: 0.5, budget: 0 } }, 0.1)).toBe(3);
+    expect(builds(3, { farBake: { below: 0.5, budget: 0 } }, 0.1)).toBe(3);
     resetFrameBudget();
     vi.restoreAllMocks();
   });

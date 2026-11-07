@@ -962,11 +962,14 @@ export class StaticSet {
     }
     if (seen.length) {
       seen.sort((a, b) => distance(a.bounds, cx, cy) - distance(b.bounds, cx, cy));
-      // Zoomed out under the far pictures' zoom a backlog waits at the floor: the scene's own far
+      // Zoomed out under the far pictures' zoom a backlog waits at the budget: the scene's own far
       // pictures (the ground's, from the plan) stand in for buildings that small, and a picture takes
       // each building in once built, so standing hundreds at once buys nothing a frame can show.
-      if (this.far?.active) {
-        const floor = seen.length > BUILD_BACKLOG ? Math.max(this.buildFloor, this.buildBudget) : this.buildFloor;
+      // A few unbuilt are not a backlog: a building not yet built is in no far picture, so it is a
+      // gap on screen, and the frame's rationed floor (given to the longest waiter) can leave it
+      // waiting seconds. Those build now, like a view's below the far zoom.
+      if (this.far?.active && seen.length > BUILD_BACKLOG) {
+        const floor = Math.max(this.buildFloor, this.buildBudget);
         withinFrame(this.buildBudget, (budget) => this.buildEach(seen, budget), "statics", Math.max(floor, MIN_STEP_MS));
       } else {
         // In view and unbuilt is an empty lot on screen: it gets the whole budget whatever the frame
