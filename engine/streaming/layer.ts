@@ -22,7 +22,7 @@ import { EMPTY_SLOT, POSITION_SCALE, type Snapshot } from "./protocol";
 import { FarBake, type FarBakeOptions } from "./far";
 import { StaticSet, tintTree, type StaticSpec } from "./statics";
 import { LightPass, lightUniforms } from "./window-light";
-import { ShadowPass, SUN_SOLID_ID } from "./shadow-pass";
+import { sendsAhead, ShadowPass, SUN_SOLID_ID } from "./shadow-pass";
 
 const GL_FLOAT = 5126;
 const GL_SHORT = 5122;
@@ -1082,6 +1082,8 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
    * one slot (`patch`) instead of laying the whole snapshot out again.
    */
   private laid: { snapshot: Snapshot; version: number; gid: number; shown: boolean; at: number; n: number } | null = null;
+  /** Single instances changed in place, ever (`patch`): a shadow pass's print of these meshes counts them. */
+  private patched = 0;
   /** Single instances changed in place since their buffer's last upload: uploaded alone before the next draw (`flushPatches`). */
   private patches: { buffer: PIXI.Buffer; at: number }[] = [];
   /** The style's sprite height (world units), for `setDetail`'s screen size. */
@@ -1204,6 +1206,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
         this.flushPatches(renderer);
         render(renderer);
       };
+      sendsAhead(mesh, () => this.patched);
     }
   }
 
@@ -1500,6 +1503,7 @@ export class ChunkLayer extends PIXI.Mesh<PIXI.Shader> {
    * pending, that upload carries it; uploaded, it goes up alone before the next draw (`flushPatches`).
    */
   private patch(buffer: PIXI.Buffer, at: number) {
+    this.patched++;
     const uploads = Object.values(buffer._glBuffers);
     if (!uploads.length || uploads.some((gl) => gl.updateID !== buffer._updateID)) return;
     if (uploads.length > 1) {

@@ -482,8 +482,16 @@ const printGeometry = (print: FramePrint, geometry: PIXI.Geometry) => {
   }
 };
 
+/**
+ * Meshes whose `_render` sends data of their own up before Mesh's draw (ChunkLayer's sub-uploads of
+ * single instances), with a count of what each has sent: printed as Mesh's draws them, plus the count.
+ */
+const sentAhead = new WeakMap<PIXI.Mesh<PIXI.Shader>, () => number>();
+/** `mesh`'s `_render` runs Mesh's after an upload `sent` counts: a shadow pass can still see into it. */
+export const sendsAhead = (mesh: PIXI.Mesh<PIXI.Shader>, sent: () => number) => sentAhead.set(mesh, sent);
+
 /** `object` and what's under it, as rendering it reads them (Container's `render`). */
-const printObject = (print: FramePrint, object: PIXI.DisplayObject) => {
+export const printObject = (print: FramePrint, object: PIXI.DisplayObject) => {
   print.ref(object);
   const o = object as PIXI.Container;
   print.num(o.visible && o.renderable ? o.worldAlpha : -1);
@@ -498,7 +506,9 @@ const printObject = (print: FramePrint, object: PIXI.DisplayObject) => {
     print.num(o.cullArea.height);
   }
   if (o instanceof PIXI.Mesh) {
-    if (o.render !== PIXI.Mesh.prototype.render || (o as any)._render !== (PIXI.Mesh.prototype as any)._render) return print.poison();
+    const sent = sentAhead.get(o);
+    if (o.render !== PIXI.Mesh.prototype.render || (!sent && (o as any)._render !== (PIXI.Mesh.prototype as any)._render)) return print.poison();
+    if (sent) print.num(sent());
     printGeometry(print, o.geometry);
     print.num(o.size);
     print.num(o.start);
