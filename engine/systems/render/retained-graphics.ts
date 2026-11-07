@@ -11,7 +11,17 @@ import { LeanGeometry, LeanGraphics } from "./lean-graphics";
  * A mirrored shape (an animal facing the other way) is a different form and kept on its own.
  *
  * Canonical forms are snapped to a 1/1024 px grid, so the same shape always gives the same
- * triangles whatever drew it first. Untextured colour shapes only: textures, holes and
+ * triangles whatever drew it first.
+ *
+ * Line width is not part of a form, so a stroke that follows the zoom (a width of so many screen
+ * pixels) is not tessellated again as the zoom changes. Every stroke vertex Pixi makes is the
+ * path point plus an offset in proportion to the width (offset lines, miter points, the arcs of
+ * round caps and joins), so a form keeps its points at one width and how each one moves per unit
+ * of width, and a frame sets each vertex for the width drawn. What width changes besides is how
+ * many pieces Pixi cuts a round cap or join into (in proportion to the root of the width) and which
+ * way a tight inside corner is built: a form keeps the pieces of the middle of its octave of
+ * widths (one octave of widths to a form), the same triangles Pixi draws at that width, so a cap
+ * may have a piece more or less than Pixi would give it at the edge of the octave. Untextured colour shapes only: textures, holes and
  * setMatrix throw. Drawn with one draw call through `shader` (its own colour shader if none).
  * With `anchor`, each vertex also carries the point last given to `at` (aAnchor), e.g. the foot
  * an animal's depth is taken from.
@@ -22,7 +32,8 @@ const JOINS: Record<string, number> = { miter: 0, round: 1, bevel: 2 };
 /** Forms kept at most (all of them dropped past this, to be built again as drawn). */
 const KEEP = 8192;
 
-type Form = { key: Float64Array; points: Float32Array; colors: Uint32Array; indices: Uint32Array };
+/** points at width `width`; each vertex moves by `perWidth` per unit of line width (null: no stroke). */
+type Form = { key: Float64Array; points: Float32Array; perWidth: Float32Array | null; width: number; colors: Uint32Array; indices: Uint32Array };
 
 /** Never batched, so the colours are always laid out per vertex (Pixi only does that for direct draws). */
 class FormGeometry extends LeanGeometry {
@@ -54,21 +65,47 @@ const same = (a: Float64Array, b: readonly number[]) => {
 };
 const snap = (v: number) => Math.round(v * GRID) / GRID;
 
+/** The octave of widths a line width is kept in, by its nearest power of two. */
+const octave = (width: number) => Math.round(Math.log2(width));
+/** How far apart the two widths a form's stroke is tessellated at are (relative to its octave's middle). */
+const STEP = 1 / 256;
+
+const tessellate = (shape: PIXI.IShape, fill: PIXI.FillStyle, line: PIXI.LineStyle, width: number) => {
+  scratch.clear();
+  const l = line.clone();
+  if (l.visible) l.width = width;
+  scratch.drawShape(shape, fill.clone(), l);
+  scratch.updateBatches();
+  const out = { points: scratch.points.slice(), colors: scratch.colors.slice(), indices: scratch.indices.slice() };
+  scratch.clear();
+  return out;
+};
+const sameList = (a: readonly number[], b: readonly number[]) => a.length === b.length && a.every((v, i) => v === b[i]);
+
 const pushStyles = (fill: PIXI.FillStyle, line: PIXI.LineStyle) => {
   if (fill.visible) key.push(1, fill.color, fill.alpha);
   else key.push(0);
-  if (line.visible) key.push(1, line.width, line.color, line.alpha, line.alignment, CAPS[line.cap] ?? 0, JOINS[line.join] ?? 0, line.miterLimit);
+  if (line.visible) key.push(1, octave(line.width), line.color, line.alpha, line.alignment, CAPS[line.cap] ?? 0, JOINS[line.join] ?? 0, line.miterLimit);
   else key.push(0);
 };
 
-const build = (shape: PIXI.IShape, fill: PIXI.FillStyle, line: PIXI.LineStyle): Form => {
-  scratch.clear();
-  scratch.drawShape(shape, fill.clone(), line.clone());
-  scratch.updateBatches();
-  const form = { key: Float64Array.from(key), points: Float32Array.from(scratch.points), colors: Uint32Array.from(scratch.colors), indices: Uint32Array.from(scratch.indices) };
-  scratch.clear();
+const build = (make: () => PIXI.IShape, fill: PIXI.FillStyle, line: PIXI.LineStyle): Form => {
   retainedStats.built++;
-  return form;
+  const width = line.visible ? 2 ** octave(line.width) : 0;
+  const at = tessellate(make(), fill, line, width);
+  let perWidth: Float32Array | null = null;
+  if (line.visible) {
+    // A second width just beside the first (on whichever side cuts the same pieces) gives each vertex's motion per unit width.
+    for (const dw of [width * STEP, -width * STEP]) {
+      const by = tessellate(make(), fill, line, width + dw);
+      if (!sameList(by.indices, at.indices) || by.points.length !== at.points.length) continue;
+      perWidth = new Float32Array(at.points.length);
+      for (let i = 0; i < at.points.length; i++) perWidth[i] = (by.points[i] - at.points[i]) / dw;
+      break;
+    }
+    perWidth ??= new Float32Array(at.points.length);
+  }
+  return { key: Float64Array.from(key), points: Float32Array.from(at.points), perWidth, width, colors: Uint32Array.from(at.colors), indices: Uint32Array.from(at.indices) };
 };
 
 /** The kept form for `key` (as filled in), built from `make` (the canonical shape) when there is none. */
@@ -77,7 +114,7 @@ const formFor = (make: () => PIXI.IShape, fill: PIXI.FillStyle, line: PIXI.LineS
   let bucket = forms.get(h);
   if (bucket) for (const f of bucket) if (same(f.key, key)) return f;
   if (formCount >= KEEP) forms.clear(), (formCount = 0), (bucket = undefined);
-  const form = build(make(), fill, line);
+  const form = build(make, fill, line);
   if (bucket) bucket.push(form);
   else forms.set(h, [form]);
   formCount++;
@@ -223,11 +260,11 @@ export class RetainedGraphics extends LeanGraphics {
       default:
         throw new Error(`RetainedGraphics: shape type ${(shape as PIXI.IShape).type}`);
     }
-    this.place(form, cos, sin, tx, ty);
+    this.place(form, line.visible ? line.width : 0, cos, sin, tx, ty);
     return this;
   }
 
-  private place(form: Form, cos: number, sin: number, tx: number, ty: number) {
+  private place(form: Form, width: number, cos: number, sin: number, tx: number, ty: number) {
     const n = form.points.length / 2;
     if (!n) return;
     const base = this.vertexCount, need = base + n, needIdx = this.indexCount + form.indices.length;
@@ -250,10 +287,11 @@ export class RetainedGraphics extends LeanGraphics {
       idx.set(this.indexStore.subarray(0, this.indexCount));
       this.indexStore = idx;
     }
-    const src = form.points, pos = this.positions, an = this.anchors;
+    const src = form.points, per = form.perWidth, dw = width - form.width, pos = this.positions, an = this.anchors;
     let minX = this.minX, minY = this.minY, maxX = this.maxX, maxY = this.maxY;
     for (let i = 0, o = base * 2; i < src.length; i += 2, o += 2) {
-      const x = src[i], y = src[i + 1];
+      let x = src[i], y = src[i + 1];
+      if (per) (x += per[i] * dw), (y += per[i + 1] * dw);
       const X = cos * x - sin * y + tx, Y = sin * x + cos * y + ty;
       pos[o] = X;
       pos[o + 1] = Y;
