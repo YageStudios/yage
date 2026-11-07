@@ -791,7 +791,10 @@ export class StaticSet {
     item.under.destroy({ children: true });
     this.seeThrough.drop(item);
     item.over.destroy({ children: true });
-    item.occluder?.destroy();
+    if (item.occluder) {
+      this.shadow?.occluders.delete(item.occluder);
+      item.occluder.destroy();
+    }
     item.heights.destroy({ children: true });
     item.tops.destroy({ children: true });
     this.far?.remove(item);

@@ -220,6 +220,17 @@ describe("ChunkScene static instances", () => {
     plain.destroy();
   });
 
+  it("takes a released roof's occluder out of the shadow pass", () => {
+    const scene = new ChunkScene({ chunkSize: 100, style, roofDepth: true });
+    scene.setStatics(0, 0, [spec("house", 20, 20, 0.4)]);
+    const occluder = scene.statics.items.get("house")!.occluder!;
+    expect(scene.castRoot.occluders.has(occluder)).toBe(true);
+    scene.setStatics(0, 0, []);
+    expect(occluder.destroyed).toBe(true);
+    expect(scene.castRoot.occluders.has(occluder)).toBe(false);
+    scene.destroy();
+  });
+
   it("finds what covers a point on screen: its rectangle, or its rise in front of it", () => {
     const scene = new ChunkScene({ chunkSize: 1024, style });
     scene.setStatics(0, 0, [{ ...spec("tall", 100, 100), rise: 30 }]);
